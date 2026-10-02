@@ -1,6 +1,68 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // HooksFactories.t
+// ║  ██▀▀     ▀▀██   Standard and revolving factory deployment and indexing matrices.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FACTORY FIXTURE
+// ║  _newFixture()
+// ║  _deployFactory(...)
+// ║  _storeInitCode(...)
+// ║  _factories(...)
+// ║
+// ║  FACTORY REGISTRATION
+// ║  test_constructorAndRegistration_AcrossFactories()
+// ║
+// ║  HOOK TEMPLATES
+// ║  test_addTemplate_StoresValidBoundaryConfigurationsAcrossFactories()
+// ║  test_addTemplate_RejectsUnauthorizedAndDuplicateAcrossFactories()
+// ║  test_addTemplate_RejectsEveryInvalidFeeShapeAcrossFactories()
+// ║  test_updateTemplateFees_UpdatesAllFieldsAcrossFactories()
+// ║  test_updateTemplateFees_RejectsInvalidCallsAcrossFactories()
+// ║  test_disableTemplate_IsPermanentAndRetainsMetadataAcrossFactories()
+// ║  test_disableTemplate_RejectsInvalidCallsAcrossFactories()
+// ║  test_templatePagination_ClampsAndReturnsEmptyRangesAcrossFactories()
+// ║  _addTemplate(...)
+// ║  _assertTemplate(...)
+// ║
+// ║  HOOK INSTANCES
+// ║  test_deployHooksInstance_RecordsIdentityAndProviderSnapshotAcrossFactories()
+// ║  test_deployHooksInstance_RejectsInvalidPathsAcrossFactories()
+// ║
+// ║  MARKET DEPLOYMENT
+// ║  test_deployMarket_PreservesConfigurationHooksAndFeesAcrossFactories()
+// ║  test_deployMarket_UsesCurrentArchControllerSphereXEngineAcrossFactories()
+// ║  test_deployMarketAndHooks_IndexesBothDeploymentsAcrossFactories()
+// ║  test_deployMarket_RejectsIdentityHookSaltAndBlacklistAcrossFactories()
+// ║  test_deployMarket_EnforcesMetadataFeesAndUniqueSaltAcrossFactories()
+// ║  test_deployMarket_ExistingHookSurvivesTemplateDisableAcrossFactories()
+// ║  test_deployMarket_RejectsStoredInitcodeHashMismatchAcrossFactories()
+// ║  test_deployMarketAndHooks_RejectsIdentityTemplateAndDisableAcrossFactories()
+// ║  test_deployMarketAndHooks_RejectsSaltAndFeeMismatchAcrossFactories()
+// ║  test_revolvingMarketData_RejectsInvalidPayloadsBeforeStateChanges()
+// ║  test_revolvingCommitmentFeeGetter_RejectsOutsideDeployment()
+// ║  _deployMarket(...)
+// ║  _deployMarketAndHooks(...)
+// ║  _marketInputs(...)
+// ║  _marketSalt(...)
+// ║  _repeat(...)
+// ║
+// ║  MARKET INDEXES
+// ║  test_marketIndexesAndPagination_AcrossFactories()
+// ║
+// ║  PROTOCOL FEE UPDATES
+// ║  test_pushProtocolFeeBipsUpdates_FullAndPagedAcrossFactories()
+// ║  test_pushProtocolFeeBipsUpdates_SkipsStoredAndEffectiveClosureAcrossFactories()
+// ║  test_pushProtocolFeeBipsUpdates_RejectsBadClosureReadsAndRollsBackAcrossFactories()
+// ║  test_pushProtocolFeeBipsUpdates_RejectsPositiveFeeForZeroRecipientMarketsAcrossFactories()
+// ║  test_pushProtocolFeeBipsUpdates_HandlesEmptyAndInvalidRangesAcrossFactories()
+// ║  test_pushProtocolFeeBipsUpdates_RejectsUnknownTemplateAndFailedMarketAcrossFactories()
+// ╚═════
+
 import { HooksFactory } from 'src/HooksFactory.sol';
 import { HooksFactoryRevolving } from 'src/HooksFactoryRevolving.sol';
 import { HooksTemplate } from 'src/IHooksFactory.sol';
@@ -15,9 +77,7 @@ import { ExistingProviderInputs } from 'src/access/ProviderStructs.sol';
 import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
-import {
-  ISphereXProtectedRegisteredBase
-} from 'src/interfaces/ISphereXProtectedRegisteredBase.sol';
+import { ISphereXProtectedRegisteredBase } from 'src/interfaces/ISphereXProtectedRegisteredBase.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { WildcatMarketRevolving } from 'src/market/WildcatMarketRevolving.sol';
@@ -29,6 +89,7 @@ import { ArchControllerEngineMock } from '../mocks/ArchControllerMocks.sol';
 import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ HooksFactoriesTest ───────────────────────────────────────────────────────
 contract HooksFactoriesTest is TestKernel {
   enum FactoryKind {
     Standard,
@@ -57,26 +118,54 @@ contract HooksFactoriesTest is TestKernel {
     MockERC20 feeToken;
   }
 
+  mapping(address => bytes32) internal _artifactHashes;
+
   address internal constant SanctionsSentinel = address(0x5A);
   address internal constant WrapperFactory = address(0x4626);
   address internal constant FeeRecipient = address(0xFEE);
   address internal constant FeeAsset = address(0xA55E7);
   address internal constant Outsider = address(0xBAD);
 
-  function _storeInitCode(
-    string memory artifact
-  ) internal returns (address storageContract, uint256 initCodeHash) {
-    bytes memory initCode = vm.getCode(artifact);
-    storageContract = LibStoredInitCode.deployInitCode(initCode);
-    initCodeHash = uint256(keccak256(initCode));
+  // ░░▒▒▓▓██ [ FACTORY FIXTURE ] ──────────────────────────────────────────────
+
+  // ┌─ _newFixture ─────
+  function _newFixture() internal returns (Fixture memory fixture) {
+    fixture.archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
+    fixture.registry = WildcatBorrowerIdentityRegistry(
+      _deployCode(
+        'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry',
+        abi.encode(address(fixture.archController))
+      )
+    );
+    (fixture.standardMarketStorage, fixture.standardMarketHash) =
+      _storeInitCode('src/market/WildcatMarket.sol:WildcatMarket');
+    (fixture.revolvingMarketStorage, fixture.revolvingMarketHash) =
+      _storeInitCode('src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving');
+    fixture.standardFactory = _deployFactory(fixture, false, fixture.standardMarketStorage, fixture.standardMarketHash);
+    fixture.revolvingFactory =
+      _deployFactory(fixture, true, fixture.revolvingMarketStorage, fixture.revolvingMarketHash);
+    (fixture.firstTemplate,) = _storeInitCode('src/access/OpenTermHooks.sol:OpenTermHooks');
+    (fixture.secondTemplate,) = _storeInitCode('src/access/OpenTermHooks.sol:OpenTermHooks');
+    fixture.asset = MockERC20(
+      _deployCode(
+        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode('Underlying', 'UND', uint8(18))
+      )
+    );
+    fixture.feeToken = MockERC20(
+      _deployCode('lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode('Fee Token', 'FEE', uint8(18)))
+    );
   }
 
+  // ┌─ _deployFactory ─────
   function _deployFactory(
     Fixture memory fixture,
     bool revolving,
     address marketStorage,
     uint256 marketHash
-  ) internal returns (IHooksFactory factory) {
+  )
+    internal
+    returns (IHooksFactory factory)
+  {
     bytes memory arguments = abi.encode(
       address(fixture.archController),
       SanctionsSentinel,
@@ -94,191 +183,23 @@ contract HooksFactoriesTest is TestKernel {
     factory.registerWithArchController();
   }
 
-  function _newFixture() internal returns (Fixture memory fixture) {
-    fixture.archController = WildcatArchController(
-      _deployCode('src/WildcatArchController.sol:WildcatArchController')
-    );
-    fixture.registry = WildcatBorrowerIdentityRegistry(
-      _deployCode(
-        'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry',
-        abi.encode(address(fixture.archController))
-      )
-    );
-    (fixture.standardMarketStorage, fixture.standardMarketHash) = _storeInitCode(
-      'src/market/WildcatMarket.sol:WildcatMarket'
-    );
-    (fixture.revolvingMarketStorage, fixture.revolvingMarketHash) = _storeInitCode(
-      'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'
-    );
-    fixture.standardFactory = _deployFactory(
-      fixture,
-      false,
-      fixture.standardMarketStorage,
-      fixture.standardMarketHash
-    );
-    fixture.revolvingFactory = _deployFactory(
-      fixture,
-      true,
-      fixture.revolvingMarketStorage,
-      fixture.revolvingMarketHash
-    );
-    fixture.firstTemplate = LibStoredInitCode.deployInitCode(
-      vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks')
-    );
-    fixture.secondTemplate = LibStoredInitCode.deployInitCode(
-      vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks')
-    );
-    fixture.asset = MockERC20(
-      _deployCode(
-        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
-        abi.encode('Underlying', 'UND', uint8(18))
-      )
-    );
-    fixture.feeToken = MockERC20(
-      _deployCode(
-        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
-        abi.encode('Fee Token', 'FEE', uint8(18))
-      )
-    );
+  // ┌─ _storeInitCode ─────
+  function _storeInitCode(string memory artifact) internal returns (address storageContract, uint256 initCodeHash) {
+    bytes memory initCode = vm.getCode(artifact);
+    storageContract = LibStoredInitCode.deployInitCode(initCode);
+    initCodeHash = uint256(keccak256(initCode));
+    _artifactHashes[storageContract] = bytes32(initCodeHash);
   }
 
-  function _factories(
-    Fixture memory fixture
-  ) internal pure returns (IHooksFactory[2] memory factories) {
+  // ┌─ _factories ─────
+  function _factories(Fixture memory fixture) internal pure returns (IHooksFactory[2] memory factories) {
     factories[0] = fixture.standardFactory;
     factories[1] = fixture.revolvingFactory;
   }
 
-  function _addTemplate(
-    IHooksFactory factory,
-    address template,
-    string memory name,
-    FeeConfig memory fees
-  ) internal {
-    factory.addHooksTemplate(
-      template,
-      name,
-      fees.recipient,
-      fees.asset,
-      fees.amount,
-      fees.protocolFeeBips
-    );
-  }
+  // ░░▒▒▓▓██ [ FACTORY REGISTRATION ] ─────────────────────────────────────────
 
-  function _marketSalt(address deployer, uint96 nonce) internal pure returns (bytes32) {
-    return bytes32((uint256(uint160(deployer)) << 96) | uint256(nonce));
-  }
-
-  function _repeat(bytes1 character, uint256 length) internal pure returns (string memory value) {
-    bytes memory output = new bytes(length);
-    for (uint256 i; i < length; i++) output[i] = character;
-    value = string(output);
-  }
-
-  function _marketInputs(
-    Fixture memory fixture,
-    address hooksInstance
-  ) internal pure returns (DeployMarketInputs memory) {
-    return
-      DeployMarketInputs({
-        asset: address(fixture.asset),
-        namePrefix: 'Wildcat ',
-        symbolPrefix: 'wc',
-        maxTotalSupply: 1_000_000e18,
-        annualInterestBips: 1_000,
-        delinquencyFeeBips: 100,
-        withdrawalBatchDuration: 1 days,
-        reserveRatioBips: 1_000,
-        delinquencyGracePeriod: 1 days,
-        hooks: EmptyHooksConfig.setHooksAddress(hooksInstance)
-      });
-  }
-
-  function _deployMarket(
-    FactoryKind kind,
-    IHooksFactory factory,
-    DeployMarketInputs memory parameters,
-    bytes memory hooksData,
-    bytes32 salt,
-    address originationFeeAsset,
-    uint256 originationFeeAmount
-  ) internal returns (address market) {
-    if (kind == FactoryKind.Standard) {
-      return
-        factory.deployMarket(
-          parameters,
-          hooksData,
-          salt,
-          originationFeeAsset,
-          originationFeeAmount
-        );
-    }
-    return
-      IHooksFactoryRevolving(address(factory)).deployMarket(
-        parameters,
-        hooksData,
-        abi.encode(uint8(1), uint16(100)),
-        salt,
-        originationFeeAsset,
-        originationFeeAmount
-      );
-  }
-
-  function _deployMarketAndHooks(
-    FactoryKind kind,
-    IHooksFactory factory,
-    address hooksTemplate,
-    DeployMarketInputs memory parameters,
-    bytes memory hooksData,
-    bytes32 salt,
-    address originationFeeAsset,
-    uint256 originationFeeAmount
-  ) internal returns (address market, address hooksInstance) {
-    if (kind == FactoryKind.Standard) {
-      return
-        factory.deployMarketAndHooks(
-          hooksTemplate,
-          '',
-          parameters,
-          hooksData,
-          salt,
-          originationFeeAsset,
-          originationFeeAmount
-        );
-    }
-    return
-      IHooksFactoryRevolving(address(factory)).deployMarketAndHooks(
-        hooksTemplate,
-        '',
-        parameters,
-        hooksData,
-        abi.encode(uint8(1), uint16(100)),
-        salt,
-        originationFeeAsset,
-        originationFeeAmount
-      );
-  }
-
-  function _assertTemplate(
-    IHooksFactory factory,
-    address template,
-    string memory name,
-    uint24 index,
-    bool enabled,
-    FeeConfig memory fees
-  ) internal view {
-    HooksTemplate memory details = factory.getHooksTemplateDetails(template);
-    assertTrue(details.exists);
-    assertEq(details.enabled, enabled);
-    assertEq(uint256(details.index), uint256(index));
-    assertEq(details.name, name);
-    assertEq(details.feeRecipient, fees.recipient);
-    assertEq(details.originationFeeAsset, fees.asset);
-    assertEq(uint256(details.originationFeeAmount), uint256(fees.amount));
-    assertEq(uint256(details.protocolFeeBips), uint256(fees.protocolFeeBips));
-    assertTrue(factory.isHooksTemplate(template));
-  }
-
+  // ┌─ test_constructorAndRegistration_AcrossFactories ─────
   function test_constructorAndRegistration_AcrossFactories() external {
     Fixture memory fixture = _newFixture();
     IHooksFactory[2] memory factories = _factories(fixture);
@@ -291,27 +212,22 @@ contract HooksFactoriesTest is TestKernel {
       assertEq(factory.wrapperFactory(), WrapperFactory);
       assertEq(factory.borrowerIdentityRegistry(), address(fixture.registry));
       assertEq(
-        factory.marketInitCodeStorage(),
-        revolving ? fixture.revolvingMarketStorage : fixture.standardMarketStorage
+        factory.marketInitCodeStorage(), revolving ? fixture.revolvingMarketStorage : fixture.standardMarketStorage
       );
-      assertEq(
-        factory.marketInitCodeHash(),
-        revolving ? fixture.revolvingMarketHash : fixture.standardMarketHash
-      );
+      assertEq(factory.marketInitCodeHash(), revolving ? fixture.revolvingMarketHash : fixture.standardMarketHash);
       assertTrue(fixture.archController.isRegisteredControllerFactory(address(factory)));
       assertTrue(fixture.archController.isRegisteredController(address(factory)));
     }
   }
 
+  // ░░▒▒▓▓██ [ HOOK TEMPLATES ] ───────────────────────────────────────────────
+
+  // ┌─ test_addTemplate_StoresValidBoundaryConfigurationsAcrossFactories ─────
   function test_addTemplate_StoresValidBoundaryConfigurationsAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     FeeConfig memory noFees;
-    FeeConfig memory maximumFees = FeeConfig({
-      recipient: FeeRecipient,
-      asset: FeeAsset,
-      amount: type(uint80).max,
-      protocolFeeBips: 1_000
-    });
+    FeeConfig memory maximumFees =
+      FeeConfig({ recipient: FeeRecipient, asset: FeeAsset, amount: type(uint80).max, protocolFeeBips: 1_000 });
     IHooksFactory[2] memory factories = _factories(fixture);
     for (uint256 i; i < factories.length; i++) {
       IHooksFactory factory = factories[i];
@@ -350,6 +266,7 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ test_addTemplate_RejectsUnauthorizedAndDuplicateAcrossFactories ─────
   function test_addTemplate_RejectsUnauthorizedAndDuplicateAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     FeeConfig memory noFees;
@@ -367,6 +284,7 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ test_addTemplate_RejectsEveryInvalidFeeShapeAcrossFactories ─────
   function test_addTemplate_RejectsEveryInvalidFeeShapeAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     IHooksFactory[2] memory factories = _factories(fixture);
@@ -374,28 +292,33 @@ contract HooksFactoriesTest is TestKernel {
       IHooksFactory factory = factories[i];
 
       vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-      factory.addHooksTemplate(fixture.firstTemplate, 'template', address(0), address(0), 0, 1);
+      factory.addHooksTemplate(
+        fixture.firstTemplate, 'template', address(0), address(0), 0, 1, _artifactHashes[fixture.firstTemplate]
+      );
 
       vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-      factory.addHooksTemplate(fixture.firstTemplate, 'template', address(0), FeeAsset, 1, 0);
+      factory.addHooksTemplate(
+        fixture.firstTemplate, 'template', address(0), FeeAsset, 1, 0, _artifactHashes[fixture.firstTemplate]
+      );
 
       vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-      factory.addHooksTemplate(fixture.firstTemplate, 'template', FeeRecipient, address(0), 1, 0);
+      factory.addHooksTemplate(
+        fixture.firstTemplate, 'template', FeeRecipient, address(0), 1, 0, _artifactHashes[fixture.firstTemplate]
+      );
 
       vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-      factory.addHooksTemplate(fixture.firstTemplate, 'template', FeeRecipient, FeeAsset, 0, 1_001);
+      factory.addHooksTemplate(
+        fixture.firstTemplate, 'template', FeeRecipient, FeeAsset, 0, 1_001, _artifactHashes[fixture.firstTemplate]
+      );
     }
   }
 
+  // ┌─ test_updateTemplateFees_UpdatesAllFieldsAcrossFactories ─────
   function test_updateTemplateFees_UpdatesAllFieldsAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     FeeConfig memory noFees;
-    FeeConfig memory updatedFees = FeeConfig({
-      recipient: FeeRecipient,
-      asset: FeeAsset,
-      amount: 123,
-      protocolFeeBips: 456
-    });
+    FeeConfig memory updatedFees =
+      FeeConfig({ recipient: FeeRecipient, asset: FeeAsset, amount: 123, protocolFeeBips: 456 });
     IHooksFactory[2] memory factories = _factories(fixture);
     for (uint256 i; i < factories.length; i++) {
       IHooksFactory factory = factories[i];
@@ -415,16 +338,13 @@ contract HooksFactoriesTest is TestKernel {
         updatedFees.protocolFeeBips
       );
       factory.updateHooksTemplateFees(
-        fixture.firstTemplate,
-        updatedFees.recipient,
-        updatedFees.asset,
-        updatedFees.amount,
-        updatedFees.protocolFeeBips
+        fixture.firstTemplate, updatedFees.recipient, updatedFees.asset, updatedFees.amount, updatedFees.protocolFeeBips
       );
       _assertTemplate(factory, fixture.firstTemplate, 'template', 0, true, updatedFees);
     }
   }
 
+  // ┌─ test_updateTemplateFees_RejectsInvalidCallsAcrossFactories ─────
   function test_updateTemplateFees_RejectsInvalidCallsAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     FeeConfig memory noFees;
@@ -452,14 +372,10 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ test_disableTemplate_IsPermanentAndRetainsMetadataAcrossFactories ─────
   function test_disableTemplate_IsPermanentAndRetainsMetadataAcrossFactories() external {
     Fixture memory fixture = _newFixture();
-    FeeConfig memory fees = FeeConfig({
-      recipient: FeeRecipient,
-      asset: FeeAsset,
-      amount: 123,
-      protocolFeeBips: 456
-    });
+    FeeConfig memory fees = FeeConfig({ recipient: FeeRecipient, asset: FeeAsset, amount: 123, protocolFeeBips: 456 });
     IHooksFactory[2] memory factories = _factories(fixture);
     for (uint256 i; i < factories.length; i++) {
       IHooksFactory factory = factories[i];
@@ -475,6 +391,7 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ test_disableTemplate_RejectsInvalidCallsAcrossFactories ─────
   function test_disableTemplate_RejectsInvalidCallsAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     FeeConfig memory noFees;
@@ -493,6 +410,7 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ test_templatePagination_ClampsAndReturnsEmptyRangesAcrossFactories ─────
   function test_templatePagination_ClampsAndReturnsEmptyRangesAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     FeeConfig memory noFees;
@@ -521,27 +439,52 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ _addTemplate ─────
+  function _addTemplate(IHooksFactory factory, address template, string memory name, FeeConfig memory fees) internal {
+    factory.addHooksTemplate(
+      template, name, fees.recipient, fees.asset, fees.amount, fees.protocolFeeBips, _artifactHashes[template]
+    );
+  }
+
+  // ┌─ _assertTemplate ─────
+  function _assertTemplate(
+    IHooksFactory factory,
+    address template,
+    string memory name,
+    uint24 index,
+    bool enabled,
+    FeeConfig memory fees
+  )
+    internal
+    view
+  {
+    HooksTemplate memory details = factory.getHooksTemplateDetails(template);
+    assertTrue(details.exists);
+    assertEq(details.enabled, enabled);
+    assertEq(uint256(details.index), uint256(index));
+    assertEq(details.name, name);
+    assertEq(details.feeRecipient, fees.recipient);
+    assertEq(details.originationFeeAsset, fees.asset);
+    assertEq(uint256(details.originationFeeAmount), uint256(fees.amount));
+    assertEq(uint256(details.protocolFeeBips), uint256(fees.protocolFeeBips));
+    assertTrue(factory.isHooksTemplate(template));
+    assertEq(factory.getHooksTemplateInitCodeHash(template), _artifactHashes[template]);
+  }
+
+  // ░░▒▒▓▓██ [ HOOK INSTANCES ] ───────────────────────────────────────────────
+
+  // ┌─ test_deployHooksInstance_RecordsIdentityAndProviderSnapshotAcrossFactories ─────
   function test_deployHooksInstance_RecordsIdentityAndProviderSnapshotAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     fixture.archController.registerBorrower(address(this));
 
-    MockRoleProvider pullProvider = MockRoleProvider(
-      _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
-    );
-    MockRoleProvider pushProvider = MockRoleProvider(
-      _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
-    );
+    MockRoleProvider pullProvider = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
+    MockRoleProvider pushProvider = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
     pullProvider.setIsPullProvider(true);
 
     ExistingProviderInputs[] memory existingProviders = new ExistingProviderInputs[](2);
-    existingProviders[0] = ExistingProviderInputs({
-      providerAddress: address(pullProvider),
-      timeToLive: 1 days
-    });
-    existingProviders[1] = ExistingProviderInputs({
-      providerAddress: address(pushProvider),
-      timeToLive: 2 days
-    });
+    existingProviders[0] = ExistingProviderInputs({ providerAddress: address(pullProvider), timeToLive: 1 days });
+    existingProviders[1] = ExistingProviderInputs({ providerAddress: address(pushProvider), timeToLive: 2 days });
     bytes memory constructorArgs = abi.encode(
       NameAndProviderInputs({
         name: 'shared access',
@@ -552,19 +495,9 @@ contract HooksFactoriesTest is TestKernel {
     );
 
     RoleProvider[] memory expectedPullProviders = new RoleProvider[](1);
-    expectedPullProviders[0] = encodeRoleProvider(
-      1 days,
-      address(pullProvider),
-      0,
-      NullProviderIndex
-    );
+    expectedPullProviders[0] = encodeRoleProvider(1 days, address(pullProvider), 0, NullProviderIndex);
     RoleProvider[] memory expectedPushProviders = new RoleProvider[](1);
-    expectedPushProviders[0] = encodeRoleProvider(
-      2 days,
-      address(pushProvider),
-      NullProviderIndex,
-      0
-    );
+    expectedPushProviders[0] = encodeRoleProvider(2 days, address(pushProvider), NullProviderIndex, 0);
 
     FeeConfig memory noFees;
     IHooksFactory[2] memory factories = _factories(fixture);
@@ -597,9 +530,7 @@ contract HooksFactoriesTest is TestKernel {
       assertEq(OpenTermHooks(hooksInstance).administrator(), address(this));
       assertEq(OpenTermHooks(hooksInstance).name(), 'shared access');
 
-      address[] memory administratorInstances = factory.getHooksInstancesForAdministrator(
-        address(this)
-      );
+      address[] memory administratorInstances = factory.getHooksInstancesForAdministrator(address(this));
       assertEq(administratorInstances.length, 1);
       assertEq(administratorInstances[0], hooksInstance);
       assertEq(factory.getHooksInstancesCountForAdministrator(address(this)), 1);
@@ -612,17 +543,12 @@ contract HooksFactoriesTest is TestKernel {
       RoleProvider[] memory pushProviders = OpenTermHooks(hooksInstance).getPushProviders();
       assertEq(pullProviders.length, 1);
       assertEq(pushProviders.length, 1);
-      assertEq(
-        RoleProvider.unwrap(pullProviders[0]),
-        RoleProvider.unwrap(expectedPullProviders[0])
-      );
-      assertEq(
-        RoleProvider.unwrap(pushProviders[0]),
-        RoleProvider.unwrap(expectedPushProviders[0])
-      );
+      assertEq(RoleProvider.unwrap(pullProviders[0]), RoleProvider.unwrap(expectedPullProviders[0]));
+      assertEq(RoleProvider.unwrap(pushProviders[0]), RoleProvider.unwrap(expectedPushProviders[0]));
     }
   }
 
+  // ┌─ test_deployHooksInstance_RejectsInvalidPathsAcrossFactories ─────
   function test_deployHooksInstance_RejectsInvalidPathsAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     FeeConfig memory noFees;
@@ -635,9 +561,7 @@ contract HooksFactoriesTest is TestKernel {
     }
 
     fixture.archController.registerBorrower(address(this));
-    address brokenTemplate = LibStoredInitCode.deployInitCode(
-      vm.getCode('test/mocks/HooksFactoryMocks.sol:BrokenHooksTemplate')
-    );
+    (address brokenTemplate,) = _storeInitCode('test/mocks/HooksFactoryMocks.sol:BrokenHooksTemplate');
     for (uint256 i; i < factories.length; i++) {
       IHooksFactory factory = factories[i];
 
@@ -657,15 +581,14 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
+  // ░░▒▒▓▓██ [ MARKET DEPLOYMENT ] ────────────────────────────────────────────
+
+  // ┌─ test_deployMarket_PreservesConfigurationHooksAndFeesAcrossFactories ─────
   function test_deployMarket_PreservesConfigurationHooksAndFeesAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     fixture.archController.registerBorrower(address(this));
-    FeeConfig memory fees = FeeConfig({
-      recipient: FeeRecipient,
-      asset: address(fixture.feeToken),
-      amount: 123,
-      protocolFeeBips: 456
-    });
+    FeeConfig memory fees =
+      FeeConfig({ recipient: FeeRecipient, asset: address(fixture.feeToken), amount: 123, protocolFeeBips: 456 });
     bytes memory hooksData = abi.encode(uint128(77));
     IHooksFactory[2] memory factories = _factories(fixture);
     for (uint256 i; i < factories.length; i++) {
@@ -674,9 +597,8 @@ contract HooksFactoriesTest is TestKernel {
       _addTemplate(factory, fixture.firstTemplate, 'Open Term', fees);
       address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
       DeployMarketInputs memory parameters = _marketInputs(fixture, hooksInstance);
-      HooksConfig expectedHooks = parameters.hooks.setFlag(Bit_Enabled_Deposit).mergeFlags(
-        OpenTermHooks(hooksInstance).config()
-      );
+      HooksConfig expectedHooks =
+        parameters.hooks.setFlag(Bit_Enabled_Deposit).mergeFlags(OpenTermHooks(hooksInstance).config());
       bytes32 salt = _marketSalt(address(this), 1);
       address expectedMarket = factory.computeMarketAddress(salt);
 
@@ -718,15 +640,7 @@ contract HooksFactoriesTest is TestKernel {
         emit IHooksFactoryRevolving.RevolvingMarketDeployed(expectedMarket, 100);
       }
 
-      address marketAddress = _deployMarket(
-        kind,
-        factory,
-        parameters,
-        hooksData,
-        salt,
-        fees.asset,
-        fees.amount
-      );
+      address marketAddress = _deployMarket(kind, factory, parameters, hooksData, salt, fees.asset, fees.amount);
       assertEq(marketAddress, expectedMarket);
       assertTrue(fixture.archController.isRegisteredMarket(marketAddress));
       assertEq(factory.getMarketsForHooksTemplateCount(fixture.firstTemplate), 1);
@@ -745,22 +659,19 @@ contract HooksFactoriesTest is TestKernel {
       assertEq(HooksConfig.unwrap(market.hooks()), HooksConfig.unwrap(expectedHooks));
       assertEq(fixture.feeToken.balanceOf(fees.recipient), fees.amount * (i + 1));
       assertTrue(OpenTermHooks(hooksInstance).getHookedMarket(marketAddress).isHooked);
-      assertEq(
-        uint256(OpenTermHooks(hooksInstance).getHookedMarket(marketAddress).minimumDeposit),
-        77
-      );
+      assertEq(uint256(OpenTermHooks(hooksInstance).getHookedMarket(marketAddress).minimumDeposit), 77);
       if (kind == FactoryKind.Revolving) {
         assertEq(WildcatMarketRevolving(marketAddress).commitmentFeeBips(), 100);
       }
     }
   }
 
+  // ┌─ test_deployMarket_UsesCurrentArchControllerSphereXEngineAcrossFactories ─────
   function test_deployMarket_UsesCurrentArchControllerSphereXEngineAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     fixture.archController.registerBorrower(address(this));
-    ArchControllerEngineMock engine = ArchControllerEngineMock(
-      _deployCode('test/mocks/ArchControllerMocks.sol:ArchControllerEngineMock')
-    );
+    ArchControllerEngineMock engine =
+      ArchControllerEngineMock(_deployCode('test/mocks/ArchControllerMocks.sol:ArchControllerEngineMock'));
     fixture.archController.changeSphereXOperator(address(this));
     fixture.archController.changeSphereXEngine(address(engine));
 
@@ -769,33 +680,22 @@ contract HooksFactoriesTest is TestKernel {
     for (uint256 i; i < factories.length; i++) {
       IHooksFactory factory = factories[i];
       assertEq(
-        ISphereXProtectedRegisteredBase(address(factory)).sphereXEngine(),
-        address(0),
-        'factory retained cached engine'
+        ISphereXProtectedRegisteredBase(address(factory)).sphereXEngine(), address(0), 'factory retained cached engine'
       );
 
       _addTemplate(factory, fixture.firstTemplate, 'Open Term', noFees);
       address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
       address market = _deployMarket(
-        FactoryKind(i),
-        factory,
-        _marketInputs(fixture, hooksInstance),
-        '',
-        _marketSalt(address(this), 1),
-        address(0),
-        0
+        FactoryKind(i), factory, _marketInputs(fixture, hooksInstance), '', _marketSalt(address(this), 1), address(0), 0
       );
 
-      assertEq(
-        ISphereXProtectedRegisteredBase(market).sphereXEngine(),
-        address(engine),
-        'market engine'
-      );
+      assertEq(ISphereXProtectedRegisteredBase(market).sphereXEngine(), address(engine), 'market engine');
       assertEq(engine.allowedSenderCalls(market), 1, 'market allowlist calls');
       WildcatMarket(market).updateState();
     }
   }
 
+  // ┌─ test_deployMarketAndHooks_IndexesBothDeploymentsAcrossFactories ─────
   function test_deployMarketAndHooks_IndexesBothDeploymentsAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     fixture.archController.registerBorrower(address(this));
@@ -809,16 +709,8 @@ contract HooksFactoriesTest is TestKernel {
       DeployMarketInputs memory parameters = _marketInputs(fixture, address(0));
       bytes32 salt = _marketSalt(address(this), 2);
 
-      (address market, address hooksInstance) = _deployMarketAndHooks(
-        kind,
-        factory,
-        fixture.firstTemplate,
-        parameters,
-        hooksData,
-        salt,
-        address(0),
-        0
-      );
+      (address market, address hooksInstance) =
+        _deployMarketAndHooks(kind, factory, fixture.firstTemplate, parameters, hooksData, salt, address(0), 0);
 
       assertEq(market, factory.computeMarketAddress(salt));
       assertTrue(factory.isHooksInstance(hooksInstance));
@@ -838,6 +730,7 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ test_deployMarket_RejectsIdentityHookSaltAndBlacklistAcrossFactories ─────
   function test_deployMarket_RejectsIdentityHookSaltAndBlacklistAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     FeeConfig memory noFees;
@@ -848,13 +741,7 @@ contract HooksFactoriesTest is TestKernel {
       _addTemplate(factories[i], fixture.firstTemplate, 'Open Term', noFees);
       vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedBorrower.selector);
       _deployMarket(
-        FactoryKind(i),
-        factories[i],
-        unknownHooksParameters,
-        '',
-        _marketSalt(address(this), 1),
-        address(0),
-        0
+        FactoryKind(i), factories[i], unknownHooksParameters, '', _marketSalt(address(this), 1), address(0), 0
       );
     }
 
@@ -864,15 +751,7 @@ contract HooksFactoriesTest is TestKernel {
       IHooksFactory factory = factories[i];
 
       vm.expectRevert(IHooksFactoryEventsAndErrors.HooksInstanceNotFound.selector);
-      _deployMarket(
-        kind,
-        factory,
-        unknownHooksParameters,
-        '',
-        _marketSalt(address(this), 1),
-        address(0),
-        0
-      );
+      _deployMarket(kind, factory, unknownHooksParameters, '', _marketSalt(address(this), 1), address(0), 0);
 
       address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
       DeployMarketInputs memory parameters = _marketInputs(fixture, hooksInstance);
@@ -895,27 +774,18 @@ contract HooksFactoriesTest is TestKernel {
       address hooksInstance = factory.getHooksInstancesForAdministrator(address(this))[0];
       vm.expectRevert(IHooksFactoryEventsAndErrors.AssetBlacklisted.selector);
       _deployMarket(
-        FactoryKind(i),
-        factory,
-        _marketInputs(fixture, hooksInstance),
-        '',
-        _marketSalt(address(this), 1),
-        address(0),
-        0
+        FactoryKind(i), factory, _marketInputs(fixture, hooksInstance), '', _marketSalt(address(this), 1), address(0), 0
       );
       assertEq(factory.getMarketsForHooksTemplateCount(fixture.firstTemplate), 0);
     }
   }
 
+  // ┌─ test_deployMarket_EnforcesMetadataFeesAndUniqueSaltAcrossFactories ─────
   function test_deployMarket_EnforcesMetadataFeesAndUniqueSaltAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     fixture.archController.registerBorrower(address(this));
-    FeeConfig memory fees = FeeConfig({
-      recipient: FeeRecipient,
-      asset: address(fixture.feeToken),
-      amount: 123,
-      protocolFeeBips: 0
-    });
+    FeeConfig memory fees =
+      FeeConfig({ recipient: FeeRecipient, asset: address(fixture.feeToken), amount: 123, protocolFeeBips: 0 });
     IHooksFactory[2] memory factories = _factories(fixture);
     for (uint256 i; i < factories.length; i++) {
       FactoryKind kind = FactoryKind(i);
@@ -953,6 +823,7 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ test_deployMarket_ExistingHookSurvivesTemplateDisableAcrossFactories ─────
   function test_deployMarket_ExistingHookSurvivesTemplateDisableAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     fixture.archController.registerBorrower(address(this));
@@ -965,13 +836,7 @@ contract HooksFactoriesTest is TestKernel {
       factory.disableHooksTemplate(fixture.firstTemplate);
 
       address market = _deployMarket(
-        FactoryKind(i),
-        factory,
-        _marketInputs(fixture, hooksInstance),
-        '',
-        _marketSalt(address(this), 1),
-        address(0),
-        0
+        FactoryKind(i), factory, _marketInputs(fixture, hooksInstance), '', _marketSalt(address(this), 1), address(0), 0
       );
       assertTrue(fixture.archController.isRegisteredMarket(market));
       assertEq(factory.getMarketsForHooksTemplateCount(fixture.firstTemplate), 1);
@@ -979,22 +844,16 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ test_deployMarket_RejectsStoredInitcodeHashMismatchAcrossFactories ─────
   function test_deployMarket_RejectsStoredInitcodeHashMismatchAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     fixture.archController.registerBorrower(address(this));
     FeeConfig memory noFees;
     IHooksFactory[2] memory badFactories;
-    badFactories[0] = _deployFactory(
-      fixture,
-      false,
-      fixture.standardMarketStorage,
-      uint256(keccak256('stale standard market hash'))
-    );
+    badFactories[0] =
+      _deployFactory(fixture, false, fixture.standardMarketStorage, uint256(keccak256('stale standard market hash')));
     badFactories[1] = _deployFactory(
-      fixture,
-      true,
-      fixture.revolvingMarketStorage,
-      uint256(keccak256('stale revolving market hash'))
+      fixture, true, fixture.revolvingMarketStorage, uint256(keccak256('stale revolving market hash'))
     );
 
     for (uint256 i; i < badFactories.length; i++) {
@@ -1003,18 +862,13 @@ contract HooksFactoriesTest is TestKernel {
       address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
       vm.expectRevert(IHooksFactoryEventsAndErrors.MarketDeploymentAddressMismatch.selector);
       _deployMarket(
-        FactoryKind(i),
-        factory,
-        _marketInputs(fixture, hooksInstance),
-        '',
-        _marketSalt(address(this), 1),
-        address(0),
-        0
+        FactoryKind(i), factory, _marketInputs(fixture, hooksInstance), '', _marketSalt(address(this), 1), address(0), 0
       );
       assertEq(factory.getMarketsForHooksTemplateCount(fixture.firstTemplate), 0);
     }
   }
 
+  // ┌─ test_deployMarketAndHooks_RejectsIdentityTemplateAndDisableAcrossFactories ─────
   function test_deployMarketAndHooks_RejectsIdentityTemplateAndDisableAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     FeeConfig memory noFees;
@@ -1041,41 +895,24 @@ contract HooksFactoriesTest is TestKernel {
       IHooksFactory factory = factories[i];
       vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotFound.selector);
       _deployMarketAndHooks(
-        FactoryKind(i),
-        factory,
-        fixture.secondTemplate,
-        parameters,
-        '',
-        _marketSalt(address(this), 1),
-        address(0),
-        0
+        FactoryKind(i), factory, fixture.secondTemplate, parameters, '', _marketSalt(address(this), 1), address(0), 0
       );
 
       factory.disableHooksTemplate(fixture.firstTemplate);
       vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotAvailable.selector);
       _deployMarketAndHooks(
-        FactoryKind(i),
-        factory,
-        fixture.firstTemplate,
-        parameters,
-        '',
-        _marketSalt(address(this), 1),
-        address(0),
-        0
+        FactoryKind(i), factory, fixture.firstTemplate, parameters, '', _marketSalt(address(this), 1), address(0), 0
       );
       assertEq(factory.getHooksInstancesCountForAdministrator(address(this)), 0);
     }
   }
 
+  // ┌─ test_deployMarketAndHooks_RejectsSaltAndFeeMismatchAcrossFactories ─────
   function test_deployMarketAndHooks_RejectsSaltAndFeeMismatchAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     fixture.archController.registerBorrower(address(this));
-    FeeConfig memory fees = FeeConfig({
-      recipient: FeeRecipient,
-      asset: address(fixture.feeToken),
-      amount: 123,
-      protocolFeeBips: 0
-    });
+    FeeConfig memory fees =
+      FeeConfig({ recipient: FeeRecipient, asset: address(fixture.feeToken), amount: 123, protocolFeeBips: 0 });
     IHooksFactory[2] memory factories = _factories(fixture);
     DeployMarketInputs memory parameters = _marketInputs(fixture, address(0));
     for (uint256 i; i < factories.length; i++) {
@@ -1122,6 +959,7 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ test_revolvingMarketData_RejectsInvalidPayloadsBeforeStateChanges ─────
   function test_revolvingMarketData_RejectsInvalidPayloadsBeforeStateChanges() external {
     Fixture memory fixture = _newFixture();
     fixture.archController.registerBorrower(address(this));
@@ -1135,14 +973,7 @@ contract HooksFactoriesTest is TestKernel {
     vm.expectRevert(IHooksFactoryRevolving.InvalidMarketData.selector);
     factory.deployMarket(parameters, '', '', salt, address(0), 0);
     vm.expectRevert(IHooksFactoryRevolving.InvalidMarketData.selector);
-    factory.deployMarket(
-      parameters,
-      '',
-      abi.encodePacked(uint8(1), uint16(100)),
-      salt,
-      address(0),
-      0
-    );
+    factory.deployMarket(parameters, '', abi.encodePacked(uint8(1), uint16(100)), salt, address(0), 0);
     vm.expectRevert(IHooksFactoryRevolving.UnsupportedMarketDataVersion.selector);
     factory.deployMarket(parameters, '', abi.encode(uint8(2), uint16(100)), salt, address(0), 0);
     vm.expectRevert(IHooksFactoryRevolving.InvalidCommitmentFeeBips.selector);
@@ -1152,26 +983,114 @@ contract HooksFactoriesTest is TestKernel {
     uint256 previousNonce = factory.getHooksInstanceDeploymentNonce(address(this));
     parameters.hooks = EmptyHooksConfig;
     vm.expectRevert(IHooksFactoryRevolving.InvalidMarketData.selector);
-    factory.deployMarketAndHooks(
-      fixture.firstTemplate,
-      '',
-      parameters,
-      '',
-      '',
-      salt,
-      address(0),
-      0
-    );
+    factory.deployMarketAndHooks(fixture.firstTemplate, '', parameters, '', '', salt, address(0), 0);
     assertEq(factory.getHooksInstanceDeploymentNonce(address(this)), previousNonce);
     assertEq(factory.getHooksInstancesCountForAdministrator(address(this)), 1);
   }
 
+  // ┌─ test_revolvingCommitmentFeeGetter_RejectsOutsideDeployment ─────
   function test_revolvingCommitmentFeeGetter_RejectsOutsideDeployment() external {
     Fixture memory fixture = _newFixture();
     vm.expectRevert();
     IHooksFactoryRevolving(address(fixture.revolvingFactory)).getRevolvingMarketCommitmentFeeBips();
   }
 
+  // ┌─ _deployMarket ─────
+  function _deployMarket(
+    FactoryKind kind,
+    IHooksFactory factory,
+    DeployMarketInputs memory parameters,
+    bytes memory hooksData,
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
+  )
+    internal
+    returns (address market)
+  {
+    if (kind == FactoryKind.Standard) {
+      return factory.deployMarket(parameters, hooksData, salt, originationFeeAsset, originationFeeAmount);
+    }
+    return IHooksFactoryRevolving(address(factory))
+      .deployMarket(
+        parameters, hooksData, abi.encode(uint8(1), uint16(100)), salt, originationFeeAsset, originationFeeAmount
+      );
+  }
+
+  // ┌─ _deployMarketAndHooks ─────
+  function _deployMarketAndHooks(
+    FactoryKind kind,
+    IHooksFactory factory,
+    address hooksTemplate,
+    DeployMarketInputs memory parameters,
+    bytes memory hooksData,
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
+  )
+    internal
+    returns (address market, address hooksInstance)
+  {
+    if (kind == FactoryKind.Standard) {
+      return factory.deployMarketAndHooks(
+        hooksTemplate, '', parameters, hooksData, salt, originationFeeAsset, originationFeeAmount
+      );
+    }
+    return IHooksFactoryRevolving(address(factory))
+      .deployMarketAndHooks(
+        hooksTemplate,
+        '',
+        parameters,
+        hooksData,
+        abi.encode(uint8(1), uint16(100)),
+        salt,
+        originationFeeAsset,
+        originationFeeAmount
+      );
+  }
+
+  // ┌─ _marketInputs ─────
+  function _marketInputs(
+    Fixture memory fixture,
+    address hooksInstance
+  )
+    internal
+    pure
+    returns (DeployMarketInputs memory)
+  {
+    return DeployMarketInputs({
+      asset: address(fixture.asset),
+      namePrefix: 'Wildcat ',
+      symbolPrefix: 'wc',
+      maxTotalSupply: 1_000_000e18,
+      annualInterestBips: 1_000,
+      delinquencyFeeBips: 100,
+      withdrawalBatchDuration: 1 days,
+      reserveRatioBips: 1_000,
+      delinquencyGracePeriod: 1 days,
+      hooks: EmptyHooksConfig.setHooksAddress(hooksInstance),
+      repaymentDate: 0,
+      repaymentPeriod: 0
+    });
+  }
+
+  // ┌─ _marketSalt ─────
+  function _marketSalt(address deployer, uint96 nonce) internal pure returns (bytes32) {
+    return bytes32((uint256(uint160(deployer)) << 96) | uint256(nonce));
+  }
+
+  // ┌─ _repeat ─────
+  function _repeat(bytes1 character, uint256 length) internal pure returns (string memory value) {
+    bytes memory output = new bytes(length);
+    for (uint256 i; i < length; i++) {
+      output[i] = character;
+    }
+    value = string(output);
+  }
+
+  // ░░▒▒▓▓██ [ MARKET INDEXES ] ───────────────────────────────────────────────
+
+  // ┌─ test_marketIndexesAndPagination_AcrossFactories ─────
   function test_marketIndexesAndPagination_AcrossFactories() external {
     Fixture memory fixture = _newFixture();
     fixture.archController.registerBorrower(address(this));
@@ -1182,24 +1101,10 @@ contract HooksFactoriesTest is TestKernel {
       _addTemplate(factory, fixture.firstTemplate, 'Open Term', noFees);
       address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
       DeployMarketInputs memory parameters = _marketInputs(fixture, hooksInstance);
-      address firstMarket = _deployMarket(
-        FactoryKind(i),
-        factory,
-        parameters,
-        '',
-        _marketSalt(address(this), 1),
-        address(0),
-        0
-      );
-      address secondMarket = _deployMarket(
-        FactoryKind(i),
-        factory,
-        parameters,
-        '',
-        _marketSalt(address(this), 2),
-        address(0),
-        0
-      );
+      address firstMarket =
+        _deployMarket(FactoryKind(i), factory, parameters, '', _marketSalt(address(this), 1), address(0), 0);
+      address secondMarket =
+        _deployMarket(FactoryKind(i), factory, parameters, '', _marketSalt(address(this), 2), address(0), 0);
 
       address[] memory templateMarkets = factory.getMarketsForHooksTemplate(fixture.firstTemplate);
       assertEq(templateMarkets.length, 2);
@@ -1214,34 +1119,19 @@ contract HooksFactoriesTest is TestKernel {
       assertEq(factory.getMarketsForHooksInstanceCount(hooksInstance), 2);
       assertEq(factory.getMarketsForHooksInstance(Outsider).length, 0);
 
-      address[] memory templateFirst = factory.getMarketsForHooksTemplate(
-        fixture.firstTemplate,
-        0,
-        1
-      );
+      address[] memory templateFirst = factory.getMarketsForHooksTemplate(fixture.firstTemplate, 0, 1);
       assertEq(templateFirst.length, 1);
       assertEq(templateFirst[0], firstMarket);
-      address[] memory templateSecond = factory.getMarketsForHooksTemplate(
-        fixture.firstTemplate,
-        1,
-        2
-      );
+      address[] memory templateSecond = factory.getMarketsForHooksTemplate(fixture.firstTemplate, 1, 2);
       assertEq(templateSecond.length, 1);
       assertEq(templateSecond[0], secondMarket);
-      address[] memory templateClamped = factory.getMarketsForHooksTemplate(
-        fixture.firstTemplate,
-        0,
-        type(uint256).max
-      );
+      address[] memory templateClamped = factory.getMarketsForHooksTemplate(fixture.firstTemplate, 0, type(uint256).max);
       assertEq(templateClamped.length, 2);
       assertEq(templateClamped[0], firstMarket);
       assertEq(templateClamped[1], secondMarket);
       assertEq(factory.getMarketsForHooksTemplate(fixture.firstTemplate, 2, 2).length, 0);
       assertEq(factory.getMarketsForHooksTemplate(fixture.firstTemplate, 2, 1).length, 0);
-      assertEq(
-        factory.getMarketsForHooksTemplate(fixture.firstTemplate, 3, type(uint256).max).length,
-        0
-      );
+      assertEq(factory.getMarketsForHooksTemplate(fixture.firstTemplate, 3, type(uint256).max).length, 0);
 
       address[] memory instanceFirst = factory.getMarketsForHooksInstance(hooksInstance, 0, 1);
       assertEq(instanceFirst.length, 1);
@@ -1249,11 +1139,7 @@ contract HooksFactoriesTest is TestKernel {
       address[] memory instanceSecond = factory.getMarketsForHooksInstance(hooksInstance, 1, 2);
       assertEq(instanceSecond.length, 1);
       assertEq(instanceSecond[0], secondMarket);
-      address[] memory instanceClamped = factory.getMarketsForHooksInstance(
-        hooksInstance,
-        0,
-        type(uint256).max
-      );
+      address[] memory instanceClamped = factory.getMarketsForHooksInstance(hooksInstance, 0, type(uint256).max);
       assertEq(instanceClamped.length, 2);
       assertEq(instanceClamped[0], firstMarket);
       assertEq(instanceClamped[1], secondMarket);
@@ -1263,39 +1149,23 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
+  // ░░▒▒▓▓██ [ PROTOCOL FEE UPDATES ] ─────────────────────────────────────────
+
+  // ┌─ test_pushProtocolFeeBipsUpdates_FullAndPagedAcrossFactories ─────
   function test_pushProtocolFeeBipsUpdates_FullAndPagedAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     fixture.archController.registerBorrower(address(this));
-    FeeConfig memory fees = FeeConfig({
-      recipient: FeeRecipient,
-      asset: address(0),
-      amount: 0,
-      protocolFeeBips: 0
-    });
+    FeeConfig memory fees = FeeConfig({ recipient: FeeRecipient, asset: address(0), amount: 0, protocolFeeBips: 0 });
     IHooksFactory[2] memory factories = _factories(fixture);
     for (uint256 i; i < factories.length; i++) {
       IHooksFactory factory = factories[i];
       _addTemplate(factory, fixture.firstTemplate, 'Open Term', fees);
       address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
       DeployMarketInputs memory parameters = _marketInputs(fixture, hooksInstance);
-      address firstMarket = _deployMarket(
-        FactoryKind(i),
-        factory,
-        parameters,
-        '',
-        _marketSalt(address(this), 1),
-        address(0),
-        0
-      );
-      address secondMarket = _deployMarket(
-        FactoryKind(i),
-        factory,
-        parameters,
-        '',
-        _marketSalt(address(this), 2),
-        address(0),
-        0
-      );
+      address firstMarket =
+        _deployMarket(FactoryKind(i), factory, parameters, '', _marketSalt(address(this), 1), address(0), 0);
+      address secondMarket =
+        _deployMarket(FactoryKind(i), factory, parameters, '', _marketSalt(address(this), 2), address(0), 0);
 
       factory.updateHooksTemplateFees(fixture.firstTemplate, FeeRecipient, address(0), 0, 1_000);
       vm.expectEmit(firstMarket);
@@ -1322,49 +1192,108 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
-  function test_pushProtocolFeeBipsUpdates_RejectsPositiveFeeForZeroRecipientMarketsAcrossFactories()
-    external
-  {
+  // ┌─ test_pushProtocolFeeBipsUpdates_SkipsStoredAndEffectiveClosureAcrossFactories ─────
+  function test_pushProtocolFeeBipsUpdates_SkipsStoredAndEffectiveClosureAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     fixture.archController.registerBorrower(address(this));
-    FeeConfig memory fees = FeeConfig({
-      recipient: FeeRecipient,
-      asset: address(0),
-      amount: 0,
-      protocolFeeBips: 100
-    });
+    FeeConfig memory fees = FeeConfig(FeeRecipient, address(0), 0, 0);
+    IHooksFactory[2] memory factories = _factories(fixture);
+    for (uint256 i; i < factories.length; ++i) {
+      IHooksFactory factory = factories[i];
+      _addTemplate(factory, fixture.firstTemplate, 'Open Term', fees);
+      address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
+      address[4] memory markets;
+      uint32 date = uint32(vm.getBlockTimestamp() + 1 days);
+      for (uint96 j; j < 4; ++j) {
+        DeployMarketInputs memory parameters = _marketInputs(fixture, hooksInstance);
+        if (j == 2) parameters.repaymentDate = date;
+        markets[j] =
+          _deployMarket(FactoryKind(i), factory, parameters, '', _marketSalt(address(this), j + 1), address(0), 0);
+      }
+      WildcatMarket(markets[1]).closeMarket();
+      fixture.asset.mint(markets[2], 1e18);
+      WildcatMarket(markets[2]).updateState();
+      vm.warp(uint256(date) + 1);
+      assertTrue(WildcatMarket(markets[2]).isClosed(), 'funded scheduled closure');
+      assertFalse(WildcatMarket(markets[2]).previousState().isClosed, 'closure still unwritten');
+      factory.updateHooksTemplateFees(fixture.firstTemplate, FeeRecipient, address(0), 0, 100);
+      factory.pushProtocolFeeBipsUpdates(fixture.firstTemplate);
+      assertEq(WildcatMarket(markets[0]).previousState().protocolFeeBips, 100, 'first open market');
+      assertEq(WildcatMarket(markets[1]).previousState().protocolFeeBips, 0, 'stored closed market skipped');
+      assertEq(WildcatMarket(markets[2]).previousState().protocolFeeBips, 0, 'effective closed market skipped');
+      assertEq(WildcatMarket(markets[3]).previousState().protocolFeeBips, 100, 'later open market');
+      assertFalse(WildcatMarket(markets[2]).previousState().isClosed, 'skip is read only');
+
+      factory.updateHooksTemplateFees(fixture.firstTemplate, FeeRecipient, address(0), 0, 500);
+      factory.pushProtocolFeeBipsUpdates(fixture.firstTemplate, 1, 3);
+      assertEq(WildcatMarket(markets[3]).previousState().protocolFeeBips, 100, 'closed-only page');
+      factory.pushProtocolFeeBipsUpdates(fixture.firstTemplate, 3, 4);
+      assertEq(WildcatMarket(markets[3]).previousState().protocolFeeBips, 500, 'later page applies');
+    }
+  }
+
+  // ┌─ test_pushProtocolFeeBipsUpdates_RejectsBadClosureReadsAndRollsBackAcrossFactories ─────
+  function test_pushProtocolFeeBipsUpdates_RejectsBadClosureReadsAndRollsBackAcrossFactories() external {
+    Fixture memory fixture = _newFixture();
+    fixture.archController.registerBorrower(address(this));
+    FeeConfig memory fees = FeeConfig(FeeRecipient, address(0), 0, 0);
+    IHooksFactory[2] memory factories = _factories(fixture);
+    for (uint256 i; i < factories.length; ++i) {
+      IHooksFactory factory = factories[i];
+      _addTemplate(factory, fixture.firstTemplate, 'Open Term', fees);
+      address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
+      address first = _deployMarket(
+        FactoryKind(i), factory, _marketInputs(fixture, hooksInstance), '', _marketSalt(address(this), 1), address(0), 0
+      );
+      address second = _deployMarket(
+        FactoryKind(i), factory, _marketInputs(fixture, hooksInstance), '', _marketSalt(address(this), 2), address(0), 0
+      );
+      factory.updateHooksTemplateFees(fixture.firstTemplate, FeeRecipient, address(0), 0, 100);
+      bytes memory query = abi.encodeWithSignature('isClosed()');
+      // each failure follows a valid update in the same page. the first update must roll back.
+      for (uint256 failure; failure < 4; ++failure) {
+        if (failure == 0) {
+          vm.mockCallRevert(second, query, hex'12345678');
+        } else if (failure == 1) {
+          vm.mockCall(second, query, new bytes(31));
+        } else if (failure == 2) {
+          vm.mockCall(second, query, abi.encode(uint256(2)));
+        } else {
+          vm.mockCallRevert(second, abi.encodeWithSignature('setProtocolFeeBips(uint16)', uint16(100)), hex'12345678');
+        }
+        vm.expectRevert(IHooksFactoryEventsAndErrors.SetProtocolFeeBipsFailed.selector);
+        factory.pushProtocolFeeBipsUpdates(fixture.firstTemplate);
+        assertEq(WildcatMarket(first).previousState().protocolFeeBips, 0, 'prior update rolled back');
+        assertEq(WildcatMarket(second).previousState().protocolFeeBips, 0, 'failed market unchanged');
+        vm.clearMockedCalls();
+      }
+      // trailing return data is valid ABI. it must not turn an open market into a skipped one.
+      vm.mockCall(second, query, abi.encode(uint256(0), uint256(123)));
+      factory.pushProtocolFeeBipsUpdates(fixture.firstTemplate);
+      assertEq(WildcatMarket(second).previousState().protocolFeeBips, 100, 'valid bool with trailing data');
+      vm.clearMockedCalls();
+    }
+  }
+
+  // ┌─ test_pushProtocolFeeBipsUpdates_RejectsPositiveFeeForZeroRecipientMarketsAcrossFactories ─────
+  function test_pushProtocolFeeBipsUpdates_RejectsPositiveFeeForZeroRecipientMarketsAcrossFactories() external {
+    Fixture memory fixture = _newFixture();
+    fixture.archController.registerBorrower(address(this));
+    FeeConfig memory fees = FeeConfig({ recipient: FeeRecipient, asset: address(0), amount: 0, protocolFeeBips: 100 });
     IHooksFactory[2] memory factories = _factories(fixture);
     for (uint256 i; i < factories.length; i++) {
       IHooksFactory factory = factories[i];
       _addTemplate(factory, fixture.firstTemplate, 'Open Term', fees);
       address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
       DeployMarketInputs memory parameters = _marketInputs(fixture, hooksInstance);
-      address validMarket = _deployMarket(
-        FactoryKind(i),
-        factory,
-        parameters,
-        '',
-        _marketSalt(address(this), 1),
-        address(0),
-        0
-      );
+      address validMarket =
+        _deployMarket(FactoryKind(i), factory, parameters, '', _marketSalt(address(this), 1), address(0), 0);
 
       factory.updateHooksTemplateFees(fixture.firstTemplate, address(0), address(0), 0, 0);
-      address zeroRecipientMarket = _deployMarket(
-        FactoryKind(i),
-        factory,
-        parameters,
-        '',
-        _marketSalt(address(this), 2),
-        address(0),
-        0
-      );
+      address zeroRecipientMarket =
+        _deployMarket(FactoryKind(i), factory, parameters, '', _marketSalt(address(this), 2), address(0), 0);
       assertEq(WildcatMarket(validMarket).feeRecipient(), FeeRecipient, 'valid recipient');
-      assertEq(
-        WildcatMarket(zeroRecipientMarket).feeRecipient(),
-        address(0),
-        'zero recipient'
-      );
+      assertEq(WildcatMarket(zeroRecipientMarket).feeRecipient(), address(0), 'zero recipient');
       vm.startPrank(address(factory));
       vm.expectRevert(IMarketEventsAndErrors.ProtocolFeeRecipientRequired.selector);
       WildcatMarket(zeroRecipientMarket).setProtocolFeeBips(1);
@@ -1389,14 +1318,10 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ test_pushProtocolFeeBipsUpdates_HandlesEmptyAndInvalidRangesAcrossFactories ─────
   function test_pushProtocolFeeBipsUpdates_HandlesEmptyAndInvalidRangesAcrossFactories() external {
     Fixture memory fixture = _newFixture();
-    FeeConfig memory fees = FeeConfig({
-      recipient: FeeRecipient,
-      asset: address(0),
-      amount: 0,
-      protocolFeeBips: 0
-    });
+    FeeConfig memory fees = FeeConfig({ recipient: FeeRecipient, asset: address(0), amount: 0, protocolFeeBips: 0 });
     IHooksFactory[2] memory factories = _factories(fixture);
     for (uint256 i; i < factories.length; i++) {
       IHooksFactory factory = factories[i];
@@ -1414,13 +1339,7 @@ contract HooksFactoriesTest is TestKernel {
       IHooksFactory factory = factories[i];
       address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
       address market = _deployMarket(
-        FactoryKind(i),
-        factory,
-        _marketInputs(fixture, hooksInstance),
-        '',
-        _marketSalt(address(this), 1),
-        address(0),
-        0
+        FactoryKind(i), factory, _marketInputs(fixture, hooksInstance), '', _marketSalt(address(this), 1), address(0), 0
       );
       factory.updateHooksTemplateFees(fixture.firstTemplate, FeeRecipient, address(0), 0, 1_000);
 
@@ -1433,17 +1352,11 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
-  function test_pushProtocolFeeBipsUpdates_RejectsUnknownTemplateAndFailedMarketAcrossFactories()
-    external
-  {
+  // ┌─ test_pushProtocolFeeBipsUpdates_RejectsUnknownTemplateAndFailedMarketAcrossFactories ─────
+  function test_pushProtocolFeeBipsUpdates_RejectsUnknownTemplateAndFailedMarketAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     fixture.archController.registerBorrower(address(this));
-    FeeConfig memory fees = FeeConfig({
-      recipient: FeeRecipient,
-      asset: address(0),
-      amount: 0,
-      protocolFeeBips: 0
-    });
+    FeeConfig memory fees = FeeConfig({ recipient: FeeRecipient, asset: address(0), amount: 0, protocolFeeBips: 0 });
     IHooksFactory[2] memory factories = _factories(fixture);
     for (uint256 i; i < factories.length; i++) {
       IHooksFactory factory = factories[i];
@@ -1453,13 +1366,7 @@ contract HooksFactoriesTest is TestKernel {
       _addTemplate(factory, fixture.firstTemplate, 'Open Term', fees);
       address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
       address market = _deployMarket(
-        FactoryKind(i),
-        factory,
-        _marketInputs(fixture, hooksInstance),
-        '',
-        _marketSalt(address(this), 1),
-        address(0),
-        0
+        FactoryKind(i), factory, _marketInputs(fixture, hooksInstance), '', _marketSalt(address(this), 1), address(0), 0
       );
       factory.updateHooksTemplateFees(fixture.firstTemplate, FeeRecipient, address(0), 0, 100);
       vm.etch(market, hex'fd');

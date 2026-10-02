@@ -1,6 +1,34 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketData
+// ║  ██▀▀     ▀▀██   Full market configuration, accounting, and lender views.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  MARKET DATA
+// ║  fillMarketsData(...)
+// ║  fillMarketsDataV2(...)
+// ║  fill(...)
+// ║  fill(...)
+// ║  fill(...)
+// ║  fill(...)
+// ║
+// ║  CONFIGURATION AND STATE
+// ║  _isV2Market(...)
+// ║  fillConfig(...)
+// ║  fillTemporaryExcessReserveRatio(...)
+// ║  fillState(...)
+// ║  _tryFillOptionalUint(...)
+// ║
+// ║  WITHDRAWAL BATCHES
+// ║  getUnpaidAndPendingWithdrawalBatches(...)
+// ╚═════
+
+import './MarketAccountingReader.sol';
+
 import '../WildcatArchController.sol';
 import '../IHooksFactory.sol';
 import '../market/WildcatMarket.sol';
@@ -12,6 +40,8 @@ import './HooksTemplateData.sol';
 import './LenderAccountData.sol';
 import './TokenData.sol';
 import './WithdrawalBatchData.sol';
+import './OptionalData.sol';
+import './MarketLifecycleData.sol';
 
 using MarketDataLib for MarketData global;
 using MarketDataLib for MarketDataV2_5 global;
@@ -19,8 +49,9 @@ using MarketDataLib for MarketDataWithLenderStatus global;
 using MarketDataLib for LenderAccountQueryResult global;
 
 /// @notice full static configuration, hooks metadata, and accrued state for one V2 market.
-/// @dev this is the compatibility tuple used across V2 generations. use `MarketDataV2_5` for the
-///      borrower-principal and revolving-market extensions.
+///
+/// @dev reads the common V2 interfaces; nested hook fields use this lens deployment's ABI.
+///      use `MarketDataV2_5` for identity, lifecycle, liquidity, and revolving-market extensions.
 struct MarketData {
   // -- token metadata --
   TokenMetadata marketToken;
@@ -49,27 +80,25 @@ struct MarketData {
   uint256 maxTotalSupply;
   uint256 scaledTotalSupply;
   uint256 totalAssets;
+
   /// @dev uncollected accrued protocol fees. the field name is retained for ABI stability.
   uint256 lastAccruedProtocolFees;
   uint256 normalizedUnclaimedWithdrawals;
   uint256 scaledPendingWithdrawals;
-  /// @dev current batch expiry, or an expired stored batch that the accrued view can fully fund.
+
+  /// @dev current batch key, or a stored batch fully released by the accrued view before a write.
   uint256 pendingWithdrawalExpiry;
   bool isDelinquent;
   uint256 timeDelinquent;
   uint256 lastInterestAccruedTimestamp;
   uint32[] unpaidWithdrawalBatchExpiries;
+
   /// @dev underlying liquidity required to cover reserves, withdrawals, and protocol fees.
   uint256 coverageLiquidity;
 }
 
-/// @notice optional numeric field that distinguishes an absent getter from a real zero value.
-struct OptionalUintDataV2_5 {
-  bool isPresent;
-  uint256 value;
-}
-
-/// @notice V2.5 market data layered on the stable `MarketData` tuple.
+/// @notice V2.5 market data, including lifecycle terms, current capacity, and registered wrapper.
+///
 /// @dev revolving-only values are absent for standard markets instead of being reported as zero.
 struct MarketDataV2_5 {
   MarketData market;
@@ -79,6 +108,11 @@ struct MarketDataV2_5 {
   address borrowerIdentityRegistry;
   OptionalUintDataV2_5 commitmentFeeBips;
   OptionalUintDataV2_5 drawnAmount;
+
+  /// @dev the market's registered ERC-4626 wrapper, not an inferred tranche-vault address.
+  address registeredWrapper;
+  MarketLifecycleData lifecycle;
+  MarketLiquidityData liquidity;
 }
 
 /// @notice full market data paired with one lender's current status.
@@ -101,19 +135,91 @@ struct LenderAccountQueryResult {
   WithdrawalBatchDataWithLenderStatus[] withdrawalBatches;
 }
 
+// ┌─ MarketDataLib ────────────────────────────────────────────────────────────
 /// @notice data fillers used by the core, aggregation, and live lens contracts.
 library MarketDataLib {
   using MathUtils for uint256;
 
   error NotV2Market();
 
-  bytes4 internal constant _COMMITMENT_FEE_BIPS_SELECTOR =
-    IWildcatMarketRevolving.commitmentFeeBips.selector;
+  bytes4 internal constant _COMMITMENT_FEE_BIPS_SELECTOR = IWildcatMarketRevolving.commitmentFeeBips.selector;
   bytes4 internal constant _DRAWN_AMOUNT_SELECTOR = IWildcatMarketRevolving.drawnAmount.selector;
   bytes4 internal constant _TEMPORARY_EXCESS_RESERVE_RATIO_SELECTOR =
     bytes4(keccak256('temporaryExcessReserveRatio(address)'));
   uint256 internal constant _VERSION_SELECTOR = uint32(IVersionedContract.version.selector);
 
+  // ░░▒▒▓▓██ [ MARKET DATA ] ──────────────────────────────────────────────────
+
+  // ┌─ fillMarketsData ─────
+  /// @notice fill compatibility data for each market in input order.
+  function fillMarketsData(address[] memory markets) internal view returns (MarketData[] memory data) {
+    data = new MarketData[](markets.length);
+    for (uint256 i; i < markets.length; i++) {
+      data[i].fill(WildcatMarket(markets[i]));
+    }
+  }
+
+  // ┌─ fillMarketsDataV2 ─────
+  /// @notice fill V2.5 data for each market in input order.
+  function fillMarketsDataV2(address[] memory markets) internal view returns (MarketDataV2_5[] memory data) {
+    data = new MarketDataV2_5[](markets.length);
+    for (uint256 i; i < markets.length; i++) {
+      data[i].fill(WildcatMarket(markets[i]));
+    }
+  }
+
+  // ┌─ fill ─────
+  /// @notice fill the complete compatibility tuple for a V2 market.
+  ///
+  /// @dev token decimals, market and known-hooks reads remain strict; cosmetic
+  ///      token names and symbols are best effort.
+  function fill(MarketData memory data, WildcatMarket market) internal view {
+    data.marketToken.fill(address(market));
+    data.underlyingToken.fill(market.asset());
+    if (!_isV2Market(address(market))) {
+      revert NotV2Market();
+    }
+    data.fillConfig();
+    data.fillTemporaryExcessReserveRatio();
+    data.fillState();
+  }
+
+  // ┌─ fill ─────
+  /// @notice fill V2.5 identity fields and optional revolving-market fields.
+  function fill(MarketDataV2_5 memory data, WildcatMarket market) internal view {
+    data.market.fill(market);
+    data.borrowerPrincipal = market.borrowerPrincipal();
+    data.pendingBorrower = market.pendingBorrower();
+    data.pendingBorrowerPrincipal = market.pendingBorrowerPrincipal();
+    data.borrowerIdentityRegistry = market.borrowerIdentityRegistry();
+    _tryFillOptionalUint(data.commitmentFeeBips, address(market), _COMMITMENT_FEE_BIPS_SELECTOR);
+    _tryFillOptionalUint(data.drawnAmount, address(market), _DRAWN_AMOUNT_SELECTOR);
+    data.registeredWrapper = market.registeredWrapper();
+    data.lifecycle.fill(market, data.market.isClosed);
+    data.liquidity.fill(market, data.market.isClosed, data.market.totalAssets);
+  }
+
+  // ┌─ fill ─────
+  function fill(MarketDataWithLenderStatus memory data, WildcatMarket market, address lender) internal view {
+    data.market.fill(market);
+    data.lenderStatus.fill(data.market, lender);
+  }
+
+  // ┌─ fill ─────
+  function fill(LenderAccountQueryResult memory result, LenderAccountQuery calldata query) internal view {
+    WildcatMarket market = WildcatMarket(query.market);
+    result.market.fill(market);
+    result.lenderStatus.fill(result.market, query.lender);
+
+    result.withdrawalBatches = new WithdrawalBatchDataWithLenderStatus[](query.withdrawalBatchExpiries.length);
+    for (uint256 i; i < query.withdrawalBatchExpiries.length; i++) {
+      result.withdrawalBatches[i].fill(market, query.withdrawalBatchExpiries[i], query.lender);
+    }
+  }
+
+  // ░░▒▒▓▓██ [ CONFIGURATION AND STATE ] ──────────────────────────────────────
+
+  // ┌─ _isV2Market ─────
   function _isV2Market(address market) internal view returns (bool isV2) {
     // version() returns a dynamic string, but we only care whether its first byte is "2". read
     // the offset, length, and first data word without decoding or copying the rest of the string.
@@ -156,19 +262,7 @@ library MarketDataLib {
     }
   }
 
-  /// @notice fills the complete compatibility tuple for a V2 market.
-  /// @dev required token, market, and known-hooks reads are strict and may revert.
-  function fill(MarketData memory data, WildcatMarket market) internal view {
-    data.marketToken.fill(address(market));
-    data.underlyingToken.fill(market.asset());
-    if (!_isV2Market(address(market))) {
-      revert NotV2Market();
-    }
-    data.fillConfig();
-    data.fillTemporaryExcessReserveRatio();
-    data.fillState();
-  }
-
+  // ┌─ fillConfig ─────
   function fillConfig(MarketData memory data) internal view {
     address marketAddress = address(data.marketToken.token);
     WildcatMarket market = WildcatMarket(marketAddress);
@@ -180,70 +274,12 @@ library MarketDataLib {
     data.delinquencyFeeBips = market.delinquencyFeeBips();
     data.delinquencyGracePeriod = market.delinquencyGracePeriod();
     address hooksAddress = data.hooksConfig.hooksAddress;
-    data.hooks.fill(
-      hooksAddress,
-      IHooksFactory(data.hooksFactory),
-      address(0),
-      data.hooksConfig.kind
-    );
+    data.hooks.fill(hooksAddress, IHooksFactory(data.hooksFactory), address(0), data.hooksConfig.kind);
   }
 
-  /// @notice fills V2.5 identity fields and optional revolving-market fields.
-  function fill(MarketDataV2_5 memory data, WildcatMarket market) internal view {
-    data.market.fill(market);
-    data.borrowerPrincipal = market.borrowerPrincipal();
-    data.pendingBorrower = market.pendingBorrower();
-    data.pendingBorrowerPrincipal = market.pendingBorrowerPrincipal();
-    data.borrowerIdentityRegistry = market.borrowerIdentityRegistry();
-    _tryFillOptionalUint(data.commitmentFeeBips, address(market), _COMMITMENT_FEE_BIPS_SELECTOR);
-    _tryFillOptionalUint(data.drawnAmount, address(market), _DRAWN_AMOUNT_SELECTOR);
-  }
-
-  /// @notice fills compatibility data for each market in input order.
-  function fillMarketsData(
-    address[] memory markets
-  ) internal view returns (MarketData[] memory data) {
-    data = new MarketData[](markets.length);
-    for (uint256 i; i < markets.length; i++) {
-      data[i].fill(WildcatMarket(markets[i]));
-    }
-  }
-
-  /// @notice fills V2.5 data for each market in input order.
-  function fillMarketsDataV2(
-    address[] memory markets
-  ) internal view returns (MarketDataV2_5[] memory data) {
-    data = new MarketDataV2_5[](markets.length);
-    for (uint256 i; i < markets.length; i++) {
-      data[i].fill(WildcatMarket(markets[i]));
-    }
-  }
-
-  function _tryFillOptionalUint(
-    OptionalUintDataV2_5 memory data,
-    address target,
-    bytes4 selector
-  ) internal view {
-    // these getters only exist on some market shapes. a missing method, revert, or short return
-    // means "not present" here; it shouldn't break the rest of the lens result.
-    uint256 selectorWord = uint32(selector);
-    assembly ('memory-safe') {
-      // borrow one word at the free-memory pointer. put the selector in its first four bytes,
-      // then reuse the same word for the return value.
-      let ptr := mload(0x40)
-      mstore(ptr, shl(224, selectorWord))
-      let success := staticcall(gas(), target, ptr, 4, ptr, 0x20)
-
-      // only touch the result struct when the call returned a complete word. data points to
-      // isPresent, and its next word is value. harmless trailing return data stays uncopied.
-      if and(success, iszero(lt(returndatasize(), 0x20))) {
-        mstore(data, 1)
-        mstore(add(data, 0x20), mload(ptr))
-      }
-    }
-  }
-
-  /// @notice probes optional temporary reserve-ratio state on the market's hooks instance.
+  // ┌─ fillTemporaryExcessReserveRatio ─────
+  /// @notice probe optional temporary reserve-ratio state on the market's hooks instance.
+  ///
   /// @dev a missing, reverting, or short getter leaves the related fields empty.
   function fillTemporaryExcessReserveRatio(MarketData memory data) internal view {
     address marketAddress = data.marketToken.token;
@@ -284,11 +320,12 @@ library MarketDataLib {
     data.temporaryReserveRatio = data.temporaryReserveRatioExpiry > 0;
   }
 
-  /// @notice fills accrued accounting state and unpaid withdrawal expiries.
+  // ┌─ fillState ─────
+  /// @notice fill accrued accounting state and unpaid withdrawal expiries.
   function fillState(MarketData memory data) internal view {
     WildcatMarket market = WildcatMarket(data.marketToken.token);
     data.unpaidWithdrawalBatchExpiries = market.getUnpaidBatchExpiries();
-    MarketState memory state = market.currentState();
+    MarketState memory state = MarketAccountingReader.currentState(market);
     data.isClosed = state.isClosed;
     data.protocolFeeBips = state.protocolFeeBips;
     data.reserveRatioBips = state.reserveRatioBips;
@@ -307,23 +344,19 @@ library MarketDataLib {
     data.lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
 
     if (state.pendingWithdrawalExpiry == 0) {
-      uint32 expiredBatchExpiry = market.previousState().pendingWithdrawalExpiry;
+      uint32 expiredBatchExpiry = MarketAccountingReader.previousState(market).pendingWithdrawalExpiry;
       if (expiredBatchExpiry > 0) {
-        WithdrawalBatch memory expiredBatch = market.getWithdrawalBatch(expiredBatchExpiry);
+        WithdrawalBatch memory expiredBatch = MarketAccountingReader.withdrawalBatch(market, expiredBatchExpiry);
 
         if (expiredBatch.scaledTotalAmount == expiredBatch.scaledAmountBurned) {
           data.pendingWithdrawalExpiry = expiredBatchExpiry;
         } else {
           uint32[] memory unpaidWithdrawalBatchExpiries = data.unpaidWithdrawalBatchExpiries;
-          data.unpaidWithdrawalBatchExpiries = new uint32[](
-            unpaidWithdrawalBatchExpiries.length + 1
-          );
+          data.unpaidWithdrawalBatchExpiries = new uint32[](unpaidWithdrawalBatchExpiries.length + 1);
           for (uint256 i; i < unpaidWithdrawalBatchExpiries.length; i++) {
             data.unpaidWithdrawalBatchExpiries[i] = unpaidWithdrawalBatchExpiries[i];
           }
-          data.unpaidWithdrawalBatchExpiries[
-            unpaidWithdrawalBatchExpiries.length
-          ] = expiredBatchExpiry;
+          data.unpaidWithdrawalBatchExpiries[unpaidWithdrawalBatchExpiries.length] = expiredBatchExpiry;
         }
       }
     }
@@ -331,49 +364,30 @@ library MarketDataLib {
     data.coverageLiquidity = state.liquidityRequired();
   }
 
-  /// @notice expands the expiries already stored in `data` into withdrawal batch records.
-  function getUnpaidAndPendingWithdrawalBatches(
-    MarketData memory data
-  ) internal view returns (WithdrawalBatchData[] memory unpaidAndPendingWithdrawalBatches) {
+  // ┌─ _tryFillOptionalUint ─────
+  function _tryFillOptionalUint(OptionalUintDataV2_5 memory data, address target, bytes4 selector) internal view {
+    (data.isPresent, data.value) = OptionalDataLib.readWord(target, abi.encodeWithSelector(selector));
+  }
+
+  // ░░▒▒▓▓██ [ WITHDRAWAL BATCHES ] ───────────────────────────────────────────
+
+  // ┌─ getUnpaidAndPendingWithdrawalBatches ─────
+  /// @notice expand the expiries already stored in `data` into withdrawal batch records.
+  function getUnpaidAndPendingWithdrawalBatches(MarketData memory data)
+    internal
+    view
+    returns (WithdrawalBatchData[] memory unpaidAndPendingWithdrawalBatches)
+  {
     WildcatMarket market = WildcatMarket(data.marketToken.token);
     bool hasPendingWithdrawalBatch = data.pendingWithdrawalExpiry > 0;
     uint256 unpaidExpiriesCount = data.unpaidWithdrawalBatchExpiries.length;
-    unpaidAndPendingWithdrawalBatches = new WithdrawalBatchData[](
-      unpaidExpiriesCount + (hasPendingWithdrawalBatch ? 1 : 0)
-    );
+    unpaidAndPendingWithdrawalBatches =
+      new WithdrawalBatchData[](unpaidExpiriesCount + (hasPendingWithdrawalBatch ? 1 : 0));
     for (uint256 i; i < unpaidExpiriesCount; i++) {
       unpaidAndPendingWithdrawalBatches[i].fill(market, data.unpaidWithdrawalBatchExpiries[i]);
     }
     if (data.pendingWithdrawalExpiry > 0) {
-      unpaidAndPendingWithdrawalBatches[unpaidExpiriesCount].fill(
-        market,
-        uint32(data.pendingWithdrawalExpiry)
-      );
-    }
-  }
-
-  function fill(
-    MarketDataWithLenderStatus memory data,
-    WildcatMarket market,
-    address lender
-  ) internal view {
-    data.market.fill(market);
-    data.lenderStatus.fill(data.market, lender);
-  }
-
-  function fill(
-    LenderAccountQueryResult memory result,
-    LenderAccountQuery calldata query
-  ) internal view {
-    WildcatMarket market = WildcatMarket(query.market);
-    result.market.fill(market);
-    result.lenderStatus.fill(result.market, query.lender);
-
-    result.withdrawalBatches = new WithdrawalBatchDataWithLenderStatus[](
-      query.withdrawalBatchExpiries.length
-    );
-    for (uint256 i; i < query.withdrawalBatchExpiries.length; i++) {
-      result.withdrawalBatches[i].fill(market, query.withdrawalBatchExpiries[i], query.lender);
+      unpaidAndPendingWithdrawalBatches[unpaidExpiriesCount].fill(market, uint32(data.pendingWithdrawalExpiry));
     }
   }
 }

@@ -1,12 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // RoleProviderData
+// ║  ██▀▀     ▀▀██   Decoded credentials and optional provider administration.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  PROVIDER DATA
+// ║  toRoleProviderDatas(...)
+// ║  fill(...)
+// ║  _tryReadAddress(...)
+// ╚═════
+
 import '../access/IManagedRoleProvider.sol';
 import '../types/RoleProvider.sol';
 
 using RoleProviderDataLib for RoleProviderData global;
 
 /// @notice decoded role-provider configuration with optional administration metadata.
+///
 /// @dev `isManaged` is true only when both administrator probes return canonical addresses.
 struct RoleProviderData {
   uint32 timeToLive;
@@ -18,12 +32,41 @@ struct RoleProviderData {
   address pendingAdministrator;
 }
 
+// ┌─ RoleProviderDataLib ──────────────────────────────────────────────────────
 /// @notice decoders and bounded metadata probes for packed role providers.
 library RoleProviderDataLib {
-  function _tryReadAddress(
-    address target,
-    bytes4 selector
-  ) private view returns (bool success, address value) {
+  // ░░▒▒▓▓██ [ PROVIDER DATA ] ────────────────────────────────────────────────
+
+  // ┌─ toRoleProviderDatas ─────
+  /// @notice decode each packed provider while preserving input order.
+  function toRoleProviderDatas(RoleProvider[] memory providers) internal view returns (RoleProviderData[] memory data) {
+    data = new RoleProviderData[](providers.length);
+    for (uint256 i; i < providers.length; i++) {
+      data[i].fill(providers[i]);
+    }
+  }
+
+  // ┌─ fill ─────
+  /// @notice decode a packed provider and probe the optional managed-provider interface.
+  function fill(RoleProviderData memory data, RoleProvider provider) internal view {
+    (data.timeToLive, data.providerAddress, data.pullProviderIndex, data.pushProviderIndex) =
+      provider.decodeRoleProvider();
+
+    (bool hasAdministrator, address administrator) =
+      _tryReadAddress(data.providerAddress, IManagedRoleProvider.administrator.selector);
+    if (hasAdministrator) {
+      (bool hasPendingAdministrator, address pendingAdministrator) =
+        _tryReadAddress(data.providerAddress, IManagedRoleProvider.pendingAdministrator.selector);
+      if (hasPendingAdministrator) {
+        data.isManaged = true;
+        data.administrator = administrator;
+        data.pendingAdministrator = pendingAdministrator;
+      }
+    }
+  }
+
+  // ┌─ _tryReadAddress ─────
+  function _tryReadAddress(address target, bytes4 selector) private view returns (bool success, address value) {
     uint256 word;
     uint32 selectorWord = uint32(selector);
     assembly ('memory-safe') {
@@ -38,41 +81,5 @@ library RoleProviderDataLib {
       return (false, address(0));
     }
     value = address(uint160(word));
-  }
-
-  /// @notice decodes a packed provider and probes the optional managed-provider interface.
-  function fill(RoleProviderData memory data, RoleProvider provider) internal view {
-    (
-      data.timeToLive,
-      data.providerAddress,
-      data.pullProviderIndex,
-      data.pushProviderIndex
-    ) = provider.decodeRoleProvider();
-
-    (bool hasAdministrator, address administrator) = _tryReadAddress(
-      data.providerAddress,
-      IManagedRoleProvider.administrator.selector
-    );
-    if (hasAdministrator) {
-      (bool hasPendingAdministrator, address pendingAdministrator) = _tryReadAddress(
-        data.providerAddress,
-        IManagedRoleProvider.pendingAdministrator.selector
-      );
-      if (hasPendingAdministrator) {
-        data.isManaged = true;
-        data.administrator = administrator;
-        data.pendingAdministrator = pendingAdministrator;
-      }
-    }
-  }
-
-  /// @notice decodes each packed provider while preserving input order.
-  function toRoleProviderDatas(
-    RoleProvider[] memory providers
-  ) internal view returns (RoleProviderData[] memory data) {
-    data = new RoleProviderData[](providers.length);
-    for (uint256 i; i < providers.length; i++) {
-      data[i].fill(providers[i]);
-    }
   }
 }

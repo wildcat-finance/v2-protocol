@@ -37,6 +37,14 @@ verified receipt.
 
 ## Runtime requirements
 
+The `deploy` profile inherits the compiler settings in
+[`foundry.toml`](../../foundry.toml): Solidity `0.8.25`, Cancun, via-IR,
+optimizer runs `1`, and the pinned Yul sequence without FunctionSpecializer.
+Use the complete settings for artifact reproduction and source verification;
+the run count alone does not reproduce the deployment bytecode. Both market
+runtimes fit EIP-170 with this configuration. Split storage addresses
+creation-code storage size and does not change that runtime limit.
+
 Wildcat V2 bytecode uses EIP-1153 transient storage. The target chain must
 support `TSTORE` and `TLOAD` on every execution path. Successful bytecode
 deployment does not prove this.
@@ -53,11 +61,76 @@ ArchController. During an engine rotation:
 3. Update the controller and factories as one cutover.
 4. Migrate existing registered contracts in bounded batches.
 
+## Stored creation code
+
+The factory deploys markets and hook instances from reviewed creation-code
+artifacts. Hook policies are compiled into each concrete template before this
+step; the factory does not assemble policies during deployment.
+
+[`LibDeployment`](../../script/common/LibDeployment.sol) keeps the raw
+`STOP || creation code` format when the artifact fits its 24,575-byte payload
+limit. Larger artifacts use [two storage contracts](../../src/libraries/LibSplitInitCode.sol).
+The primary holds a small reader and the first bytes; the secondary holds
+`STOP || remaining bytes`. The factory receives the primary address, whose
+reader copies and returns the original creation code. There is no compression.
+Each storage runtime must fit 24,576 bytes. The current reader leaves room for
+49,013 original bytes across the pair; total creation code including constructor
+arguments must also fit the separate 49,152-byte limit.
+
+Plan generation prepares both images locally. The
+[`PreparedInitCodeStorage` and `LinkedInitCodeStorage` constructors](../../script/common/PreparedInitCodeStorage.sol)
+install the secondary first, then bind its address into the primary's prepared
+footer. The reader, payload and lengths are copied unchanged. Each secondary
+gets its own plan output, transaction, inventory record and deployment label;
+the label appends `_secondary` to its primary's label. Original template and
+factory references continue to use the primary.
+
+Raw storage uses `codeHash`, with `expect` for its runtime and `initCodeHash`
+for the original creation code. Split storage uses `splitCodeHash`: `expect`
+commits the primary runtime with its secondary-address field zeroed;
+`secondary` identifies that deployment, and `secondaryCodeHash` commits its
+complete runtime. The CLI and UI check the embedded link, both complete images,
+and then the reader's output against `initCodeHash`. They authenticate the
+reader before calling it. Resume repeats all checks.
+
+Direct deployment verifies and reuses a recorded secondary if installation
+stopped before the primary. Reusing a complete primary verifies both images
+and their link; a conflicting recorded secondary fails. Build the plan, CLI,
+and UI from the same reviewed source; older executors do not support the split
+predicate. The historical compression experiment remains available for research
+but is not accepted by the current direct-deployment verifier.
+
+Both factories additionally check the decoded market creation-code hash before
+`CREATE2`, using the same bytes for hashing and deployment. Hook registration
+requires the original artifact's `initCodeHash` as the last `addHooksTemplate`
+argument. Each factory checks the decoded bytes, records that commitment, and
+checks it again before every hook deployment. A mismatch reverts before the
+constructor runs. This covers both hook-only and combined market/hook creation.
+Constructor arguments are appended after this check.
+
+The commitment is readable through `getHooksTemplateInitCodeHash` and emitted
+in `HooksTemplateInitCodeHashRecorded`. Fee changes and disabling a template
+cannot change it. Registration plan predicates check the recorded hash, and
+activation validation requires it to match the storage entry's artifact hash.
+There is no registration overload without a hash. An arbitrary executable
+store still fails canonical runtime verification in the supplied tools; a
+hash reported by that same store is not an independent reference.
+
+[`rcf-template-sync.js`](../../scripts/rcf-template-sync.js) requires these
+commitments before applying any changes to a new factory. An export from an
+older factory has `initCodeHash: null`; populate it from the reviewed original
+creation artifacts before using `--input`. The tool does not hash live decoder
+output to invent a commitment. Historical factories and the Sepolia fix-1
+ceremony require their pinned historical tooling; do not regenerate their
+plans with the current interface.
+
 ## Release workflow
 
 1. **Prepare.** Freeze the source commit and `deploy` Foundry profile. Build and
-   test that source. Validate, lint, and reconcile the inventory against the
-   target chain.
+   test that source. Finalize network parameters, including the fixed-term
+   maximum, repayment-date and period caps, and the periodic policy's
+   `TODO FOR MAINNET` constants. Validate, lint, and reconcile the inventory
+   against the target chain.
 2. **Assemble.** Run the numbered release scripts in plan mode. Assemble them
    with [`plan.js`](../../scripts/plan.js). Validate the plan schema and the
    activation or retirement boundary.
@@ -177,6 +250,11 @@ Do not repair a live ceremony in place.
 - The release contract list and ABI artifacts.
 - Routing and indexing rules.
 - Available plan and run-state provenance.
+
+Storage records require verified plan metadata to identify their actual
+installer. Split companions appear as separate release contracts, using the
+primary deployment key with `_secondary` appended. Preserve both receipts
+and addresses when exporting the handoff.
 
 Its `--check` mode validates the JSON and Markdown pair against current
 deployment state.

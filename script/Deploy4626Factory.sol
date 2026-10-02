@@ -1,6 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // Deploy4626Factory
+// ║  ██▀▀     ▀▀██   Validate a market and deploy or discover its wrapper.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  MARKET QUERIES
+// ║  borrower()
+// ║  hooks()
+// ║
+// ║  DEPLOYMENT
+// ║  run()
+// ╚═════
+
 import 'forge-std/Script.sol';
 import { console } from 'forge-std/console.sol';
 
@@ -9,13 +24,22 @@ import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
 import { Wildcat4626WrapperFactory } from 'src/vault/Wildcat4626WrapperFactory.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
 
+// ┌─ IWildcatMarketFor4626Deploy ──────────────────────────────────────────────
 interface IWildcatMarketFor4626Deploy {
+  // ░░▒▒▓▓██ [ MARKET QUERIES ] ───────────────────────────────────────────────
+
+  // ┌─ borrower ─────
   function borrower() external view returns (address);
 
+  // ┌─ hooks ─────
   function hooks() external view returns (HooksConfig);
 }
 
+// ┌─ Deploy4626Factory ────────────────────────────────────────────────────────
 contract Deploy4626Factory is Script {
+  // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
+
+  // ┌─ run ─────
   function run() external {
     address archController = vm.envAddress('ARCH_CONTROLLER');
     address market = vm.envAddress('MARKET');
@@ -49,11 +73,9 @@ contract Deploy4626Factory is Script {
 
     Wildcat4626WrapperFactory factory;
     if (existingFactory == address(0)) {
-      // Legacy (pre-v2.5, half-up rounding) markets are forwarded to the v1
-      // wrapper factory. The address is REQUIRED and frozen forever in the
-      // facade: a silent zero default would permanently strand legacy
-      // markets on a chain that has a v1 deployment. Pass the zero address
-      // explicitly on chains with no legacy deployment.
+      // legacy half-up markets route to V1. its address is immutable: a silent zero
+      // default would strand legacy markets on chains that have a V1 deployment.
+      // require an explicit zero on chains without one.
       address v1Factory = vm.envAddress('WRAPPER_FACTORY_V1');
       factory = new Wildcat4626WrapperFactory(archController, v1Factory);
     } else {

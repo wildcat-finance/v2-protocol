@@ -12,6 +12,11 @@ One hooks instance can serve several markets. State belongs at two levels:
 See [Hooks](./hooks.md) for callbacks and
 [Role providers](./role-providers.md) for provider contracts.
 
+[`BaseHooks`](../../src/access/BaseHooks.sol) coordinates the market actions
+that use this credential machinery. Term policies own their packed market
+configuration. [Hook development](./hook-development.md) describes the adapters
+and extension points without introducing a second credential implementation.
+
 ## Authority
 
 - The hooks administrator manages the instance name, provider attachments,
@@ -212,7 +217,16 @@ known lender remains eligible after a deposit block, while an unknown blocked
 or otherwise unauthorized receiver is rejected. Sanctions checks remain
 independent and apply to both the wrapper and receiver.
 
+These are the original templates' credential exemptions. A custom composition
+still runs additional `_checkTransfer` rules for known recipients and the
+registered wrapper. Its recipient query must reflect additional recipient
+restrictions; it cannot predict amount-dependent checks.
+
 ### Queueing withdrawals
+
+These hook checks apply before an enabled repayment date, or throughout a
+market without repayment terms. From the date, the market skips
+`onQueueWithdrawal` while retaining its sanctions checks.
 
 If withdrawal access is enabled, a known lender can queue without a current
 credential. An unknown lender must validate. Fixed maturity and periodic
@@ -224,9 +238,9 @@ an account that would then be unable to queue them.
 
 ### Executing withdrawals
 
-`onExecuteWithdrawal` performs no access check. Credential expiry, revocation,
-provider removal, and deposit blocks cannot stop execution of an already queued
-withdrawal.
+New V2.5 markets do not call `onExecuteWithdrawal` and reject its configuration
+flag. Credential expiry, revocation, provider removal, and deposit blocks cannot
+stop execution of an already queued withdrawal.
 
 ## Known lenders
 
@@ -257,6 +271,8 @@ stops new deposits.
 - [`BaseAccessControls.t.sol`](../../test/access/BaseAccessControls.t.sol):
   provider management, credential lifecycle, TTLs, validation order, and
   administrator transfer
+- [`BaseHooks.t.sol`](../../test/access/BaseHooks.t.sol): shared lender actions,
+  minimum deposits, known-lender effects, and wrapper exemptions across terms
 - [`OpenTermHooks.t.sol`](../../test/access/OpenTermHooks.t.sol): open-term policy
 - [`FixedTermHooks.t.sol`](../../test/access/FixedTermHooks.t.sol): access plus
   fixed-term restrictions

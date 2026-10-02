@@ -1,6 +1,55 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // DeployV2
+// ║  ██▀▀     ▀▀██   Legacy Sepolia deployment and market-exercise helpers.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  ENGINE RULES
+// ║  deactivateAllRules()
+// ║  configureRules(...)
+// ║  addAllowedPatterns(...)
+// ║
+// ║  DEPLOYMENT
+// ║  run()
+// ║  deployAll()
+// ║  forceDeployLens()
+// ║
+// ║  FACTORY PREPARATION
+// ║  _setUpHooksFactory(...)
+// ║  _storeMarketInitCode(...)
+// ║  _getCreationCode(...)
+// ║
+// ║  OWNERSHIP AND BORROWERS
+// ║  _takeOwnershipOfArchController(...)
+// ║  _returnOwnershipOfArchController(...)
+// ║  _registerBorrower(...)
+// ║
+// ║  MARKET CREATION
+// ║  _createMarket(...)
+// ║  _buildMarketConfig(...)
+// ║  _deployMarketAndHooks(...)
+// ║  getHooksTemplateArgs(...)
+// ║  _deployToken(...)
+// ║  deployMarketAddTwoRemoveOne()
+// ║
+// ║  MARKET EXERCISE
+// ║  seedLender(...)
+// ║  _seedMarketFunctions(...)
+// ║  addCloseMarket()
+// ║
+// ║  ASSERTIONS
+// ║  assertEq(...)
+// ║  assertEq(...)
+// ║  assertEq(...)
+// ║  assertEq(...)
+// ║  assertEq(...)
+// ║  assertEq(...)
+// ╚═════
+
 import 'src/WildcatSanctionsSentinel.sol';
 import 'src/WildcatArchController.sol';
 import 'forge-std/Script.sol';
@@ -22,108 +71,48 @@ using LibString for uint;
 
 string constant DeploymentsJsonFilePath = 'deployments.json';
 bool constant RedoAllDeployments = false;
-MockArchControllerOwner constant OldOwner = MockArchControllerOwner(
-  0xa476920af80B587f696734430227869795E2Ea78
-);
+MockArchControllerOwner constant OldOwner = MockArchControllerOwner(0xa476920af80B587f696734430227869795E2Ea78);
 
+// ┌─ IEngine ──────────────────────────────────────────────────────────────────
 interface IEngine {
+  // ░░▒▒▓▓██ [ ENGINE RULES ] ─────────────────────────────────────────────────
+
+  // ┌─ deactivateAllRules ─────
   function deactivateAllRules() external;
 
+  // ┌─ configureRules ─────
   function configureRules(bytes8 rules) external;
 
+  // ┌─ addAllowedPatterns ─────
   function addAllowedPatterns(uint216[] calldata patterns) external;
 }
 
+// ┌─ DeployV2 ─────────────────────────────────────────────────────────────────
 contract DeployV2 is Script {
+  // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
+
+  // ┌─ run ─────
   function run() public virtual {
     // seedLender('LENDER_2', true, 12e18, 5e18, 2e18);
     // seedLender('LENDER_2', false, 13e18, 6e18, 2e18);
     forceDeployLens();
   }
 
-  function seedLender(string memory lenderName, bool openMarket, uint depositAmount, uint withdrawAmount, uint borrowAmount) internal {
-    string memory lenderPvtKeyVarName = string.concat(lenderName, '_PVT_KEY');
-    Deployments memory deployments = getDeploymentsForNetwork('sepolia').withPrivateKeyVarName(
-      'PVT_KEY'
-    );
-    string memory marketLabel = openMarket ? 'op2TOK_market' : 'fx2TOK_market';
-    address market = deployments.get(marketLabel);
-    Lender memory lender = buildLender(lenderName, market);
-    if (!openMarket) {
-      OpenTermHooks hooks = OpenTermHooks(deployments.get('fx2TOK_hooks'));
-      deployments.broadcast();
-      hooks.grantRole(lender.account, uint32(block.timestamp));
-      console.log(string.concat('Granted role to lender ', lender.account.toHexString()));
-    }
-    lender.deposit(depositAmount);
-    if (!openMarket) lender.withdraw(withdrawAmount);
-    
-    if (borrowAmount > 0 ) {
-      deployments.broadcast();
-      lender.market.borrow(borrowAmount);
-    }
-  }
-
-  function addCloseMarket() internal {
-    Deployments memory deployments = getDeploymentsForNetwork('sepolia').withPrivateKeyVarName(
-      'PVT_KEY'
-    );
-
-    IEngine engine = IEngine(0xCc65C2Ad8ab5b5c63489cfC77F782175E0c6A36e);
-    uint216[] memory patterns = new uint216[](5);
-    patterns[0] = 94418217012137984803774416703850667173250690997694159855897612912;
-    patterns[1] = 92083039521021907843879083621254831642817523105040888014352789085;
-    patterns[2] = 46697456462908571842451701755225422725380819403284149584678459579;
-    patterns[3] = 55812322464611803823919095340941798065809022442869364620170712203;
-    patterns[4] = 14451904267781507293472597357567865620281743582632039118805013802;
-    deployments.broadcast();
-    engine.addAllowedPatterns(patterns);
-    console.log('Added close market pattern');
-  }
-
-  function deployMarketAddTwoRemoveOne() internal {
-    Deployments memory deployments = getDeploymentsForNetwork('sepolia').withPrivateKeyVarName(
-      'PVT_KEY'
-    );
-  }
-
-  function forceDeployLens() internal {
-    Deployments memory deployments = getDeploymentsForNetwork('sepolia').withPrivateKeyVarName(
-      'PVT_KEY'
-    );
-    address archController = deployments.get('WildcatArchController');
-    address hooksFactory = deployments.get('HooksFactory');
-    deployments.deploy(
-      'MarketLens',
-      _getCreationCode(deployments, 'MarketLens'),
-      abi.encode(archController, hooksFactory)
-    );
-    deployments.write();
-  }
-
+  // ┌─ deployAll ─────
   function deployAll() internal virtual {
-    Deployments memory deployments = getDeploymentsForNetwork('sepolia').withPrivateKeyVarName(
-      'PVT_KEY'
-    );
+    Deployments memory deployments = getDeploymentsForNetwork('sepolia').withPrivateKeyVarName('PVT_KEY');
 
-    // ========================================================================== //
-    //                       Deployments for whole protocol                       //
-    // ========================================================================== //
+    // protocol deployments
     address chainalysis = deployments.get('Chainalysis');
     (address archController, bool didDeployArchController) = deployments.getOrDeploy(
-      'WildcatArchController',
-      _getCreationCode(deployments, 'WildcatArchController'),
-      RedoAllDeployments
+      'WildcatArchController', _getCreationCode(deployments, 'WildcatArchController'), RedoAllDeployments
     );
     // require(
     //   WildcatArchController(archController).owner() == address(OldOwner),
     //   'Ownership should be held by old owner'
     // );
     require(!didDeployArchController, 'Arch controller should already be deployed');
-    require(
-      archController == 0xC003f20F2642c76B81e5e1620c6D8cdEE826408f,
-      'Invalid arch controller'
-    );
+    require(archController == 0xC003f20F2642c76B81e5e1620c6D8cdEE826408f, 'Invalid arch controller');
 
     address archControllerOwner = WildcatArchController(archController).owner();
 
@@ -137,15 +126,10 @@ contract DeployV2 is Script {
     );
     require(!didDeploySentinel, 'Sentinel should already be deployed');
 
-    // ========================================================================== //
-    //                                Hooks Factory                               //
-    // ========================================================================== //
+    // hooks factory
 
-    (
-      address marketTemplate,
-      bool didDeployMarketTemplate,
-      uint256 marketInitCodeHash
-    ) = _storeMarketInitCode(deployments);
+    (address marketTemplate, bool didDeployMarketTemplate, uint256 marketInitCodeHash) =
+      _storeMarketInitCode(deployments);
     // require(didDeployMarketTemplate, 'Market template should be deployed');
     (address hooksFactory, bool didDeployHooksFactory) = deployments.getOrDeploy(
       'HooksFactory',
@@ -154,16 +138,10 @@ contract DeployV2 is Script {
       didDeployArchController
     );
     // require(didDeployHooksFactory, 'Hooks factory should be deployed');
-    _setUpHooksFactory(
-      deployments,
-      WildcatArchController(archController),
-      HooksFactory(hooksFactory)
-    );
+    _setUpHooksFactory(deployments, WildcatArchController(archController), HooksFactory(hooksFactory));
     _registerBorrower(deployments, 0xca732651410E915090d7A7D889A1E44eF4575fcE);
 
-    // ========================================================================== //
-    //                                    Lens                                    //
-    // ========================================================================== //
+    // lens
     deployments.getOrDeploy(
       'MarketLens',
       _getCreationCode(deployments, 'MarketLens'),
@@ -171,55 +149,117 @@ contract DeployV2 is Script {
       didDeployHooksFactory
     );
 
-    /* --------------------------- mock token factory --------------------------- */
+    // mock token factory
     (, bool didDeployMockERC20Factory) = deployments.getOrDeploy(
-      'MockERC20Factory',
-      _getCreationCode(deployments, 'MockERC20Factory'),
-      RedoAllDeployments
+      'MockERC20Factory', _getCreationCode(deployments, 'MockERC20Factory'), RedoAllDeployments
     );
     require(!didDeployMockERC20Factory, 'Mock ERC20 factory should already be deployed');
 
-    (, WildcatMarket market, ) = _createMarket({
-      deployments: deployments,
-      openTerm: true,
-      restrictive: false
-    });
+    (, WildcatMarket market,) = _createMarket({ deployments: deployments, openTerm: true, restrictive: false });
     _createMarket({ deployments: deployments, openTerm: false, restrictive: true });
     _seedMarketFunctions(deployments, market);
     _returnOwnershipOfArchController(deployments);
-    require(
-      WildcatArchController(archController).owner() == address(OldOwner),
-      'Ownership should be returned'
-    );
+    require(WildcatArchController(archController).owner() == address(OldOwner), 'Ownership should be returned');
 
     HooksFactory factory = HooksFactory(hooksFactory);
     assertEq(factory.getHooksTemplatesCount(), 2, 'Wrong # of templates');
     address OpenTermHooks = deployments.get('OpenTermHooks_initCodeStorage');
     assertEq(factory.getHooksTemplates(0, 1)[0], OpenTermHooks, 'First template is not open term');
-    assertEq(
-      factory.getMarketsForHooksTemplateCount(OpenTermHooks),
-      1,
-      'wrong # of markets for OpenTermHooks'
-    );
+    assertEq(factory.getMarketsForHooksTemplateCount(OpenTermHooks), 1, 'wrong # of markets for OpenTermHooks');
 
     address FixedTermHooks = deployments.get('FixedTermHooks_initCodeStorage');
-    assertEq(
-      factory.getHooksTemplates(1, 2)[0],
-      FixedTermHooks,
-      'Second template is not fixed term'
-    );
-    assertEq(
-      factory.getMarketsForHooksTemplateCount(FixedTermHooks),
-      1,
-      'wrong # of markets for FixedTermHooks'
+    assertEq(factory.getHooksTemplates(1, 2)[0], FixedTermHooks, 'Second template is not fixed term');
+    assertEq(factory.getMarketsForHooksTemplateCount(FixedTermHooks), 1, 'wrong # of markets for FixedTermHooks');
+    deployments.write();
+  }
+
+  // ┌─ forceDeployLens ─────
+  function forceDeployLens() internal {
+    Deployments memory deployments = getDeploymentsForNetwork('sepolia').withPrivateKeyVarName('PVT_KEY');
+    address archController = deployments.get('WildcatArchController');
+    address hooksFactory = deployments.get('HooksFactory');
+    deployments.deploy(
+      'MarketLens', _getCreationCode(deployments, 'MarketLens'), abi.encode(archController, hooksFactory)
     );
     deployments.write();
   }
 
-  function _getCreationCode(
+  // ░░▒▒▓▓██ [ FACTORY PREPARATION ] ──────────────────────────────────────────
+
+  // ┌─ _setUpHooksFactory ─────
+  /// @dev prepare the hooks factory, skipping completed steps: register it as a controller
+  ///      factory, initialize it with the ArchController, then deploy and register the
+  ///      OpenTermHooks and FixedTermHooks templates.
+  function _setUpHooksFactory(
     Deployments memory deployments,
-    string memory namePath
-  ) internal returns (bytes memory) {
+    WildcatArchController archController,
+    HooksFactory hooksFactory
+  )
+    internal
+  {
+    bool registerAsFactory = !archController.isRegisteredControllerFactory(address(hooksFactory));
+    bool registerAsController = !archController.isRegisteredController(address(hooksFactory));
+    (address openTermTemplate,) = deployments.getOrDeployInitcodeStorage(
+      'OpenTermHooks', _getCreationCode(deployments, 'OpenTermHooks'), RedoAllDeployments
+    );
+    (address fixedTermTemplate,) = deployments.getOrDeployInitcodeStorage(
+      'FixedTermHooks', _getCreationCode(deployments, 'FixedTermHooks'), RedoAllDeployments
+    );
+    bool addOpenTermTemplate = !HooksFactory(hooksFactory).isHooksTemplate(openTermTemplate);
+    bool addFixedTermTemplate = !HooksFactory(hooksFactory).isHooksTemplate(fixedTermTemplate);
+
+    if (registerAsFactory || registerAsController || addOpenTermTemplate || addFixedTermTemplate) {
+      _takeOwnershipOfArchController(deployments);
+    }
+    address owner = archController.owner();
+    if (registerAsFactory) {
+      deployments.broadcast();
+      archController.registerControllerFactory(address(hooksFactory));
+    }
+    if (registerAsController) {
+      deployments.broadcast();
+      hooksFactory.registerWithArchController();
+    }
+    if (addOpenTermTemplate) {
+      deployments.broadcast();
+      HooksFactory(hooksFactory).addHooksTemplate({
+        hooksTemplate: openTermTemplate,
+        name: 'OpenTermHooks',
+        initCodeHash: keccak256(_getCreationCode(deployments, 'OpenTermHooks')),
+        feeRecipient: owner,
+        originationFeeAsset: address(0),
+        originationFeeAmount: 0,
+        protocolFeeBips: 1_000
+      });
+    }
+    if (addFixedTermTemplate) {
+      deployments.broadcast();
+      HooksFactory(hooksFactory).addHooksTemplate({
+        hooksTemplate: fixedTermTemplate,
+        name: 'FixedTermHooks',
+        initCodeHash: keccak256(_getCreationCode(deployments, 'FixedTermHooks')),
+        feeRecipient: owner,
+        originationFeeAsset: address(0),
+        originationFeeAmount: 0,
+        protocolFeeBips: 1_000
+      });
+    }
+  }
+
+  // ┌─ _storeMarketInitCode ─────
+  function _storeMarketInitCode(Deployments memory deployments)
+    internal
+    virtual
+    returns (address initCodeStorage, bool didDeployInitcodeStorage, uint256 initCodeHash)
+  {
+    bytes memory initCode = _getCreationCode(deployments, 'WildcatMarket');
+    (initCodeStorage, didDeployInitcodeStorage) =
+      deployments.getOrDeployInitcodeStorage('WildcatMarket', initCode, RedoAllDeployments);
+    initCodeHash = uint(keccak256(initCode));
+  }
+
+  // ┌─ _getCreationCode ─────
+  function _getCreationCode(Deployments memory deployments, string memory namePath) internal returns (bytes memory) {
     ContractArtifact memory artifact = parseContractNamePath(namePath);
 
     string memory jsonPath = LibDeployment.findForgeArtifact(artifact, deployments.forgeOutDir);
@@ -228,26 +268,30 @@ contract DeployV2 is Script {
     return creationCode;
   }
 
-  function _storeMarketInitCode(
-    Deployments memory deployments
-  )
-    internal
-    virtual
-    returns (address initCodeStorage, bool didDeployInitcodeStorage, uint256 initCodeHash)
-  {
-    bytes memory initCode = _getCreationCode(deployments, 'WildcatMarket');
-    (initCodeStorage, didDeployInitcodeStorage) = deployments.getOrDeployInitcodeStorage(
-      'WildcatMarket',
-      initCode,
-      RedoAllDeployments
-    );
-    initCodeHash = uint(keccak256(initCode));
+  // ░░▒▒▓▓██ [ OWNERSHIP AND BORROWERS ] ──────────────────────────────────────
+
+  // ┌─ _takeOwnershipOfArchController ─────
+  function _takeOwnershipOfArchController(Deployments memory deployments) internal {
+    WildcatArchController archController = WildcatArchController(deployments.get('WildcatArchController'));
+    if (archController.owner() == address(OldOwner)) {
+      deployments.broadcast();
+      OldOwner.returnOwnership();
+      console.log('Took ownership of arch-controller...');
+    }
   }
 
+  // ┌─ _returnOwnershipOfArchController ─────
+  function _returnOwnershipOfArchController(Deployments memory deployments) internal {
+    WildcatArchController archController = WildcatArchController(deployments.get('WildcatArchController'));
+    if (archController.owner() != address(OldOwner)) {
+      deployments.broadcast();
+      archController.transferOwnership(address(OldOwner));
+    }
+  }
+
+  // ┌─ _registerBorrower ─────
   function _registerBorrower(Deployments memory deployments, address borrower) internal virtual {
-    WildcatArchController archController = WildcatArchController(
-      deployments.get('WildcatArchController')
-    );
+    WildcatArchController archController = WildcatArchController(deployments.get('WildcatArchController'));
     if (!archController.isRegisteredBorrower(borrower)) {
       address owner = archController.owner();
       deployments.broadcast();
@@ -259,28 +303,60 @@ contract DeployV2 is Script {
     }
   }
 
-  function getHooksTemplateArgs(
-    Deployments memory deployments,
-    string memory hooksName
-  ) internal returns (bytes memory hooksTemplateArgs) {
-    (address providerAddress, ) = deployments.getOrDeploy(
-      'UniversalProvider',
-      _getCreationCode(deployments, 'UniversalProvider'),
-      false
-    );
+  // ░░▒▒▓▓██ [ MARKET CREATION ] ──────────────────────────────────────────────
 
-    NameAndProviderInputs memory hooksArgs;
-    hooksArgs.name = hooksName;
-    hooksArgs.existingProviders = new ExistingProviderInputs[](1);
-    hooksArgs.existingProviders[0].providerAddress = providerAddress;
-    hooksArgs.existingProviders[0].timeToLive = type(uint32).max;
-    return abi.encode(hooksArgs);
+  // ┌─ _createMarket ─────
+  function _createMarket(
+    Deployments memory deployments,
+    bool openTerm,
+    bool restrictive
+  )
+    internal
+    returns (OpenTermHooks hooks, WildcatMarket market, MockERC20 token)
+  {
+    MarketConfig memory config = _buildMarketConfig(openTerm, restrictive);
+    (hooks, market, token) = _deployMarketAndHooks(deployments, config);
   }
 
+  // ┌─ _buildMarketConfig ─────
+  function _buildMarketConfig(bool openTerm, bool restrictive) internal view returns (MarketConfig memory config) {
+    // token parameters
+    config.tokenName = 'Token';
+    config.tokenSymbol = 'TOK';
+    config.tokenDecimals = 18;
+    // market parameters
+    config.salt = openTerm ? bytes32(0) : bytes32(uint(1));
+    config.namePrefix = openTerm ? 'Open V2 ' : 'Fixed V2 ';
+    config.symbolPrefix = openTerm ? 'op2' : 'fx2';
+    config.maxTotalSupply = uint128(100_000e18);
+    config.annualInterestBips = 1_500;
+    config.delinquencyFeeBips = 1_000;
+    config.withdrawalBatchDuration = uint32(1);
+    config.reserveRatioBips = 1_000;
+    config.delinquencyGracePeriod = uint32(1);
+    config.marketSymbol = string.concat(config.symbolPrefix, config.tokenSymbol);
+    config.hooks = MarketHooksOptions({
+      isOpenTerm: openTerm,
+      transferAccess: restrictive ? TransferAccess.Disabled : TransferAccess.Open,
+      depositAccess: restrictive ? DepositAccess.RequiresCredential : DepositAccess.Open,
+      withdrawalAccess: restrictive ? WithdrawalAccess.RequiresCredential : WithdrawalAccess.Open,
+      minimumDeposit: uint128(1e16),
+      fixedTermEndTime: openTerm ? 0 : uint32(block.timestamp + 1_500),
+      allowClosureBeforeTerm: restrictive ? false : true,
+      allowTermReduction: restrictive ? false : true,
+      hooksName: string.concat(config.marketSymbol, config.hooks.isOpenTerm ? ' OpenTermHooks' : 'FixedTermHooks'),
+      useUniversalProvider: true
+    });
+  }
+
+  // ┌─ _deployMarketAndHooks ─────
   function _deployMarketAndHooks(
     Deployments memory deployments,
     MarketConfig memory config
-  ) internal returns (OpenTermHooks hooks, WildcatMarket market, MockERC20 token) {
+  )
+    internal
+    returns (OpenTermHooks hooks, WildcatMarket market, MockERC20 token)
+  {
     string memory marketSymbol = config.marketSymbol;
 
     if (deployments.has(string.concat(marketSymbol, '_market'))) {
@@ -292,16 +368,13 @@ contract DeployV2 is Script {
 
     HooksFactory hooksFactory = HooksFactory(deployments.get('HooksFactory'));
     uint256 broadcasterPrivateKey = vm.envOr(deployments.privateKeyVarName, uint256(0));
-    address marketDeployer = broadcasterPrivateKey == 0
-      ? tx.origin
-      : vm.addr(broadcasterPrivateKey);
+    address marketDeployer = broadcasterPrivateKey == 0 ? tx.origin : vm.addr(broadcasterPrivateKey);
     if (bytes20(config.salt) == bytes20(0)) {
       config.salt = bytes32(uint256(config.salt) | (uint256(uint160(marketDeployer)) << 96));
     }
     require(address(bytes20(config.salt)) == marketDeployer, 'Market salt has wrong deployer');
-    address hooksTemplate = deployments.get(
-      config.hooks.isOpenTerm ? 'OpenTermHooks_initCodeStorage' : 'FixedTermHooks_initCodeStorage'
-    );
+    address hooksTemplate =
+      deployments.get(config.hooks.isOpenTerm ? 'OpenTermHooks_initCodeStorage' : 'FixedTermHooks_initCodeStorage');
 
     DeployMarketInputs memory inputs;
     {
@@ -336,14 +409,12 @@ contract DeployV2 is Script {
     }
     token = MockERC20(inputs.asset);
     require(
-      keccak256(bytes(market.symbol())) ==
-        keccak256(bytes(string.concat(config.symbolPrefix, config.tokenSymbol))),
+      keccak256(bytes(market.symbol())) == keccak256(bytes(string.concat(config.symbolPrefix, config.tokenSymbol))),
       'Market symbols do not match!'
     );
 
     {
       address borrower = market.borrower();
-      // Set up approvals
       deployments.broadcast();
       token.mint(borrower, 1_000_000_000e18);
       deployments.broadcast();
@@ -351,14 +422,11 @@ contract DeployV2 is Script {
       deployments.broadcast();
       market.approve(borrower, type(uint256).max);
 
-      // Add market artifact - takes no constructor args
+      // market constructors read transient parameters; there are no encoded arguments.
       deployments.addArtifactWithoutDeploying(
-        string.concat(marketSymbol, '_market'),
-        'WildcatMarket',
-        address(market),
-        ''
+        string.concat(marketSymbol, '_market'), 'WildcatMarket', address(market), ''
       );
-      // Add hooks artifact - takes constructor args (address borrower, bytes args)
+      // hooks artifacts need constructor arguments: (address borrower, bytes args).
       deployments.addArtifactWithoutDeploying(
         string.concat(marketSymbol, '_hooks'),
         config.hooks.isOpenTerm ? 'OpenTermHooks' : 'FixedTermHooks',
@@ -366,40 +434,38 @@ contract DeployV2 is Script {
         abi.encode(borrower, hooksTemplateArgs)
       );
 
-      assertEq(
-        hooksFactory.computeMarketAddress(config.salt),
-        address(market),
-        'Wrong market address computed'
-      );
+      assertEq(hooksFactory.computeMarketAddress(config.salt), address(market), 'Wrong market address computed');
     }
   }
 
-  function _takeOwnershipOfArchController(Deployments memory deployments) internal {
-    WildcatArchController archController = WildcatArchController(
-      deployments.get('WildcatArchController')
-    );
-    if (archController.owner() == address(OldOwner)) {
-      deployments.broadcast();
-      OldOwner.returnOwnership();
-      console.log('Took ownership of arch-controller...');
-    }
+  // ┌─ getHooksTemplateArgs ─────
+  function getHooksTemplateArgs(
+    Deployments memory deployments,
+    string memory hooksName
+  )
+    internal
+    returns (bytes memory hooksTemplateArgs)
+  {
+    (address providerAddress,) =
+      deployments.getOrDeploy('UniversalProvider', _getCreationCode(deployments, 'UniversalProvider'), false);
+
+    NameAndProviderInputs memory hooksArgs;
+    hooksArgs.name = hooksName;
+    hooksArgs.existingProviders = new ExistingProviderInputs[](1);
+    hooksArgs.existingProviders[0].providerAddress = providerAddress;
+    hooksArgs.existingProviders[0].timeToLive = type(uint32).max;
+    return abi.encode(hooksArgs);
   }
 
-  function _returnOwnershipOfArchController(Deployments memory deployments) internal {
-    WildcatArchController archController = WildcatArchController(
-      deployments.get('WildcatArchController')
-    );
-    if (archController.owner() != address(OldOwner)) {
-      deployments.broadcast();
-      archController.transferOwnership(address(OldOwner));
-    }
-  }
-
+  // ┌─ _deployToken ─────
   function _deployToken(
     Deployments memory deployments,
     string memory name,
     string memory symbol
-  ) internal returns (MockERC20 token) {
+  )
+    internal
+    returns (MockERC20 token)
+  {
     string memory label = string.concat('MockERC20:', name);
     if (deployments.has(label)) {
       token = MockERC20(deployments.get(label));
@@ -411,149 +477,44 @@ contract DeployV2 is Script {
     }
   }
 
-  /**
-   * @dev Prepares the hooks factory:
-   *      - Registers the hooks factory as a controller factory and initializes
-   *        it with the arch controller, if either has not been done.
-   *      - Deploys the OpenTermHooks template if it does not exist.
-   *      - Deploys the FixedTermHooks template if it does not exist.
-   *      - Registers the templates with the hooks factory if they're not already registered.
-   */
-  function _setUpHooksFactory(
-    Deployments memory deployments,
-    WildcatArchController archController,
-    HooksFactory hooksFactory
-  ) internal {
-    bool registerAsFactory = !archController.isRegisteredControllerFactory(address(hooksFactory));
-    bool registerAsController = !archController.isRegisteredController(address(hooksFactory));
-    (address openTermTemplate, ) = deployments.getOrDeployInitcodeStorage(
-      'OpenTermHooks',
-      _getCreationCode(deployments, 'OpenTermHooks'),
-      RedoAllDeployments
-    );
-    (address fixedTermTemplate, ) = deployments.getOrDeployInitcodeStorage(
-      'FixedTermHooks',
-      _getCreationCode(deployments, 'FixedTermHooks'),
-      RedoAllDeployments
-    );
-    bool addOpenTermTemplate = !HooksFactory(hooksFactory).isHooksTemplate(openTermTemplate);
-    bool addFixedTermTemplate = !HooksFactory(hooksFactory).isHooksTemplate(fixedTermTemplate);
+  // ┌─ deployMarketAddTwoRemoveOne ─────
+  function deployMarketAddTwoRemoveOne() internal {
+    Deployments memory deployments = getDeploymentsForNetwork('sepolia').withPrivateKeyVarName('PVT_KEY');
+  }
 
-    if (registerAsFactory || registerAsController || addOpenTermTemplate || addFixedTermTemplate) {
-      _takeOwnershipOfArchController(deployments);
-    }
-    address owner = archController.owner();
-    if (registerAsFactory) {
+  // ░░▒▒▓▓██ [ MARKET EXERCISE ] ──────────────────────────────────────────────
+
+  // ┌─ seedLender ─────
+  function seedLender(
+    string memory lenderName,
+    bool openMarket,
+    uint depositAmount,
+    uint withdrawAmount,
+    uint borrowAmount
+  )
+    internal
+  {
+    string memory lenderPvtKeyVarName = string.concat(lenderName, '_PVT_KEY');
+    Deployments memory deployments = getDeploymentsForNetwork('sepolia').withPrivateKeyVarName('PVT_KEY');
+    string memory marketLabel = openMarket ? 'op2TOK_market' : 'fx2TOK_market';
+    address market = deployments.get(marketLabel);
+    Lender memory lender = buildLender(lenderName, market);
+    if (!openMarket) {
+      OpenTermHooks hooks = OpenTermHooks(deployments.get('fx2TOK_hooks'));
       deployments.broadcast();
-      archController.registerControllerFactory(address(hooksFactory));
+      hooks.grantRole(lender.account, uint32(block.timestamp));
+      console.log(string.concat('Granted role to lender ', lender.account.toHexString()));
     }
-    if (registerAsController) {
+    lender.deposit(depositAmount);
+    if (!openMarket) lender.withdraw(withdrawAmount);
+
+    if (borrowAmount > 0) {
       deployments.broadcast();
-      hooksFactory.registerWithArchController();
-    }
-    if (addOpenTermTemplate) {
-      deployments.broadcast();
-      HooksFactory(hooksFactory).addHooksTemplate({
-        hooksTemplate: openTermTemplate,
-        name: 'OpenTermHooks',
-        feeRecipient: owner,
-        originationFeeAsset: address(0),
-        originationFeeAmount: 0,
-        protocolFeeBips: 1_000
-      });
-    }
-    if (addFixedTermTemplate) {
-      deployments.broadcast();
-      HooksFactory(hooksFactory).addHooksTemplate({
-        hooksTemplate: fixedTermTemplate,
-        name: 'FixedTermHooks',
-        feeRecipient: owner,
-        originationFeeAsset: address(0),
-        originationFeeAmount: 0,
-        protocolFeeBips: 1_000
-      });
+      lender.market.borrow(borrowAmount);
     }
   }
 
-  function _buildMarketConfig(
-    bool openTerm,
-    bool restrictive
-  ) internal view returns (MarketConfig memory config) {
-    // token parameters
-    config.tokenName = 'Token';
-    config.tokenSymbol = 'TOK';
-    config.tokenDecimals = 18;
-    // market parameters
-    config.salt = openTerm ? bytes32(0) : bytes32(uint(1));
-    config.namePrefix = openTerm ? 'Open V2 ' : 'Fixed V2 ';
-    config.symbolPrefix = openTerm ? 'op2' : 'fx2';
-    config.maxTotalSupply = uint128(100_000e18);
-    config.annualInterestBips = 1_500;
-    config.delinquencyFeeBips = 1_000;
-    config.withdrawalBatchDuration = uint32(1);
-    config.reserveRatioBips = 1_000;
-    config.delinquencyGracePeriod = uint32(1);
-    config.marketSymbol = string.concat(config.symbolPrefix, config.tokenSymbol);
-    config.hooks = MarketHooksOptions({
-      isOpenTerm: openTerm,
-      transferAccess: restrictive ? TransferAccess.Disabled : TransferAccess.Open,
-      depositAccess: restrictive ? DepositAccess.RequiresCredential : DepositAccess.Open,
-      withdrawalAccess: restrictive ? WithdrawalAccess.RequiresCredential : WithdrawalAccess.Open,
-      minimumDeposit: uint128(1e16),
-      fixedTermEndTime: openTerm ? 0 : uint32(block.timestamp + 1_500),
-      allowClosureBeforeTerm: restrictive ? false : true,
-      allowTermReduction: restrictive ? false : true,
-      hooksName: string.concat(
-        config.marketSymbol,
-        config.hooks.isOpenTerm ? ' OpenTermHooks' : 'FixedTermHooks'
-      ),
-      useUniversalProvider: true
-    });
-  }
-
-  function _createMarket(
-    Deployments memory deployments,
-    bool openTerm,
-    bool restrictive
-  ) internal returns (OpenTermHooks hooks, WildcatMarket market, MockERC20 token) {
-    MarketConfig memory config = _buildMarketConfig(openTerm, restrictive);
-    (hooks, market, token) = _deployMarketAndHooks(deployments, config);
-  }
-
-  function assertEq(uint a, uint b, string memory errorMessage) internal {
-    if (a != b) {
-      console.log(string.concat('Error: ', errorMessage));
-      console.log(string.concat('Expected: ', a.toString()));
-      console.log(string.concat('Actual: ', b.toString()));
-      revert(string.concat('Error: ', errorMessage));
-    }
-  }
-
-  function assertEq(uint a, uint b) internal {
-    assertEq(a, b, 'Numbers do not match');
-  }
-
-  function assertEq(address a, address b, string memory errorMessage) internal {
-    assertEq(a.toHexString(), b.toHexString(), errorMessage);
-  }
-
-  function assertEq(address a, address b) internal {
-    assertEq(a, b, 'Addresses do not match');
-  }
-
-  function assertEq(string memory a, string memory b, string memory errorMessage) internal {
-    if (keccak256(bytes(a)) != keccak256(bytes(b))) {
-      console.log(string.concat('Error: ', errorMessage));
-      console.log(string.concat('Expected: ', a));
-      console.log(string.concat('Actual: ', b));
-      revert(string.concat('Error: ', errorMessage));
-    }
-  }
-
-  function assertEq(string memory a, string memory b) internal {
-    assertEq(a, b, 'Strings do not match');
-  }
-
+  // ┌─ _seedMarketFunctions ─────
   function _seedMarketFunctions(Deployments memory deployments, WildcatMarket market) internal {
     IEngine engine = IEngine(market.sphereXEngine());
 
@@ -616,5 +577,63 @@ contract DeployV2 is Script {
     deployments.broadcast();
     engine.configureRules(0x0000000000000001);
     console.log('Reactivated spherex engine');
+  }
+
+  // ┌─ addCloseMarket ─────
+  function addCloseMarket() internal {
+    Deployments memory deployments = getDeploymentsForNetwork('sepolia').withPrivateKeyVarName('PVT_KEY');
+
+    IEngine engine = IEngine(0xCc65C2Ad8ab5b5c63489cfC77F782175E0c6A36e);
+    uint216[] memory patterns = new uint216[](5);
+    patterns[0] = 94418217012137984803774416703850667173250690997694159855897612912;
+    patterns[1] = 92083039521021907843879083621254831642817523105040888014352789085;
+    patterns[2] = 46697456462908571842451701755225422725380819403284149584678459579;
+    patterns[3] = 55812322464611803823919095340941798065809022442869364620170712203;
+    patterns[4] = 14451904267781507293472597357567865620281743582632039118805013802;
+    deployments.broadcast();
+    engine.addAllowedPatterns(patterns);
+    console.log('Added close market pattern');
+  }
+
+  // ░░▒▒▓▓██ [ ASSERTIONS ] ───────────────────────────────────────────────────
+
+  // ┌─ assertEq ─────
+  function assertEq(uint a, uint b, string memory errorMessage) internal {
+    if (a != b) {
+      console.log(string.concat('Error: ', errorMessage));
+      console.log(string.concat('Expected: ', a.toString()));
+      console.log(string.concat('Actual: ', b.toString()));
+      revert(string.concat('Error: ', errorMessage));
+    }
+  }
+
+  // ┌─ assertEq ─────
+  function assertEq(uint a, uint b) internal {
+    assertEq(a, b, 'Numbers do not match');
+  }
+
+  // ┌─ assertEq ─────
+  function assertEq(address a, address b, string memory errorMessage) internal {
+    assertEq(a.toHexString(), b.toHexString(), errorMessage);
+  }
+
+  // ┌─ assertEq ─────
+  function assertEq(address a, address b) internal {
+    assertEq(a, b, 'Addresses do not match');
+  }
+
+  // ┌─ assertEq ─────
+  function assertEq(string memory a, string memory b, string memory errorMessage) internal {
+    if (keccak256(bytes(a)) != keccak256(bytes(b))) {
+      console.log(string.concat('Error: ', errorMessage));
+      console.log(string.concat('Expected: ', a));
+      console.log(string.concat('Actual: ', b));
+      revert(string.concat('Error: ', errorMessage));
+    }
+  }
+
+  // ┌─ assertEq ─────
+  function assertEq(string memory a, string memory b) internal {
+    assertEq(a, b, 'Strings do not match');
   }
 }

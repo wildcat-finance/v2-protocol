@@ -1,6 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // HooksDataForBorrower
+// ║  ██▀▀     ▀▀██   One-factory template and hooks-instance views for borrowers.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  BORROWER HOOKS DATA
+// ║  fill(...)
+// ╚═════
+
 import './HooksTemplateData.sol';
 import './HooksInstanceData.sol';
 import '../IHooksFactory.sol';
@@ -9,6 +20,7 @@ import '../WildcatArchController.sol';
 using HooksDataForBorrowerLib for HooksDataForBorrower global;
 
 /// @notice borrower-facing hooks templates and instances from one factory.
+///
 /// @dev `isRegisteredBorrower` checks the address directly. it does not resolve borrower accounts.
 struct HooksDataForBorrower {
   address borrower;
@@ -17,15 +29,22 @@ struct HooksDataForBorrower {
   HooksInstanceData[] hooksInstances;
 }
 
-/// @notice builds one-factory hooks views for a borrower address.
+// ┌─ HooksDataForBorrowerLib ──────────────────────────────────────────────────
+/// @notice build one-factory hooks views for a borrower address.
 library HooksDataForBorrowerLib {
-  /// @notice fills borrower status plus every template and borrower-indexed instance in `factory`.
+  // ░░▒▒▓▓██ [ BORROWER HOOKS DATA ] ──────────────────────────────────────────
+
+  // ┌─ fill ─────
+  /// @notice fill borrower status plus every template and borrower-indexed instance in `factory`.
   function fill(
     HooksDataForBorrower memory data,
     WildcatArchController archController,
     IHooksFactory factory,
     address borrower
-  ) internal view {
+  )
+    internal
+    view
+  {
     data.borrower = borrower;
     data.isRegisteredBorrower = archController.isRegisteredBorrower(borrower);
     address[] memory hooksInstances = factory.getHooksInstancesForBorrower(borrower);

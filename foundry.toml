@@ -5,6 +5,11 @@ out = 'out'
 libs = ['lib']
 gas_reports = ["WildcatMarket"]
 
+# Deliberately retain the Foundry 1.8.3 defaults used by the canonical suite.
+# Top-level calls use separate transaction contexts, including storage warmth.
+isolate = true
+dynamic_test_linking = true
+
 ffi=true
 solc="0.8.25"
 fs_permissions = [
@@ -29,8 +34,27 @@ ignored_warnings_from = ["src/", "test/"]
 bytecode_hash = 'none'
 via_ir = true
 optimizer = true
-optimizer_runs = 44
+# Runs 1 and the pinned Yul sequence without FunctionSpecializer keep both market
+# runtimes below EIP-170. All normal build and test profiles inherit these settings.
+optimizer_runs = 1
+optimizer_details = { yulDetails = { optimizerSteps = 'dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul' } }
 cbor_metadata = false
+
+[fmt]
+line_length = 120
+tab_width = 2
+bracket_spacing = true
+quote_style = 'single'
+multiline_func_header = 'all'
+prefer_compact = 'none'
+int_types = 'preserve'
+number_underscore = 'preserve'
+hex_underscore = 'preserve'
+wrap_comments = false
+docs_style = 'preserve'
+single_line_statement_blocks = 'preserve'
+sort_imports = false
+namespace_import_style = 'preserve'
 
 [lint]
 lint_on_build = false

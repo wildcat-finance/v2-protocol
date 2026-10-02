@@ -1,6 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // RoleProviderTokenMock
+// ║  ██▀▀     ▀▀██   Configurable token balances, ownership, and capabilities.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  TOKEN CAPABILITIES
+// ║  setInterfaceBehavior(...)
+// ║  supportsInterface(...)
+// ║  setReadReverts(...)
+// ║
+// ║  TOKEN BALANCES
+// ║  setBalance(...)
+// ║  setBalance(...)
+// ║  balanceOf(...)
+// ║  balanceOf(...)
+// ║
+// ║  ASSET CONVERSION
+// ║  setAssetsPerShare(...)
+// ║  convertToAssets(...)
+// ║
+// ║  TOKEN OWNERSHIP
+// ║  setOwner(...)
+// ║  ownerOf(...)
+// ║
+// ║  SOULBOUND STATUS
+// ║  setLocked(...)
+// ║  locked(...)
+// ║  setBurnAuth(...)
+// ║  burnAuth(...)
+// ╚═════
+
+// ┌─ RoleProviderTokenMock ────────────────────────────────────────────────────
 contract RoleProviderTokenMock {
   bytes4 internal constant ERC165InterfaceId = 0x01ffc9a7;
   bytes4 internal constant ERC721InterfaceId = 0x80ac58cd;
@@ -31,87 +65,24 @@ contract RoleProviderTokenMock {
   bool internal _revertLocked;
   bool internal _revertBurnAuth;
 
+  // ░░▒▒▓▓██ [ TOKEN CAPABILITIES ] ───────────────────────────────────────────
+
+  // ┌─ setInterfaceBehavior ─────
   function setInterfaceBehavior(
     uint8 supportedStandards,
     bool supportsERC165_,
     bool invalidERC165,
     bool revertSupportsInterface
-  ) external {
+  )
+    external
+  {
     _supportedStandards = supportedStandards;
     _supportsERC165 = supportsERC165_;
     _invalidERC165 = invalidERC165;
     _revertSupportsInterface = revertSupportsInterface;
   }
 
-  function setReadReverts(
-    bool balance,
-    bool conversion,
-    bool owner,
-    bool isLocked,
-    bool authorization
-  ) external {
-    _revertBalance = balance;
-    _revertConversion = conversion;
-    _revertOwner = owner;
-    _revertLocked = isLocked;
-    _revertBurnAuth = authorization;
-  }
-
-  function setBalance(address account, uint256 balance) external {
-    _balances[account] = balance;
-  }
-
-  function setBalance(address account, uint256 tokenId, uint256 balance) external {
-    _idBalances[account][tokenId] = balance;
-  }
-
-  function setAssetsPerShare(uint256 assetsPerShare) external {
-    _assetsPerShare = assetsPerShare;
-  }
-
-  function setOwner(uint256 tokenId, address owner) external {
-    _owners[tokenId] = owner;
-  }
-
-  function setLocked(uint256 tokenId, bool isLocked) external {
-    _locked[tokenId] = isLocked;
-  }
-
-  function setBurnAuth(uint256 tokenId, uint256 authorization) external {
-    _burnAuth[tokenId] = authorization;
-  }
-
-  function balanceOf(address account) external view returns (uint256) {
-    if (_revertBalance) revert('BALANCE_REVERTED');
-    return _balances[account];
-  }
-
-  function balanceOf(address account, uint256 tokenId) external view returns (uint256) {
-    if (_revertBalance) revert('BALANCE_REVERTED');
-    return _idBalances[account][tokenId];
-  }
-
-  function convertToAssets(uint256 shares) external view returns (uint256) {
-    if (_revertConversion) revert('CONVERSION_REVERTED');
-    return shares * _assetsPerShare;
-  }
-
-  function ownerOf(uint256 tokenId) external view returns (address owner) {
-    if (_revertOwner) revert('OWNER_REVERTED');
-    owner = _owners[tokenId];
-    if (owner == address(0)) revert('NOT_MINTED');
-  }
-
-  function locked(uint256 tokenId) external view returns (bool) {
-    if (_revertLocked) revert('LOCKED_REVERTED');
-    return _locked[tokenId];
-  }
-
-  function burnAuth(uint256 tokenId) external view returns (uint256) {
-    if (_revertBurnAuth) revert('BURN_AUTH_REVERTED');
-    return _burnAuth[tokenId];
-  }
-
+  // ┌─ supportsInterface ─────
   function supportsInterface(bytes4 interfaceId) external view returns (bool) {
     if (_revertSupportsInterface) revert('INTERFACE_REVERTED');
     if (interfaceId == InvalidInterfaceId) return _invalidERC165;
@@ -130,5 +101,89 @@ contract RoleProviderTokenMock {
       return _supportedStandards & SupportsERC5484 != 0;
     }
     return false;
+  }
+
+  // ┌─ setReadReverts ─────
+  function setReadReverts(bool balance, bool conversion, bool owner, bool isLocked, bool authorization) external {
+    _revertBalance = balance;
+    _revertConversion = conversion;
+    _revertOwner = owner;
+    _revertLocked = isLocked;
+    _revertBurnAuth = authorization;
+  }
+
+  // ░░▒▒▓▓██ [ TOKEN BALANCES ] ───────────────────────────────────────────────
+
+  // ┌─ setBalance ─────
+  function setBalance(address account, uint256 balance) external {
+    _balances[account] = balance;
+  }
+
+  // ┌─ setBalance ─────
+  function setBalance(address account, uint256 tokenId, uint256 balance) external {
+    _idBalances[account][tokenId] = balance;
+  }
+
+  // ┌─ balanceOf ─────
+  function balanceOf(address account) external view returns (uint256) {
+    if (_revertBalance) revert('BALANCE_REVERTED');
+    return _balances[account];
+  }
+
+  // ┌─ balanceOf ─────
+  function balanceOf(address account, uint256 tokenId) external view returns (uint256) {
+    if (_revertBalance) revert('BALANCE_REVERTED');
+    return _idBalances[account][tokenId];
+  }
+
+  // ░░▒▒▓▓██ [ ASSET CONVERSION ] ─────────────────────────────────────────────
+
+  // ┌─ setAssetsPerShare ─────
+  function setAssetsPerShare(uint256 assetsPerShare) external {
+    _assetsPerShare = assetsPerShare;
+  }
+
+  // ┌─ convertToAssets ─────
+  function convertToAssets(uint256 shares) external view returns (uint256) {
+    if (_revertConversion) revert('CONVERSION_REVERTED');
+    return shares * _assetsPerShare;
+  }
+
+  // ░░▒▒▓▓██ [ TOKEN OWNERSHIP ] ──────────────────────────────────────────────
+
+  // ┌─ setOwner ─────
+  function setOwner(uint256 tokenId, address owner) external {
+    _owners[tokenId] = owner;
+  }
+
+  // ┌─ ownerOf ─────
+  function ownerOf(uint256 tokenId) external view returns (address owner) {
+    if (_revertOwner) revert('OWNER_REVERTED');
+    owner = _owners[tokenId];
+    if (owner == address(0)) revert('NOT_MINTED');
+  }
+
+  // ░░▒▒▓▓██ [ SOULBOUND STATUS ] ─────────────────────────────────────────────
+
+  // ┌─ setLocked ─────
+  function setLocked(uint256 tokenId, bool isLocked) external {
+    _locked[tokenId] = isLocked;
+  }
+
+  // ┌─ locked ─────
+  function locked(uint256 tokenId) external view returns (bool) {
+    if (_revertLocked) revert('LOCKED_REVERTED');
+    return _locked[tokenId];
+  }
+
+  // ┌─ setBurnAuth ─────
+  function setBurnAuth(uint256 tokenId, uint256 authorization) external {
+    _burnAuth[tokenId] = authorization;
+  }
+
+  // ┌─ burnAuth ─────
+  function burnAuth(uint256 tokenId) external view returns (uint256) {
+    if (_revertBurnAuth) revert('BURN_AUTH_REVERTED');
+    return _burnAuth[tokenId];
   }
 }

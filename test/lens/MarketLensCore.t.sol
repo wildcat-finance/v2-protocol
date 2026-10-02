@@ -1,6 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensCore.t
+// ║  ██▀▀     ▀▀██   Core market, live accounting, lender, and withdrawal lens reads.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║
+// ║  MARKET AND LIVE DATA
+// ║  test_tokenAndMarketReads_MapCanonicalStateAndBatchEndpoints()
+// ║  test_tokenAndMarketReads_AcceptBytes32MetadataInMixedBatches()
+// ║  test_legacyHookConstraints_FullReadsPreserveOriginalBounds()
+// ║  test_v2AndLiveReads_TrackRevolvingFieldsAndBorrowerIdentity()
+// ║  _assertLiveParity(...)
+// ║  test_periodicMarketRead_MapsTermConfigurationAndClosure()
+// ║  _newPeriodicMarketForLens()
+// ║
+// ║  LENDER ACCOUNTS
+// ║  test_lenderAccountReads_MapBalancesApprovalAndDepositBlock()
+// ║  _assertLenderAccount(...)
+// ║
+// ║  WITHDRAWAL DATA
+// ║  test_withdrawalReads_MapPendingExpiredUnpaidCompleteAndUnknown()
+// ║  test_withdrawalReads_WideOwnershipAndAccruedUnpaidAmount()
+// ╚═════
+
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { IHooks } from 'src/access/IHooks.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
@@ -19,6 +47,7 @@ import { WithdrawalBatchDataWithLenderStatus } from 'src/lens/WithdrawalBatchDat
 import { WithdrawalBatchLenderStatus } from 'src/lens/WithdrawalBatchData.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 
+// ┌─ MarketLensCoreTest ───────────────────────────────────────────────────────
 contract MarketLensCoreTest is MarketFixture {
   using MarketDataLib for MarketData;
 
@@ -30,6 +59,9 @@ contract MarketLensCoreTest is MarketFixture {
   MarketLensCore internal core;
   MarketLensLive internal live;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     fixture = _newMarket(HooksKind.OpenTerm);
     core = MarketLensCore(
@@ -46,6 +78,9 @@ contract MarketLensCoreTest is MarketFixture {
     );
   }
 
+  // ░░▒▒▓▓██ [ MARKET AND LIVE DATA ] ─────────────────────────────────────────
+
+  // ┌─ test_tokenAndMarketReads_MapCanonicalStateAndBatchEndpoints ─────
   function test_tokenAndMarketReads_MapCanonicalStateAndBatchEndpoints() external {
     _deposit(fixture, Lender, 100e18);
     vm.prank(Borrower);
@@ -93,34 +128,19 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(abi.encode(core.getMarketsDataV2(markets)[0]), abi.encode(v2), 'v2 list parity');
 
     uint32[] memory noExpiries = new uint32[](0);
-    LenderAccountQuery memory query = LenderAccountQuery(
-      Lender,
-      address(fixture.market),
-      noExpiries
-    );
+    LenderAccountQuery memory query = LenderAccountQuery(Lender, address(fixture.market), noExpiries);
     LenderAccountQueryResult memory result = core.queryLenderAccount(query);
     assertEq(abi.encode(result.market), abi.encode(data), 'query market');
     assertEq(result.withdrawalBatches.length, 0, 'query batches');
     LenderAccountQuery[] memory queries = new LenderAccountQuery[](1);
     queries[0] = query;
-    assertEq(
-      abi.encode(core.queryLenderAccounts(queries)[0]),
-      abi.encode(result),
-      'query list parity'
-    );
+    assertEq(abi.encode(core.queryLenderAccounts(queries)[0]), abi.encode(result), 'query list parity');
   }
 
+  // ┌─ test_tokenAndMarketReads_AcceptBytes32MetadataInMixedBatches ─────
   function test_tokenAndMarketReads_AcceptBytes32MetadataInMixedBatches() external {
-    vm.mockCall(
-      address(fixture.asset),
-      abi.encodeWithSignature('name()'),
-      abi.encode(bytes32('Legacy Token'))
-    );
-    vm.mockCall(
-      address(fixture.asset),
-      abi.encodeWithSignature('symbol()'),
-      abi.encode(bytes32('LEGACY'))
-    );
+    vm.mockCall(address(fixture.asset), abi.encodeWithSignature('name()'), abi.encode(bytes32('Legacy Token')));
+    vm.mockCall(address(fixture.asset), abi.encodeWithSignature('symbol()'), abi.encode(bytes32('LEGACY')));
 
     TokenMetadata memory direct = core.getTokenInfo(address(fixture.asset));
     assertEq(direct.name, 'Legacy Token', 'direct name');
@@ -142,6 +162,22 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(marketData[0].underlyingToken.symbol, 'LEGACY', 'market underlying symbol');
   }
 
+  // ┌─ test_legacyHookConstraints_FullReadsPreserveOriginalBounds ─────
+  function test_legacyHookConstraints_FullReadsPreserveOriginalBounds() external {
+    MarketData memory current = core.getMarketData(address(fixture.market));
+    assertTrue(current.hooks.repaymentConstraintsAvailable, 'current bounds supported');
+    bytes memory legacy = abi.encode(current.hooks.constraints);
+    assembly ('memory-safe') {
+      mstore(legacy, 0x140)
+    }
+    vm.mockCall(address(fixture.hooks), abi.encodeWithSignature('getParameterConstraints()'), legacy);
+    MarketDataV2_5 memory data = core.getMarketDataV2(address(fixture.market));
+    assertFalse(data.market.hooks.repaymentConstraintsAvailable, 'legacy bounds unavailable');
+    assertEq(abi.encode(data.market.hooks.constraints), bytes.concat(legacy, new bytes(64)), 'old bounds preserved');
+    assertTrue(data.lifecycle.isPresent, 'market lifecycle independent of hook generation');
+  }
+
+  // ┌─ test_v2AndLiveReads_TrackRevolvingFieldsAndBorrowerIdentity ─────
   function test_v2AndLiveReads_TrackRevolvingFieldsAndBorrowerIdentity() external {
     Fixture memory revolving = _newRevolvingMarket(HooksKind.OpenTerm);
     _deposit(revolving, Lender, 100e18);
@@ -183,15 +219,29 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(accepted.market.hooks.administrator, Borrower, 'hooks remain administered');
   }
 
+  // ┌─ _assertLiveParity ─────
+  function _assertLiveParity(MarketData memory full, MarketLiveDataV2_5 memory current) internal pure {
+    assertEq(current.market, full.marketToken.token, 'live market');
+    assertEq(current.isClosed, full.isClosed, 'live closed');
+    assertEq(current.protocolFeeBips, full.protocolFeeBips, 'live protocol fee');
+    assertEq(current.reserveRatioBips, full.reserveRatioBips, 'live reserve ratio');
+    assertEq(current.annualInterestBips, full.annualInterestBips, 'live apr');
+    assertEq(current.scaleFactor, full.scaleFactor, 'live scale factor');
+    assertEq(current.totalSupply, full.totalSupply, 'live supply');
+    assertEq(current.totalAssets, full.totalAssets, 'live assets');
+    assertEq(current.scaledPendingWithdrawals, full.scaledPendingWithdrawals, 'live pending');
+    assertEq(current.pendingWithdrawalExpiry, full.pendingWithdrawalExpiry, 'live expiry');
+    assertEq(current.timeDelinquent, full.timeDelinquent, 'live delinquency');
+    assertEq(current.coverageLiquidity, full.coverageLiquidity, 'live coverage');
+  }
+
+  // ┌─ test_periodicMarketRead_MapsTermConfigurationAndClosure ─────
   function test_periodicMarketRead_MapsTermConfigurationAndClosure() external {
     Fixture memory periodic = _newPeriodicMarketForLens();
     MarketData memory data = core.getMarketData(address(periodic.market));
 
     assertEq(uint256(data.hooksConfig.kind), uint256(HooksInstanceKind.PeriodicTerm), 'kind');
-    assertTrue(
-      data.hooksConfig.firstWithdrawalWindowStart > vm.getBlockTimestamp(),
-      'first window'
-    );
+    assertTrue(data.hooksConfig.firstWithdrawalWindowStart > vm.getBlockTimestamp(), 'first window');
     assertEq(data.hooksConfig.periodDuration, 7 days, 'period');
     assertEq(data.hooksConfig.withdrawalWindowDuration, 2 days, 'window');
     assertFalse(data.hooksConfig.periodicTermClosed, 'term open');
@@ -202,31 +252,23 @@ contract MarketLensCoreTest is MarketFixture {
     assertTrue(data.hooksConfig.periodicTermClosed, 'term closed');
   }
 
+  // ┌─ _newPeriodicMarketForLens ─────
   function _newPeriodicMarketForLens() internal returns (Fixture memory periodic) {
-    IHooks hooks = IHooks(
-      _deployCode(
-        'src/access/PeriodicTermHooks.sol:PeriodicTermHooks',
-        abi.encode(Borrower, bytes(''))
-      )
-    );
+    IHooks hooks =
+      IHooks(_deployCode('src/access/PeriodicTermHooks.sol:PeriodicTermHooks', abi.encode(Borrower, bytes(''))));
     uint32 periodDuration = 7 days;
     uint32 withdrawalWindowDuration = 2 days;
-    uint32 firstWithdrawalWindowStart = uint32(
-      vm.getBlockTimestamp() + periodDuration - withdrawalWindowDuration
-    );
+    uint32 firstWithdrawalWindowStart = uint32(vm.getBlockTimestamp() + periodDuration - withdrawalWindowDuration);
     periodic = _newMarket(
       _defaultOptions(HooksKind.OpenTerm),
       hooks,
-      abi.encode(
-        firstWithdrawalWindowStart,
-        periodDuration,
-        withdrawalWindowDuration,
-        uint128(0),
-        false
-      )
+      abi.encode(firstWithdrawalWindowStart, periodDuration, withdrawalWindowDuration, uint128(0), false)
     );
   }
 
+  // ░░▒▒▓▓██ [ LENDER ACCOUNTS ] ──────────────────────────────────────────────
+
+  // ┌─ test_lenderAccountReads_MapBalancesApprovalAndDepositBlock ─────
   function test_lenderAccountReads_MapBalancesApprovalAndDepositBlock() external {
     _fundAndApprove(fixture, Lender, 10e18);
     vm.prank(Lender);
@@ -246,26 +288,17 @@ contract MarketLensCoreTest is MarketFixture {
 
     address[] memory markets = new address[](1);
     markets[0] = address(fixture.market);
-    assertEq(
-      abi.encode(core.getLenderAccountData(Lender, markets)[0]),
-      abi.encode(account),
-      'account by markets'
-    );
+    assertEq(abi.encode(core.getLenderAccountData(Lender, markets)[0]), abi.encode(account), 'account by markets');
     address[] memory lenders = new address[](2);
     lenders[0] = Lender;
     lenders[1] = SecondLender;
-    LenderAccountData[] memory accounts = core.getLenderAccountsData(
-      address(fixture.market),
-      lenders
-    );
+    LenderAccountData[] memory accounts = core.getLenderAccountsData(address(fixture.market), lenders);
     assertEq(accounts.length, 2, 'account count');
     _assertLenderAccount(accounts[0], Lender);
     _assertLenderAccount(accounts[1], SecondLender);
 
-    MarketDataWithLenderStatus memory marketAccount = core.getMarketDataWithLenderStatus(
-      Lender,
-      address(fixture.market)
-    );
+    MarketDataWithLenderStatus memory marketAccount =
+      core.getMarketDataWithLenderStatus(Lender, address(fixture.market));
     assertEq(abi.encode(marketAccount.lenderStatus), abi.encode(account), 'market account');
     assertEq(
       abi.encode(core.getMarketsDataWithLenderStatus(Lender, markets)[0]),
@@ -273,11 +306,25 @@ contract MarketLensCoreTest is MarketFixture {
       'market account list'
     );
 
-    MarketLiveDataWithLenderStatusV2_5[] memory liveAccounts = live
-      .getMarketsLiveDataWithLenderStatusV2(Lender, markets);
+    MarketLiveDataWithLenderStatusV2_5[] memory liveAccounts =
+      live.getMarketsLiveDataWithLenderStatusV2(Lender, markets);
     assertEq(abi.encode(liveAccounts[0].lenderStatus), abi.encode(account), 'live account');
   }
 
+  // ┌─ _assertLenderAccount ─────
+  function _assertLenderAccount(LenderAccountData memory account, address lender) internal view {
+    assertEq(account.lender, lender, 'lender address');
+    assertEq(account.scaledBalance, fixture.market.scaledBalanceOf(lender), 'scaled balance');
+    assertEq(account.normalizedBalance, fixture.market.balanceOf(lender), 'normalized balance');
+    assertEq(account.underlyingBalance, fixture.asset.balanceOf(lender), 'underlying balance');
+    assertEq(
+      account.underlyingApproval, fixture.asset.allowance(lender, address(fixture.market)), 'underlying approval'
+    );
+  }
+
+  // ░░▒▒▓▓██ [ WITHDRAWAL DATA ] ──────────────────────────────────────────────
+
+  // ┌─ test_withdrawalReads_MapPendingExpiredUnpaidCompleteAndUnknown ─────
   function test_withdrawalReads_MapPendingExpiredUnpaidCompleteAndUnknown() external {
     _deposit(fixture, Lender, 100e18);
     vm.prank(Borrower);
@@ -293,18 +340,15 @@ contract MarketLensCoreTest is MarketFixture {
     uint32[] memory expiries = new uint32[](1);
     expiries[0] = expiry;
     assertEq(
-      abi.encode(core.getWithdrawalBatchesData(address(fixture.market), expiries)[0]),
-      abi.encode(batch),
-      'batch list'
+      abi.encode(core.getWithdrawalBatchesData(address(fixture.market), expiries)[0]), abi.encode(batch), 'batch list'
     );
-    WithdrawalBatchDataWithLenderStatus memory lenderBatch = core
-      .getWithdrawalBatchDataWithLenderStatus(address(fixture.market), expiry, Lender);
+    WithdrawalBatchDataWithLenderStatus memory lenderBatch =
+      core.getWithdrawalBatchDataWithLenderStatus(address(fixture.market), expiry, Lender);
     assertEq(lenderBatch.lenderStatus.lender, Lender, 'lender');
     assertEq(lenderBatch.lenderStatus.scaledAmount, batch.scaledTotalAmount, 'lender amount');
+    assertEq(lenderBatch.lenderStatus.availableWithdrawalAmount, 0, 'pending assets not collectible');
     assertEq(
-      abi.encode(
-        core.getWithdrawalBatchesDataWithLenderStatus(address(fixture.market), expiries, Lender)[0]
-      ),
+      abi.encode(core.getWithdrawalBatchesDataWithLenderStatus(address(fixture.market), expiries, Lender)[0]),
       abi.encode(lenderBatch),
       'lender batch list'
     );
@@ -312,8 +356,8 @@ contract MarketLensCoreTest is MarketFixture {
     address[] memory lenders = new address[](2);
     lenders[0] = Lender;
     lenders[1] = SecondLender;
-    (WithdrawalBatchData memory sharedBatch, WithdrawalBatchLenderStatus[] memory statuses) = core
-      .getWithdrawalBatchDataWithLendersStatus(address(fixture.market), expiry, lenders);
+    (WithdrawalBatchData memory sharedBatch, WithdrawalBatchLenderStatus[] memory statuses) =
+      core.getWithdrawalBatchDataWithLendersStatus(address(fixture.market), expiry, lenders);
     assertEq(abi.encode(sharedBatch), abi.encode(batch), 'shared batch');
     assertEq(statuses.length, 2, 'status count');
     assertEq(statuses[0].scaledAmount, batch.scaledTotalAmount, 'first status');
@@ -322,6 +366,12 @@ contract MarketLensCoreTest is MarketFixture {
     vm.warp(uint256(expiry) + 1);
     batch = core.getWithdrawalBatchData(address(fixture.market), expiry);
     assertEq(uint256(batch.status), uint256(BatchStatus.Expired), 'expired');
+    lenderBatch = core.getWithdrawalBatchDataWithLenderStatus(address(fixture.market), expiry, Lender);
+    assertEq(
+      lenderBatch.lenderStatus.availableWithdrawalAmount,
+      fixture.market.getAvailableWithdrawalAmount(Lender, expiry),
+      'expired collectible parity'
+    );
     fixture.market.updateState();
     batch = core.getWithdrawalBatchData(address(fixture.market), expiry);
     assertEq(uint256(batch.status), uint256(BatchStatus.Unpaid), 'unpaid');
@@ -331,12 +381,8 @@ contract MarketLensCoreTest is MarketFixture {
     batch = core.getWithdrawalBatchData(address(fixture.market), expiry);
     assertEq(uint256(batch.status), uint256(BatchStatus.Complete), 'complete');
 
-    WithdrawalBatchDataWithLenderStatus memory unknown = core
-      .getWithdrawalBatchDataWithLenderStatus(
-        address(fixture.market),
-        type(uint32).max,
-        SecondLender
-      );
+    WithdrawalBatchDataWithLenderStatus memory unknown =
+      core.getWithdrawalBatchDataWithLenderStatus(address(fixture.market), type(uint32).max, SecondLender);
     assertEq(uint256(unknown.batch.status), uint256(BatchStatus.Complete), 'unknown status');
     assertEq(unknown.lenderStatus.lender, SecondLender, 'unknown lender');
     assertEq(unknown.lenderStatus.scaledAmount, 0, 'unknown amount');
@@ -346,33 +392,29 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(outstanding.length, 0, 'no outstanding batches');
   }
 
-  function _assertLenderAccount(LenderAccountData memory account, address lender) internal view {
-    assertEq(account.lender, lender, 'lender address');
-    assertEq(account.scaledBalance, fixture.market.scaledBalanceOf(lender), 'scaled balance');
-    assertEq(account.normalizedBalance, fixture.market.balanceOf(lender), 'normalized balance');
-    assertEq(account.underlyingBalance, fixture.asset.balanceOf(lender), 'underlying balance');
-    assertEq(
-      account.underlyingApproval,
-      fixture.asset.allowance(lender, address(fixture.market)),
-      'underlying approval'
+  // ┌─ test_withdrawalReads_WideOwnershipAndAccruedUnpaidAmount ─────
+  function test_withdrawalReads_WideOwnershipAndAccruedUnpaidAmount() external {
+    // paid volume near uint128 plus interest on live shares can push the quote above uint128,
+    // even after the paid portion is collected. mock only market reads; the real lens must
+    // preserve the exact remaining four-unit claim.
+    uint256 total = type(uint128).max;
+    uint32 expiry = 1;
+    vm.mockCall(
+      address(fixture.market),
+      abi.encodeWithSignature('getWithdrawalBatch(uint32)', expiry),
+      abi.encode(total, total - 1, total - 1)
     );
-  }
+    vm.mockCall(
+      address(fixture.market),
+      abi.encodeWithSignature('getAccountWithdrawalStatus(address,uint32)', Lender, expiry),
+      abi.encode(total, total - 1)
+    );
+    vm.mockCall(address(fixture.market), abi.encodeWithSignature('scaleFactor()'), abi.encode(4e27));
 
-  function _assertLiveParity(
-    MarketData memory full,
-    MarketLiveDataV2_5 memory current
-  ) internal pure {
-    assertEq(current.market, full.marketToken.token, 'live market');
-    assertEq(current.isClosed, full.isClosed, 'live closed');
-    assertEq(current.protocolFeeBips, full.protocolFeeBips, 'live protocol fee');
-    assertEq(current.reserveRatioBips, full.reserveRatioBips, 'live reserve ratio');
-    assertEq(current.annualInterestBips, full.annualInterestBips, 'live apr');
-    assertEq(current.scaleFactor, full.scaleFactor, 'live scale factor');
-    assertEq(current.totalSupply, full.totalSupply, 'live supply');
-    assertEq(current.totalAssets, full.totalAssets, 'live assets');
-    assertEq(current.scaledPendingWithdrawals, full.scaledPendingWithdrawals, 'live pending');
-    assertEq(current.pendingWithdrawalExpiry, full.pendingWithdrawalExpiry, 'live expiry');
-    assertEq(current.timeDelinquent, full.timeDelinquent, 'live delinquency');
-    assertEq(current.coverageLiquidity, full.coverageLiquidity, 'live coverage');
+    WithdrawalBatchDataWithLenderStatus memory data =
+      core.getWithdrawalBatchDataWithLenderStatus(address(fixture.market), expiry, Lender);
+    assertEq(data.batch.normalizedTotalAmount, total + 3, 'paid and accrued unpaid total');
+    assertEq(data.lenderStatus.normalizedAmountOwed, 4, 'remaining accrued claim');
+    assertEq(data.lenderStatus.availableWithdrawalAmount, 0, 'paid claim already collected');
   }
 }

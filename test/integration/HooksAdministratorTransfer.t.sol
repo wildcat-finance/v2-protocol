@@ -1,6 +1,32 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // HooksAdministratorTransfer.t
+// ║  ██▀▀     ▀▀██   Administrator handoff through real factory callbacks and indexes.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  _newFixture()
+// ║  _deployFactory(...)
+// ║  _configureFactory(...)
+// ║  _storeInitCode(...)
+// ║  _factories(...)
+// ║  _deployHooks(...)
+// ║
+// ║  ADMINISTRATOR ASSOCIATIONS
+// ║  test_initialAdministratorAssociation_AcrossFactories()
+// ║  test_administratorTransfer_UpdatesFactoryAssociationAcrossFactories()
+// ║  test_administratorTransfer_UpdatesSwapPopIndexAcrossFactories()
+// ║  _acceptTransfer(...)
+// ║
+// ║  CALLBACK AND NONCE INTEGRITY
+// ║  test_factoryCallback_AuthenticatesHooksAndPendingTransferAcrossFactories()
+// ║  test_deploymentNonce_SurvivesAdministratorTransferAcrossFactories()
+// ╚═════
+
 import { HooksFactory } from 'src/HooksFactory.sol';
 import { HooksFactoryRevolving } from 'src/HooksFactoryRevolving.sol';
 import 'src/IHooksFactory.sol';
@@ -11,6 +37,7 @@ import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ HooksAdministratorTransferTest ───────────────────────────────────────────
 contract HooksAdministratorTransferTest is TestKernel {
   struct Fixture {
     WildcatArchController archController;
@@ -23,18 +50,30 @@ contract HooksAdministratorTransferTest is TestKernel {
   address internal constant NewAdministrator = address(0xA11CE);
   address internal constant SecondAdministrator = address(0xB0B);
 
-  function _storeInitCode(
-    string memory artifact
-  ) internal returns (address storageContract, uint256 initCodeHash) {
-    bytes memory initCode = vm.getCode(artifact);
-    storageContract = LibStoredInitCode.deployInitCode(initCode);
-    initCodeHash = uint256(keccak256(initCode));
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ _newFixture ─────
+  function _newFixture() internal returns (Fixture memory fixture) {
+    fixture.archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
+    fixture.registry = WildcatBorrowerIdentityRegistry(
+      _deployCode(
+        'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry',
+        abi.encode(address(fixture.archController))
+      )
+    );
+    fixture.hooksTemplate = LibStoredInitCode.deployInitCode(vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks'));
+    fixture.standardFactory = _deployFactory(fixture, false);
+    fixture.revolvingFactory = _deployFactory(fixture, true);
+    _configureFactory(fixture, fixture.standardFactory);
+    _configureFactory(fixture, fixture.revolvingFactory);
+
+    fixture.archController.registerBorrower(address(this));
+    fixture.archController.registerBorrower(NewAdministrator);
+    fixture.archController.registerBorrower(SecondAdministrator);
   }
 
-  function _deployFactory(
-    Fixture memory fixture,
-    bool revolving
-  ) internal returns (IHooksFactory factory) {
+  // ┌─ _deployFactory ─────
+  function _deployFactory(Fixture memory fixture, bool revolving) internal returns (IHooksFactory factory) {
     string memory marketArtifact = revolving
       ? 'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'
       : 'src/market/WildcatMarket.sol:WildcatMarket';
@@ -53,68 +92,42 @@ contract HooksAdministratorTransferTest is TestKernel {
     factory = IHooksFactory(deployed);
   }
 
+  // ┌─ _configureFactory ─────
   function _configureFactory(Fixture memory fixture, IHooksFactory factory) internal {
     fixture.archController.registerControllerFactory(address(factory));
     factory.registerWithArchController();
-    factory.addHooksTemplate(fixture.hooksTemplate, 'Open Term', address(0), address(0), 0, 0);
+    factory.addHooksTemplate(
+      fixture.hooksTemplate,
+      'Open Term',
+      address(0),
+      address(0),
+      0,
+      0,
+      keccak256(vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks'))
+    );
   }
 
-  function _newFixture() internal returns (Fixture memory fixture) {
-    fixture.archController = WildcatArchController(
-      _deployCode('src/WildcatArchController.sol:WildcatArchController')
-    );
-    fixture.registry = WildcatBorrowerIdentityRegistry(
-      _deployCode(
-        'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry',
-        abi.encode(address(fixture.archController))
-      )
-    );
-    fixture.hooksTemplate = LibStoredInitCode.deployInitCode(
-      vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks')
-    );
-    fixture.standardFactory = _deployFactory(fixture, false);
-    fixture.revolvingFactory = _deployFactory(fixture, true);
-    _configureFactory(fixture, fixture.standardFactory);
-    _configureFactory(fixture, fixture.revolvingFactory);
-
-    fixture.archController.registerBorrower(address(this));
-    fixture.archController.registerBorrower(NewAdministrator);
-    fixture.archController.registerBorrower(SecondAdministrator);
+  // ┌─ _storeInitCode ─────
+  function _storeInitCode(string memory artifact) internal returns (address storageContract, uint256 initCodeHash) {
+    bytes memory initCode = vm.getCode(artifact);
+    storageContract = LibStoredInitCode.deployInitCode(initCode);
+    initCodeHash = uint256(keccak256(initCode));
   }
 
-  function _factories(
-    Fixture memory fixture
-  ) internal pure returns (IHooksFactory[2] memory factories) {
+  // ┌─ _factories ─────
+  function _factories(Fixture memory fixture) internal pure returns (IHooksFactory[2] memory factories) {
     factories[0] = fixture.standardFactory;
     factories[1] = fixture.revolvingFactory;
   }
 
-  function _deployHooks(
-    Fixture memory fixture,
-    IHooksFactory factory
-  ) internal returns (OpenTermHooks hooks) {
+  // ┌─ _deployHooks ─────
+  function _deployHooks(Fixture memory fixture, IHooksFactory factory) internal returns (OpenTermHooks hooks) {
     hooks = OpenTermHooks(factory.deployHooksInstance(fixture.hooksTemplate, ''));
   }
 
-  function _acceptTransfer(
-    IHooksFactory factory,
-    OpenTermHooks hooks,
-    address newAdministrator
-  ) internal {
-    hooks.requestAdministratorTransfer(newAdministrator);
+  // ░░▒▒▓▓██ [ ADMINISTRATOR ASSOCIATIONS ] ───────────────────────────────────
 
-    vm.expectEmit(address(hooks));
-    emit BaseAccessControls.AdministratorTransferred(address(this), newAdministrator);
-    vm.expectEmit(address(factory));
-    emit IHooksFactoryEventsAndErrors.HooksInstanceAdministratorTransferred(
-      address(hooks),
-      address(this),
-      newAdministrator
-    );
-    vm.prank(newAdministrator);
-    hooks.acceptAdministratorTransfer();
-  }
-
+  // ┌─ test_initialAdministratorAssociation_AcrossFactories ─────
   function test_initialAdministratorAssociation_AcrossFactories() external {
     Fixture memory fixture = _newFixture();
     IHooksFactory[2] memory factories = _factories(fixture);
@@ -140,6 +153,7 @@ contract HooksAdministratorTransferTest is TestKernel {
     }
   }
 
+  // ┌─ test_administratorTransfer_UpdatesFactoryAssociationAcrossFactories ─────
   function test_administratorTransfer_UpdatesFactoryAssociationAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     IHooksFactory[2] memory factories = _factories(fixture);
@@ -175,6 +189,7 @@ contract HooksAdministratorTransferTest is TestKernel {
     }
   }
 
+  // ┌─ test_administratorTransfer_UpdatesSwapPopIndexAcrossFactories ─────
   function test_administratorTransfer_UpdatesSwapPopIndexAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     IHooksFactory[2] memory factories = _factories(fixture);
@@ -196,6 +211,25 @@ contract HooksAdministratorTransferTest is TestKernel {
     }
   }
 
+  // ┌─ _acceptTransfer ─────
+  function _acceptTransfer(IHooksFactory factory, OpenTermHooks hooks, address newAdministrator) internal {
+    hooks.requestAdministratorTransfer(newAdministrator);
+
+    vm.expectEmit(address(hooks));
+    emit BaseAccessControls.AdministratorTransferred(address(this), newAdministrator);
+    vm.expectEmit(address(factory));
+    emit IHooksFactoryEventsAndErrors.HooksInstanceAdministratorTransferred(
+      address(hooks),
+      address(this),
+      newAdministrator
+    );
+    vm.prank(newAdministrator);
+    hooks.acceptAdministratorTransfer();
+  }
+
+  // ░░▒▒▓▓██ [ CALLBACK AND NONCE INTEGRITY ] ─────────────────────────────────
+
+  // ┌─ test_factoryCallback_AuthenticatesHooksAndPendingTransferAcrossFactories ─────
   function test_factoryCallback_AuthenticatesHooksAndPendingTransferAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     IHooksFactory[2] memory factories = _factories(fixture);
@@ -213,6 +247,7 @@ contract HooksAdministratorTransferTest is TestKernel {
     }
   }
 
+  // ┌─ test_deploymentNonce_SurvivesAdministratorTransferAcrossFactories ─────
   function test_deploymentNonce_SurvivesAdministratorTransferAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     IHooksFactory[2] memory factories = _factories(fixture);

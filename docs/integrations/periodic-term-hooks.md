@@ -4,6 +4,11 @@
 withdrawal windows and advance notice for APR reductions. It uses the
 credential and lender policy described in [Access control](./access-control.md).
 
+[`PeriodicTermPolicy`](../../src/access/PeriodicTermPolicy.sol) owns the reusable
+schedule and proposal implementation. The concrete template supplies its flags,
+family/revision metadata, and public configuration getters. See
+[Hook development](./hook-development.md) for additional policies.
+
 ## Withdrawal schedule
 
 ### Configuration
@@ -37,7 +42,7 @@ mainnet. They are not a mainnet parameter commitment.
 
 ### Queueing and execution
 
-An open market is inside a withdrawal window when:
+Before scheduled repayment, an open market is inside a withdrawal window when:
 
 ```text
 timestamp >= anchor && (timestamp - anchor) % periodDuration < windowDuration
@@ -51,14 +56,22 @@ The schedule only gates queueing:
 
 - Existing batches keep the market's immutable `withdrawalBatchDuration`.
 - Withdrawal execution is not window-gated.
-- Closing the market removes the queueing restriction and cancels any pending
+- Manual closure removes the queueing restriction and cancels any pending
   APR-reduction proposal.
+
+From an enabled repayment date, the market bypasses the queue hook and
+`isWithdrawalWindowOpen` returns true. Batch duration is unchanged while the
+market remains open. Automatic funded closure also releases the current batch.
+Neither a default marker nor delinquency alone changes the schedule. See
+[repayment and default](../protocol/repayment-and-default.md).
 
 ### Sanctioned accounts
 
 `nukeFromOrbit` sends a sanctioned account's balance through the ordinary
 queueing path. On an open periodic market, it reverts outside a withdrawal
-window. It can succeed when a window opens or after closure.
+window before an enabled repayment date. It can succeed when a window opens,
+after that date, or after closure, subject to the remaining sanctions and nuke
+checks.
 
 This is the current policy. `nukeFromOrbit` is not an administrative bypass of
 the term schedule.
@@ -75,7 +88,7 @@ unchanged until execution.
 2. **Respond:** Lenders can queue withdrawals during that response window while
    the old APR remains active.
 3. **Execute:** Execution opens when the response window ends and closes when
-   the next window begins. The caller must provide the exact proposed APR. It
+   the next window begins. The applied APR must match the exact proposal. It
    must still be below the current APR, and `scaledPendingWithdrawals` must be
    zero.
 
@@ -94,13 +107,26 @@ Either of these paths can execute:
 Both paths keep the current reserve ratio. The borrower path ignores any new
 reserve-ratio value supplied with the reduction.
 
+Both routes run `_checkAprChange` against the effective APR and reserve ratio.
+The dedicated route provides empty callback data and cannot change reserves.
+`_checkPeriodicProposal` can add a proposal restriction, but execution rechecks
+applicable constraints against current state. Creation and closure remain
+separate from these APR-update checks; see
+[APR strategy and validation](./hook-development.md#apr-strategy-and-effective-value-validation).
+
 Other proposal transitions:
 
 - An APR increase cancels a pending reduction and needs no proposal.
 - Setting the APR to its current value does not cancel a proposal.
-- Closing the market cancels a proposal.
+- Manual closure cancels a proposal. Automatic closure bypasses `onCloseMarket`:
+  the proposal queries return empty results from the market's effective closed
+  state, without writing a cancellation or emitting hook-closure events.
 - Expiry blocks execution but does not clear storage. The expired proposal
   remains readable until another transition clears or replaces it.
+
+During scheduled repayment, market funding checks prevent an APR change while
+underfunded, and automatic closure prevents it when funded. The hook proposal
+does not override those market rules.
 
 ### Lender-facing state
 
@@ -122,6 +148,10 @@ execution.
 `getPendingAprChange(market)` also returns the response-window bounds.
 `templateVersion()` returns `2`; `version()` remains `'PeriodicTermHooks'` for
 integration compatibility.
+
+`getHookedMarket` and `getHookedMarkets` include effective scheduled closure by
+reading the market. The hook's stored schedule alone cannot establish whether
+automatic closure has occurred.
 
 ## Other market policy
 

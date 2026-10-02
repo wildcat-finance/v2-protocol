@@ -1,6 +1,15 @@
 // // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // SeedSphereX
+// ║  ██▀▀     ▀▀██   Inactive SphereX seeding prototype retained as reference.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ╚═════
+
 // import 'src/WildcatSanctionsSentinel.sol';
 // import 'src/WildcatArchController.sol';
 // import 'forge-std/Script.sol';
@@ -16,8 +25,6 @@ pragma solidity 0.8.25;
 // using LibString for string;
 
 // string constant DeploymentsJsonFilePath = 'sepolia-deployments.json';
-
-
 
 // contract SeedSphereX is Script {
 //   using LibDeployment for Deployments;

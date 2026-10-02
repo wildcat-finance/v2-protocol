@@ -1,16 +1,41 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-/**
- * Sepolia-only repair for the v2.5 template fee recipient.
- *
- * The activation package registered all three templates on both v2.5 factories
- * with the retained executor as fee recipient. This script moves only that
- * field to the new executor through the replacement authority helper.
- *
- * Run through update-template-fee-recipient.sh. The script is safe to rerun:
- * registrations already using the new recipient are verified and skipped.
- */
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // update-template-fee-recipient.s
+// ║  ██▀▀     ▀▀██   Sepolia template fee-recipient repair and verification.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  AUTHORITY
+// ║  archController()
+// ║  authorizedAccounts(...)
+// ║  executeProtocolAction(...)
+// ║
+// ║  FEE RECIPIENT REPAIR
+// ║  run()
+// ║
+// ║  PREFLIGHT
+// ║  _preflight(...)
+// ║  _requireRecordedAddress(...)
+// ║  _targets()
+// ║  _preflightTemplate(...)
+// ║  _assertExpectedTemplate(...)
+// ║
+// ║  TEMPLATE UPDATES
+// ║  _updateTemplate(...)
+// ║  _assertUpdate(...)
+// ╚═════
+
+// Sepolia-only repair for the v2.5 template fee recipient.
+//
+// the activation package registered all three templates on both v2.5 factories
+// with the retained executor as fee recipient. this script moves only that
+// field to the new executor through the replacement authority helper.
+//
+// use update-template-fee-recipient.sh. reruns verify and skip completed registrations:
+// only the recipient field changes.
 
 import { console } from 'forge-std/console.sol';
 
@@ -19,17 +44,21 @@ import { IWildcatArchController } from 'src/interfaces/IWildcatArchController.so
 
 import '../../common/DeployScriptBase.sol';
 
+// ┌─ ITemplateFeeAuthorityHelper ──────────────────────────────────────────────
 interface ITemplateFeeAuthorityHelper {
+  // ░░▒▒▓▓██ [ AUTHORITY ] ────────────────────────────────────────────────────
+
+  // ┌─ archController ─────
   function archController() external view returns (address);
 
+  // ┌─ authorizedAccounts ─────
   function authorizedAccounts(address account) external view returns (bool);
 
-  function executeProtocolAction(
-    address target,
-    bytes calldata data
-  ) external returns (bytes memory result);
+  // ┌─ executeProtocolAction ─────
+  function executeProtocolAction(address target, bytes calldata data) external returns (bytes memory result);
 }
 
+// ┌─ UpdateTemplateFeeRecipientV25 ────────────────────────────────────────────
 contract UpdateTemplateFeeRecipientV25 is DeployScriptBase {
   uint256 internal constant SEPOLIA_CHAIN_ID = 11_155_111;
 
@@ -57,163 +86,9 @@ contract UpdateTemplateFeeRecipientV25 is DeployScriptBase {
     uint24 index;
   }
 
-  function _requireRecordedAddress(
-    Deployments memory deployments,
-    string memory key,
-    address expected
-  ) internal view {
-    if (!deployments.has(key) || deployments.get(key) != expected) {
-      revert(string.concat('Unexpected deployments.json address for ', key));
-    }
-  }
+  // ░░▒▒▓▓██ [ FEE RECIPIENT REPAIR ] ─────────────────────────────────────────
 
-  function _targets() internal pure returns (TemplateTarget[6] memory targets) {
-    targets[0] = TemplateTarget(STANDARD_FACTORY, OPEN_TERM_TEMPLATE, 'OpenTermHooks', 0);
-    targets[1] = TemplateTarget(STANDARD_FACTORY, FIXED_TERM_TEMPLATE, 'FixedTermHooks', 1);
-    targets[2] = TemplateTarget(STANDARD_FACTORY, PERIODIC_TERM_TEMPLATE, 'PeriodicTermHooks', 2);
-    targets[3] = TemplateTarget(REVOLVING_FACTORY, OPEN_TERM_TEMPLATE, 'OpenTermHooks', 0);
-    targets[4] = TemplateTarget(REVOLVING_FACTORY, FIXED_TERM_TEMPLATE, 'FixedTermHooks', 1);
-    targets[5] = TemplateTarget(REVOLVING_FACTORY, PERIODIC_TERM_TEMPLATE, 'PeriodicTermHooks', 2);
-  }
-
-  function _assertExpectedTemplate(
-    TemplateTarget memory target,
-    HooksTemplate memory details
-  ) internal pure {
-    if (!details.exists || !details.enabled) revert('Template is not enabled');
-    if (keccak256(bytes(details.name)) != keccak256(bytes(target.name))) {
-      revert('Template name mismatch');
-    }
-    if (details.index != target.index) revert('Template index mismatch');
-    if (
-      details.originationFeeAsset != address(0) ||
-      details.originationFeeAmount != 0 ||
-      details.protocolFeeBips != EXPECTED_PROTOCOL_FEE_BIPS
-    ) revert('Template fee parameters differ from the activated package');
-    if (details.feeRecipient != PREVIOUS_FEE_RECIPIENT && details.feeRecipient != NEW_FEE_RECIPIENT)
-      revert('Template has an unexpected fee recipient');
-  }
-
-  function _preflightTemplate(TemplateTarget memory target) internal view {
-    IHooksFactory factory = IHooksFactory(target.factory);
-    if (!factory.isHooksTemplate(target.template)) revert('Template is not registered');
-    HooksTemplate memory details = factory.getHooksTemplateDetails(target.template);
-    _assertExpectedTemplate(target, details);
-    console.log(string.concat('Verified ', target.name, ' on factory'), target.factory);
-    console.log('Current fee recipient:', details.feeRecipient);
-  }
-
-  function _assertUpdate(
-    TemplateTarget memory target,
-    HooksTemplate memory beforeDetails
-  ) internal view {
-    HooksTemplate memory afterDetails = IHooksFactory(target.factory).getHooksTemplateDetails(
-      target.template
-    );
-    _assertExpectedTemplate(target, afterDetails);
-    if (afterDetails.feeRecipient != NEW_FEE_RECIPIENT) {
-      revert('Template fee recipient update failed');
-    }
-    if (
-      afterDetails.originationFeeAsset != beforeDetails.originationFeeAsset ||
-      afterDetails.originationFeeAmount != beforeDetails.originationFeeAmount ||
-      afterDetails.protocolFeeBips != beforeDetails.protocolFeeBips ||
-      afterDetails.exists != beforeDetails.exists ||
-      afterDetails.enabled != beforeDetails.enabled ||
-      afterDetails.index != beforeDetails.index ||
-      keccak256(bytes(afterDetails.name)) != keccak256(bytes(beforeDetails.name))
-    ) revert('Template changed outside the fee-recipient field');
-  }
-
-  function _updateTemplate(
-    ITemplateFeeAuthorityHelper helper,
-    TemplateTarget memory target,
-    uint256 privateKey
-  ) internal returns (bool updated) {
-    IHooksFactory factory = IHooksFactory(target.factory);
-    HooksTemplate memory beforeDetails = factory.getHooksTemplateDetails(target.template);
-    if (beforeDetails.feeRecipient == NEW_FEE_RECIPIENT) {
-      console.log(string.concat('Already updated ', target.name, ' on factory'), target.factory);
-      return false;
-    }
-
-    bytes memory updateCall = abi.encodeCall(
-      IHooksFactory.updateHooksTemplateFees,
-      (
-        target.template,
-        NEW_FEE_RECIPIENT,
-        beforeDetails.originationFeeAsset,
-        beforeDetails.originationFeeAmount,
-        beforeDetails.protocolFeeBips
-      )
-    );
-    vm.broadcast(privateKey);
-    helper.executeProtocolAction(target.factory, updateCall);
-    _assertUpdate(target, beforeDetails);
-    console.log(string.concat('Updated ', target.name, ' on factory'), target.factory);
-    return true;
-  }
-
-  function _preflight(Deployments memory deployments) internal view {
-    if (block.chainid != SEPOLIA_CHAIN_ID) revert('This repair is Sepolia-only');
-
-    _requireRecordedAddress(deployments, 'WildcatArchController', ARCH_CONTROLLER);
-    _requireRecordedAddress(deployments, 'MockArchControllerOwner', AUTHORITY_HELPER);
-    _requireRecordedAddress(deployments, 'HooksFactory_v2-5', STANDARD_FACTORY);
-    _requireRecordedAddress(deployments, 'HooksFactoryRevolving_v2-5', REVOLVING_FACTORY);
-    _requireRecordedAddress(deployments, 'OpenTermHooks_initCodeStorage_v2-5', OPEN_TERM_TEMPLATE);
-    _requireRecordedAddress(
-      deployments,
-      'FixedTermHooks_initCodeStorage_v2-5',
-      FIXED_TERM_TEMPLATE
-    );
-    _requireRecordedAddress(
-      deployments,
-      'PeriodicTermHooks_initCodeStorage_v2-5',
-      PERIODIC_TERM_TEMPLATE
-    );
-
-    if (
-      ARCH_CONTROLLER.code.length == 0 ||
-      AUTHORITY_HELPER.code.length == 0 ||
-      STANDARD_FACTORY.code.length == 0 ||
-      REVOLVING_FACTORY.code.length == 0 ||
-      OPEN_TERM_TEMPLATE.code.length == 0 ||
-      FIXED_TERM_TEMPLATE.code.length == 0 ||
-      PERIODIC_TERM_TEMPLATE.code.length == 0
-    ) revert('One or more repair targets have no code');
-    if (AUTHORITY_HELPER.codehash != AUTHORITY_HELPER_RUNTIME_HASH) {
-      revert('Authority helper runtime does not match the reviewed deployment');
-    }
-
-    IWildcatArchController archController = IWildcatArchController(ARCH_CONTROLLER);
-    ITemplateFeeAuthorityHelper helper = ITemplateFeeAuthorityHelper(AUTHORITY_HELPER);
-    if (archController.owner() != AUTHORITY_HELPER) {
-      revert('Replacement authority helper does not own the ArchController');
-    }
-    if (helper.archController() != ARCH_CONTROLLER) {
-      revert('Replacement authority helper is bound to the wrong ArchController');
-    }
-    if (!helper.authorizedAccounts(NEW_FEE_RECIPIENT)) {
-      revert('New executor is not authorized on the replacement helper');
-    }
-    if (
-      IHooksFactory(STANDARD_FACTORY).archController() != ARCH_CONTROLLER ||
-      IHooksFactory(REVOLVING_FACTORY).archController() != ARCH_CONTROLLER
-    ) revert('A v2.5 factory is bound to the wrong ArchController');
-    if (
-      !archController.isRegisteredControllerFactory(STANDARD_FACTORY) ||
-      !archController.isRegisteredControllerFactory(REVOLVING_FACTORY) ||
-      !archController.isRegisteredController(STANDARD_FACTORY) ||
-      !archController.isRegisteredController(REVOLVING_FACTORY)
-    ) revert('A v2.5 factory is not fully registered');
-
-    TemplateTarget[6] memory targets = _targets();
-    for (uint256 i; i < targets.length; i++) {
-      _preflightTemplate(targets[i]);
-    }
-  }
-
+  // ┌─ run ─────
   function run() external {
     (Deployments memory deployments, string memory networkName) = _resolveDeployments();
     if (!_sameStrings(networkName, 'sepolia')) revert('DEPLOYMENTS_NETWORK must be sepolia');
@@ -244,14 +119,157 @@ contract UpdateTemplateFeeRecipientV25 is DeployScriptBase {
     for (uint256 i; i < targets.length; i++) {
       _preflightTemplate(targets[i]);
       if (
-        IHooksFactory(targets[i].factory)
-          .getHooksTemplateDetails(targets[i].template)
-          .feeRecipient != NEW_FEE_RECIPIENT
+        IHooksFactory(targets[i].factory).getHooksTemplateDetails(targets[i].template).feeRecipient != NEW_FEE_RECIPIENT
       ) revert('Final fee-recipient verification failed');
     }
 
     console.log('Template fee-recipient update GREEN');
     console.log('Transactions sent:', updateCount);
     console.log('Fee recipient:', NEW_FEE_RECIPIENT);
+  }
+
+  // ░░▒▒▓▓██ [ PREFLIGHT ] ────────────────────────────────────────────────────
+
+  // ┌─ _preflight ─────
+  function _preflight(Deployments memory deployments) internal view {
+    if (block.chainid != SEPOLIA_CHAIN_ID) revert('This repair is Sepolia-only');
+
+    _requireRecordedAddress(deployments, 'WildcatArchController', ARCH_CONTROLLER);
+    _requireRecordedAddress(deployments, 'MockArchControllerOwner', AUTHORITY_HELPER);
+    _requireRecordedAddress(deployments, 'HooksFactory_v2-5', STANDARD_FACTORY);
+    _requireRecordedAddress(deployments, 'HooksFactoryRevolving_v2-5', REVOLVING_FACTORY);
+    _requireRecordedAddress(deployments, 'OpenTermHooks_initCodeStorage_v2-5', OPEN_TERM_TEMPLATE);
+    _requireRecordedAddress(deployments, 'FixedTermHooks_initCodeStorage_v2-5', FIXED_TERM_TEMPLATE);
+    _requireRecordedAddress(deployments, 'PeriodicTermHooks_initCodeStorage_v2-5', PERIODIC_TERM_TEMPLATE);
+
+    if (
+      ARCH_CONTROLLER.code.length == 0 || AUTHORITY_HELPER.code.length == 0 || STANDARD_FACTORY.code.length == 0
+        || REVOLVING_FACTORY.code.length == 0 || OPEN_TERM_TEMPLATE.code.length == 0
+        || FIXED_TERM_TEMPLATE.code.length == 0 || PERIODIC_TERM_TEMPLATE.code.length == 0
+    ) revert('One or more repair targets have no code');
+    if (AUTHORITY_HELPER.codehash != AUTHORITY_HELPER_RUNTIME_HASH) {
+      revert('Authority helper runtime does not match the reviewed deployment');
+    }
+
+    IWildcatArchController archController = IWildcatArchController(ARCH_CONTROLLER);
+    ITemplateFeeAuthorityHelper helper = ITemplateFeeAuthorityHelper(AUTHORITY_HELPER);
+    if (archController.owner() != AUTHORITY_HELPER) {
+      revert('Replacement authority helper does not own the ArchController');
+    }
+    if (helper.archController() != ARCH_CONTROLLER) {
+      revert('Replacement authority helper is bound to the wrong ArchController');
+    }
+    if (!helper.authorizedAccounts(NEW_FEE_RECIPIENT)) {
+      revert('New executor is not authorized on the replacement helper');
+    }
+    if (
+      IHooksFactory(STANDARD_FACTORY).archController() != ARCH_CONTROLLER
+        || IHooksFactory(REVOLVING_FACTORY).archController() != ARCH_CONTROLLER
+    ) revert('A v2.5 factory is bound to the wrong ArchController');
+    if (
+      !archController.isRegisteredControllerFactory(STANDARD_FACTORY)
+        || !archController.isRegisteredControllerFactory(REVOLVING_FACTORY)
+        || !archController.isRegisteredController(STANDARD_FACTORY)
+        || !archController.isRegisteredController(REVOLVING_FACTORY)
+    ) revert('A v2.5 factory is not fully registered');
+
+    TemplateTarget[6] memory targets = _targets();
+    for (uint256 i; i < targets.length; i++) {
+      _preflightTemplate(targets[i]);
+    }
+  }
+
+  // ┌─ _requireRecordedAddress ─────
+  function _requireRecordedAddress(Deployments memory deployments, string memory key, address expected) internal view {
+    if (!deployments.has(key) || deployments.get(key) != expected) {
+      revert(string.concat('Unexpected deployments.json address for ', key));
+    }
+  }
+
+  // ┌─ _targets ─────
+  function _targets() internal pure returns (TemplateTarget[6] memory targets) {
+    targets[0] = TemplateTarget(STANDARD_FACTORY, OPEN_TERM_TEMPLATE, 'OpenTermHooks', 0);
+    targets[1] = TemplateTarget(STANDARD_FACTORY, FIXED_TERM_TEMPLATE, 'FixedTermHooks', 1);
+    targets[2] = TemplateTarget(STANDARD_FACTORY, PERIODIC_TERM_TEMPLATE, 'PeriodicTermHooks', 2);
+    targets[3] = TemplateTarget(REVOLVING_FACTORY, OPEN_TERM_TEMPLATE, 'OpenTermHooks', 0);
+    targets[4] = TemplateTarget(REVOLVING_FACTORY, FIXED_TERM_TEMPLATE, 'FixedTermHooks', 1);
+    targets[5] = TemplateTarget(REVOLVING_FACTORY, PERIODIC_TERM_TEMPLATE, 'PeriodicTermHooks', 2);
+  }
+
+  // ┌─ _preflightTemplate ─────
+  function _preflightTemplate(TemplateTarget memory target) internal view {
+    IHooksFactory factory = IHooksFactory(target.factory);
+    if (!factory.isHooksTemplate(target.template)) revert('Template is not registered');
+    HooksTemplate memory details = factory.getHooksTemplateDetails(target.template);
+    _assertExpectedTemplate(target, details);
+    console.log(string.concat('Verified ', target.name, ' on factory'), target.factory);
+    console.log('Current fee recipient:', details.feeRecipient);
+  }
+
+  // ┌─ _assertExpectedTemplate ─────
+  function _assertExpectedTemplate(TemplateTarget memory target, HooksTemplate memory details) internal pure {
+    if (!details.exists || !details.enabled) revert('Template is not enabled');
+    if (keccak256(bytes(details.name)) != keccak256(bytes(target.name))) {
+      revert('Template name mismatch');
+    }
+    if (details.index != target.index) revert('Template index mismatch');
+    if (
+      details.originationFeeAsset != address(0) || details.originationFeeAmount != 0
+        || details.protocolFeeBips != EXPECTED_PROTOCOL_FEE_BIPS
+    ) revert('Template fee parameters differ from the activated package');
+    if (details.feeRecipient != PREVIOUS_FEE_RECIPIENT && details.feeRecipient != NEW_FEE_RECIPIENT) {
+      revert('Template has an unexpected fee recipient');
+    }
+  }
+
+  // ░░▒▒▓▓██ [ TEMPLATE UPDATES ] ─────────────────────────────────────────────
+
+  // ┌─ _updateTemplate ─────
+  function _updateTemplate(
+    ITemplateFeeAuthorityHelper helper,
+    TemplateTarget memory target,
+    uint256 privateKey
+  )
+    internal
+    returns (bool updated)
+  {
+    IHooksFactory factory = IHooksFactory(target.factory);
+    HooksTemplate memory beforeDetails = factory.getHooksTemplateDetails(target.template);
+    if (beforeDetails.feeRecipient == NEW_FEE_RECIPIENT) {
+      console.log(string.concat('Already updated ', target.name, ' on factory'), target.factory);
+      return false;
+    }
+
+    bytes memory updateCall = abi.encodeCall(
+      IHooksFactory.updateHooksTemplateFees,
+      (
+        target.template,
+        NEW_FEE_RECIPIENT,
+        beforeDetails.originationFeeAsset,
+        beforeDetails.originationFeeAmount,
+        beforeDetails.protocolFeeBips
+      )
+    );
+    vm.broadcast(privateKey);
+    helper.executeProtocolAction(target.factory, updateCall);
+    _assertUpdate(target, beforeDetails);
+    console.log(string.concat('Updated ', target.name, ' on factory'), target.factory);
+    return true;
+  }
+
+  // ┌─ _assertUpdate ─────
+  function _assertUpdate(TemplateTarget memory target, HooksTemplate memory beforeDetails) internal view {
+    HooksTemplate memory afterDetails = IHooksFactory(target.factory).getHooksTemplateDetails(target.template);
+    _assertExpectedTemplate(target, afterDetails);
+    if (afterDetails.feeRecipient != NEW_FEE_RECIPIENT) {
+      revert('Template fee recipient update failed');
+    }
+    if (
+      afterDetails.originationFeeAsset != beforeDetails.originationFeeAsset
+        || afterDetails.originationFeeAmount != beforeDetails.originationFeeAmount
+        || afterDetails.protocolFeeBips != beforeDetails.protocolFeeBips || afterDetails.exists != beforeDetails.exists
+        || afterDetails.enabled != beforeDetails.enabled || afterDetails.index != beforeDetails.index
+        || keccak256(bytes(afterDetails.name)) != keccak256(bytes(beforeDetails.name))
+    ) revert('Template changed outside the fee-recipient field');
   }
 }

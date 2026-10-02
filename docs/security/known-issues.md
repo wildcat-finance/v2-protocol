@@ -16,12 +16,16 @@ So is adverse use of authority that a market explicitly grants its borrower,
 including drawing available assets and making permitted term changes. A lender
 must evaluate the borrower, market terms, and hook policy.
 
-Closing a market returns only assets left after all lender debt, paid and unpaid
-withdrawal liabilities, and protocol fees are accounted for. If the operational
-borrower or its recorded principal has since been flagged by the sanctions
-oracle, closure can still send that unencumbered surplus to the operational
-borrower. The sanctions check on `borrow` prevents either flagged identity from
-drawing lender-backed value; closure is allowed to settle the market.
+Manual closure returns only assets left after all lender debt, paid and unpaid
+withdrawal liabilities, and protocol fees are accounted for. Automatic closure
+retains that surplus for a separate borrower call to `rescueTokens(asset)`.
+If the operational borrower or its recorded principal has since been flagged
+by the sanctions oracle, manual closure and surplus recovery can still send
+that unencumbered value to the operational borrower. The sanctions check on
+`borrow` prevents either flagged identity from drawing lender-backed value;
+closure and recovery are allowed to settle the market. A token's own recipient
+restriction can make recovery fail, but automatic closure does not attempt that
+transfer and therefore does not pass that failure on to lender actions.
 
 ## Lazy delinquency accounting
 
@@ -32,13 +36,21 @@ transactions is therefore recognized at the next checkpoint, not at the exact
 second of the crossing. Permissionless state updates and the Hydra keeper
 reduce this timing difference but cannot remove block and polling latency.
 
-Withdrawal expiry is a stricter boundary. A delayed update settles the expired
-batch and classifies the post-expiry interval using the last asset balance that
-the market checkpointed at or before expiry. A direct transfer first observed
-after expiry becomes current liquidity but does not rewrite the elapsed
-history. Because an ERC-20 balance does not retain transfer timestamps, a
-direct transfer intended to count at expiry must be followed by a market state
-write no later than that timestamp.
+Withdrawal expiry and repayment boundaries use historical asset checkpoints.
+A delayed update settles them against the last asset balance the market
+recorded at or before each boundary. A transfer first observed later becomes
+current liquidity but cannot rewrite that history. Because an ERC-20 balance
+does not retain transfer timestamps, a direct transfer intended to count at
+expiry or at a repayment deadline must be followed by a market state write no
+later than that timestamp.
+
+`defaultedAt` is a permanent stored marker, not a live prediction. It can remain
+zero after an uncured cutoff until a successful update records it. A healthy
+write at the exact 90-day cutoff resets the separate penalty run; default is
+sealed only at a later timestamp. The ordinary `timeDelinquent` decay and fee
+calculation remain separate. A zero-day repayment period is valid and gives no
+extra interval beyond the repayment-date timestamp. See
+[repayment and default](../protocol/repayment-and-default.md).
 
 Closing accrues through the close timestamp, then clears the delinquency timer.
 Interest and delinquency fees do not continue through the remaining grace or
@@ -52,7 +64,8 @@ See [accounting](../protocol/accounting.md#delinquency) and
 ### Timestamp horizon
 
 V2.x encodes absolute Unix timestamps in `uint32` across market accrual
-checkpoints, withdrawal-batch expiries, hook deadlines, and lender credentials.
+checkpoints, withdrawal-batch expiries, repayment terms, default records, hook
+deadlines, and lender credentials.
 The final representable timestamp is `type(uint32).max`, or
 2106-02-07 06:28:15 UTC. This is an accepted lifetime bound for the V2.x
 generation, not a rollover scheme.
@@ -90,12 +103,28 @@ close, reduce rates, or offer a migration well before the ceiling.
 
 ### Withdrawal batches
 
-Batch totals, paid shares, and each account's queued amount are cumulative
-`uint104` values for one expiry. Checked arithmetic reverts instead of wrapping.
-At the minimum scale factor, saturation requires roughly `2.03e13` nominal
-tokens for an 18-decimal asset or `2.03e25` for a 6-decimal asset, together with
-repeated replacement of paid shares before the same expiry. Revisit the bound
-before listing assets with higher decimals or unusually valuable atomic units.
+Batch totals, paid shares, and each account's queued amount are declared as
+cumulative `uint128` values for one expiry, but the active source caps valid
+batch ownership at `type(uint104).max`. Payment burns live shares, so repeated
+replacement before one expiry can reach that cap even when every individual
+deposit fits and live supply remains below it.
+
+At the initial scale factor, the cumulative cap represents roughly `2.03e13`
+tokens for an 18-decimal asset or 20.28 tokens for a 30-decimal asset. If a
+request would cross the cap, voluntary queues and `nukeFromOrbit` revert; the
+balance remains live until a later batch opens. Existing batch claims remain
+payable. Even at the maximum `uint112` scale factor, the cap keeps one batch's
+cumulative normalized payments below `uint128.max`.
+
+`normalizedUnclaimedWithdrawals` is a `uint128` total across batches. At extreme
+factors, several uncollected batches can temporarily consume that capacity and
+defer a later payment. Payments are capped at the remaining global capacity;
+older batches are already executable when a new batch opens, and anyone can
+execute those claims to release capacity before the later batch continues. A
+failing or restricted underlying-token transfer can delay that recovery under
+the unsupported-token behaviors below. Underlying assets are not assumed to be
+Foundation-preapproved, so assess denominations and expected amounts against
+the cumulative batch cap.
 
 See [scaling](../protocol/scaling-and-rounding.md#finite-scale-factor-representation),
 [withdrawal representation limits](../protocol/withdrawals.md#representation-limits),
@@ -118,13 +147,29 @@ same scaled amounts and entry timing; execution routes the sanctioned lender's
 share to escrow. The caller controls when quarantine is attempted but receives
 no special entitlement, and the batch conserves its aggregate reserved assets.
 
-Each partial payment to a batch floors its normalized payment independently.
-The discarded fraction is less than one atomic unit of the underlying per
-payment and is not carried forward.
+Earlier market sources floor every partial payment independently, losing less
+than one atomic unit per payment. Arbitrary ERC20 admission has always been
+possible; reconsidering this issue does not reflect a policy change.
+
+The current source carries the fraction between payments and includes it in
+debt and reserve accounting. It discards less than one atomic unit of payment
+fraction per completed batch, rather than per payment. Final per-lender
+pro-rata division still leaves indivisible token dust.
+
+Existing markets retain their original arithmetic. New carry-aware markets
+require matching hooks and updated consumer accounting; see
+[tuple compatibility](../integrations/lenses.md#accounting-tuple-compatibility).
+The [experiment assessment](./withdrawal-rounding-experiment.md) preserves its
+historical candidates, measurements, and tradeoffs. Those records are not
+verification of the current source or a deployment approval.
 
 `closeMarket()` walks every unpaid withdrawal batch. Its gas cost is unbounded
 in the queue length. Work down a large queue in bounded calls to
 `repayAndProcessUnpaidWithdrawalBatches(0, maxBatches)` before closing.
+
+Automatic closure pays and releases the current batch but leaves older batches
+for that bounded processor. Their funds remain protected after closure. The
+repayment date itself leaves batching unchanged while the market is open.
 
 ## Protocol fees
 
@@ -132,6 +177,11 @@ Each accounting checkpoint rounds that interval's protocol fee independently
 to the underlying atomic unit. Fractional remainders are not carried, so update
 cadence can change the total protocol fee and can round short intervals to zero.
 Lender balances are unaffected by the protocol-fee rounding itself.
+
+Nearest rounding can also overstate aggregate fees. Intermediate ray-rounding
+errors can be amplified by supply and scale factor, so a half-atom bound applies
+only to the final rounding step. See the [focused fee review](./protocol-fee-rounding-review.md)
+for same-interest-path measurements and carry design options.
 
 The stated lender APR is linear inside each accrual interval and is applied to
 the scale factor stored at that checkpoint. Splitting one wall-clock span across
@@ -146,12 +196,26 @@ new markets, while a fee-rate push changes only the rate of an existing market.
 V2.5 rejects a positive fee-rate push to a market whose immutable recipient is
 zero.
 
+Factory fee-update pages skip markets whose `isClosed()` view is true, including
+pending automatic closure. That read does not itself commit closure. A failed
+or malformed read, or a failed update to an open market, still reverts the whole
+page.
+
+Revolving markets also floor the utilization-weighted interest rate to ray
+precision at each checkpoint. A fraction below one ray is discarded when the
+timestamp advances. Its magnitude depends on supply, scale factor and update
+cadence; a decimal range alone is not a universal economic bound. See the
+[utilization-interest precision review](./revolving-interest-dust-review.md)
+for quantified examples and the distinction from protocol-fee rounding.
+
 ## Hooks
 
 The selected hook address and enabled callback set are immutable. Mutable hook
 state or administration can still make an enabled callback reject its market
-action. A bad hook implementation can permanently disable the corresponding
-path; a defect in a protocol-supplied hook template is still reportable.
+action. New V2.5 markets never dispatch execution hooks; dated repayment also
+bypasses queue hooks and automatic-closure hooks. For other enabled paths, a
+bad hook implementation can permanently disable the action. A defect in a
+protocol-supplied hook template is still reportable.
 
 Hooks are not an exact accounting event stream. Withdrawal-batch payments do
 not have a dedicated callback, so consumers that need exact live batch or
@@ -174,15 +238,34 @@ paths and override boundary.
 
 `nukeFromOrbit` intentionally uses the ordinary withdrawal hook. Fixed-term and
 periodic-term restrictions can therefore defer quarantine until withdrawals
-are permitted. In a periodic market, the delay can recur once per period.
+are permitted. In a periodic market, the delay can recur once per period before
+an enabled repayment date. From that date, queue-hook restrictions are skipped;
+the nuke callback and remaining sanctions checks still apply.
 
 ## Assets
 
 The protocol assumes listed assets have stable ERC-20 transfer and metadata
 behavior. Fee-on-transfer, rebasing, callbacks, mutable or malformed metadata,
 and unusual zero-value transfer behavior can break accounting, deployment,
-lens reads, or fee paths. Listing review is the control; arbitrary deployability
-does not establish compatibility.
+lens reads, or fee paths. There is no built-in metadata allowlist, and creation
+checks cannot establish that metadata will remain readable or stable. Arbitrary
+deployability does not establish compatibility.
+
+The current source accepts canonical empty names and symbols. Lens cosmetic
+metadata reads are bounded and best effort: failure yields empty text rather
+than aborting a market/token batch. Decimals and required accounting remain
+strict. Long factory labels, failed or changing decimals, and client handling
+of opaque text remain compatibility limitations. See the
+[lens metadata contract](../integrations/lenses.md#token-labels-and-denominations)
+and [metadata review](./token-metadata-review.md).
+
+The current factories skip origination-fee transfers when the fee amount is
+zero, while still requiring the supplied token and amount to match the template
+and recording both in deployment events. Positive fees require a successful
+transfer. Legacy factories retain the zero-transfer behavior. Optional
+zero-amount draws, empty rescues and empty sanctions-escrow releases can still
+fail on tokens rejecting zero transfers; this alone does not make positive
+payments fail. See the [zero-transfer review](./zero-value-transfer-review.md).
 
 ## Reused singleton behavior
 

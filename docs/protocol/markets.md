@@ -1,7 +1,8 @@
 # Markets
 
-Read [Scaling and rounding](./scaling-and-rounding.md) first. Market accounting
-depends on it.
+Markets track lender ownership in scaled shares and report rebasing balances
+in underlying-asset units. See [scaling and rounding](./scaling-and-rounding.md)
+for the conversion rules.
 
 ## Market configuration
 
@@ -24,16 +25,20 @@ Markets are configured with the following values:
 - `sentinel`: the Chainalysis wrapper used for sanctions checks
 - `maxTotalSupply`: the cap on normalized market-token supply. It limits new
   deposits, not withdrawals.
-- `protocolFeeBips`: the protocol's share of `annualInterestBips`. It accrues on
-  top of lender interest and does not include delinquency fees.
+- `protocolFeeBips`: the protocol's fraction of base lender interest, charged
+  on top. The revolving market's base includes its commitment fee; delinquency
+  fees are excluded.
 - `annualInterestBips`: the borrower-set base interest rate paid to lenders
 - `delinquencyFeeBips`: the additional lender rate charged after the delinquency
-  grace period
+  grace period, or immediately during underfunded scheduled repayment
 - `withdrawalBatchDuration`: the length of a withdrawal cycle
 - `reserveRatioBips`: the share of outstanding debt the borrower must keep in
   liquid reserves
 - `delinquencyGracePeriod`: how long a market may remain delinquent before the
   penalty rate begins
+- `repaymentDate`: the optional, immutable start of full repayment; zero disables it
+- `repaymentPeriod`: seconds from that date through the inclusive repayment deadline;
+  zero is valid with an enabled date
 - `archController`: the registry for factories, controllers, and markets
 - `sphereXEngine`: the SphereX transaction-checking engine
 - `hooks`: the market's hook policy and hook instance address
@@ -83,9 +88,30 @@ conversion. See [Rounding](./scaling-and-rounding.md#rounding).
 
 Interest and delinquency fees stop at closure.
 
-Closure also pays the current batch and walks every unpaid withdrawal batch.
+Manual closure also pays the current batch and walks every unpaid withdrawal batch.
 Markets with long unpaid queues should process them incrementally before
 closure; see [Withdrawals](./withdrawals.md#closing-a-market).
+
+Markets with repayment terms close automatically once their repayment date has
+been reached and their assets fully cover `totalDebts()`. Automatic closure
+pays the current batch; older unpaid batches can finish in bounded calls to
+`repayAndProcessUnpaidWithdrawalBatches(0, count)`.
+
+Automatic closure retains surplus assets in the market. After closure, the
+operational borrower can call `rescueTokens(asset)` to collect only
+`totalAssets() - totalDebts()`, including later donations. This preserves live
+shares, unpaid batches and their retained payment fractions, paid unclaimed
+withdrawals, and protocol fees. A token that rejects payment to the borrower can
+prevent that recovery call from succeeding, but it cannot block lender actions
+through automatic closure.
+Unrelated tokens remain recoverable by the borrower, and the market token
+itself cannot be rescued.
+
+Automatic closure bypasses the closure hook. Manual closure retains its hook
+checks and surplus transfer. A permanent `defaultedAt` marker is independent
+of either closure path. See [repayment and default](./repayment-and-default.md)
+for dated funding, penalty runs and the distinction between stored and accrued
+lifecycle state.
 
 ## Borrower identity and transfer
 

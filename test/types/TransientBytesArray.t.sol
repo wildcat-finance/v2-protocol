@@ -1,13 +1,36 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // TransientBytesArray.t
+// ║  ██▀▀     ▀▀██   Transient byte-array round trips and encoding boundaries.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  MALFORMED ENCODING ADAPTER
+// ║  readInvalidShortEncoding()
+// ║
+// ║  BYTE STORAGE
+// ║  test_smallBytes(...)
+// ║  test_largeBytes(...)
+// ║  test_read_InvalidShortEncodingLengthReverts()
+// ║
+// ║  BYTE SEQUENCES
+// ║  test_nextBytes(...)
+// ╚═════
+
 import 'src/types/TransientBytesArray.sol';
 import { PRNG, seedPRNG } from '../shared/PRNG.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ TransientBytesArrayExternal ──────────────────────────────────────────────
 contract TransientBytesArrayExternal {
   TransientBytesArray internal array = TransientBytesArray.wrap(0);
 
+  // ░░▒▒▓▓██ [ MALFORMED ENCODING ADAPTER ] ───────────────────────────────────
+
+  // ┌─ readInvalidShortEncoding ─────
   function readInvalidShortEncoding() external returns (bytes memory) {
     assembly {
       tstore(0, 64)
@@ -16,11 +39,15 @@ contract TransientBytesArrayExternal {
   }
 }
 
+// ┌─ TransientBytesArrayTest ──────────────────────────────────────────────────
 contract TransientBytesArrayTest is TestKernel {
   TransientBytesArray internal array = TransientBytesArray.wrap(0);
   bytes4 internal constant TestPanicErrorSelector = 0x4e487b71;
   uint256 internal constant TestPanicInvalidStorageByteArray = 0x22;
 
+  // ░░▒▒▓▓██ [ BYTE STORAGE ] ─────────────────────────────────────────────────
+
+  // ┌─ test_smallBytes ─────
   function test_smallBytes(uint seed, uint length) external {
     length = bound(length, 0, 31);
     PRNG prng = seedPRNG(seed);
@@ -39,6 +66,7 @@ contract TransientBytesArrayTest is TestKernel {
     assertEq(array.read().length, 0, 'bad read value after emptying');
   }
 
+  // ┌─ test_largeBytes ─────
   function test_largeBytes(uint seed, uint length) external {
     length = bound(length, 32, 512);
     PRNG prng = seedPRNG(seed);
@@ -56,15 +84,17 @@ contract TransientBytesArrayTest is TestKernel {
     assertEq(array.read().length, 0, 'bad read value after emptying');
   }
 
+  // ┌─ test_read_InvalidShortEncodingLengthReverts ─────
   function test_read_InvalidShortEncodingLengthReverts() external {
     TransientBytesArrayExternal externalArray = new TransientBytesArrayExternal();
 
-    vm.expectRevert(
-      abi.encodeWithSelector(TestPanicErrorSelector, TestPanicInvalidStorageByteArray)
-    );
+    vm.expectRevert(abi.encodeWithSelector(TestPanicErrorSelector, TestPanicInvalidStorageByteArray));
     externalArray.readInvalidShortEncoding();
   }
 
+  // ░░▒▒▓▓██ [ BYTE SEQUENCES ] ───────────────────────────────────────────────
+
+  // ┌─ test_nextBytes ─────
   function test_nextBytes(uint seed, uint length) external pure {
     length = bound(length, 0, 512);
     PRNG prng = seedPRNG(seed);

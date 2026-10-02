@@ -1,7 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // IWildcatSanctionsEscrow
+// ║  ██▀▀     ▀▀██   Conditional release of borrower-scoped sanctioned assets.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  CONFIGURATION
+// ║  sentinel()
+// ║  borrower()
+// ║  account()
+// ║
+// ║  ESCROW RELEASE
+// ║  releaseEscrow()
+// ║  canReleaseEscrow()
+// ║
+// ║  ASSET QUERIES
+// ║  escrowedAsset()
+// ║  balance()
+// ╚═════
+
+// ┌─ IWildcatSanctionsEscrow ──────────────────────────────────────────────────
 /// @notice deterministic escrow for one borrower namespace, sanctioned account, and asset.
+///
 /// @dev anyone may release the escrow once the sentinel says the account is no longer sanctioned
 ///      in the namespace captured at deployment.
 interface IWildcatSanctionsEscrow {
@@ -9,24 +32,37 @@ interface IWildcatSanctionsEscrow {
 
   error CanNotReleaseEscrow();
 
+  // ░░▒▒▓▓██ [ CONFIGURATION ] ────────────────────────────────────────────────
+
+  // ┌─ sentinel ─────
   /// @notice sentinel that deployed and controls this escrow's release condition.
   function sentinel() external view returns (address);
 
+  // ┌─ borrower ─────
   /// @notice borrower namespace used for sanctions checks.
   function borrower() external view returns (address);
 
+  // ┌─ account ─────
   /// @notice account that receives the asset when the escrow is released.
   function account() external view returns (address);
 
-  /// @notice current balance of the escrowed asset.
-  function balance() external view returns (uint256);
+  // ░░▒▒▓▓██ [ ESCROW RELEASE ] ───────────────────────────────────────────────
 
+  // ┌─ releaseEscrow ─────
+  /// @notice send the complete escrowed balance to `account`.
+  function releaseEscrow() external;
+
+  // ┌─ canReleaseEscrow ─────
   /// @notice whether the sentinel currently permits release to `account`.
   function canReleaseEscrow() external view returns (bool);
 
-  /// @notice returns the escrowed token and its current balance.
+  // ░░▒▒▓▓██ [ ASSET QUERIES ] ────────────────────────────────────────────────
+
+  // ┌─ escrowedAsset ─────
+  /// @notice return the escrowed token and its current balance.
   function escrowedAsset() external view returns (address token, uint256 amount);
 
-  /// @notice sends the complete escrowed balance to `account`.
-  function releaseEscrow() external;
+  // ┌─ balance ─────
+  /// @notice current balance of the escrowed asset.
+  function balance() external view returns (uint256);
 }

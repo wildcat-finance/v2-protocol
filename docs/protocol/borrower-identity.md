@@ -40,9 +40,10 @@ require a live registry lookup.
 
 Borrower, principal, pending transfer, and wrapper pointers occupy the final
 five EVM storage slots, from `type(uint256).max` through
-`type(uint256).max - 4`. The established sequential market layout remains in
-slots 0 through 10, and derived markets can keep extending it normally. New
-manual storage must not use the reserved five-slot range.
+`type(uint256).max - 4`. These are separate from ordinary sequential market
+storage, which derived markets can extend. The sequential layout is
+revision-specific; use the compiler's layout for the source being reviewed.
+New manual storage must not use the reserved five-slot range.
 
 ## Borrower identity registry
 
@@ -246,6 +247,14 @@ Hook administration belongs to the principal and uses its own two-step
 transfer. Acceptance updates the creating factory's administrator index. It
 does not rewrite provider configuration, lender status, hook-local blocks,
 known-lender state, or hooked-market configuration.
+
+The lens reads current and pending hook administrators separately from market
+borrower identity. A pending hook transfer retains the old factory association;
+acceptance moves instance discovery to the new administrator across all three
+built-in terms. See [Access control](../integrations/access-control.md#hook-administration)
+for that independent transfer path and
+[the production integration suite](../../test/integration/ProductionMatrixScenarios.t.sol)
+for real factory/lens coverage.
 
 V2.5 `AccessListRoleProvider` administration also uses an independent two-step
 transfer. The provider address, membership, and every hook attachment remain

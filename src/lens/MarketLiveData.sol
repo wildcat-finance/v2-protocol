@@ -1,6 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLiveData
+// ║  ██▀▀     ▀▀██   Compact accrued accounting and optional lender status.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  LIVE MARKET DATA
+// ║  fill(...)
+// ║  fill(...)
+// ╚═════
+
+import './MarketAccountingReader.sol';
+
 import '../market/WildcatMarket.sol';
 import './LenderAccountData.sol';
 import './MarketData.sol';
@@ -9,6 +23,7 @@ using MarketLiveDataLib for MarketLiveDataV2_5 global;
 using MarketLiveDataLib for MarketLiveDataWithLenderStatusV2_5 global;
 
 /// @notice compact current accounting state for a V2.5 market.
+///
 /// @dev omits expensive static configuration, hook metadata, and unpaid-batch enumeration.
 struct MarketLiveDataV2_5 {
   address market;
@@ -21,11 +36,13 @@ struct MarketLiveDataV2_5 {
   uint256 maxTotalSupply;
   uint256 scaledTotalSupply;
   uint256 totalAssets;
+
   /// @dev uncollected accrued protocol fees. the field name is retained for ABI stability.
   uint256 lastAccruedProtocolFees;
   uint256 normalizedUnclaimedWithdrawals;
   uint256 scaledPendingWithdrawals;
-  /// @dev current batch expiry, or an expired stored batch that the accrued view can fully fund.
+
+  /// @dev current batch key, or a stored batch fully released by the accrued view before a write.
   uint256 pendingWithdrawalExpiry;
   bool isDelinquent;
   uint256 timeDelinquent;
@@ -33,6 +50,8 @@ struct MarketLiveDataV2_5 {
   uint256 coverageLiquidity;
   OptionalUintDataV2_5 commitmentFeeBips;
   OptionalUintDataV2_5 drawnAmount;
+  MarketLifecycleData lifecycle;
+  MarketLiquidityData liquidity;
 }
 
 /// @notice compact market state paired with one lender's current status.
@@ -41,13 +60,17 @@ struct MarketLiveDataWithLenderStatusV2_5 {
   LenderAccountData lenderStatus;
 }
 
+// ┌─ MarketLiveDataLib ────────────────────────────────────────────────────────
 /// @notice fillers for compact live market reads.
 library MarketLiveDataLib {
-  /// @notice fills accounting state using the market's accrued `currentState()` view.
+  // ░░▒▒▓▓██ [ LIVE MARKET DATA ] ─────────────────────────────────────────────
+
+  // ┌─ fill ─────
+  /// @notice fill accounting state using the market's accrued `currentState()` view.
   function fill(MarketLiveDataV2_5 memory data, WildcatMarket market) internal view {
     data.market = address(market);
 
-    MarketState memory state = market.currentState();
+    MarketState memory state = MarketAccountingReader.currentState(market);
     data.isClosed = state.isClosed;
     data.protocolFeeBips = state.protocolFeeBips;
     data.reserveRatioBips = state.reserveRatioBips;
@@ -66,9 +89,9 @@ library MarketLiveDataLib {
     data.lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
 
     if (state.pendingWithdrawalExpiry == 0) {
-      uint32 expiredBatchExpiry = market.previousState().pendingWithdrawalExpiry;
+      uint32 expiredBatchExpiry = MarketAccountingReader.previousState(market).pendingWithdrawalExpiry;
       if (expiredBatchExpiry > 0) {
-        WithdrawalBatch memory expiredBatch = market.getWithdrawalBatch(expiredBatchExpiry);
+        WithdrawalBatch memory expiredBatch = MarketAccountingReader.withdrawalBatch(market, expiredBatchExpiry);
         if (expiredBatch.scaledTotalAmount == expiredBatch.scaledAmountBurned) {
           data.pendingWithdrawalExpiry = expiredBatchExpiry;
         }
@@ -77,22 +100,15 @@ library MarketLiveDataLib {
 
     data.coverageLiquidity = state.liquidityRequired();
     MarketDataLib._tryFillOptionalUint(
-      data.commitmentFeeBips,
-      address(market),
-      MarketDataLib._COMMITMENT_FEE_BIPS_SELECTOR
+      data.commitmentFeeBips, address(market), MarketDataLib._COMMITMENT_FEE_BIPS_SELECTOR
     );
-    MarketDataLib._tryFillOptionalUint(
-      data.drawnAmount,
-      address(market),
-      MarketDataLib._DRAWN_AMOUNT_SELECTOR
-    );
+    MarketDataLib._tryFillOptionalUint(data.drawnAmount, address(market), MarketDataLib._DRAWN_AMOUNT_SELECTOR);
+    data.lifecycle.fill(market, data.isClosed);
+    data.liquidity.fill(market, data.isClosed, data.totalAssets);
   }
 
-  function fill(
-    MarketLiveDataWithLenderStatusV2_5 memory data,
-    WildcatMarket market,
-    address lender
-  ) internal view {
+  // ┌─ fill ─────
+  function fill(MarketLiveDataWithLenderStatusV2_5 memory data, WildcatMarket market, address lender) internal view {
     data.market.fill(market);
     data.lenderStatus.fill(market, lender);
   }

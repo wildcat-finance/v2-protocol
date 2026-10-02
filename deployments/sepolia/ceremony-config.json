@@ -14,7 +14,7 @@
     ],
     "forwardedFunctionSignatures": [
       "registerControllerFactory(address)",
-      "addHooksTemplate(address,string,address,address,uint80,uint16)",
+      "addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)",
       "removeControllerFactory(address)",
       "removeController(address)"
     ]

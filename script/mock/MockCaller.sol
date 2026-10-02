@@ -1,6 +1,15 @@
 // // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MockCaller
+// ║  ██▀▀     ▀▀██   Inactive caller prototype retained as commented reference.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ╚═════
+
 // import { WildcatMarket } from '../../src/market/WildcatMarket.sol';
 
 // contract MockCaller {

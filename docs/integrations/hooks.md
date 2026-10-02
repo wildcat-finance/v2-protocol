@@ -16,13 +16,25 @@ Core interfaces:
 - [`IHooksFactory`](../../src/IHooksFactory.sol): template, instance, and market
   provenance
 
+The original templates share [`BaseHooks`](../../src/access/BaseHooks.sol) and
+reuse their open, fixed, or periodic term policy. Each remains one deployed
+contract with its existing public configuration. See
+[Hook development](./hook-development.md) for source composition and overrides.
+
+Callbacks carrying `MarketState` use its current fifteen-word tuple, including
+`withdrawalRemainder`. Earlier fourteen-word inputs produce different selectors.
+Select a hook implementation that matches the market's tuple; family names and
+callback flags alone do not establish compatibility. See
+[accounting tuple compatibility](./lenses.md#accounting-tuple-compatibility).
+
 ## Template, instance, and market
 
 The hook lifecycle has three layers:
 
-1. A **template** is approved initcode stored by `HooksFactory`, plus its name
-   and fee configuration. The code starts with a non-executable byte. The
-   factory skips that byte when it copies the initcode for deployment.
+1. A **template** is approved stored creation code, its original artifact hash,
+   and its name and fee configuration. Fitting artifacts use `STOP || initcode`;
+   oversized artifacts use two storage contracts behind one primary address.
+   The factory recovers and hashes the creation code before deploying it.
 2. A **hooks instance** is a contract deployed from one template. It holds its
    own configuration and can serve several markets.
 3. A **market binding** is the instance address and callback flags stored in the
@@ -47,6 +59,11 @@ Disabling a template blocks new instances. It does not disable existing
 instances or markets, and an existing instance can still be attached to a new
 market. Template disabling is not a kill switch.
 
+`addHooksTemplate` requires the original `initCodeHash`. That commitment is
+checked at registration and before every instance deployment. It excludes
+instance constructor arguments. See [stored creation code](../operations/deployment.md#stored-creation-code)
+for preparation and verification of both storage contracts.
+
 ## Callback flags
 
 Each template returns optional and required flags from `config()`:
@@ -61,6 +78,13 @@ hook's own state and administration can still change if its implementation
 allows it. Reusing an instance means sharing its state and authority domain
 across markets.
 
+Callback dispatch and credential requirements are separate. A positive minimum
+forces deposit dispatch without requiring deposit credentials. Fixed/periodic
+hooks require queue callbacks even when withdrawal access is optional, but
+the market bypasses them from an enabled repayment date.
+Use the template's stored access fields rather than inferring access from every
+enabled bit. A feature must declare the callbacks it requires at construction.
+
 ## Callback surface
 
 ### Lender and token actions
@@ -68,10 +92,11 @@ across markets.
 - `deposit` and `depositUpTo` call `onDeposit` with the lender and scaled mint
   amount.
 - `queueWithdrawal`, `queueWithdrawalScaled`, and `queueFullWithdrawal` call
-  `onQueueWithdrawal` with the lender, batch expiry, and scaled amount.
-- `executeWithdrawal` and `executeWithdrawals` call `onExecuteWithdrawal` with
-  the lender, exact batch expiry, and normalized amount. The batched function
-  calls the hook once per withdrawal.
+  `onQueueWithdrawal` with the lender, batch expiry, and scaled amount until
+  an enabled repayment date. After that date, queueing skips the hook.
+- `executeWithdrawal` and `executeWithdrawals` have no hook callback. New V2.5
+  markets reject `useOnExecuteWithdrawal` during construction. The historical
+  callback remains in the shared interface and encoding library.
 - `transfer` and `transferFrom` call `onTransfer` with the caller, sender,
   recipient, and scaled amount.
 
@@ -81,10 +106,12 @@ across markets.
 - `repay` and `repayAndProcessUnpaidWithdrawalBatches` call `onRepay` when the
   repayment amount is nonzero.
 - `closeMarket` calls `onCloseMarket`. If closure needs a final repayment, it
-  calls `onRepay` first.
+  calls `onRepay` first. Scheduled automatic closure calls neither closure nor
+  synthetic repayment hooks; an actual repayment still runs its own callback.
 - `nukeFromOrbit` calls `onNukeFromOrbit`, then queues the sanctioned lender's
   balance through `onQueueWithdrawal`. Term and withdrawal-window policy can
-  therefore delay quarantine.
+  therefore delay quarantine before an enabled repayment date. The nuke
+  callback itself remains enabled according to the market's configuration.
 
 ### Parameter changes
 
@@ -113,7 +140,15 @@ delinquencyFeeBips          0 .. 10_000
 withdrawalBatchDuration     0 .. 365 days
 reserveRatioBips            0 .. 10_000
 delinquencyGracePeriod      0 .. 90 days
+repaymentPeriod             0 .. 90 days
 ```
+
+`getParameterConstraints()` returns twelve static words, including
+`maximumRepaymentPeriod` and `maximumRepaymentDateDelay`. Open and periodic
+templates cap the date delay at 730 days. Fixed-term policy reports
+`type(uint32).max` for that bound and separately requires repayment on or after
+maturity. Core timestamp checks apply to every template. See
+[repayment terms](../protocol/repayment-and-default.md#repayment-terms).
 
 For ordinary APR updates, built-in hooks ignore the borrower-supplied reserve
 ratio. They keep the current ratio unless the APR reduction policy below
@@ -151,9 +186,6 @@ Important boundaries:
 
 - `onQueueWithdrawal` sees a new `pendingWithdrawalExpiry`, but not the new
   amount in the account, batch, or market totals.
-- `onExecuteWithdrawal` receives the exact batch expiry being claimed. It must
-  not infer that value from `state.pendingWithdrawalExpiry`, which describes the
-  current pending batch.
 - Repayment assets arrive before `onRepay`. Repayment accounting happens after
   the hook.
 - `onSetAnnualInterestAndReserveRatioBips` can replace its two proposed values.
@@ -162,7 +194,8 @@ Important boundaries:
   reserve ratio.
 
 Callbacks are not a complete accounting feed. Partial withdrawal-batch payments
-have no callback. A hook that needs exact pending or unpaid withdrawal state
+and scheduled automatic closure have no callback, and collection is hook-free.
+A hook that needs exact pending or unpaid withdrawal state
 must read the market and apply its accounting rules.
 
 ## `extraData`
@@ -177,8 +210,8 @@ provider selection and credentials. Other templates may use another encoding.
 
 Exceptions and edge cases:
 
-- `executeWithdrawal` accepts a suffix. `executeWithdrawals` deliberately sends
-  empty `extraData` to every callback.
+- Withdrawal execution supplies no callback data because the market no longer
+  dispatches an execution hook.
 - `nukeFromOrbit` accepts a suffix.
 - `executePendingAnnualInterestBipsReduction` has no `extraData`.
 - Market creation uses the factory's explicit `hooksData` argument instead of a
@@ -198,6 +231,18 @@ template-to-instance-to-market relationship. A display name or `version()`
 string is metadata, not implementation identity. See
 [Events](./events.md) for ordering and provenance.
 
+The lens classifies the exact original family strings and decodes each family's
+`getHookedMarket` tuple. Periodic `templateVersion()` remains 2. Shared inherited
+getters provide provider, constraint, and administrator data for all three
+families. A completed hook-administrator transfer updates factory discovery;
+it does not transfer the attached markets. New feature templates need explicit
+decoder support for any new identity or public format.
+
+See [market lenses](./lenses.md) for repayment-bound availability, periodic
+proposal views, and factory-scoped creation-code commitments. New nested fields
+require the ABI for the deployed lens, even when its input selectors match an
+older lens.
+
 See [role providers](./role-providers.md) for credentials, then
 [access control](./access-control.md),
 [fixed-term hooks](./fixed-term-hooks.md), and
@@ -209,7 +254,12 @@ See [role providers](./role-providers.md) for credentials, then
   optional and required merging, and callback encoding
 - [`MarketConstraintHooks.t.sol`](../../test/access/MarketConstraintHooks.t.sol):
   creation bounds and APR/reserve-ratio transitions
+- [`BaseHooks.t.sol`](../../test/access/BaseHooks.t.sol): shared initialization,
+  action defaults, requested access, and forced dispatch
 - [`HooksFactories.t.sol`](../../test/factories/HooksFactories.t.sol): templates,
   instances, identity resolution, market binding, and provenance
 - [`WildcatMarket.t.sol`](../../test/market/WildcatMarket.t.sol): callback
   dispatch and action ordering
+- [`ProductionMatrixScenarios.t.sol`](../../test/integration/ProductionMatrixScenarios.t.sol):
+  real factory-to-lens reads, administrator discovery, wrappers, and composed
+  operations across all three terms and both market implementations

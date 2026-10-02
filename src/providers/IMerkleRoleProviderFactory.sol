@@ -1,19 +1,36 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // IMerkleRoleProviderFactory
+// ║  ██▀▀     ▀▀██   Merkle provider deployment inputs and address prediction.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  DEPLOYMENT
+// ║  createMerkleRoleProvider(...)
+// ║
+// ║  ADDRESS PREDICTION
+// ║  computeRoleProviderAddress(...)
+// ╚═════
+
 import '../access/IRoleProviderFactory.sol';
 
-/// @notice constructor and CREATE2 inputs for a Merkle provider.
+/// @notice function Object() { [native code] } and CREATE2 inputs for a Merkle provider.
+///
 /// @param administrator initial authority over the root and provider administration.
-/// @param root initial sorted-pair Merkle root.
-/// @param salt caller-scoped salt used by the factory.
+/// @param root          initial sorted-pair Merkle root.
+/// @param salt          caller-scoped salt used by the factory.
 struct MerkleRoleProviderFactoryInputs {
   address administrator;
   bytes32 root;
   bytes32 salt;
 }
 
+// ┌─ IMerkleRoleProviderFactory ───────────────────────────────────────────────
 /// @notice deterministic factory for mutable-root Merkle providers.
+///
 /// @dev salts are namespaced by the factory caller. the factory retains no authority over the
 ///      provider after deployment.
 interface IMerkleRoleProviderFactory is IRoleProviderFactory {
@@ -29,15 +46,23 @@ interface IMerkleRoleProviderFactory is IRoleProviderFactory {
     bytes32 root
   );
 
-  /// @notice deploys a provider for `msg.sender`.
-  function createMerkleRoleProvider(
-    MerkleRoleProviderFactoryInputs calldata inputs
-  ) external returns (address provider);
+  // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
 
-  /// @notice predicts the address for the exact `deployer`, inputs, and this factory.
+  // ┌─ createMerkleRoleProvider ─────
+  /// @notice deploy a provider for `msg.sender`.
+  function createMerkleRoleProvider(MerkleRoleProviderFactoryInputs calldata inputs) external returns (address provider);
+
+  // ░░▒▒▓▓██ [ ADDRESS PREDICTION ] ───────────────────────────────────────────
+
+  // ┌─ computeRoleProviderAddress ─────
+  /// @notice predict the address for the exact `deployer`, inputs, and this factory.
+  ///
   /// @dev pass the address that will actually call the create function as `deployer`.
   function computeRoleProviderAddress(
     address deployer,
     MerkleRoleProviderFactoryInputs calldata inputs
-  ) external view returns (address provider);
+  )
+    external
+    view
+    returns (address provider);
 }

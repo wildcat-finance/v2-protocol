@@ -1,7 +1,7 @@
 # Technical documentation
 
-These docs describe the intended behavior of the contracts on the active
-release branch. They are written for auditors, integrators, and contributors.
+These docs describe the contract source in this checkout. They are written for
+auditors, integrators, and contributors, not as a deployment or release approval.
 
 The docs on a release branch apply to the source on that branch. Previous
 releases and their documentation live in Git tags.
@@ -20,6 +20,8 @@ review coverage, or remediation status from source ancestry alone.
 
 - [Markets](./protocol/markets.md): configuration, implementations, and borrower
   authority
+- [Repayment and default](./protocol/repayment-and-default.md): immutable terms,
+  inclusive deadlines, penalty runs, automatic closure, and collection
 - [Accounting](./protocol/accounting.md) and
   [scaling](./protocol/scaling-and-rounding.md): collateral obligations,
   interest, fees, balances, and rounding
@@ -35,10 +37,14 @@ review coverage, or remediation status from source ancestry alone.
   [access control](./integrations/access-control.md),
   [fixed term hooks](./integrations/fixed-term-hooks.md), and
   [periodic term hooks](./integrations/periodic-term-hooks.md)
+- [Hook development](./integrations/hook-development.md): shared defaults,
+  reusable term policies, feature composition, and explicit override decisions
 - [Role providers](./integrations/role-providers.md): credential-provider
   capabilities and construction paths
 - [ERC-4626 wrapper](./integrations/erc-4626-wrapper.md): wrapping, redemption,
   rounding, sanctions, and integration constraints
+- [Market lenses](./integrations/lenses.md): lifecycle, liquidity, hook policies,
+  factory commitments, withdrawal claims, and return-ABI compatibility
 - [Event model](./integrations/events.md): ABI families, event ordering,
   deployment discovery, and indexer replay
 
@@ -55,10 +61,10 @@ review coverage, or remediation status from source ancestry alone.
 
 - [Release notes](./releases/README.md): V2.0, V2.1, and V2.5 source boundaries
   and compatibility changes
-- [V2.5 audit scope](./releases/v2.5-audit-scope.md): candidate provenance,
-  review boundary, properties, and freeze gates
-- [V2.5 verification receipt](./releases/v2.5-verification.md): pre-freeze build,
-  test, inventory, size, and lint evidence
+- [V2.5 audit scope](./releases/v2.5-audit-scope.md): prior freeze provenance,
+  required review delta, properties, and release gates
+- [V2.5 verification receipt](./releases/v2.5-verification.md): dated evidence
+  for the earlier source candidate
 - [Deployment](./operations/deployment.md): inventory, plans, ceremonies,
   verification, and handoffs
 

@@ -1,13 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // ProductionEconomics.t
+// ║  ██▀▀     ▀▀██   Production delinquency and standard-versus-revolving economics.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  DELINQUENCY LIFECYCLE
+// ║  test_largeBalanceDelinquencyLifecycleMatchesOracleAcrossMarketTypes()
+// ║  _runDelinquencyLifecycle(...)
+// ║
+// ║  YIELD CROSSOVER
+// ║  test_largeBalanceYieldCrossoverPinsStandardAndRevolvingEconomics()
+// ║  _assertYieldOrdering(...)
+// ║
+// ║  ECONOMIC CONFIGURATION
+// ║  _productionOptions(...)
+// ╚═════
+
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 
+// ┌─ ProductionEconomicsTest ──────────────────────────────────────────────────
 contract ProductionEconomicsTest is ProductionMatrixFixture {
   uint256 internal constant ProductionCapacity = 130_000_000e18;
   uint256 internal constant ProductionDraw = 70_000_000e18;
 
+  // ░░▒▒▓▓██ [ DELINQUENCY LIFECYCLE ] ────────────────────────────────────────
+
+  // ┌─ test_largeBalanceDelinquencyLifecycleMatchesOracleAcrossMarketTypes ─────
   function test_largeBalanceDelinquencyLifecycleMatchesOracleAcrossMarketTypes() external {
     ProductionStack memory stack = _deployProductionStack();
 
@@ -16,27 +39,10 @@ contract ProductionEconomicsTest is ProductionMatrixFixture {
     }
   }
 
-  function test_largeBalanceYieldCrossoverPinsStandardAndRevolvingEconomics() external {
-    ProductionStack memory stack = _deployProductionStack();
-
-    _assertYieldOrdering(stack, 13_000_000e18, false, 210);
-    _assertYieldOrdering(stack, ProductionDraw, true, 211);
-    _assertYieldOrdering(stack, 123_500_000e18, true, 212);
-  }
-
-  function _runDelinquencyLifecycle(
-    ProductionStack memory stack,
-    MatrixMarketKind marketKind,
-    uint96 nonce
-  ) private {
+  // ┌─ _runDelinquencyLifecycle ─────
+  function _runDelinquencyLifecycle(ProductionStack memory stack, MatrixMarketKind marketKind, uint96 nonce) private {
     MatrixOptions memory options = _productionOptions(marketKind);
-    MatrixCell memory cell = _deployMatrixCell(
-      stack,
-      options,
-      MatrixBorrower,
-      MatrixBorrower,
-      nonce
-    );
+    MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
     _authorize(stack, cell, MatrixAlice);
     _authorize(stack, cell, MatrixBob);
     _deposit(stack, cell, MatrixAlice, 80_000_000e18);
@@ -80,12 +86,19 @@ contract ProductionEconomicsTest is ProductionMatrixFixture {
     assertEq(cell.market.previousState().timeDelinquent, 0, 'recovered clock');
   }
 
-  function _assertYieldOrdering(
-    ProductionStack memory stack,
-    uint256 draw,
-    bool revolvingWins,
-    uint96 nonce
-  ) private {
+  // ░░▒▒▓▓██ [ YIELD CROSSOVER ] ──────────────────────────────────────────────
+
+  // ┌─ test_largeBalanceYieldCrossoverPinsStandardAndRevolvingEconomics ─────
+  function test_largeBalanceYieldCrossoverPinsStandardAndRevolvingEconomics() external {
+    ProductionStack memory stack = _deployProductionStack();
+
+    _assertYieldOrdering(stack, 13_000_000e18, false, 210);
+    _assertYieldOrdering(stack, ProductionDraw, true, 211);
+    _assertYieldOrdering(stack, 123_500_000e18, true, 212);
+  }
+
+  // ┌─ _assertYieldOrdering ─────
+  function _assertYieldOrdering(ProductionStack memory stack, uint256 draw, bool revolvingWins, uint96 nonce) private {
     MatrixOptions memory standardOptions = _productionOptions(MatrixMarketKind.Standard);
     MatrixOptions memory revolvingOptions = _productionOptions(MatrixMarketKind.Revolving);
     standardOptions.reserveRatioBips = 0;
@@ -93,20 +106,8 @@ contract ProductionEconomicsTest is ProductionMatrixFixture {
     standardOptions.delinquencyFeeBips = 0;
     revolvingOptions.delinquencyFeeBips = 0;
 
-    MatrixCell memory standard = _deployMatrixCell(
-      stack,
-      standardOptions,
-      MatrixBorrower,
-      MatrixBorrower,
-      nonce
-    );
-    MatrixCell memory revolving = _deployMatrixCell(
-      stack,
-      revolvingOptions,
-      MatrixBorrower,
-      MatrixBorrower,
-      nonce
-    );
+    MatrixCell memory standard = _deployMatrixCell(stack, standardOptions, MatrixBorrower, MatrixBorrower, nonce);
+    MatrixCell memory revolving = _deployMatrixCell(stack, revolvingOptions, MatrixBorrower, MatrixBorrower, nonce);
     _authorize(stack, standard, MatrixAlice);
     _authorize(stack, revolving, MatrixAlice);
     _deposit(stack, standard, MatrixAlice, ProductionCapacity);
@@ -132,9 +133,10 @@ contract ProductionEconomicsTest is ProductionMatrixFixture {
     }
   }
 
-  function _productionOptions(
-    MatrixMarketKind marketKind
-  ) private pure returns (MatrixOptions memory options) {
+  // ░░▒▒▓▓██ [ ECONOMIC CONFIGURATION ] ───────────────────────────────────────
+
+  // ┌─ _productionOptions ─────
+  function _productionOptions(MatrixMarketKind marketKind) private pure returns (MatrixOptions memory options) {
     options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, marketKind);
     options.maxTotalSupply = uint128(ProductionCapacity);
     options.annualInterestBips = 850;

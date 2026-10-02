@@ -1,6 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensAggregator.t
+// ║  ██▀▀     ▀▀██   Factory-scoped and aggregate hook and market lens reads.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║  _configureFactories()
+// ║  _newFactory()
+// ║  _newHooks(...)
+// ║  _newAggregator(...)
+// ║  _setTemplate(...)
+// ║
+// ║  FACTORY DISCOVERY
+// ║  test_activeFactories_FilterControllersAndAppendValidDefault()
+// ║
+// ║  HOOK AGGREGATION
+// ║  test_directAndFactoryParameterizedReads_PreserveScopeAndFeeData()
+// ║  test_templateCommitments_KeepFactoryScopeAndLegacyAbsence()
+// ║  test_aggregationHelpers_DedupeFirstSeenAndIsolateFactoryFailures()
+// ║  test_discoveredAggregation_ReturnsUnifiedAndFactoryScopedViews()
+// ║  _assertTemplate(...)
+// ║  _assertInstance(...)
+// ║
+// ║  MARKET AGGREGATION
+// ║  test_directMarketReads_RespectFactoryAndPagination()
+// ║  test_aggregatedMarketReads_DedupeStableOrderAndSkipReverts()
+// ║  test_templateWideMarketReads_AcceptBytes32UnderlyingMetadata()
+// ╚═════
+
 import { FactoryScopedHooksTemplateData } from 'src/lens/FactoryScopedHooksTemplateData.sol';
 import { HooksDataForBorrower } from 'src/lens/HooksDataForBorrower.sol';
 import { HooksInstanceData } from 'src/lens/HooksInstanceData.sol';
@@ -10,6 +42,7 @@ import { MarketLensAggregator } from 'src/lens/MarketLensAggregator.sol';
 import { LensArchControllerMock, LensFactoryMock, LensHooksMock } from '../mocks/LensMocks.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 
+// ┌─ MarketLensAggregatorTest ─────────────────────────────────────────────────
 contract MarketLensAggregatorTest is MarketFixture {
   address internal constant TemplateA = address(0xA100);
   address internal constant SharedTemplate = address(0xA200);
@@ -28,12 +61,13 @@ contract MarketLensAggregatorTest is MarketFixture {
   address internal nonHooksController;
   MarketLensAggregator internal aggregator;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     standard = _newMarket(HooksKind.OpenTerm);
     revolving = _newRevolvingMarket(HooksKind.OpenTerm);
-    archController = LensArchControllerMock(
-      _deployCode('test/mocks/LensMocks.sol:LensArchControllerMock')
-    );
+    archController = LensArchControllerMock(_deployCode('test/mocks/LensMocks.sol:LensArchControllerMock'));
     factoryA = _newFactory();
     factoryB = _newFactory();
     revertingFactory = _newFactory();
@@ -59,28 +93,7 @@ contract MarketLensAggregatorTest is MarketFixture {
     vm.stopPrank();
   }
 
-  function _newFactory() internal returns (LensFactoryMock factory) {
-    factory = LensFactoryMock(_deployCode('test/mocks/LensMocks.sol:LensFactoryMock'));
-  }
-
-  function _newHooks(address pendingAdministrator) internal returns (LensHooksMock hooks) {
-    hooks = LensHooksMock(
-      _deployCode('test/mocks/LensMocks.sol:LensHooksMock', abi.encode(pendingAdministrator))
-    );
-  }
-
-  function _newAggregator(
-    address controller,
-    address defaultFactory
-  ) internal returns (MarketLensAggregator lens) {
-    lens = MarketLensAggregator(
-      _deployCode(
-        'src/lens/MarketLensAggregator.sol:MarketLensAggregator',
-        abi.encode(controller, defaultFactory)
-      )
-    );
-  }
-
+  // ┌─ _configureFactories ─────
   function _configureFactories() internal {
     address[] memory templatesA = new address[](2);
     templatesA[0] = TemplateA;
@@ -119,85 +132,41 @@ contract MarketLensAggregatorTest is MarketFixture {
     revertingFactory.setReverts(false, true, true, true);
   }
 
+  // ┌─ _newFactory ─────
+  function _newFactory() internal returns (LensFactoryMock factory) {
+    factory = LensFactoryMock(_deployCode('test/mocks/LensMocks.sol:LensFactoryMock'));
+  }
+
+  // ┌─ _newHooks ─────
+  function _newHooks(address pendingAdministrator) internal returns (LensHooksMock hooks) {
+    hooks = LensHooksMock(_deployCode('test/mocks/LensMocks.sol:LensHooksMock', abi.encode(pendingAdministrator)));
+  }
+
+  // ┌─ _newAggregator ─────
+  function _newAggregator(address controller, address defaultFactory) internal returns (MarketLensAggregator lens) {
+    lens = MarketLensAggregator(
+      _deployCode('src/lens/MarketLensAggregator.sol:MarketLensAggregator', abi.encode(controller, defaultFactory))
+    );
+  }
+
+  // ┌─ _setTemplate ─────
   function _setTemplate(
     LensFactoryMock factory,
     address template,
     string memory name,
     uint24 index,
     uint16 protocolFeeBips
-  ) internal {
+  )
+    internal
+  {
     factory.setTemplateDetails(
-      template,
-      name,
-      index,
-      protocolFeeBips,
-      address(uint160(protocolFeeBips)),
-      address(standard.asset),
-      1e18
+      template, name, index, protocolFeeBips, address(uint160(protocolFeeBips)), address(standard.asset), 1e18
     );
   }
 
-  function test_directAndFactoryParameterizedReads_PreserveScopeAndFeeData() external view {
-    HooksDataForBorrower memory defaults = aggregator.getHooksDataForBorrower(Borrower);
-    assertEq(defaults.borrower, Borrower, 'borrower');
-    assertTrue(defaults.isRegisteredBorrower, 'registered');
-    assertEq(defaults.hooksTemplates.length, 2, 'default templates');
-    assertEq(defaults.hooksInstances.length, 2, 'default instances');
-    _assertTemplate(defaults.hooksTemplates[0], TemplateA, 'Template A', 101, address(factoryA));
-    _assertInstance(defaults.hooksInstances[1], address(sharedHooks), SharedTemplate, 102);
-    assertEq(aggregator.getHooksInstancesForBorrower(Borrower).length, 2, 'default instance alias');
-    assertEq(
-      aggregator.getHooksInstancesForBorrower(address(factoryB), Borrower).length,
-      2,
-      'factory instance alias'
-    );
+  // ░░▒▒▓▓██ [ FACTORY DISCOVERY ] ────────────────────────────────────────────
 
-    HooksDataForBorrower memory second = aggregator.getHooksDataForBorrower(
-      address(factoryB),
-      Borrower
-    );
-    assertEq(second.hooksTemplates.length, 2, 'second templates');
-    assertEq(second.hooksInstances.length, 2, 'second instances');
-    _assertTemplate(second.hooksTemplates[0], SharedTemplate, 'Shared B', 202, address(factoryB));
-    _assertInstance(second.hooksInstances[1], address(hooksB), TemplateB, 203);
-
-    _assertTemplate(
-      aggregator.getHooksTemplateForBorrower(Borrower, TemplateA),
-      TemplateA,
-      'Template A',
-      101,
-      address(factoryA)
-    );
-    HooksTemplateData memory template = aggregator.getHooksTemplateForBorrower(
-      address(factoryB),
-      Borrower,
-      TemplateB
-    );
-    _assertTemplate(template, TemplateB, 'Template B', 203, address(factoryB));
-    address[] memory templates = new address[](2);
-    templates[0] = TemplateB;
-    templates[1] = SharedTemplate;
-    HooksTemplateData[] memory selected = aggregator.getHooksTemplatesForBorrower(
-      address(factoryB),
-      Borrower,
-      templates
-    );
-    assertEq(selected.length, 2, 'selected templates');
-    assertEq(selected[0].hooksTemplate, TemplateB, 'selected order 0');
-    assertEq(selected[1].hooksTemplate, SharedTemplate, 'selected order 1');
-    assertEq(
-      aggregator.getHooksTemplatesForBorrower(Borrower, templates).length,
-      2,
-      'default selected alias'
-    );
-    assertEq(aggregator.getAllHooksTemplatesForBorrower(Borrower).length, 2, 'default all alias');
-    assertEq(
-      aggregator.getAllHooksTemplatesForBorrower(address(factoryB), Borrower).length,
-      2,
-      'factory all alias'
-    );
-  }
-
+  // ┌─ test_activeFactories_FilterControllersAndAppendValidDefault ─────
   function test_activeFactories_FilterControllersAndAppendValidDefault() external {
     address[] memory active = aggregator.getActiveHooksFactories();
     assertEq(active.length, 3, 'active count');
@@ -210,10 +179,7 @@ contract MarketLensAggregatorTest is MarketFixture {
     controllers[0] = nonHooksController;
     controllers[1] = address(factoryB);
     archController.setControllers(controllers);
-    MarketLensAggregator appended = _newAggregator(
-      address(archController),
-      address(appendedFactory)
-    );
+    MarketLensAggregator appended = _newAggregator(address(archController), address(appendedFactory));
     active = appended.getActiveHooksFactories();
     assertEq(active.length, 2, 'appended count');
     assertEq(active[0], address(factoryB), 'controller first');
@@ -223,64 +189,109 @@ contract MarketLensAggregatorTest is MarketFixture {
     archController.setControllers(controllers);
     MarketLensAggregator empty = _newAggregator(address(archController), nonHooksController);
     assertEq(empty.getActiveHooksFactories().length, 0, 'invalid default ignored');
-    assertEq(
-      empty.getAggregatedHooksTemplatesForBorrowerWithFactory(Borrower).length,
-      0,
-      'empty scoped templates'
-    );
-    assertEq(
-      empty.getAggregatedMarketsForHooksTemplateCount(SharedTemplate),
-      0,
-      'empty aggregate markets'
-    );
+    assertEq(empty.getAggregatedHooksTemplatesForBorrowerWithFactory(Borrower).length, 0, 'empty scoped templates');
+    assertEq(empty.getAggregatedMarketsForHooksTemplateCount(SharedTemplate), 0, 'empty aggregate markets');
 
     controllers = new address[](1);
     controllers[0] = address(factoryA);
     archController.setControllers(controllers);
     MarketLensAggregator single = _newAggregator(address(archController), address(factoryA));
-    assertEq(
-      single.getAggregatedMarketsForHooksTemplateCount(SharedTemplate),
-      1,
-      'single aggregate markets'
-    );
+    assertEq(single.getAggregatedMarketsForHooksTemplateCount(SharedTemplate), 1, 'single aggregate markets');
 
     controllers[0] = address(revertingFactory);
     archController.setControllers(controllers);
-    MarketLensAggregator reverting = _newAggregator(
-      address(archController),
-      address(revertingFactory)
-    );
-    assertEq(
-      reverting.getAggregatedMarketsForHooksTemplateCount(SharedTemplate),
-      0,
-      'reverting aggregate markets'
-    );
+    MarketLensAggregator reverting = _newAggregator(address(archController), address(revertingFactory));
+    assertEq(reverting.getAggregatedMarketsForHooksTemplateCount(SharedTemplate), 0, 'reverting aggregate markets');
   }
 
+  // ░░▒▒▓▓██ [ HOOK AGGREGATION ] ─────────────────────────────────────────────
+
+  // ┌─ test_directAndFactoryParameterizedReads_PreserveScopeAndFeeData ─────
+  function test_directAndFactoryParameterizedReads_PreserveScopeAndFeeData() external view {
+    HooksDataForBorrower memory defaults = aggregator.getHooksDataForBorrower(Borrower);
+    assertEq(defaults.borrower, Borrower, 'borrower');
+    assertTrue(defaults.isRegisteredBorrower, 'registered');
+    assertEq(defaults.hooksTemplates.length, 2, 'default templates');
+    assertEq(defaults.hooksInstances.length, 2, 'default instances');
+    _assertTemplate(defaults.hooksTemplates[0], TemplateA, 'Template A', 101, address(factoryA));
+    _assertInstance(defaults.hooksInstances[1], address(sharedHooks), SharedTemplate, 102);
+    assertEq(aggregator.getHooksInstancesForBorrower(Borrower).length, 2, 'default instance alias');
+    assertEq(aggregator.getHooksInstancesForBorrower(address(factoryB), Borrower).length, 2, 'factory instance alias');
+
+    HooksDataForBorrower memory second = aggregator.getHooksDataForBorrower(address(factoryB), Borrower);
+    assertEq(second.hooksTemplates.length, 2, 'second templates');
+    assertEq(second.hooksInstances.length, 2, 'second instances');
+    _assertTemplate(second.hooksTemplates[0], SharedTemplate, 'Shared B', 202, address(factoryB));
+    _assertInstance(second.hooksInstances[1], address(hooksB), TemplateB, 203);
+
+    _assertTemplate(
+      aggregator.getHooksTemplateForBorrower(Borrower, TemplateA), TemplateA, 'Template A', 101, address(factoryA)
+    );
+    HooksTemplateData memory template = aggregator.getHooksTemplateForBorrower(address(factoryB), Borrower, TemplateB);
+    _assertTemplate(template, TemplateB, 'Template B', 203, address(factoryB));
+    address[] memory templates = new address[](2);
+    templates[0] = TemplateB;
+    templates[1] = SharedTemplate;
+    HooksTemplateData[] memory selected =
+      aggregator.getHooksTemplatesForBorrower(address(factoryB), Borrower, templates);
+    assertEq(selected.length, 2, 'selected templates');
+    assertEq(selected[0].hooksTemplate, TemplateB, 'selected order 0');
+    assertEq(selected[1].hooksTemplate, SharedTemplate, 'selected order 1');
+    assertEq(aggregator.getHooksTemplatesForBorrower(Borrower, templates).length, 2, 'default selected alias');
+    assertEq(aggregator.getAllHooksTemplatesForBorrower(Borrower).length, 2, 'default all alias');
+    assertEq(aggregator.getAllHooksTemplatesForBorrower(address(factoryB), Borrower).length, 2, 'factory all alias');
+  }
+
+  // ┌─ test_templateCommitments_KeepFactoryScopeAndLegacyAbsence ─────
+  function test_templateCommitments_KeepFactoryScopeAndLegacyAbsence() external {
+    HooksTemplateData memory legacy = aggregator.getHooksTemplateForBorrower(Borrower, SharedTemplate);
+    assertFalse(legacy.initCodeHash.isPresent, 'old factory lacks getter');
+    bytes memory input = abi.encodeWithSignature('getHooksTemplateInitCodeHash(address)', SharedTemplate);
+    bytes32 hashA = keccak256('artifact A');
+    bytes32 hashB = keccak256('artifact B');
+    vm.mockCall(address(factoryA), input, abi.encode(hashA));
+    vm.mockCall(address(factoryB), input, abi.encode(hashB, uint256(123)));
+    FactoryScopedHooksTemplateData[] memory scoped =
+      aggregator.getAggregatedHooksTemplatesForBorrowerWithFactory(Borrower);
+    assertEq(scoped[1].hooksFactory, address(factoryA), 'A provenance');
+    assertTrue(scoped[1].hooksTemplateData.initCodeHash.isPresent, 'A getter present');
+    assertEq(scoped[1].hooksTemplateData.initCodeHash.value, hashA, 'A commitment');
+    assertEq(scoped[2].hooksFactory, address(factoryB), 'B provenance');
+    assertTrue(scoped[2].hooksTemplateData.initCodeHash.isPresent, 'B getter present');
+    assertEq(scoped[2].hooksTemplateData.initCodeHash.value, hashB, 'B commitment');
+    assertEq(
+      aggregator.getAggregatedAllHooksTemplatesForBorrower(Borrower)[1].initCodeHash.value,
+      hashA,
+      'deduplication keeps first factory'
+    );
+
+    vm.mockCall(address(factoryA), input, abi.encode(bytes32(0)));
+    legacy = aggregator.getHooksTemplateForBorrower(Borrower, SharedTemplate);
+    assertTrue(legacy.initCodeHash.isPresent, 'zero hash still returned');
+    assertEq(legacy.initCodeHash.value, bytes32(0), 'zero value');
+    vm.mockCall(address(factoryA), input, new bytes(31));
+    legacy = aggregator.getHooksTemplateForBorrower(Borrower, SharedTemplate);
+    assertFalse(legacy.initCodeHash.isPresent, 'short hash absent');
+    assertEq(legacy.initCodeHash.value, bytes32(0), 'no partial hash');
+  }
+
+  // ┌─ test_aggregationHelpers_DedupeFirstSeenAndIsolateFactoryFailures ─────
   function test_aggregationHelpers_DedupeFirstSeenAndIsolateFactoryFailures() external view {
     address[] memory none = new address[](0);
     assertEq(
-      aggregator.getAggregatedHooksInstancesForBorrowerWithFactories(Borrower, none).length,
-      0,
-      'empty instances'
+      aggregator.getAggregatedHooksInstancesForBorrowerWithFactories(Borrower, none).length, 0, 'empty instances'
     );
     assertEq(
-      aggregator.getAggregatedAllHooksTemplatesForBorrowerWithFactories(Borrower, none).length,
-      0,
-      'empty templates'
+      aggregator.getAggregatedAllHooksTemplatesForBorrowerWithFactories(Borrower, none).length, 0, 'empty templates'
     );
 
     address[] memory one = new address[](1);
     one[0] = address(factoryA);
     assertEq(
-      aggregator.getAggregatedHooksInstancesForBorrowerWithFactories(Borrower, one).length,
-      2,
-      'single instances'
+      aggregator.getAggregatedHooksInstancesForBorrowerWithFactories(Borrower, one).length, 2, 'single instances'
     );
     assertEq(
-      aggregator.getAggregatedAllHooksTemplatesForBorrowerWithFactories(Borrower, one).length,
-      2,
-      'single templates'
+      aggregator.getAggregatedAllHooksTemplatesForBorrowerWithFactories(Borrower, one).length, 2, 'single templates'
     );
     one[0] = address(revertingFactory);
     assertEq(
@@ -298,16 +309,16 @@ contract MarketLensAggregatorTest is MarketFixture {
     factories[0] = address(factoryA);
     factories[1] = address(factoryB);
     factories[2] = address(revertingFactory);
-    HooksInstanceData[] memory instances = aggregator
-      .getAggregatedHooksInstancesForBorrowerWithFactories(Borrower, factories);
+    HooksInstanceData[] memory instances =
+      aggregator.getAggregatedHooksInstancesForBorrowerWithFactories(Borrower, factories);
     assertEq(instances.length, 3, 'deduped instances');
     assertEq(instances[0].hooksAddress, address(hooksA), 'instance 0');
     assertEq(instances[1].hooksAddress, address(sharedHooks), 'instance 1');
     assertEq(instances[2].hooksAddress, address(hooksB), 'instance 2');
     assertEq(instances[1].hooksTemplate.name, 'Shared A', 'first instance wins');
 
-    HooksTemplateData[] memory templates = aggregator
-      .getAggregatedAllHooksTemplatesForBorrowerWithFactories(Borrower, factories);
+    HooksTemplateData[] memory templates =
+      aggregator.getAggregatedAllHooksTemplatesForBorrowerWithFactories(Borrower, factories);
     assertEq(templates.length, 3, 'deduped templates');
     assertEq(templates[0].hooksTemplate, TemplateA, 'template 0');
     assertEq(templates[1].hooksTemplate, SharedTemplate, 'template 1');
@@ -315,25 +326,18 @@ contract MarketLensAggregatorTest is MarketFixture {
     assertEq(templates[1].name, 'Shared A', 'first template wins');
   }
 
+  // ┌─ test_discoveredAggregation_ReturnsUnifiedAndFactoryScopedViews ─────
   function test_discoveredAggregation_ReturnsUnifiedAndFactoryScopedViews() external view {
     HooksDataForBorrower memory data = aggregator.getAggregatedHooksDataForBorrower(Borrower);
     assertEq(data.borrower, Borrower, 'borrower');
     assertTrue(data.isRegisteredBorrower, 'registered');
     assertEq(data.hooksInstances.length, 3, 'instances');
     assertEq(data.hooksTemplates.length, 3, 'templates');
-    assertEq(
-      aggregator.getAggregatedHooksInstancesForBorrower(Borrower).length,
-      3,
-      'instance facade'
-    );
-    assertEq(
-      aggregator.getAggregatedAllHooksTemplatesForBorrower(Borrower).length,
-      3,
-      'template facade'
-    );
+    assertEq(aggregator.getAggregatedHooksInstancesForBorrower(Borrower).length, 3, 'instance facade');
+    assertEq(aggregator.getAggregatedAllHooksTemplatesForBorrower(Borrower).length, 3, 'template facade');
 
-    FactoryScopedHooksTemplateData[] memory scoped = aggregator
-      .getAggregatedHooksTemplatesForBorrowerWithFactory(Borrower);
+    FactoryScopedHooksTemplateData[] memory scoped =
+      aggregator.getAggregatedHooksTemplatesForBorrowerWithFactory(Borrower);
     assertEq(scoped.length, 4, 'scoped count');
     assertEq(scoped[0].hooksFactory, address(factoryA), 'scope 0 factory');
     assertEq(scoped[1].hooksTemplateData.name, 'Shared A', 'scope 1 data');
@@ -342,123 +346,17 @@ contract MarketLensAggregatorTest is MarketFixture {
     assertEq(scoped[3].hooksTemplateData.name, 'Template B', 'scope 3 data');
   }
 
-  function test_directMarketReads_RespectFactoryAndPagination() external view {
-    assertEq(aggregator.getMarketsForHooksTemplateCount(SharedTemplate), 1, 'default count');
-    assertEq(
-      aggregator.getMarketsForHooksTemplateCount(address(factoryB), SharedTemplate),
-      2,
-      'factory count'
-    );
-    MarketData[] memory defaultMarkets = aggregator.getAllMarketsDataForHooksTemplate(
-      SharedTemplate
-    );
-    assertEq(defaultMarkets.length, 1, 'default markets');
-    assertEq(defaultMarkets[0].marketToken.token, address(standard.market), 'default market');
-    assertEq(
-      aggregator.getAllMarketsDataForHooksTemplate(address(factoryB), SharedTemplate).length,
-      2,
-      'factory legacy markets'
-    );
-
-    MarketDataV2_5[] memory factoryMarkets = aggregator.getAllMarketsDataV2ForHooksTemplate(
-      address(factoryB),
-      SharedTemplate
-    );
-    assertEq(factoryMarkets.length, 2, 'factory markets');
-    assertFalse(factoryMarkets[0].commitmentFeeBips.isPresent, 'standard shape');
-    assertTrue(factoryMarkets[1].commitmentFeeBips.isPresent, 'revolving shape');
-    assertEq(
-      aggregator.getAllMarketsDataV2ForHooksTemplate(SharedTemplate).length,
-      1,
-      'default v2 markets'
-    );
-
-    MarketData[] memory legacyPage = aggregator.getPaginatedMarketsDataForHooksTemplate(
-      address(factoryB),
-      SharedTemplate,
-      1,
-      2
-    );
-    assertEq(legacyPage.length, 1, 'legacy page length');
-    assertEq(legacyPage[0].marketToken.token, address(revolving.market), 'legacy page market');
-    assertEq(
-      aggregator.getPaginatedMarketsDataForHooksTemplate(SharedTemplate, 0, 1).length,
-      1,
-      'default legacy page'
-    );
-    assertEq(
-      aggregator.getPaginatedMarketsDataV2ForHooksTemplate(SharedTemplate, 0, 1).length,
-      1,
-      'default v2 page'
-    );
-
-    MarketDataV2_5[] memory page = aggregator.getPaginatedMarketsDataV2ForHooksTemplate(
-      address(factoryB),
-      SharedTemplate,
-      1,
-      2
-    );
-    assertEq(page.length, 1, 'page length');
-    assertEq(page[0].market.marketToken.token, address(revolving.market), 'page market');
-  }
-
-  function test_aggregatedMarketReads_DedupeStableOrderAndSkipReverts() external view {
-    assertEq(
-      aggregator.getAggregatedMarketsForHooksTemplateCount(SharedTemplate),
-      2,
-      'aggregate count'
-    );
-    MarketData[] memory legacy = aggregator.getAggregatedAllMarketsDataForHooksTemplate(
-      SharedTemplate
-    );
-    assertEq(legacy.length, 2, 'legacy length');
-    assertEq(legacy[0].marketToken.token, address(standard.market), 'legacy 0');
-    assertEq(legacy[1].marketToken.token, address(revolving.market), 'legacy 1');
-
-    MarketDataV2_5[] memory v2 = aggregator.getAggregatedAllMarketsDataV2ForHooksTemplate(
-      SharedTemplate
-    );
-    assertEq(v2.length, 2, 'v2 length');
-    assertEq(v2[0].market.marketToken.token, address(standard.market), 'v2 0');
-    assertEq(v2[1].market.marketToken.token, address(revolving.market), 'v2 1');
-    assertTrue(v2[1].commitmentFeeBips.isPresent, 'v2 revolving');
-  }
-
-  function test_templateWideMarketReads_AcceptBytes32UnderlyingMetadata() external {
-    vm.mockCall(
-      address(standard.asset),
-      abi.encodeWithSignature('name()'),
-      abi.encode(bytes32('Legacy Token'))
-    );
-    vm.mockCall(
-      address(standard.asset),
-      abi.encodeWithSignature('symbol()'),
-      abi.encode(bytes32('LEGACY'))
-    );
-
-    MarketData[] memory factoryMarkets = aggregator.getAllMarketsDataForHooksTemplate(
-      address(factoryB),
-      SharedTemplate
-    );
-    assertEq(factoryMarkets.length, 2, 'factory markets');
-    assertEq(factoryMarkets[0].underlyingToken.name, 'Legacy Token', 'bytes32 name');
-    assertEq(factoryMarkets[1].underlyingToken.name, 'Token', 'string name');
-
-    MarketDataV2_5[] memory aggregated = aggregator.getAggregatedAllMarketsDataV2ForHooksTemplate(
-      SharedTemplate
-    );
-    assertEq(aggregated.length, 2, 'aggregated markets');
-    assertEq(aggregated[0].market.underlyingToken.symbol, 'LEGACY', 'bytes32 symbol');
-    assertEq(aggregated[1].market.underlyingToken.symbol, 'TKN', 'string symbol');
-  }
-
+  // ┌─ _assertTemplate ─────
   function _assertTemplate(
     HooksTemplateData memory data,
     address template,
     string memory name,
     uint16 protocolFeeBips,
     address factory
-  ) internal view {
+  )
+    internal
+    view
+  {
     assertEq(data.hooksTemplate, template, 'template');
     assertTrue(data.exists, 'exists');
     assertTrue(data.enabled, 'enabled');
@@ -471,12 +369,16 @@ contract MarketLensAggregatorTest is MarketFixture {
     assertEq(data.fees.borrowerOriginationFeeApproval, expectedApproval, 'fee approval');
   }
 
+  // ┌─ _assertInstance ─────
   function _assertInstance(
     HooksInstanceData memory data,
     address hooks,
     address template,
     uint16 protocolFeeBips
-  ) internal view {
+  )
+    internal
+    view
+  {
     assertEq(data.hooksAddress, hooks, 'hooks');
     assertEq(data.administrator, Borrower, 'administrator');
     if (hooks == address(sharedHooks)) {
@@ -485,5 +387,71 @@ contract MarketLensAggregatorTest is MarketFixture {
     assertEq(data.hooksTemplate.hooksTemplate, template, 'instance template');
     assertEq(data.hooksTemplate.fees.protocolFeeBips, protocolFeeBips, 'instance fee');
     assertEq(data.totalMarkets, 1, 'instance markets');
+  }
+
+  // ░░▒▒▓▓██ [ MARKET AGGREGATION ] ───────────────────────────────────────────
+
+  // ┌─ test_directMarketReads_RespectFactoryAndPagination ─────
+  function test_directMarketReads_RespectFactoryAndPagination() external view {
+    assertEq(aggregator.getMarketsForHooksTemplateCount(SharedTemplate), 1, 'default count');
+    assertEq(aggregator.getMarketsForHooksTemplateCount(address(factoryB), SharedTemplate), 2, 'factory count');
+    MarketData[] memory defaultMarkets = aggregator.getAllMarketsDataForHooksTemplate(SharedTemplate);
+    assertEq(defaultMarkets.length, 1, 'default markets');
+    assertEq(defaultMarkets[0].marketToken.token, address(standard.market), 'default market');
+    assertEq(
+      aggregator.getAllMarketsDataForHooksTemplate(address(factoryB), SharedTemplate).length,
+      2,
+      'factory legacy markets'
+    );
+
+    MarketDataV2_5[] memory factoryMarkets =
+      aggregator.getAllMarketsDataV2ForHooksTemplate(address(factoryB), SharedTemplate);
+    assertEq(factoryMarkets.length, 2, 'factory markets');
+    assertFalse(factoryMarkets[0].commitmentFeeBips.isPresent, 'standard shape');
+    assertTrue(factoryMarkets[1].commitmentFeeBips.isPresent, 'revolving shape');
+    assertEq(aggregator.getAllMarketsDataV2ForHooksTemplate(SharedTemplate).length, 1, 'default v2 markets');
+
+    MarketData[] memory legacyPage =
+      aggregator.getPaginatedMarketsDataForHooksTemplate(address(factoryB), SharedTemplate, 1, 2);
+    assertEq(legacyPage.length, 1, 'legacy page length');
+    assertEq(legacyPage[0].marketToken.token, address(revolving.market), 'legacy page market');
+    assertEq(aggregator.getPaginatedMarketsDataForHooksTemplate(SharedTemplate, 0, 1).length, 1, 'default legacy page');
+    assertEq(aggregator.getPaginatedMarketsDataV2ForHooksTemplate(SharedTemplate, 0, 1).length, 1, 'default v2 page');
+
+    MarketDataV2_5[] memory page =
+      aggregator.getPaginatedMarketsDataV2ForHooksTemplate(address(factoryB), SharedTemplate, 1, 2);
+    assertEq(page.length, 1, 'page length');
+    assertEq(page[0].market.marketToken.token, address(revolving.market), 'page market');
+  }
+
+  // ┌─ test_aggregatedMarketReads_DedupeStableOrderAndSkipReverts ─────
+  function test_aggregatedMarketReads_DedupeStableOrderAndSkipReverts() external view {
+    assertEq(aggregator.getAggregatedMarketsForHooksTemplateCount(SharedTemplate), 2, 'aggregate count');
+    MarketData[] memory legacy = aggregator.getAggregatedAllMarketsDataForHooksTemplate(SharedTemplate);
+    assertEq(legacy.length, 2, 'legacy length');
+    assertEq(legacy[0].marketToken.token, address(standard.market), 'legacy 0');
+    assertEq(legacy[1].marketToken.token, address(revolving.market), 'legacy 1');
+
+    MarketDataV2_5[] memory v2 = aggregator.getAggregatedAllMarketsDataV2ForHooksTemplate(SharedTemplate);
+    assertEq(v2.length, 2, 'v2 length');
+    assertEq(v2[0].market.marketToken.token, address(standard.market), 'v2 0');
+    assertEq(v2[1].market.marketToken.token, address(revolving.market), 'v2 1');
+    assertTrue(v2[1].commitmentFeeBips.isPresent, 'v2 revolving');
+  }
+
+  // ┌─ test_templateWideMarketReads_AcceptBytes32UnderlyingMetadata ─────
+  function test_templateWideMarketReads_AcceptBytes32UnderlyingMetadata() external {
+    vm.mockCall(address(standard.asset), abi.encodeWithSignature('name()'), abi.encode(bytes32('Legacy Token')));
+    vm.mockCall(address(standard.asset), abi.encodeWithSignature('symbol()'), abi.encode(bytes32('LEGACY')));
+
+    MarketData[] memory factoryMarkets = aggregator.getAllMarketsDataForHooksTemplate(address(factoryB), SharedTemplate);
+    assertEq(factoryMarkets.length, 2, 'factory markets');
+    assertEq(factoryMarkets[0].underlyingToken.name, 'Legacy Token', 'bytes32 name');
+    assertEq(factoryMarkets[1].underlyingToken.name, 'Token', 'string name');
+
+    MarketDataV2_5[] memory aggregated = aggregator.getAggregatedAllMarketsDataV2ForHooksTemplate(SharedTemplate);
+    assertEq(aggregated.length, 2, 'aggregated markets');
+    assertEq(aggregated[0].market.underlyingToken.symbol, 'LEGACY', 'bytes32 symbol');
+    assertEq(aggregated[1].market.underlyingToken.symbol, 'TKN', 'string symbol');
   }
 }

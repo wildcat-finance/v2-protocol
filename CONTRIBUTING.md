@@ -14,6 +14,18 @@ existing design and security constraints.
 Report suspected vulnerabilities privately as described in
 [`SECURITY.md`](./SECURITY.md), not through a public issue or pull request.
 
+## Source style
+
+Follow [`STYLE_GUIDE.md`](./STYLE_GUIDE.md) for Solidity formatting, function
+ordering, file headers, and comment layout. Follow
+[`STYLE_VOICE.md`](./STYLE_VOICE.md) when writing or revising comment prose.
+The guides include the reference file and the checks needed to preserve
+behavior and documentation coverage.
+
+Use Forge for Solidity formatting. The older package lint scripts use Prettier
+and Solhint settings that are not fully aligned with the source style; do not
+use `yarn lint:fix` as a substitute.
+
 ## Things to check before changing contracts
 
 - Some type definitions are accessed directly from assembly. If you change a

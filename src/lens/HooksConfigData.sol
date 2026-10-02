@@ -1,6 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // HooksConfigData
+// ║  ██▀▀     ▀▀██   Expanded callback flags and hook-family market configuration.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  CONFIGURATION
+// ║  fill(...)
+// ║  fill(...)
+// ║  fill(...)
+// ║  _fillPendingAprChange(...)
+// ║
+// ║  HOOKS CLASSIFICATION
+// ║  kindForHooks(...)
+// ║  kindForVersion(...)
+// ║  _kindForVersionHash(...)
+// ╚═════
+
 import '../types/HooksConfig.sol';
 import '../access/IHooks.sol';
 import { HookedMarket as OpenTermHookedMarket, OpenTermHooks } from '../access/OpenTermHooks.sol';
@@ -43,50 +62,149 @@ struct HooksDeploymentFlags {
   HooksConfigData required;
 }
 
+/// @notice a periodic APR proposal and its response-window bounds from the hook.
+///
+/// @dev isPresent means the getter is supported; proposalTimestamp == 0 means no proposal.
+struct PeriodicPendingAprChangeData {
+  bool isPresent;
+  uint16 annualInterestBips;
+  uint32 proposalTimestamp;
+  uint32 responseWindowStart;
+  uint32 responseWindowEnd;
+}
+
 /// @notice callback flags and supported family-specific configuration for one market.
+///
 /// @dev fields that do not belong to the detected hook family stay at their zero value.
 struct MarketHooksData {
   address hooksAddress;
   HooksConfigData flags;
   HooksInstanceKind kind;
-  // Shared flags
+  // shared flags
   bool transferRequiresAccess;
   bool depositRequiresAccess;
   uint128 minimumDeposit;
   bool transfersDisabled;
-  // Fixed term loan flags
+  // fixed-term flags
   bool withdrawalRequiresAccess;
   uint32 fixedTermEndTime;
   bool allowClosureBeforeTerm;
   bool allowTermReduction;
-  // Periodic term flags
+  // periodic-term flags
   uint32 firstWithdrawalWindowStart;
   uint32 periodDuration;
   uint32 withdrawalWindowDuration;
   bool periodicTermClosed;
+  bool periodicWithdrawalWindowOpen;
+  PeriodicPendingAprChangeData pendingAprChange;
 }
 
-/// @notice decodes packed hook flags and supported family-specific market settings.
+// ┌─ HooksConfigDataLib ───────────────────────────────────────────────────────
+/// @notice decode packed hook flags and supported family-specific market settings.
 library HooksConfigDataLib {
   using HooksConfigDataLib for *;
 
-  function _kindForVersionHash(bytes32 versionHash) private pure returns (HooksInstanceKind) {
-    if (versionHash == keccak256(bytes('OpenTermHooks'))) {
-      return HooksInstanceKind.OpenTerm;
-    } else if (versionHash == keccak256(bytes('FixedTermHooks'))) {
-      return HooksInstanceKind.FixedTermLoan;
-    } else if (versionHash == keccak256(bytes('PeriodicTermHooks'))) {
-      return HooksInstanceKind.PeriodicTerm;
+  // ░░▒▒▓▓██ [ CONFIGURATION ] ────────────────────────────────────────────────
+
+  // ┌─ fill ─────
+  /// @notice fill callback flags and supported typed configuration for `marketAddress`.
+  ///
+  /// @dev family-specific getters are strict once `version()` identifies a known implementation.
+  function fill(MarketHooksData memory data, address marketAddress) internal view {
+    WildcatMarket market = WildcatMarket(marketAddress);
+    HooksConfig encodedHooksConfig = market.hooks();
+    data.hooksAddress = encodedHooksConfig.hooksAddress();
+    data.flags.fill(encodedHooksConfig);
+    data.kind = kindForHooks(data.hooksAddress);
+    if (data.kind == HooksInstanceKind.OpenTerm) {
+      OpenTermHooks hooks = OpenTermHooks(data.hooksAddress);
+      OpenTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
+      data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
+      data.depositRequiresAccess = hookedMarket.depositRequiresAccess;
+      data.withdrawalRequiresAccess = encodedHooksConfig.useOnQueueWithdrawal();
+      data.minimumDeposit = hookedMarket.minimumDeposit;
+      data.transfersDisabled = hookedMarket.transfersDisabled;
+    } else if (data.kind == HooksInstanceKind.FixedTermLoan) {
+      FixedTermHooks hooks = FixedTermHooks(data.hooksAddress);
+      FixedTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
+      data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
+      data.depositRequiresAccess = hookedMarket.depositRequiresAccess;
+      data.withdrawalRequiresAccess = hookedMarket.withdrawalRequiresAccess;
+      data.minimumDeposit = hookedMarket.minimumDeposit;
+      data.fixedTermEndTime = hookedMarket.fixedTermEndTime;
+      data.transfersDisabled = hookedMarket.transfersDisabled;
+      data.allowClosureBeforeTerm = hookedMarket.allowClosureBeforeTerm;
+      data.allowTermReduction = hookedMarket.allowTermReduction;
+    } else if (data.kind == HooksInstanceKind.PeriodicTerm) {
+      PeriodicTermHooks hooks = PeriodicTermHooks(data.hooksAddress);
+      PeriodicTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
+      data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
+      data.depositRequiresAccess = hookedMarket.depositRequiresAccess;
+      data.withdrawalRequiresAccess = hookedMarket.withdrawalRequiresAccess;
+      data.minimumDeposit = hookedMarket.minimumDeposit;
+      data.transfersDisabled = hookedMarket.transfersDisabled;
+      data.firstWithdrawalWindowStart = hookedMarket.firstWithdrawalWindowStart;
+      data.periodDuration = hookedMarket.periodDuration;
+      data.withdrawalWindowDuration = hookedMarket.withdrawalWindowDuration;
+      data.periodicTermClosed = hookedMarket.isClosed;
+      data.periodicWithdrawalWindowOpen = hooks.isWithdrawalWindowOpen(marketAddress);
+      _fillPendingAprChange(data.pendingAprChange, data.hooksAddress, marketAddress);
     }
-    return HooksInstanceKind.Unknown;
   }
 
-  /// @notice classifies a hooks version string without making an external call.
-  function kindForVersion(string memory version) internal pure returns (HooksInstanceKind) {
-    return _kindForVersionHash(keccak256(bytes(version)));
+  // ┌─ fill ─────
+  /// @notice expand the callback flags packed into `hooksConfig`.
+  function fill(HooksConfigData memory data, HooksConfig hooksConfig) internal pure {
+    data.useOnDeposit = hooksConfig.useOnDeposit();
+    data.useOnQueueWithdrawal = hooksConfig.useOnQueueWithdrawal();
+    data.useOnExecuteWithdrawal = hooksConfig.useOnExecuteWithdrawal();
+    data.useOnTransfer = hooksConfig.useOnTransfer();
+    data.useOnBorrow = hooksConfig.useOnBorrow();
+    data.useOnRepay = hooksConfig.useOnRepay();
+    data.useOnCloseMarket = hooksConfig.useOnCloseMarket();
+    data.useOnNukeFromOrbit = hooksConfig.useOnNukeFromOrbit();
+    data.useOnSetMaxTotalSupply = hooksConfig.useOnSetMaxTotalSupply();
+    data.useOnSetAnnualInterestAndReserveRatioBips = hooksConfig.useOnSetAnnualInterestAndReserveRatioBips();
+    data.useOnSetProtocolFeeBips = hooksConfig.useOnSetProtocolFeeBips();
+    data.useOnExecutePendingAnnualInterestBipsReduction = hooksConfig.useOnExecutePendingAnnualInterestBipsReduction();
   }
 
-  /// @notice reads `version()` and classifies a hooks instance.
+  // ┌─ fill ─────
+  /// @notice expand the optional and required callback flags in `config`.
+  function fill(HooksDeploymentFlags memory data, HooksDeploymentConfig config) internal pure {
+    data.optional.fill(config.optionalFlags());
+    data.required.fill(config.requiredFlags());
+  }
+
+  // ┌─ _fillPendingAprChange ─────
+  function _fillPendingAprChange(
+    PeriodicPendingAprChangeData memory data,
+    address hooksAddress,
+    address marketAddress
+  )
+    internal
+    view
+  {
+    bytes memory input = abi.encodeWithSignature('getPendingAprChange(address)', marketAddress);
+    bytes memory result = new bytes(0x80);
+    bool success;
+    assembly ('memory-safe') {
+      success := staticcall(gas(), hooksAddress, add(input, 0x20), mload(input), add(result, 0x20), 0x80)
+      success := and(success, iszero(lt(returndatasize(), 0x80)))
+    }
+    // older periodic hooks lack the response-window getter. don't invent bounds from today's
+    // schedule; these are the bounds recorded when the proposal was made.
+    if (!success) return;
+    (data.annualInterestBips, data.proposalTimestamp, data.responseWindowStart, data.responseWindowEnd) =
+      abi.decode(result, (uint16, uint32, uint32, uint32));
+    data.isPresent = true;
+  }
+
+  // ░░▒▒▓▓██ [ HOOKS CLASSIFICATION ] ─────────────────────────────────────────
+
+  // ┌─ kindForHooks ─────
+  /// @notice read `version()` and classify a hooks instance.
+  ///
   /// @dev a failed or malformed required response reverts. unknown valid strings return `Unknown`.
   function kindForHooks(address hooksAddress) internal view returns (HooksInstanceKind) {
     // every known hooks version fits in one word. longer names are still valid, but they can go
@@ -139,69 +257,21 @@ library HooksConfigDataLib {
     return _kindForVersionHash(versionHash);
   }
 
-  /// @notice fills callback flags and supported typed configuration for `marketAddress`.
-  /// @dev family-specific getters are strict once `version()` identifies a known implementation.
-  function fill(MarketHooksData memory data, address marketAddress) internal view {
-    WildcatMarket market = WildcatMarket(marketAddress);
-    HooksConfig encodedHooksConfig = market.hooks();
-    data.hooksAddress = encodedHooksConfig.hooksAddress();
-    data.flags.fill(encodedHooksConfig);
-    data.kind = kindForHooks(data.hooksAddress);
-    if (data.kind == HooksInstanceKind.OpenTerm) {
-      OpenTermHooks hooks = OpenTermHooks(data.hooksAddress);
-      OpenTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
-      data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
-      data.depositRequiresAccess = hookedMarket.depositRequiresAccess;
-      data.withdrawalRequiresAccess = encodedHooksConfig.useOnQueueWithdrawal();
-      data.minimumDeposit = hookedMarket.minimumDeposit;
-      data.transfersDisabled = hookedMarket.transfersDisabled;
-    } else if (data.kind == HooksInstanceKind.FixedTermLoan) {
-      FixedTermHooks hooks = FixedTermHooks(data.hooksAddress);
-      FixedTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
-      data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
-      data.depositRequiresAccess = hookedMarket.depositRequiresAccess;
-      data.withdrawalRequiresAccess = hookedMarket.withdrawalRequiresAccess;
-      data.minimumDeposit = hookedMarket.minimumDeposit;
-      data.fixedTermEndTime = hookedMarket.fixedTermEndTime;
-      data.transfersDisabled = hookedMarket.transfersDisabled;
-      data.allowClosureBeforeTerm = hookedMarket.allowClosureBeforeTerm;
-      data.allowTermReduction = hookedMarket.allowTermReduction;
-    } else if (data.kind == HooksInstanceKind.PeriodicTerm) {
-      PeriodicTermHooks hooks = PeriodicTermHooks(data.hooksAddress);
-      PeriodicTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
-      data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
-      data.depositRequiresAccess = hookedMarket.depositRequiresAccess;
-      data.withdrawalRequiresAccess = hookedMarket.withdrawalRequiresAccess;
-      data.minimumDeposit = hookedMarket.minimumDeposit;
-      data.transfersDisabled = hookedMarket.transfersDisabled;
-      data.firstWithdrawalWindowStart = hookedMarket.firstWithdrawalWindowStart;
-      data.periodDuration = hookedMarket.periodDuration;
-      data.withdrawalWindowDuration = hookedMarket.withdrawalWindowDuration;
-      data.periodicTermClosed = hookedMarket.isClosed;
+  // ┌─ kindForVersion ─────
+  /// @notice classify a hooks version string without making an external call.
+  function kindForVersion(string memory version) internal pure returns (HooksInstanceKind) {
+    return _kindForVersionHash(keccak256(bytes(version)));
+  }
+
+  // ┌─ _kindForVersionHash ─────
+  function _kindForVersionHash(bytes32 versionHash) private pure returns (HooksInstanceKind) {
+    if (versionHash == keccak256(bytes('OpenTermHooks'))) {
+      return HooksInstanceKind.OpenTerm;
+    } else if (versionHash == keccak256(bytes('FixedTermHooks'))) {
+      return HooksInstanceKind.FixedTermLoan;
+    } else if (versionHash == keccak256(bytes('PeriodicTermHooks'))) {
+      return HooksInstanceKind.PeriodicTerm;
     }
-  }
-
-  /// @notice expands the callback flags packed into `hooksConfig`.
-  function fill(HooksConfigData memory data, HooksConfig hooksConfig) internal pure {
-    data.useOnDeposit = hooksConfig.useOnDeposit();
-    data.useOnQueueWithdrawal = hooksConfig.useOnQueueWithdrawal();
-    data.useOnExecuteWithdrawal = hooksConfig.useOnExecuteWithdrawal();
-    data.useOnTransfer = hooksConfig.useOnTransfer();
-    data.useOnBorrow = hooksConfig.useOnBorrow();
-    data.useOnRepay = hooksConfig.useOnRepay();
-    data.useOnCloseMarket = hooksConfig.useOnCloseMarket();
-    data.useOnNukeFromOrbit = hooksConfig.useOnNukeFromOrbit();
-    data.useOnSetMaxTotalSupply = hooksConfig.useOnSetMaxTotalSupply();
-    data.useOnSetAnnualInterestAndReserveRatioBips = hooksConfig
-      .useOnSetAnnualInterestAndReserveRatioBips();
-    data.useOnSetProtocolFeeBips = hooksConfig.useOnSetProtocolFeeBips();
-    data.useOnExecutePendingAnnualInterestBipsReduction = hooksConfig
-      .useOnExecutePendingAnnualInterestBipsReduction();
-  }
-
-  /// @notice expands the optional and required callback flags in `config`.
-  function fill(HooksDeploymentFlags memory data, HooksDeploymentConfig config) internal pure {
-    data.optional.fill(config.optionalFlags());
-    data.required.fill(config.requiredFlags());
+    return HooksInstanceKind.Unknown;
   }
 }

@@ -83,7 +83,8 @@ scaled ownership into a batch; payment burns it.
 
 An implementation approved by a hooks factory as the basis for new hook
 instances. The factory records whether it is available and how its fees are
-configured.
+configured, plus an immutable hash of its original creation code. A split
+template still has one primary address in the factory registry.
 
 ### Hooks instance
 
@@ -141,8 +142,17 @@ not the market's underlying balance.
 
 ### Outstanding supply
 
-Total supply excluding ownership in current and expired unpaid withdrawal
-batches. The reserve ratio applies to this amount.
+Supply outside current and expired unpaid withdrawal batches. The reserve
+calculation derives its normalized value by subtracting carry-aware pending
+debt from carry-aware total lender debt, so both sides share the same rounding
+domain. See [accounting](./accounting.md#collateral-obligation).
+
+### Total debt
+
+`totalDebts()`, the full funding obligation. It combines live scaled supply and
+retained withdrawal-payment fractions before rounding, then adds paid but
+unclaimed withdrawals and accrued protocol fees. It is not simply
+`totalSupply()` plus funded claims and fees.
 
 ### Capacity
 
@@ -169,8 +179,8 @@ required liquid balance.
 ### Collateral obligation
 
 `liquidityRequired()`, the minimum underlying balance for a healthy market. It
-includes pending withdrawals, paid but unclaimed withdrawals, reserve coverage
-for outstanding supply, and accrued protocol fees.
+includes pending withdrawals and retained payment fractions, paid but unclaimed
+withdrawals, reserve coverage for outstanding supply, and accrued protocol fees.
 
 ### Delinquency
 
@@ -178,6 +188,28 @@ The state where the market's underlying balance is below
 `liquidityRequired()`. `timeDelinquent` rises during a shortfall and decays while
 the market is healthy. The penalty rate applies while that timer exceeds
 `delinquencyGracePeriod`.
+
+Scheduled repayment removes unused grace while the market is underfunded.
+
+### Repayment date and deadline
+
+Optional immutable market terms. The date starts the full-funding obligation,
+100% reserves and immediate underfunded penalty. The deadline is that date plus
+the repayment period, inclusive. These terms are separate from hook maturity
+and withdrawal windows. See [repayment and default](./repayment-and-default.md).
+
+### Default marker
+
+`defaultedAt`, a permanent recorded timestamp. It identifies the first missed
+repayment deadline or uncured 90-day penalty cutoff. It does not itself change
+market permissions, rates or closure. Zero means no default has been recorded.
+
+### Closure
+
+Permanent funded settlement that stops interest and penalty accrual. It can be
+requested manually or occur automatically once a scheduled market is fully
+funded at or after its repayment date. Lender collection and surplus recovery
+continue; lending and borrowing do not resume.
 
 ### Interest and fees
 
@@ -208,8 +240,16 @@ The reservation of underlying for a batch. Payment burns the batch's scaled
 market-token ownership, stops its interest accrual, and records the underlying
 as unclaimed withdrawals.
 
+### Withdrawal payment remainder
+
+The fraction below one underlying atomic unit retained between batch payments.
+`WithdrawalBatch.paymentRemainder` stores it as a ray numerator;
+`MarketState.withdrawalRemainder` sums the retained fractions across batches.
+They remain non-interest-bearing debt until funded or released when a fully
+paid batch can no longer accept requests.
+
 ### Withdrawal execution
 
-The transfer of a lender's share from a paid batch after expiry. Anyone can
-execute for an account and batch. Assets owed to a sanctioned account go to its
-sanctions escrow.
+The transfer of a lender's share from a paid batch after expiry or closure
+releases the batch. Anyone can execute for an account and batch. Assets owed to
+a sanctioned account go to its sanctions escrow.

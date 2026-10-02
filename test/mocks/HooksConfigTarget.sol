@@ -1,6 +1,44 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // HooksConfigTarget
+// ║  ██▀▀     ▀▀██   Exact callback-calldata recording and malformed responses.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  HOOK SETUP
+// ║  version()
+// ║  config()
+// ║  setShouldRevert(...)
+// ║  _onCreateMarket(...)
+// ║
+// ║  LENDER CALLBACKS
+// ║  onDeposit(...)
+// ║  onTransfer(...)
+// ║  onQueueWithdrawal(...)
+// ║  onExecuteWithdrawal(...)
+// ║
+// ║  BORROWER CALLBACKS
+// ║  onBorrow(...)
+// ║  onRepay(...)
+// ║  onCloseMarket(...)
+// ║
+// ║  CONFIGURATION CALLBACKS
+// ║  onSetMaxTotalSupply(...)
+// ║  setAnnualInterestAndReserveRatioBips(...)
+// ║  onSetAnnualInterestAndReserveRatioBips(...)
+// ║  onSetProtocolFeeBips(...)
+// ║  onNukeFromOrbit(...)
+// ║
+// ║  CALL RECORDING
+// ║  _recordCall()
+// ║
+// ║  SHORT RESPONSES
+// ║  fallback()
+// ╚═════
+
 import { IHooks } from 'src/access/IHooks.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
@@ -9,9 +47,9 @@ import { HooksDeploymentConfig } from 'src/types/HooksConfig.sol';
 import { encodeHooksDeploymentConfig } from 'src/types/HooksConfig.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 
-/// @dev Records the exact calldata produced by LibHooksConfig. Keeping this as
-///      an artifact-deployed target avoids embedding its creation code in the
-///      test contract that exercises every hook path.
+// ┌─ HooksConfigTarget ────────────────────────────────────────────────────────
+/// @dev record LibHooksConfig's exact calldata. deploy from the artifact so the test contract
+///      doesn't embed this target's creation code alongside every hook path.
 contract HooksConfigTarget is IHooks {
   error ForcedRevert();
 
@@ -20,110 +58,128 @@ contract HooksConfigTarget is IHooks {
   uint16 public reserveRatioBipsToReturn;
   bool public shouldRevert;
 
+  // ░░▒▒▓▓██ [ HOOK SETUP ] ───────────────────────────────────────────────────
+
+  // ┌─ version ─────
   function version() external pure override returns (string memory) {
     return 'test-hooks';
   }
 
+  // ┌─ config ─────
   function config() external pure override returns (HooksDeploymentConfig) {
     return encodeHooksDeploymentConfig(EmptyHooksConfig, EmptyHooksConfig);
   }
 
-  function setAnnualInterestAndReserveRatioBips(
-    uint16 annualInterestBips,
-    uint16 reserveRatioBips
-  ) external {
-    annualInterestBipsToReturn = annualInterestBips;
-    reserveRatioBipsToReturn = reserveRatioBips;
-  }
-
+  // ┌─ setShouldRevert ─────
   function setShouldRevert(bool value) external {
     shouldRevert = value;
   }
 
+  // ┌─ _onCreateMarket ─────
   function _onCreateMarket(
     address,
     address,
     DeployMarketInputs calldata parameters,
     bytes calldata
-  ) internal pure override returns (HooksConfig) {
+  )
+    internal
+    pure
+    override
+    returns (HooksConfig)
+  {
     return parameters.hooks;
   }
 
-  function _recordCall() private {
-    if (shouldRevert) revert ForcedRevert();
-    lastCalldataHash = keccak256(msg.data);
-  }
+  // ░░▒▒▓▓██ [ LENDER CALLBACKS ] ─────────────────────────────────────────────
 
+  // ┌─ onDeposit ─────
   function onDeposit(address, uint256, MarketState calldata, bytes calldata) external override {
     _recordCall();
   }
 
-  function onQueueWithdrawal(
-    address,
-    uint32,
-    uint256,
-    MarketState calldata,
-    bytes calldata
-  ) external override {
+  // ┌─ onTransfer ─────
+  function onTransfer(address, address, address, uint256, MarketState calldata, bytes calldata) external override {
     _recordCall();
   }
 
-  function onExecuteWithdrawal(
-    address,
-    uint32,
-    uint128,
-    MarketState calldata,
-    bytes calldata
-  ) external override {
+  // ┌─ onQueueWithdrawal ─────
+  function onQueueWithdrawal(address, uint32, uint256, MarketState calldata, bytes calldata) external override {
     _recordCall();
   }
 
-  function onTransfer(
-    address,
-    address,
-    address,
-    uint256,
-    MarketState calldata,
-    bytes calldata
-  ) external override {
+  // ┌─ onExecuteWithdrawal ─────
+  function onExecuteWithdrawal(address, uint32, uint128, MarketState calldata, bytes calldata) external override {
     _recordCall();
   }
 
+  // ░░▒▒▓▓██ [ BORROWER CALLBACKS ] ───────────────────────────────────────────
+
+  // ┌─ onBorrow ─────
   function onBorrow(uint256, MarketState calldata, bytes calldata) external override {
     _recordCall();
   }
 
+  // ┌─ onRepay ─────
   function onRepay(uint256, MarketState calldata, bytes calldata) external override {
     _recordCall();
   }
 
+  // ┌─ onCloseMarket ─────
   function onCloseMarket(MarketState calldata, bytes calldata) external override {
     _recordCall();
   }
 
-  function onNukeFromOrbit(address, MarketState calldata, bytes calldata) external override {
-    _recordCall();
-  }
+  // ░░▒▒▓▓██ [ CONFIGURATION CALLBACKS ] ──────────────────────────────────────
 
+  // ┌─ onSetMaxTotalSupply ─────
   function onSetMaxTotalSupply(uint256, MarketState calldata, bytes calldata) external override {
     _recordCall();
   }
 
+  // ┌─ setAnnualInterestAndReserveRatioBips ─────
+  function setAnnualInterestAndReserveRatioBips(uint16 annualInterestBips, uint16 reserveRatioBips) external {
+    annualInterestBipsToReturn = annualInterestBips;
+    reserveRatioBipsToReturn = reserveRatioBips;
+  }
+
+  // ┌─ onSetAnnualInterestAndReserveRatioBips ─────
   function onSetAnnualInterestAndReserveRatioBips(
     uint16,
     uint16,
     MarketState calldata,
     bytes calldata
-  ) external override returns (uint16, uint16) {
+  )
+    external
+    override
+    returns (uint16, uint16)
+  {
     _recordCall();
     return (annualInterestBipsToReturn, reserveRatioBipsToReturn);
   }
 
+  // ┌─ onSetProtocolFeeBips ─────
   function onSetProtocolFeeBips(uint16, MarketState memory, bytes calldata) external override {
     _recordCall();
   }
+
+  // ┌─ onNukeFromOrbit ─────
+  function onNukeFromOrbit(address, MarketState calldata, bytes calldata) external override {
+    _recordCall();
+  }
+
+  // ░░▒▒▓▓██ [ CALL RECORDING ] ───────────────────────────────────────────────
+
+  // ┌─ _recordCall ─────
+  function _recordCall() private {
+    if (shouldRevert) revert ForcedRevert();
+    lastCalldataHash = keccak256(msg.data);
+  }
 }
 
+// ┌─ HooksConfigShortReturnTarget ─────────────────────────────────────────────
 contract HooksConfigShortReturnTarget {
-  fallback() external {}
+  // ░░▒▒▓▓██ [ SHORT RESPONSES ] ──────────────────────────────────────────────
+
+  // ┌─ fallback ─────
+  fallback() external { }
 }
