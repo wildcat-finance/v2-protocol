@@ -14,12 +14,12 @@ Both factories accept `uint32 repaymentDate` and `uint32 repaymentPeriod` in
 `DeployMarketInputs`. The hook receives them during `onCreateMarket`, before
 market code exists. The market stores them immutably and exposes:
 
-| Getter | Meaning |
-| --- | --- |
-| `repaymentDate()` | Unix timestamp at which full repayment begins; zero disables scheduled repayment. |
-| `repaymentPeriod()` | Seconds from that date through the inclusive deadline. |
-| `repaymentDeadline()` | Date plus period, or zero when disabled. |
-| `defaultedAt()` | The permanent default timestamp already recorded by a state update; zero means none recorded. |
+| Getter                | Meaning                                                                                       |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `repaymentDate()`     | Unix timestamp at which full repayment begins; zero disables scheduled repayment.             |
+| `repaymentPeriod()`   | Seconds from that date through the inclusive deadline.                                        |
+| `repaymentDeadline()` | Date plus period, or zero when disabled.                                                      |
+| `defaultedAt()`       | The permanent default timestamp already recorded by a state update; zero means none recorded. |
 
 These getters can be read during hook callbacks. Borrower and hook-administrator
 transfers cannot change the terms.
@@ -37,10 +37,10 @@ explain that there is no additional repayment interval.
 The supplied hooks impose further creation limits through
 `getParameterConstraints()`:
 
-| Policy | Maximum period | Repayment-date limit |
-| --- | ---: | --- |
-| Open and periodic | 90 days | At most 730 days after creation. |
-| Fixed | 90 days | On or after fixed maturity; no additional date-delay cap beyond the market's timestamp bound. |
+| Policy            | Maximum period | Repayment-date limit                                                                          |
+| ----------------- | -------------: | --------------------------------------------------------------------------------------------- |
+| Open and periodic |        90 days | At most 730 days after creation.                                                              |
+| Fixed             |        90 days | On or after fixed maturity; no additional date-delay cap beyond the market's timestamp bound. |
 
 These are the current template limits. A registered template's
 `_getParameterConstraints()` controls both discovery and enforcement. Limits
@@ -70,13 +70,13 @@ existing penalty run or give an already defaulted market another grace period.
 
 ## Funding and the inclusive deadline
 
-Full funding means underlying assets cover `totalDebts()`:
+Full funding means underlying assets cover `totalDebts()`. That getter combines
+live scaled shares and retained withdrawal-payment fractions before rounding,
+then adds paid but unclaimed withdrawals and accrued protocol fees. Plain
+`totalSupply() + normalizedUnclaimedWithdrawals + accruedProtocolFees` omits
+the retained fractions; see [the debt formula](./accounting.md#total-debt-and-withdrawal-fractions).
 
-```text
-totalSupply + normalizedUnclaimedWithdrawals + accruedProtocolFees
-```
-
-Total supply includes unpaid withdrawal shares. Lenders do not have to collect
+Live supply includes unpaid withdrawal shares. Lenders do not have to collect
 every claim before the obligation is funded.
 
 Funding observed by a successful market state write at the exact deadline

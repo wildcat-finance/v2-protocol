@@ -9,8 +9,6 @@ The reference implementation is
 Apply it within the agreed scope, not as an unsolicited rewrite of dependencies,
 generated code, or frozen historical evidence.
 
-Track the repository-wide adoption in [STYLE_ROLLOUT.md](./STYLE_ROLLOUT.md).
-
 For an explicitly requested comment-prose pass, use
 [STYLE_VOICE.md](./STYLE_VOICE.md). It covers wording, not visual layout or permission
 to rewrite comments during a formatting pass.
@@ -296,7 +294,7 @@ a statement or closing code block:
 ```solidity
     uint256 normalizedAmountWithdrawn = _executeWithdrawal(state, accountAddress, expiry);
 
-    // Update stored state
+    // commit accounting only after the claim transfer succeeds.
     _writeState(state);
 ```
 

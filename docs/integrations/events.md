@@ -117,7 +117,10 @@ event MarketHooksData(address indexed market, bytes hooksData);
 Revolving factories additionally emit:
 
 ```solidity
-event RevolvingMarketDeployed(address indexed market, uint256 commitmentFeeBips);
+event RevolvingMarketDeployed(
+  address indexed market,
+  uint256 commitmentFeeBips
+);
 ```
 
 Both factories finish the bundle with:
@@ -206,10 +209,10 @@ Use these event families for authority and hook state:
 
 - Template admission and fees: `HooksTemplateAdded`, `HooksTemplateDisabled`,
   and `HooksTemplateFeesUpdated`.
-- Template artifact identity: `HooksTemplateInitCodeHashRecorded(address indexed
-  hooksTemplate, bytes32 initCodeHash)`, emitted with admission. The immutable
-  commitment is also readable through `getHooksTemplateInitCodeHash(address)`.
-  It hashes the original creation code before instance constructor arguments.
+- Template artifact identity: `HooksTemplateInitCodeHashRecorded`, emitted with
+  admission. It records the indexed template address and its immutable
+  `initCodeHash`, also readable through `getHooksTemplateInitCodeHash(address)`.
+  The hash covers original creation code before instance constructor arguments.
 - Hook administration: the hook's request, cancellation, and completion events,
   followed by `HooksInstanceAdministratorTransferred` from the factory.
 - Built-in hook state: `MinimumDepositUpdated`, `FixedTermUpdated`,
@@ -388,6 +391,13 @@ The market withdrawal family includes:
 
 `queueWithdrawalScaled` uses this existing family. It adds no event or indexer
 state.
+
+Carry accounting adds no remainder event. Existing payment logs still report
+whole assets reserved and scaled shares burned; they do not expose each batch's
+retained fraction or the market-wide sum. An indexer calculating debts or
+reserves must reproduce the carry and release rules or read the matching market
+getters. Plain supply plus funded claims and fees is no longer sufficient. See
+[accounting](../protocol/accounting.md#total-debt-and-withdrawal-fractions).
 
 Withdrawal and wrapper quarantine may also emit:
 

@@ -151,12 +151,17 @@ Earlier market sources floor every partial payment independently, losing less
 than one atomic unit per payment. Arbitrary ERC20 admission has always been
 possible; reconsidering this issue does not reflect a policy change.
 
-This experimental branch carries the fraction between payments and includes it
-in debt and reserve accounting. The smaller candidate fits the market bytecode
-limit, but is not an approved release and still requires consumer migration.
-It does not change the disposition of existing markets.
-See [the implementation and tradeoffs](./withdrawal-rounding-experiment.md).
-Final per-lender pro-rata division still leaves indivisible token dust.
+The current source carries the fraction between payments and includes it in
+debt and reserve accounting. It discards less than one atomic unit of payment
+fraction per completed batch, rather than per payment. Final per-lender
+pro-rata division still leaves indivisible token dust.
+
+Existing markets retain their original arithmetic. New carry-aware markets
+require matching hooks and updated consumer accounting; see
+[tuple compatibility](../integrations/lenses.md#accounting-tuple-compatibility).
+The [experiment assessment](./withdrawal-rounding-experiment.md) preserves its
+historical candidates, measurements, and tradeoffs. Those records are not
+verification of the current source or a deployment approval.
 
 `closeMarket()` walks every unpaid withdrawal batch. Its gas cost is unbounded
 in the queue length. Work down a large queue in bounded calls to

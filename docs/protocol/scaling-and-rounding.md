@@ -22,13 +22,19 @@ V2.5 uses deliberate, asymmetric rounding:
   `scaleAmountDown`. Deposits, transfers, and withdrawal queueing never credit,
   move, or queue more shares than the normalized input can support.
 - Converting scaled units **out** to normalized labels rounds **half-up** through
-  `normalizeAmount`. Balances, debt totals, and scale-factor compounding retain
-  the rounding used by deployed V2 markets.
-- Withdrawal payments use `maxScaledSettleableAmount` to find the largest scaled
-  amount whose floor-priced cost fits in available liquidity. Capacity
-  saturates at the `uint104` batch limit before multiplying an unbounded
-  underlying balance. A fully funded closed market can always finish its
-  batches.
+  `normalizeAmount`. Balance and supply labels retain the rounding used by
+  earlier V2 markets, as does scale-factor compounding. Debt and reserves also
+  include retained withdrawal-payment fractions before normalization.
+- Withdrawal payments find the largest pending scaled amount whose value,
+  including the batch's prior payment remainder, fits in available liquidity
+  after flooring. The fraction carries into the next payment. Capacity is
+  bounded by unpaid shares and the remaining `uint128` unclaimed-withdrawal
+  headroom before multiplying potentially unbounded underlying liquidity.
+
+At representation limits, already paid claims may need to be executed to free
+that global headroom before another batch can be paid. See
+[withdrawal payments](./withdrawals.md#payment-and-execution) and
+[representation limits](./withdrawals.md#representation-limits).
 
 Markets before V2.5 rounded transfers half-up. V2.5 and later markets declare
 their convention through `scaledTransferRounding()`. Rounding-sensitive

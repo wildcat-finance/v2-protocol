@@ -1,6 +1,6 @@
 # Canonical Foundry suite
 
-`test/` is the only protocol test tree. It uses the default production build's:
+`test/` is the canonical protocol test tree. It uses the default production build's:
 
 - Solidity and EVM versions.
 - Optimizer settings.
@@ -30,7 +30,7 @@ yarn test:fixed
 # Deployment-profile confirmation
 FOUNDRY_PROFILE=deploy forge test
 
-# Focused accurate coverage
+# Focused coverage (currently blocked; see Coverage boundary)
 FOUNDRY_TEST=test/sanctions yarn coverage --match-contract SanctionsTest
 ```
 
@@ -84,6 +84,11 @@ enforce the real 24,576-byte runtime limit; a larger allowance for test contract
 does not qualify a production artifact for deployment.
 
 ## Coverage boundary
+
+Focused coverage is currently blocked: `scripts/coverage-spherex.patch` no
+longer applies after the source-layout cleanup. The wrapper stops at its
+preflight check before changing source. Refreshing and validating that patch
+is separate tooling work; the command above is not currently a passing check.
 
 `scripts/coverage.sh`:
 

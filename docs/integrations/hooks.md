@@ -21,6 +21,12 @@ reuse their open, fixed, or periodic term policy. Each remains one deployed
 contract with its existing public configuration. See
 [Hook development](./hook-development.md) for source composition and overrides.
 
+Callbacks carrying `MarketState` use its current fifteen-word tuple, including
+`withdrawalRemainder`. Earlier fourteen-word inputs produce different selectors.
+Select a hook implementation that matches the market's tuple; family names and
+callback flags alone do not establish compatibility. See
+[accounting tuple compatibility](./lenses.md#accounting-tuple-compatibility).
+
 ## Template, instance, and market
 
 The hook lifecycle has three layers:

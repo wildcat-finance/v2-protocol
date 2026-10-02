@@ -177,8 +177,9 @@ Notes:
 - The `max*` views fail closed to zero if a required market, sentinel, or
   transfer-policy read reverts or returns malformed data. Preview conversions
   and execution paths remain strict. They propagate dependency failures.
-- `maxTotalSupply` and `totalAssets()` are normalized. They can grow without
-  deposits. The wrapper may be at its cap while market tokens remain elsewhere.
+- `maxTotalSupply` and `totalAssets()` are normalized. Accrual can increase
+  `totalAssets()` without a deposit; the cap changes only through the market's
+  setter. The wrapper may be at its cap while market tokens remain elsewhere.
 
 The registered-wrapper exception applies only when the wrapper is the transfer
 recipient. `withdraw` and `redeem` transfer market tokens from the wrapper to the
@@ -351,7 +352,9 @@ This keeps a mispaired legacy-factory wrapper out of canonical discovery.
 
 1. Acquire Wildcat market tokens, usually by depositing the underlying asset in
    the market.
-2. Call `approve(marketToken, wrapper, amount)`.
+2. Call `marketToken.approve(wrapper, assets)` to approve the market-token amount
+   being wrapped, not the market's underlying asset. For an exact-share mint,
+   `previewMint(shares)` quotes the required assets at the current scale factor.
 3. Call `deposit(assets, receiver)` for a known asset amount, or
    `mint(shares, receiver)` for an exact share amount.
 

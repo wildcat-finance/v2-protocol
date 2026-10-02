@@ -5,9 +5,10 @@ who knows the language but still needs this code's model and constraints.
 This is a source-comment voice, not an imitation of anyone's personal voice.
 
 [STYLE_GUIDE.md](./STYLE_GUIDE.md) owns layout, cards, spacing, and function order.
-This guide owns the words inside that layout. The initial trial is
-[`WildcatMarketWithdrawals.sol`](./src/market/WildcatMarketWithdrawals.sol);
-applying it there does not authorize a repository-wide prose rewrite.
+This guide owns the words inside that layout. The reference implementation is
+[`WildcatMarketWithdrawals.sol`](./src/market/WildcatMarketWithdrawals.sol).
+Apply it within the agreed prose-editing scope; a layout-only pass must preserve
+existing wording.
 
 ## The voice
 

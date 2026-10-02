@@ -40,9 +40,10 @@ require a live registry lookup.
 
 Borrower, principal, pending transfer, and wrapper pointers occupy the final
 five EVM storage slots, from `type(uint256).max` through
-`type(uint256).max - 4`. The established sequential market layout remains in
-slots 0 through 10, and derived markets can keep extending it normally. New
-manual storage must not use the reserved five-slot range.
+`type(uint256).max - 4`. These are separate from ordinary sequential market
+storage, which derived markets can extend. The sequential layout is
+revision-specific; use the compiler's layout for the source being reviewed.
+New manual storage must not use the reserved five-slot range.
 
 ## Borrower identity registry
 

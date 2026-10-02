@@ -1,8 +1,9 @@
 # Testing
 
-All protocol tests live in [`test/`](./test/) and run in the canonical Foundry
-suite. Deployment-format comparisons and lifecycle invariants are part of that
-tree, not an alternate release-test profile.
+The canonical protocol suite lives in [`test/`](./test/). Deployment-format
+comparisons and lifecycle invariants are part of that tree, not an alternate
+release-test profile. Standalone gas and optimizer research uses fixtures under
+`scripts/research/fixtures/`; those do not replace the canonical suite.
 
 ## Required commands
 
@@ -35,9 +36,11 @@ split storage.
 
 ## Deployment tooling
 
-After installing the root and deployment-UI JavaScript dependencies, run:
+Install the locked root and deployment-UI JavaScript dependencies, then run:
 
 ```sh
+yarn install --frozen-lockfile
+npm --prefix deploy-ui ci
 node --test scripts/__tests__/*.test.js
 npm --prefix deploy-ui test
 npm --prefix deploy-ui run build

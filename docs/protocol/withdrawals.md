@@ -6,7 +6,9 @@ available liquidity pro rata.
 
 ## Queueing and batch ownership
 
-The first request creates a batch. Later requests join it until expiry.
+The first request creates a batch. Later requests can join through the expiry
+timestamp itself; expiry is processed only at a strictly later timestamp.
+Funded closure can release the current batch earlier.
 
 Markets expose three queueing methods:
 
@@ -36,8 +38,9 @@ phase keeps the configured batch duration, allocation and priority rules.
 
 ## Batch states
 
-- **Current:** accepts requests until expiry. It can remain recorded as current
-  after its timestamp passes, until the next state update processes it.
+- **Current:** accepts requests through the expiry timestamp. It can remain
+  recorded as current after that timestamp passes, until the next state update
+  processes it.
 - **Unpaid:** expired without enough reserved assets to cover every request.
 - **Paid:** has enough assets reserved, but lenders may not have executed their
   claims yet.
@@ -52,7 +55,8 @@ At expiry, the current batch can use the market's underlying balance after
 subtracting:
 
 - paid but unclaimed withdrawals;
-- the normalized value of earlier unpaid withdrawals; and
+- the normalized value of earlier unpaid withdrawals and their retained payment
+  fractions; and
 - accrued protocol fees.
 
 If expiry is processed by a later transaction, the batch uses the last
@@ -84,12 +88,12 @@ Payment can happen:
 - during a state update for the current batch; or
 - through `repayAndProcessUnpaidWithdrawalBatches` for expired unpaid batches.
 
-On the experimental carry branch, each partial payment adds the exact
-`scaledAmountBurned * scaleFactor` numerator to the batch's carried fraction.
-The integer quotient is funded and the sub-RAY remainder stays as unpaid,
-non-interest-bearing debt. Market debt and required reserves include the sum
-of these remainders before rounding; pending-batch liquidity excludes that
-batch's own remainder from the liabilities protected for earlier batches.
+Each partial payment adds the exact `scaledAmountBurned * scaleFactor`
+numerator to the batch's prior `paymentRemainder`. Dividing by `RAY` funds the
+integer quotient; the remainder stays as unpaid, non-interest-bearing debt.
+Market debt and required reserves include the sum of these remainders before
+rounding. Pending-batch liquidity excludes that batch's own remainder from the
+liabilities protected for earlier batches.
 
 A fully paid current batch retains its remainder while later requests can join.
 Once it is fully paid and expired or released by closure, its terminal fraction
@@ -97,9 +101,11 @@ is removed from the market-wide sum. Funding truncation is therefore less than
 one atomic unit per completed batch. Lender execution still rounds each
 cumulative pro-rata entitlement to an integer.
 
-This is an undeployed experiment with deployment-size and ABI costs; see
-[the experiment assessment](../security/withdrawal-rounding-experiment.md).
-Earlier sources floor every partial payment independently.
+This describes the current source, not an upgrade to existing markets.
+Earlier implementations floor every partial payment independently. The
+[original experiment assessment](../security/withdrawal-rounding-experiment.md)
+retains its candidate-specific measurements and decisions; the current debt
+formula is in [accounting](./accounting.md#total-debt-and-withdrawal-fractions).
 
 Plain `repay` transfers assets into the market and updates state. It does not
 walk the unpaid queue. Use `repayAndProcessUnpaidWithdrawalBatches` when the
@@ -134,6 +140,10 @@ sum to it. Individual queue amounts, live balances, supply, and outstanding
 unpaid scaled withdrawals also retain their `uint104` bounds. Paid underlying
 amounts and unclaimed withdrawal liabilities remain `uint128`.
 
+Each payment is capped by the remaining global unclaimed-withdrawal capacity.
+At extreme balances, even a fully funded market may need older paid claims
+executed before it can reserve more assets for a later batch.
+
 The cumulative cap preserves the representation invariant at every legal scale
 factor:
 
@@ -148,19 +158,26 @@ same arithmetic panic as the earlier `uint104` layout. The lender keeps the
 unqueued balance and can enter the next batch after the current one expires.
 This also applies to sanctions quarantine through `nukeFromOrbit`.
 
-The two scaled batch counters share one slot; normalized payments occupy a
-second. An account's scaled ownership and normalized amount withdrawn share
-one slot. The wider declarations add no storage slots, but change packed
-offsets. This is a new-market representation, not an in-place storage
-migration. Older immutable markets retain their original `uint104` fields.
+The two scaled batch counters share one slot; normalized payments and the
+payment remainder share a second. An account's scaled ownership and normalized
+amount withdrawn share one slot. The wider counter declarations add no storage
+slots, but change packed offsets. The aggregate remainder adds a separate slot
+to `MarketState`. This is a new-market representation, not an in-place storage
+migration. Older immutable markets retain their original layouts.
 
-The return types of `getWithdrawalBatch(uint32)` and
-`getAccountWithdrawalStatus(address,uint32)` declare the fields as `uint128`.
-Their selectors and word counts are unchanged. Successful values remain within
-`uint104`, so older narrow decoders continue to accept them; a `uint128`
-decoder also accepts older markets. Withdrawal events and the lens's outward
-`uint256` fields are unchanged. See [known limitations](../security/known-issues.md#withdrawal-batches)
-and [lens compatibility](../integrations/lenses.md#withdrawal-compatibility).
+`getWithdrawalBatch(uint32)` and
+`getAccountWithdrawalStatus(address,uint32)` declare their scaled counters as
+`uint128`. Successful scaled values remain within `uint104`, so the width
+change alone does not exceed a legacy decoder's range. Getter selectors are
+unchanged, but return shapes are not: the batch tuple appends `paymentRemainder`
+as a fourth word. Account status still returns two words. Market state also
+appends `withdrawalRemainder` as a fifteenth word.
+
+Use generation-aware decoders and carry-aware accounting. A decoder accepting
+the old prefix does not account for the added debt. Withdrawal events and the
+lens's outward `uint256` amount fields are unchanged. See
+[known limitations](../security/known-issues.md#withdrawal-batches) and
+[lens compatibility](../integrations/lenses.md#accounting-tuple-compatibility).
 
 Batch keys are absolute `uint32` Unix timestamps. Creating a batch requires
 `block.timestamp + withdrawalBatchDuration <= type(uint32).max`; the checked

@@ -142,8 +142,17 @@ not the market's underlying balance.
 
 ### Outstanding supply
 
-Total supply excluding ownership in current and expired unpaid withdrawal
-batches. The reserve ratio applies to this amount.
+Supply outside current and expired unpaid withdrawal batches. The reserve
+calculation derives its normalized value by subtracting carry-aware pending
+debt from carry-aware total lender debt, so both sides share the same rounding
+domain. See [accounting](./accounting.md#collateral-obligation).
+
+### Total debt
+
+`totalDebts()`, the full funding obligation. It combines live scaled supply and
+retained withdrawal-payment fractions before rounding, then adds paid but
+unclaimed withdrawals and accrued protocol fees. It is not simply
+`totalSupply()` plus funded claims and fees.
 
 ### Capacity
 
@@ -170,8 +179,8 @@ required liquid balance.
 ### Collateral obligation
 
 `liquidityRequired()`, the minimum underlying balance for a healthy market. It
-includes pending withdrawals, paid but unclaimed withdrawals, reserve coverage
-for outstanding supply, and accrued protocol fees.
+includes pending withdrawals and retained payment fractions, paid but unclaimed
+withdrawals, reserve coverage for outstanding supply, and accrued protocol fees.
 
 ### Delinquency
 
@@ -230,6 +239,14 @@ scaled ownership.
 The reservation of underlying for a batch. Payment burns the batch's scaled
 market-token ownership, stops its interest accrual, and records the underlying
 as unclaimed withdrawals.
+
+### Withdrawal payment remainder
+
+The fraction below one underlying atomic unit retained between batch payments.
+`WithdrawalBatch.paymentRemainder` stores it as a ray numerator;
+`MarketState.withdrawalRemainder` sums the retained fractions across batches.
+They remain non-interest-bearing debt until funded or released when a fully
+paid batch can no longer accept requests.
 
 ### Withdrawal execution
 

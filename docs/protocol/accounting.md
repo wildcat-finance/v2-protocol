@@ -4,6 +4,27 @@ Wildcat markets use scaled balances so lender interest can accrue without
 updating every account. [Scaling and rounding](./scaling-and-rounding.md) covers
 the conversion rules.
 
+## Total debt and withdrawal fractions
+
+`totalSupply()` reports the normalized value of live scaled shares. It does
+not include the fractions retained between withdrawal payments.
+
+Each batch carries a `paymentRemainder` below `RAY`. The market's
+`withdrawalRemainder` is the sum of retained batch fractions. They remain debt,
+but no longer earn interest after the corresponding shares burn. Debt accounting
+combines live shares and these fractions before rounding:
+
+```text
+lenderDebt = (scaledTotalSupply * scaleFactor + withdrawalRemainder + RAY / 2) / RAY
+totalDebts = lenderDebt + normalizedUnclaimedWithdrawals + accruedProtocolFees
+```
+
+These formulas use integer division and `RAY = 1e27`. Use `totalDebts()` for
+funding and surplus calculations; adding plain `totalSupply()` to funded claims
+and fees omits the retained fractions. See
+[withdrawal payments](./withdrawals.md#payment-and-execution) for accumulation
+and final release.
+
 ## Collateral obligation
 
 The market must hold enough underlying assets to cover:
@@ -15,7 +36,8 @@ The market must hold enough underlying assets to cover:
 
 Tokens outside a withdrawal batch make up the market's _outstanding supply_.
 Paid but unclaimed withdrawals remain fully reserved until execution. Neither
-that balance nor accrued protocol fees earns lender interest.
+that balance nor accrued protocol fees earns lender interest. Retained payment
+fractions are included with pending withdrawals before normalization.
 
 `state.liquidityRequired()` is the sum of:
 
@@ -25,8 +47,11 @@ that balance nor accrued protocol fees earns lender interest.
 - accrued protocol fees.
 
 ```solidity
-uint256 normalizedPendingWithdrawals = state.normalizeAmount(state.scaledPendingWithdrawals);
-uint256 normalizedOutstandingSupply = state.totalSupply() - normalizedPendingWithdrawals;
+uint256 normalizedPendingWithdrawals =
+  state.normalizeWithRemainder(state.scaledPendingWithdrawals, state.withdrawalRemainder);
+uint256 normalizedLenderDebt =
+  state.normalizeWithRemainder(state.scaledTotalSupply, state.withdrawalRemainder);
+uint256 normalizedOutstandingSupply = normalizedLenderDebt - normalizedPendingWithdrawals;
 
 normalizedPendingWithdrawals
 + normalizedOutstandingSupply.bipMul(state.reserveRatioBips)
@@ -34,8 +59,9 @@ normalizedPendingWithdrawals
 + state.accruedProtocolFees
 ```
 
-Outstanding supply and pending withdrawals use the same rounding domain. At a
-100% reserve ratio, they add back to exactly `state.totalSupply()`. See
+Outstanding supply and pending withdrawals use the same rounding domain. Their
+sum is exactly the carry-aware lender debt, not plain `state.totalSupply()`.
+At a 100% reserve ratio, `liquidityRequired()` equals `totalDebts()`. See
 [`MarketState.liquidityRequired`](../../src/libraries/MarketState.sol).
 
 ## Delinquency
@@ -71,6 +97,10 @@ Accrual uses two lender rates and one protocol-fee fraction:
   and
 - `protocolFeeBips` is the protocol's fraction of base interest, charged on top
   of lender interest.
+
+In revolving markets, base lender interest combines the fixed commitment fee
+and utilization-weighted APR. Both contribute to the protocol-fee basis;
+delinquency fees do not.
 
 Base interest and delinquency fees increase `scaleFactor`. Protocol fees are
 calculated from base interest and added to `accruedProtocolFees`. They do not

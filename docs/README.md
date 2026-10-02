@@ -1,7 +1,7 @@
 # Technical documentation
 
-These docs describe the intended behavior of the contracts on the active
-release branch. They are written for auditors, integrators, and contributors.
+These docs describe the contract source in this checkout. They are written for
+auditors, integrators, and contributors, not as a deployment or release approval.
 
 The docs on a release branch apply to the source on that branch. Previous
 releases and their documentation live in Git tags.
