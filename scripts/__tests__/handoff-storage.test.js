@@ -40,6 +40,8 @@ function fixture(t, { split = true, splitHook = false, providers = false, releas
       );
     }
   }
+  deployments.AccessListRoleProviderFactory =
+    deployments[`AccessListRoleProviderFactory_${release}`];
   if (providers) {
     for (const definition of ROLE_PROVIDER_FACTORIES) {
       deployments[definition.contract] = deployments[`${definition.contract}_${release}`];
@@ -189,8 +191,8 @@ test("historical single-store handoffs still validate with their original artifa
   assert.deepEqual(f.validate(handoff), []);
 });
 
-test("dotted release handoff includes six provider factories and preserves historical indexing flags", (context) => {
-  const setup = fixture(context, { providers: true, release: "v2.5.5" });
+test("v2.5.5 handoff includes only AccessList and preserves historical indexing flags", (context) => {
+  const setup = fixture(context, { release: "v2.5.5" });
   const inventory = JSON.parse(fs.readFileSync(setup.input.inventoryPath, "utf8"));
   for (const [index, indexed] of [true, false].entries()) {
     inventory.hooksFactories.push({
@@ -220,15 +222,48 @@ test("dotted release handoff includes six provider factories and preserves histo
   execFileSync(process.execPath, args);
   execFileSync(process.execPath, [...args, "--check"]);
   const handoff = JSON.parse(fs.readFileSync(path.join(outputDirectory, "handoff-v2.5.5.json"), "utf8"));
-  assert.equal(handoff.releaseContracts.length, 21);
-  assert.equal(handoff.releaseContracts.filter(({ kind }) => kind === "role-provider-factory").length, 6);
+  assert.equal(handoff.releaseContracts.length, 16);
+  assert.deepEqual(
+    handoff.releaseContracts
+      .filter(({ kind }) => kind === "role-provider-factory")
+      .map(({ deploymentKey }) => deploymentKey),
+    ["AccessListRoleProviderFactory_v2.5.5"]
+  );
   for (const definition of ROLE_PROVIDER_FACTORIES) {
-    assert.equal(handoff.canonicalAddresses[definition.alias], setup.deployments[definition.contract]);
+    assert.equal(
+      handoff.canonicalAddresses[definition.alias],
+      setup.deployments[definition.contract]
+    );
+    if (definition.providerKind !== "ACCESS_LIST") {
+      assert.equal(
+        Object.hasOwn(handoff.canonicalAddresses, definition.alias),
+        false
+      );
+    }
   }
   assert.deepEqual(
     handoff.factoryGenerations.filter(({ label }) => label.startsWith("historical-")).map(({ indexAll }) => indexAll),
     [true, false]
   );
+});
+
+test("handoff retains optional providers when explicitly recorded for another release", (context) => {
+  const setup = fixture(context, { providers: true });
+  const handoff = buildHandoff(setup.input);
+  assert.deepEqual(setup.validate(handoff), []);
+  assert.equal(handoff.releaseContracts.length, 21);
+  for (const definition of ROLE_PROVIDER_FACTORIES) {
+    assert.ok(
+      handoff.releaseContracts.some(
+        ({ deploymentKey }) =>
+          deploymentKey === `${definition.contract}_storage-test`
+      )
+    );
+    assert.equal(
+      handoff.canonicalAddresses[definition.alias],
+      setup.deployments[definition.contract]
+    );
+  }
 });
 
 test("handoff Markdown escapes labels and still passes --check", (context) => {

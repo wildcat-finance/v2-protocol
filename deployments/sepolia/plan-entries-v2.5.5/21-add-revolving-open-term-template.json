@@ -1,5 +1,5 @@
 {
-  "id": "add-revolving-fixed-term-template",
+  "id": "add-revolving-open-term-template",
   "kind": "call",
   "to": {
     "$ref": "hooks-factory-revolving"
@@ -7,16 +7,16 @@
   "functionSignature": "addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)",
   "args": [
     {
-      "$ref": "fixed-term-hooks-init-code-storage"
+      "$ref": "open-term-hooks-init-code-storage"
     },
-    "FixedTermHooks",
+    "OpenTermHooks",
     "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
     "0x0000000000000000000000000000000000000000",
     0,
     500,
-    "0xb00e9d668240780b8b6ac0bf52293aeaf76cac54dbe08e1321ebd695d943c6b7"
+    "0x762a05485ff0d04b70e5af7bc370252476e5f8aa3e7d4d6f96575e12e0381d10"
   ],
-  "description": "Add corrected FixedTermHooks to the replacement revolving factory.",
+  "description": "Add OpenTermHooks to the v2.5.5 revolving factory.",
   "envelope": {
     "chainId": 11155111,
     "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
@@ -37,13 +37,13 @@
       "sig": "getHooksTemplateInitCodeHash(address) view returns (bytes32)",
       "args": [
         {
-          "$ref": "fixed-term-hooks-init-code-storage"
+          "$ref": "open-term-hooks-init-code-storage"
         }
       ]
     },
-    "expect": "0xb00e9d668240780b8b6ac0bf52293aeaf76cac54dbe08e1321ebd695d943c6b7"
+    "expect": "0x762a05485ff0d04b70e5af7bc370252476e5f8aa3e7d4d6f96575e12e0381d10"
   },
   "after": [
-    "add-revolving-open-term-template"
+    "add-standard-periodic-term-template"
   ]
 }

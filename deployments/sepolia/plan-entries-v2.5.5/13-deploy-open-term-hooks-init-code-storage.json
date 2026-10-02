@@ -8,7 +8,7 @@
     ]
   },
   "output": "open-term-hooks-init-code-storage",
-  "description": "Deploy the corrected Sepolia v2.5.5 OpenTermHooks init-code store.",
+  "description": "Deploy the Sepolia v2.5.5 OpenTermHooks init-code store.",
   "envelope": {
     "chainId": 11155111,
     "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",

@@ -11,7 +11,7 @@
     ]
   },
   "output": "market-lens-aggregator",
-  "description": "Deploy the replacement Sepolia v2.5.5 market-lens aggregation helper.",
+  "description": "Deploy the Sepolia v2.5.5 market-lens aggregation helper.",
   "envelope": {
     "chainId": 11155111,
     "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",

@@ -26,6 +26,6 @@
     "expect": "0x95bcc3c56ae4f1066e2723dddbc9d1b2528722611868a493a8dbecb659914d69"
   },
   "after": [
-    "deploy-erc4626-assets-role-provider-factory"
+    "deploy-access-list-role-provider-factory"
   ]
 }

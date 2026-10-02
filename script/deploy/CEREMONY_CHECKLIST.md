@@ -1,6 +1,6 @@
 # V2.5.5 Sepolia activation ceremony
 
-Run the fixed-authority factory replacement twice:
+Run the fixed-authority v2.5.5 activation twice:
 
 1. Through the real-wallet locked UI on a pinned Sepolia fork.
 2. Through the same stage interface on live Sepolia.
@@ -9,10 +9,13 @@ The stage script derives, validates, prints, and retains the run identity. Do
 not create a manual run sheet.
 
 Scope and preparation status live in the
-[v2.5.5 runbook](../../docs/operations/sepolia-v2.5.5.md). This ceremony has 30 cards:
+[v2.5.5 runbook](../../docs/operations/sepolia-v2.5.5.md). This ceremony has 25 cards:
 
-- 20 contract deployments.
+- 15 contract deployments.
 - 10 activation calls.
+
+AccessList is the only role-provider factory in this release. Merkle, ERC20,
+ERC721, ERC1155, and ERC4626Assets are not part of this ceremony.
 
 It does not rotate authority, disable templates, or retire predecessor factories.
 Market behavior tests and legacy cleanup happen separately afterward.
@@ -22,7 +25,7 @@ Market behavior tests and legacy cleanup happen separately afterward.
 - Live network: Sepolia `11155111`.
 - Rehearsal network: Anvil `31337`, pinned from Sepolia.
 - Executor: `0xCa7007a75296b532Ce1606d9e130eAa849800Ca7`.
-- Activation: 30 cards, consisting of 20 deployments and 10 calls.
+- Activation: 25 cards, consisting of 15 deployments and 10 calls.
 - Authority: Existing helper and SphereX roles remain fixed.
 
 Before connecting the wallet, match the locked UI against the stage output:
@@ -73,6 +76,21 @@ rehearse() {
 }
 ```
 
+- [ ] If the browser and wallet are on another machine on your trusted LAN,
+      set `CEREMONY_HOST` to the build machine's LAN IPv4 address before starting
+      the rehearsal. For example, replace this address with your rig's address:
+
+```sh
+export CEREMONY_HOST='192.168.1.20'
+```
+
+This selects the Anvil bind address, browser RPC URL, and printed UI preview
+command. Leave it unset when the browser runs on the build machine. Use the
+machine's actual address, not `0.0.0.0`. Keep the setting for the live stage.
+Anvil exposes development RPC methods, so use this only on a trusted network.
+Choose the address before starting the fork; do not restart an in-progress
+rehearsal just to change it.
+
 - [ ] Run the source, deploy-profile, deployment-tooling, dependency, UI, and fork gates:
 
 ```sh
@@ -102,19 +120,27 @@ These commands:
 The rehearsal transform is mechanical. Only the network, chain ID, release
 label, and transaction-envelope chain IDs differ from the live plan.
 
-- [ ] In a second terminal, serve the exact build:
+- [ ] In a second terminal on the build machine, run the exact preview command
+      printed by `stage activation`. It includes the selected listening address.
+- [ ] Open the printed UI URL on the machine holding your wallet.
+- [ ] Connect the expected executor to the printed Anvil RPC URL, chain `31337`.
+      The defaults are UI `http://127.0.0.1:4173` and RPC `http://127.0.0.1:8548`;
+      LAN mode uses `CEREMONY_HOST` in both URLs.
+- [ ] Confirm the digest, fingerprint, executor, and 25-card count.
+- [ ] Execute all 25 cards in order. Wait for every receipt and green predicate,
+      then click **Export run state**.
+- [ ] If the browser is on another machine, copy the exported JSON unchanged
+      from its Downloads folder to the build machine, outside tracked source
+      paths (for example, that machine's Downloads folder). Use the command
+      below in place of bare `stage finalize-activation`:
 
 ```sh
-(cd deploy-ui && npm exec -- vite preview \
-  --host 127.0.0.1 --port 4173 --strictPort)
+RUN_STATE='/path/to/copied/run-state.json' stage finalize-activation
 ```
 
-- [ ] Open `http://127.0.0.1:4173`.
-- [ ] Connect the expected executor to local RPC `http://127.0.0.1:8548`, chain
-      `31337`.
-- [ ] Confirm the digest, fingerprint, executor, and 30-card count.
-- [ ] Execute all 30 cards in order. Wait for every receipt and green predicate,
-      then click **Export run state**.
+Use the same transfer step for the live export. Automatic Downloads discovery
+only searches the machine running the stage script.
+
 - [ ] Verify and accept the browser export, print status, then stop only the
       recorded Anvil process:
 
@@ -157,11 +183,11 @@ of these remain unchanged:
 
 The stage reruns live preflight immediately before building the UI.
 
-- [ ] Restart the same preview command from section 2.
-- [ ] Open `http://127.0.0.1:4173` and connect the expected executor to Sepolia.
-- [ ] Confirm chain `11155111`, digest, fingerprint, executor, and 30-card
+- [ ] Start the preview command printed by the live `stage activation`.
+- [ ] Open its UI URL and connect the expected executor to Sepolia.
+- [ ] Confirm chain `11155111`, digest, fingerprint, executor, and 25-card
       count.
-- [ ] Execute all 30 cards in order. Wait for every receipt and green predicate,
+- [ ] Execute all 25 cards in order. Wait for every receipt and green predicate,
       then click **Export run state**.
 - [ ] Verify the export and print final status:
 
@@ -189,8 +215,8 @@ downstream handoff work.
 
 `finalize-inventory` sends no transactions. It:
 
-- Appends the replacement factory generations.
-- Updates canonical deployment aliases, including all six provider factories.
+- Appends the v2.5.5 factory generations.
+- Updates canonical deployment aliases, including the AccessList role-provider factory.
 - Writes the release handoff.
 - Reconciles those records against Sepolia.
 
@@ -205,5 +231,5 @@ If the preview or browser closes, restart the exact preview against the same
 recorded Anvil or live session. The UI rechecks saved receipts and predicates.
 Do not rerun `stage activation` for a partially executed package.
 
-After a failure, preserve the session directory and stop. A corrected package
+After a failure, preserve the session directory and stop. A revised package
 needs a new rehearsal and acceptance record before live execution.

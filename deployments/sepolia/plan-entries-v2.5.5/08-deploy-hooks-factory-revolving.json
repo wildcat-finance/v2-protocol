@@ -17,7 +17,7 @@
     ]
   },
   "output": "hooks-factory-revolving",
-  "description": "Deploy the replacement Sepolia v2.5.5 revolving hooks factory.",
+  "description": "Deploy the Sepolia v2.5.5 revolving hooks factory.",
   "envelope": {
     "chainId": 11155111,
     "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",

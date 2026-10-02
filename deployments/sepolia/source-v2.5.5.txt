@@ -1,6 +1,6 @@
 protocol_version=2.5.5
 contract_source_commit=05165ad4c4020c1400048680b85b3585f84e8527
-generated_from_head=05165ad4c4020c1400048680b85b3585f84e8527
+generated_from_head=2a1e6b1d58e4653a3010b88c733a53fe472fe985
 deployment_profile=deploy
 solc=0.8.25
 evm_version=cancun

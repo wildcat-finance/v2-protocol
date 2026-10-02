@@ -13,6 +13,11 @@ Release acceptance uses a reviewed package and operator runbook. See
 [`deployment.md`](../docs/operations/deployment.md) for the durable artifacts
 and verification model.
 
+For a browser on another machine on a trusted LAN, the Sepolia ceremony supports
+`CEREMONY_HOST` to select the build machine's LAN IPv4 address for both the UI
+and Anvil RPC. Follow the [ceremony checklist](../script/deploy/CEREMONY_CHECKLIST.md)
+for setup and transferring the browser's run-state export back to that machine.
+
 The file loader below is for development and debugging only.
 
 Use the pinned Node and npm versions from the

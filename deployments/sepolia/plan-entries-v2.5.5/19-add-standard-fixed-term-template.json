@@ -16,7 +16,7 @@
     500,
     "0xb00e9d668240780b8b6ac0bf52293aeaf76cac54dbe08e1321ebd695d943c6b7"
   ],
-  "description": "Add corrected FixedTermHooks to the replacement standard factory.",
+  "description": "Add FixedTermHooks to the v2.5.5 standard factory.",
   "envelope": {
     "chainId": 11155111,
     "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",

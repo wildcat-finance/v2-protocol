@@ -39,6 +39,7 @@ function artifacts() {
     artifact: { deployedBytecode: { object: "0x60006000f3" } },
   };
   for (const definition of ROLE_PROVIDER_FACTORIES) {
+    if (definition.providerKind !== "ACCESS_LIST") continue;
     result[definition.contract] = {
       ...definition,
       bytecode: "0x6000",
@@ -50,8 +51,8 @@ function artifacts() {
 
 test("v2.5.5 activation has only new deployments and activation calls", () => {
   const entries = buildEntries(rotation, artifacts());
-  assert.equal(entries.length, 30);
-  assert.equal(entries.filter(({ kind }) => kind === "deploy").length, 20);
+  assert.equal(entries.length, 25);
+  assert.equal(entries.filter(({ kind }) => kind === "deploy").length, 15);
   assert.equal(entries.filter(({ kind }) => kind === "call").length, 10);
   assert.equal(
     entries.some(({ id }) => id === "deploy-borrower-identity-registry"),
@@ -60,6 +61,7 @@ test("v2.5.5 activation has only new deployments and activation calls", () => {
   assert.deepEqual(rotation.retirementTargets, []);
   for (const [index, entry] of entries.entries()) {
     assert.deepEqual(entry.after, index ? [entries[index - 1].id] : []);
+    assert.doesNotMatch(entry.description, /corrected|replacement/i);
     if (entry.kind !== "call") continue;
     assert.match(
       entry.functionSignature,
@@ -69,7 +71,9 @@ test("v2.5.5 activation has only new deployments and activation calls", () => {
   for (const definition of ROLE_PROVIDER_FACTORIES) {
     assert.equal(
       entries.find(({ output }) => output === definition.output)?.artifactName,
-      definition.artifactName
+      definition.providerKind === "ACCESS_LIST"
+        ? definition.artifactName
+        : undefined
     );
   }
   assertSplitStorageCommitments({ transactions: entries });
@@ -82,14 +86,16 @@ test("pending inventory covers every deployment, both split chunks, and reused i
   const records = buildInventoryPendingRecords(rotation, compiled).map(
     ({ value }) => value
   );
-  assert.equal(records.length, 21);
+  assert.equal(records.length, 16);
   assert.deepEqual(
     records.filter(({ reused }) => reused).map(({ role }) => role),
     ["identityRegistry"]
   );
-  assert.equal(
-    records.filter(({ role }) => role === "roleProviderFactory").length,
-    6
+  assert.deepEqual(
+    records
+      .filter(({ role }) => role === "roleProviderFactory")
+      .map(({ providerKind }) => providerKind),
+    ["ACCESS_LIST"]
   );
   for (const entry of entries.filter(({ kind }) => kind === "deploy")) {
     const matches = records.filter(
@@ -138,6 +144,11 @@ test("historical entry layout stays unchanged", () => {
     EXPECTED_IDS
   );
   assert.equal(entries.filter(({ kind }) => kind === "deploy").length, 12);
+  const historicalPlan = require("../../deployments/sepolia/plan-v2-5-sepolia-fix-1.json");
+  assert.deepEqual(
+    entries.map(({ description }) => description),
+    historicalPlan.transactions.map(({ description }) => description)
+  );
 });
 
 test("reviewed plan is accepted by inventory finalization and rehearsal transform", () => {
@@ -150,7 +161,6 @@ test("reviewed plan is accepted by inventory finalization and rehearsal transfor
   assert.equal(validatePlan(plan).ok, true);
   assertActivationPlan(plan, "sepolia", {
     reuseIdentityRegistry: true,
-    deployAllRoleProviderFactories: true,
   });
   const rehearsal = buildRehearsalPlan(plan);
   assert.equal(rehearsal.release, "v2.5.5-rehearsal");
@@ -160,6 +170,32 @@ test("reviewed plan is accepted by inventory finalization and rehearsal transfor
     () => assertRehearsalPlan(rehearsal, plan),
     /mismatch|does not match/
   );
+});
+
+test("inventory finalization rejects extra role-provider deployments", () => {
+  const reviewedPlan = JSON.parse(
+    fs.readFileSync(
+      path.join(root, "deployments/sepolia/plan-v2.5.5.json"),
+      "utf8"
+    )
+  );
+  for (const definition of ROLE_PROVIDER_FACTORIES) {
+    if (definition.providerKind === "ACCESS_LIST") continue;
+    const plan = structuredClone(reviewedPlan);
+    plan.transactions.splice(2, 0, {
+      id: `deploy-${definition.output}`,
+      kind: "deploy",
+      artifactName: definition.artifactName,
+      output: definition.output,
+    });
+    assert.throws(
+      () =>
+        assertActivationPlan(plan, "sepolia", {
+          reuseIdentityRegistry: true,
+        }),
+      /Activation plan must contain exactly 25 transactions/
+    );
+  }
 });
 
 test("release paths reject traversal without banning semantic versions", () => {

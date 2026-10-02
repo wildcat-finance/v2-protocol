@@ -45,66 +45,6 @@
       }
     },
     {
-      "id": "deploy-merkle-role-provider-factory",
-      "artifactName": "src/providers/MerkleRoleProviderFactory.sol:MerkleRoleProviderFactory",
-      "output": "merkle-role-provider-factory",
-      "predicate": {
-        "type": "codeHash",
-        "target": {
-          "$ref": "merkle-role-provider-factory"
-        },
-        "expect": "0xade613b8557c8e63cb9994de7ecd8cd6b5343fa227623798f78a9baf34cf8bdd"
-      }
-    },
-    {
-      "id": "deploy-erc20-role-provider-factory",
-      "artifactName": "src/providers/ERC20RoleProviderFactory.sol:ERC20RoleProviderFactory",
-      "output": "erc20-role-provider-factory",
-      "predicate": {
-        "type": "codeHash",
-        "target": {
-          "$ref": "erc20-role-provider-factory"
-        },
-        "expect": "0x6283c6cd54a287c9bd605722bb80990a11316d0250ef1bad78dd1f92caa37b78"
-      }
-    },
-    {
-      "id": "deploy-erc721-role-provider-factory",
-      "artifactName": "src/providers/ERC721RoleProviderFactory.sol:ERC721RoleProviderFactory",
-      "output": "erc721-role-provider-factory",
-      "predicate": {
-        "type": "codeHash",
-        "target": {
-          "$ref": "erc721-role-provider-factory"
-        },
-        "expect": "0xa1e600c8fde1afbc1d331da958f242374664a061ea75da72c93aded463009698"
-      }
-    },
-    {
-      "id": "deploy-erc1155-role-provider-factory",
-      "artifactName": "src/providers/ERC1155RoleProviderFactory.sol:ERC1155RoleProviderFactory",
-      "output": "erc1155-role-provider-factory",
-      "predicate": {
-        "type": "codeHash",
-        "target": {
-          "$ref": "erc1155-role-provider-factory"
-        },
-        "expect": "0xf1e3d617480fdc516196134c48b3e0f1e78a90af8535938644dc9e25b61d6035"
-      }
-    },
-    {
-      "id": "deploy-erc4626-assets-role-provider-factory",
-      "artifactName": "src/providers/ERC4626AssetsRoleProviderFactory.sol:ERC4626AssetsRoleProviderFactory",
-      "output": "erc4626-assets-role-provider-factory",
-      "predicate": {
-        "type": "codeHash",
-        "target": {
-          "$ref": "erc4626-assets-role-provider-factory"
-        },
-        "expect": "0x0e38efe27197442c93a44c54925d03a1422f8aecde478a22dd2a01b418c52c84"
-      }
-    },
-    {
       "id": "deploy-wildcat-market-init-code-storage-secondary",
       "artifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
       "output": "wildcat-market-init-code-storage-secondary",

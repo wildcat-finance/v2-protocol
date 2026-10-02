@@ -9,6 +9,9 @@ process.env.FOUNDRY_PROFILE = "deploy";
 
 const { validatePlan } = require("./plan");
 const { ROLE_PROVIDER_FACTORIES } = require("./role-provider-factories");
+const ACCESS_LIST_FACTORY = ROLE_PROVIDER_FACTORIES.find(
+  ({ providerKind }) => providerKind === "ACCESS_LIST"
+);
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 const PACKAGE_PATH = path.join(REPO_ROOT, "package.json");
@@ -424,9 +427,7 @@ function loadArtifacts(rotation) {
   const definitions = { ...ARTIFACTS };
   if (isCurrentCeremony(rotation)) {
     delete definitions.accessListFactory;
-    for (const definition of ROLE_PROVIDER_FACTORIES) {
-      definitions[definition.contract] = definition;
-    }
+    definitions[ACCESS_LIST_FACTORY.contract] = ACCESS_LIST_FACTORY;
     for (const artifactName of [PREPARED_STORAGE, LINKED_STORAGE]) {
       const [source, contract] = artifactName.split(":");
       definitions[contract] = { source, contract, artifactName };
@@ -506,6 +507,16 @@ function buildEntries(rotation, artifacts) {
   const revolvingMarketHash = keccak256(artifacts.revolvingMarket.bytecode);
   const fees = rotation.templateFees;
   const versionLabel = `v${rotation.protocolVersion}`;
+  const releaseLabel = `Sepolia ${versionLabel}`;
+  const codeLabel = isCurrentCeremony(rotation)
+    ? releaseLabel
+    : `corrected ${releaseLabel}`;
+  const factoryLabel = isCurrentCeremony(rotation)
+    ? releaseLabel
+    : `replacement ${releaseLabel}`;
+  const registrationLabel = isCurrentCeremony(rotation)
+    ? versionLabel
+    : "replacement";
   const entries = [];
 
   entries.push(
@@ -517,7 +528,7 @@ function buildEntries(rotation, artifacts) {
         rotation.reused.v1WrapperFactory,
       ],
       output: "wildcat-4626-wrapper-factory",
-      description: `Deploy the corrected Sepolia ${versionLabel} ERC-4626 wrapper factory.`,
+      description: `Deploy the ${codeLabel} ERC-4626 wrapper factory.`,
       predicate: callEq(
         ref("wildcat-4626-wrapper-factory"),
         "v1Factory() view returns (address)",
@@ -532,7 +543,7 @@ function buildEntries(rotation, artifacts) {
       artifactName: initCodeStorage,
       args: [artifacts.standardMarket.bytecode],
       output: "wildcat-market-init-code-storage",
-      description: `Deploy the corrected Sepolia ${versionLabel} WildcatMarket init-code store.`,
+      description: `Deploy the ${codeLabel} WildcatMarket init-code store.`,
       predicate: codePresent("wildcat-market-init-code-storage"),
       after: EXPECTED_IDS[0],
     })
@@ -550,7 +561,7 @@ function buildEntries(rotation, artifacts) {
         rotation.reused.borrowerIdentityRegistry,
       ],
       output: "hooks-factory-standard",
-      description: `Deploy the replacement Sepolia ${versionLabel} standard hooks factory.`,
+      description: `Deploy the ${factoryLabel} standard hooks factory.`,
       predicate: callEq(
         ref("hooks-factory-standard"),
         "marketInitCodeStorage() view returns (address)",
@@ -566,7 +577,7 @@ function buildEntries(rotation, artifacts) {
       artifactName: initCodeStorage,
       args: [artifacts.revolvingMarket.bytecode],
       output: "wildcat-market-revolving-init-code-storage",
-      description: `Deploy the corrected Sepolia ${versionLabel} WildcatMarketRevolving init-code store.`,
+      description: `Deploy the ${codeLabel} WildcatMarketRevolving init-code store.`,
       predicate: codePresent("wildcat-market-revolving-init-code-storage"),
       after: EXPECTED_IDS[2],
     })
@@ -584,7 +595,7 @@ function buildEntries(rotation, artifacts) {
         rotation.reused.borrowerIdentityRegistry,
       ],
       output: "hooks-factory-revolving",
-      description: `Deploy the replacement Sepolia ${versionLabel} revolving hooks factory.`,
+      description: `Deploy the ${factoryLabel} revolving hooks factory.`,
       predicate: callEq(
         ref("hooks-factory-revolving"),
         "marketInitCodeStorage() view returns (address)",
@@ -625,7 +636,7 @@ function buildEntries(rotation, artifacts) {
           ref("hooks-factory-standard"),
         ],
         output,
-        description: `Deploy the replacement Sepolia ${versionLabel} market-lens ${label}.`,
+        description: `Deploy the ${factoryLabel} market-lens ${label}.`,
         predicate: callEq(
           ref(output),
           "hooksFactory() view returns (address)",
@@ -648,7 +659,7 @@ function buildEntries(rotation, artifacts) {
         ref("market-lens-live"),
       ],
       output: "market-lens",
-      description: `Deploy the replacement Sepolia ${versionLabel} market-lens facade.`,
+      description: `Deploy the ${factoryLabel} market-lens facade.`,
       predicate: callEq(
         ref("market-lens"),
         "aggregationHelper() view returns (address)",
@@ -683,7 +694,7 @@ function buildEntries(rotation, artifacts) {
         artifactName: initCodeStorage,
         args: [artifact.bytecode],
         output,
-        description: `Deploy the corrected Sepolia ${versionLabel} ${artifact.contract} init-code store.`,
+        description: `Deploy the ${codeLabel} ${artifact.contract} init-code store.`,
         predicate: codePresent(output),
         after: entries.at(-1).id,
       })
@@ -696,8 +707,7 @@ function buildEntries(rotation, artifacts) {
       to: rotation.authority.archController,
       signature: "registerControllerFactory(address)",
       args: [ref("hooks-factory-standard")],
-      description:
-        "Register the replacement standard factory for market deployment.",
+      description: `Register the ${registrationLabel} standard factory for market deployment.`,
       predicate: callEq(
         rotation.authority.archController,
         "isRegisteredControllerFactory(address) view returns (bool)",
@@ -713,8 +723,7 @@ function buildEntries(rotation, artifacts) {
       to: rotation.authority.archController,
       signature: "registerControllerFactory(address)",
       args: [ref("hooks-factory-revolving")],
-      description:
-        "Register the replacement revolving factory for market deployment.",
+      description: `Register the ${registrationLabel} revolving factory for market deployment.`,
       predicate: callEq(
         rotation.authority.archController,
         "isRegisteredControllerFactory(address) view returns (bool)",
@@ -780,7 +789,9 @@ function buildEntries(rotation, artifacts) {
           fees.originationFeeAmount,
           fees.protocolFeeBips,
         ],
-        description: `Add corrected ${name} to the replacement ${marketType} factory.`,
+        description: isCurrentCeremony(rotation)
+          ? `Add ${name} to the ${versionLabel} ${marketType} factory.`
+          : `Add corrected ${name} to the replacement ${marketType} factory.`,
         predicate: callEq(
           ref(factory),
           "isHooksTemplate(address) view returns (bool)",
@@ -798,7 +809,7 @@ function buildEntries(rotation, artifacts) {
       to: ref("hooks-factory-standard"),
       signature: "registerWithArchController()",
       args: [],
-      description: "Register the replacement standard factory as a controller.",
+      description: `Register the ${registrationLabel} standard factory as a controller.`,
       predicate: callEq(
         rotation.authority.archController,
         "isRegisteredController(address) view returns (bool)",
@@ -814,8 +825,7 @@ function buildEntries(rotation, artifacts) {
       to: ref("hooks-factory-revolving"),
       signature: "registerWithArchController()",
       args: [],
-      description:
-        "Register the replacement revolving factory as a controller.",
+      description: `Register the ${registrationLabel} revolving factory as a controller.`,
       predicate: callEq(
         rotation.authority.archController,
         "isRegisteredController(address) view returns (bool)",
@@ -906,23 +916,25 @@ function currentEntries(rotation, artifacts, entries) {
       primary,
     ];
   });
-  const providerEntries = ROLE_PROVIDER_FACTORIES.map((definition) =>
+  current.splice(
+    1,
+    0,
     deploy(rotation, {
-      id: `deploy-${definition.output}`,
-      artifactName: definition.artifactName,
+      id: `deploy-${ACCESS_LIST_FACTORY.output}`,
+      artifactName: ACCESS_LIST_FACTORY.artifactName,
       args: [],
-      output: definition.output,
-      description: `Deploy the ${rotation.release} ${definition.contract}.`,
+      output: ACCESS_LIST_FACTORY.output,
+      description: `Deploy the ${rotation.release} ${ACCESS_LIST_FACTORY.contract}.`,
       predicate: {
         type: "codeHash",
-        target: ref(definition.output),
+        target: ref(ACCESS_LIST_FACTORY.output),
         expect: keccak256(
-          artifacts[definition.contract].artifact.deployedBytecode.object
+          artifacts[ACCESS_LIST_FACTORY.contract].artifact.deployedBytecode
+            .object
         ),
       },
     })
   );
-  current.splice(1, 0, ...providerEntries);
   for (const entry of current) {
     if (!entry.functionSignature?.startsWith("addHooksTemplate(")) continue;
     const artifact = Object.values(artifacts).find(
@@ -1384,23 +1396,14 @@ function buildInventoryPendingRecords(rotation, artifacts) {
     },
   ];
   if (!isCurrentCeremony(rotation)) return records;
-  const providerRecord = (definition) => ({
+  records[1].value = {
     ...deployment(
-      definition.contract,
-      definition.output,
+      ACCESS_LIST_FACTORY.contract,
+      ACCESS_LIST_FACTORY.output,
       "roleProviderFactory"
     ),
-    providerKind: definition.providerKind,
-  });
-  records[1].value = providerRecord(ROLE_PROVIDER_FACTORIES[0]);
-  for (const definition of ROLE_PROVIDER_FACTORIES.slice(1)) {
-    records.push({
-      fileName: `${String(records.length + 1).padStart(2, "0")}-${
-        definition.output
-      }.json`,
-      value: providerRecord(definition),
-    });
-  }
+    providerKind: ACCESS_LIST_FACTORY.providerKind,
+  };
   const storageEntries = buildEntries(rotation, artifacts).filter(
     ({ predicate }) => predicate.type === "splitCodeHash"
   );

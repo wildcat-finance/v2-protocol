@@ -59,12 +59,13 @@ if [[ "$mode" == '--ui' && -f "$ACTIVE_SESSION_FILE" ]]; then
   exit 1
 fi
 
+readonly CEREMONY_HOST="${CEREMONY_HOST:-127.0.0.1}"
 ANVIL_PORT="${ANVIL_PORT:-8548}"
 if [[ ! "$ANVIL_PORT" =~ ^[1-9][0-9]*$ ]] || (( ANVIL_PORT > 65535 )); then
   echo 'ANVIL_PORT must be an integer from 1 through 65535' >&2
   exit 1
 fi
-readonly RPC="http://127.0.0.1:${ANVIL_PORT}"
+readonly RPC="http://${CEREMONY_HOST}:${ANVIL_PORT}"
 local_chain_id="$EXPECTED_CHAIN_ID"
 if [[ "$mode" == '--ui' ]]; then
   local_chain_id="$ANVIL_CHAIN_ID"
@@ -115,7 +116,7 @@ anvil_command=(anvil
   --fork-url "$FORK_RPC_URL" \
   --fork-block-number "$FORK_BLOCK_NUMBER" \
   --chain-id "$local_chain_id" \
-  --host 127.0.0.1 \
+  --host "$CEREMONY_HOST" \
   --port "$ANVIL_PORT" \
   --silent)
 if [[ "$mode" == '--ui' ]]; then

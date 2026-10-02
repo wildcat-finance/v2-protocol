@@ -20,7 +20,7 @@
     ]
   },
   "output": "market-lens",
-  "description": "Deploy the replacement Sepolia v2.5.5 market-lens facade.",
+  "description": "Deploy the Sepolia v2.5.5 market-lens facade.",
   "envelope": {
     "chainId": 11155111,
     "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",

@@ -1,13 +1,13 @@
 # Sepolia v2.5.5 activation
 
 This is an additive deployment of `v2.5.5` on Sepolia (`11155111`). The plan
-is prepared, not deployed. Use the existing
+is prepared, not deployed. The revised packet awaits operator review. Follow the
 [ceremony checklist](../../script/deploy/CEREMONY_CHECKLIST.md) for the
 real-wallet rehearsal, live activation, and receipt-backed finalization.
 
 ## Scope
 
-The generated plan contains 30 cards: 20 deployments and 10 activation calls.
+The generated plan contains 25 cards: 15 deployments and 10 activation calls.
 
 | Deployments | Count |
 | --- | ---: |
@@ -15,13 +15,18 @@ The generated plan contains 30 cards: 20 deployments and 10 activation calls.
 | Standard and revolving market stores, two chunks each | 4 |
 | Standard and revolving hooks factories | 2 |
 | Open, fixed, and periodic hook template stores | 3 |
-| AccessList, Merkle, ERC20, ERC721, ERC1155, and ERC4626Assets provider factories | 6 |
+| AccessList role-provider factory | 1 |
 | Lens facade and three helpers | 4 |
 
 The activation calls register both factories, install all three templates on
 each with their creation-code hashes, and register both factories as controllers.
-Every provider factory is fresh; instances created through these factories use
-the v2.5.5 source. The shared borrower identity registry is reused to retain its
+AccessList is the only role provider ready for this release. Its factory is fresh;
+instances created through it use the v2.5.5 source. Merkle, ERC20, ERC721, ERC1155,
+and ERC4626Assets providers need more work and are excluded from this deployment
+and release handoff. Their source remains in the repository; compiling a contract
+does not put it in the ceremony.
+
+The shared borrower identity registry is reused to retain its
 existing account mappings. The new wrapper facade retains its V1 fallback.
 
 No factory, controller, market, template, authorization, or owner is removed or
@@ -88,10 +93,10 @@ packets once execution has started.
 
 After live receipt verification, `stage finalize-inventory` appends the two new
 hooks factories and wrapper factory, updates creation aliases, and generates
-`handoff-v2.5.5.json` plus its Markdown companion. It includes all six provider
-factories, both chunks of each split market store, ABI artifact paths, and
-receipt-derived addresses and start blocks for new deployments. The reused
-identity registry has no new deployment receipt.
+`handoff-v2.5.5.json` plus its Markdown companion. It includes the AccessList
+role-provider factory, both chunks of each split market store, ABI artifact
+paths, and receipt-derived addresses and start blocks for new deployments. The
+reused identity registry has no new deployment receipt.
 
 The handoff preserves every recorded generation and its indexing flag. Previously
 indexed history stays indexed. The four excluded test generations stay explicit
@@ -106,8 +111,24 @@ not permission to apply the newest decoder to every historical event version.
 
 ## Preparation status
 
-Local checks on 2026-10-02 passed: 51 deployment-tooling tests, 44 UI tests,
-inventory fixtures, deploy-profile build and sizes, and the locked UI build.
+The operator cancelled the 30-card packet on 2026-10-02 after reviewing the UI:
+only AccessList is ready for v2.5.5. No transactions were executed on Anvil or
+Sepolia. That packet is retained in Git at
+`2a1e6b1d58e4653a3010b88c733a53fe472fe985`; local generated packages were also
+preserved under the ignored `deployments/sepolia/ceremony-evidence/` directory.
+The 25-card packet removes the five unready provider factories and uses neutral
+v2.5.5 release wording instead of inherited fix-1 descriptions. It requires a
+new package review, cold gates, and real-wallet rehearsal. Do not resume the
+cancelled UI session.
+
+The revised packet passed 78 deployment-tooling tests, plan validation, rehearsal
+transformation, and a locked rehearsal UI build on 2026-10-02. Retained cards have
+unchanged bytecode, arguments, logical targets, and predicates; only descriptions and
+dependency order changed. Solidity source and live deployment records are untouched.
+
+Before that scope change, local checks on 2026-10-02 passed: 51 deployment-tooling
+tests, 44 UI tests, inventory fixtures, deploy-profile build and sizes, and the
+locked UI build.
 Read-only Sepolia preflight passed at blocks `11828028` and `11830628`. The operator stage
 reruns preflight; this result is not rehearsal or deployment acceptance.
 
@@ -135,8 +156,9 @@ No wallet rehearsal or live transaction has run during preparation.
 
 - [x] Branch from `release/v2.5` and pin contract source.
 - [x] Prepare the activation plan, pending inventory, and compiler pin.
-- [x] Support dotted release labels and all six provider factories in finalization.
-- [x] Review fees, reused bindings, plan, and package identity.
+- [x] Support dotted release labels and AccessList factory finalization.
+- [x] Review fees and reused bindings.
+- [ ] Review the revised 25-card plan and package identity.
 - [x] Resolve the root and deployment UI dependency audit findings.
 - [ ] Commit and push the reviewed packet; run the checklist's cold gates.
 - [ ] Complete and accept the real-wallet fork rehearsal.

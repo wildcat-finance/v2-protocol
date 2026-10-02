@@ -1,8 +1,8 @@
 {
-  "id": "add-standard-periodic-term-template",
+  "id": "add-revolving-periodic-term-template",
   "kind": "call",
   "to": {
-    "$ref": "hooks-factory-standard"
+    "$ref": "hooks-factory-revolving"
   },
   "functionSignature": "addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)",
   "args": [
@@ -16,12 +16,12 @@
     500,
     "0xb18b582982abb95e47e76df6057046dc16755faed385c0a7d13f85c123fa0a03"
   ],
-  "description": "Add corrected PeriodicTermHooks to the replacement standard factory.",
+  "description": "Add PeriodicTermHooks to the v2.5.5 revolving factory.",
   "envelope": {
     "chainId": 11155111,
     "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
     "to": {
-      "$ref": "hooks-factory-standard"
+      "$ref": "hooks-factory-revolving"
     },
     "value": "0",
     "data": "functionSignature+args",
@@ -31,7 +31,7 @@
   "predicate": {
     "type": "callEq",
     "target": {
-      "$ref": "hooks-factory-standard"
+      "$ref": "hooks-factory-revolving"
     },
     "call": {
       "sig": "getHooksTemplateInitCodeHash(address) view returns (bytes32)",
@@ -44,6 +44,6 @@
     "expect": "0xb18b582982abb95e47e76df6057046dc16755faed385c0a7d13f85c123fa0a03"
   },
   "after": [
-    "add-standard-fixed-term-template"
+    "add-revolving-fixed-term-template"
   ]
 }

@@ -1,18 +1,18 @@
 {
-  "id": "register-controller-factory-standard",
+  "id": "register-hooks-factory-standard",
   "kind": "call",
-  "to": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
-  "functionSignature": "registerControllerFactory(address)",
-  "args": [
-    {
-      "$ref": "hooks-factory-standard"
-    }
-  ],
-  "description": "Register the replacement standard factory for market deployment.",
+  "to": {
+    "$ref": "hooks-factory-standard"
+  },
+  "functionSignature": "registerWithArchController()",
+  "args": [],
+  "description": "Register the v2.5.5 standard factory as a controller.",
   "envelope": {
     "chainId": 11155111,
     "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
-    "to": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+    "to": {
+      "$ref": "hooks-factory-standard"
+    },
     "value": "0",
     "data": "functionSignature+args",
     "gasLimitPolicy": "estimate*1.3",
@@ -22,7 +22,7 @@
     "type": "callEq",
     "target": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
     "call": {
-      "sig": "isRegisteredControllerFactory(address) view returns (bool)",
+      "sig": "isRegisteredController(address) view returns (bool)",
       "args": [
         {
           "$ref": "hooks-factory-standard"
@@ -32,6 +32,6 @@
     "expect": true
   },
   "after": [
-    "deploy-periodic-term-hooks-init-code-storage"
+    "add-revolving-periodic-term-template"
   ]
 }

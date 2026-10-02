@@ -8,7 +8,7 @@
       "$ref": "hooks-factory-revolving"
     }
   ],
-  "description": "Register the replacement revolving factory for market deployment.",
+  "description": "Register the v2.5.5 revolving factory for market deployment.",
   "envelope": {
     "chainId": 11155111,
     "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",

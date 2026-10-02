@@ -1,17 +1,17 @@
 {
-  "id": "register-hooks-factory-standard",
+  "id": "register-hooks-factory-revolving",
   "kind": "call",
   "to": {
-    "$ref": "hooks-factory-standard"
+    "$ref": "hooks-factory-revolving"
   },
   "functionSignature": "registerWithArchController()",
   "args": [],
-  "description": "Register the replacement standard factory as a controller.",
+  "description": "Register the v2.5.5 revolving factory as a controller.",
   "envelope": {
     "chainId": 11155111,
     "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
     "to": {
-      "$ref": "hooks-factory-standard"
+      "$ref": "hooks-factory-revolving"
     },
     "value": "0",
     "data": "functionSignature+args",
@@ -25,13 +25,13 @@
       "sig": "isRegisteredController(address) view returns (bool)",
       "args": [
         {
-          "$ref": "hooks-factory-standard"
+          "$ref": "hooks-factory-revolving"
         }
       ]
     },
     "expect": true
   },
   "after": [
-    "add-revolving-periodic-term-template"
+    "register-hooks-factory-standard"
   ]
 }

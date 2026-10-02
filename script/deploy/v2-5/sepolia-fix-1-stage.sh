@@ -24,6 +24,7 @@ readonly ANVIL_SESSION_FILE="deployments/anvil/${RELEASE}-active-session"
 readonly LIVE_SESSION_FILE="deployments/sepolia/ceremony-evidence/${RELEASE}-active-session"
 readonly PENDING_INVENTORY="deployments/sepolia/inventory-pending-${RELEASE}"
 readonly DEFAULT_SEPOLIA_RPC='https://eth-sep.hinterlight.net'
+readonly CEREMONY_HOST="${CEREMONY_HOST:-127.0.0.1}"
 
 stage="${1:-}"
 case "$stage" in
@@ -37,7 +38,7 @@ esac
 DEPLOYMENTS_NETWORK="${DEPLOYMENTS_NETWORK:-anvil}"
 case "$DEPLOYMENTS_NETWORK" in
   anvil)
-    RPC_URL="${RPC_URL:-http://127.0.0.1:${ANVIL_PORT:-8548}}"
+    RPC_URL="${RPC_URL:-http://${CEREMONY_HOST}:${ANVIL_PORT:-8548}}"
     EXPECTED_CHAIN_ID='31337'
     PLAN="$REHEARSAL_PLAN"
     PACKAGE="$REHEARSAL_PACKAGE"
@@ -340,13 +341,16 @@ Wallet network:
   chain: $EXPECTED_CHAIN_ID
 EOF
   fi
-  cat <<'EOF'
+  cat <<EOF
 
 In a second terminal:
-  (cd deploy-ui && npm exec -- vite preview --host 127.0.0.1 --port 4173 --strictPort)
+  (cd deploy-ui && npm exec -- vite preview --host "$CEREMONY_HOST" --port 4173 --strictPort)
 
-Then open http://127.0.0.1:4173, connect the displayed executor, confirm the
+Then open http://$CEREMONY_HOST:4173, connect the displayed executor, confirm the
 identity above, execute every card, and click Export run state.
+
+If the browser is on another machine, copy its exported run-state here and
+set RUN_STATE to that file when finalizing.
 EOF
 }
 
