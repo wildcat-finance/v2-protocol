@@ -76,9 +76,13 @@ bytecode identity with an earlier release. The checklist derives and displays
 the final package identity; do not maintain a second digest in this runbook.
 
 Commit and push the reviewed packet before operator gates. Those gates require
-a clean checkout with `HEAD` matching its upstream, including no untracked files.
-Preserve local notes elsewhere or use a clean checkout; do not delete them to
-force the gate through. Stop generating packets once execution has started.
+clean tracked files and submodules, with `HEAD` matching its upstream. Untracked
+files under `src/`, `lib/`, `script/`, `scripts/`, `test/`, `deploy-ui/`, or
+`deployments/` must also be reviewed and committed unless already ignored as
+local/generated artifacts. Untracked root `.npmrc`, `npm-shrinkwrap.json`, and
+`package-lock.json` files also block the gate because they affect installation.
+Other untracked notes and machine-local files do not block it. Stop generating
+packets once execution has started.
 
 ## Handoff and indexing
 

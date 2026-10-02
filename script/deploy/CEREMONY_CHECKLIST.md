@@ -35,10 +35,15 @@ Before connecting the wallet, match the locked UI against the stage output:
 
 Stop if any of these occur:
 
-- The source tree is dirty or unpushed.
+- Tracked files or submodules are dirty, build/ceremony inputs are untracked,
+  or the source commit is unpushed.
 - A cold gate or verification fails.
 - The chain, wallet, digest, or card count is wrong.
 - A transaction fails or a predicate turns red.
+
+Untracked notes and machine-local files outside build/ceremony input paths do
+not block the source gate. The [runbook](../../docs/operations/sepolia-v2.5.5.md#prepare-the-packet)
+lists the protected paths.
 
 Export the run-state and preserve the session directory before diagnosing. Do
 not edit evidence, skip a card, or repair a live package in place.

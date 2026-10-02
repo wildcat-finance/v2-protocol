@@ -70,17 +70,25 @@ package_fingerprint() {
 }
 
 assert_clean_pushed_source() {
-  local upstream_head status
+  local upstream_head status untracked
   git rev-parse '@{upstream}' >/dev/null
   upstream_head="$(git rev-parse '@{upstream}')"
   if [[ "$(git rev-parse HEAD)" != "$upstream_head" ]]; then
     echo "HEAD is not pushed to the configured upstream ($upstream_head)" >&2
     exit 1
   fi
-  status="$(git status --porcelain --untracked-files=all)"
+  status="$(git status --porcelain --untracked-files=no --ignore-submodules=none)"
   if [[ -n "$status" ]]; then
-    echo 'Working tree is not clean:' >&2
+    echo 'Tracked files or submodules differ from the reviewed commit:' >&2
     printf '%s\n' "$status" >&2
+    exit 1
+  fi
+  untracked="$(git ls-files --others --exclude-standard -- \
+    src lib script scripts test deploy-ui deployments \
+    .npmrc npm-shrinkwrap.json package-lock.json)"
+  if [[ -n "$untracked" ]]; then
+    echo 'Untracked build or ceremony inputs must be reviewed and committed:' >&2
+    printf '%s\n' "$untracked" >&2
     exit 1
   fi
 }
