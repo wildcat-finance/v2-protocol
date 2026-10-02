@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { execFileSync, spawnSync } = require("node:child_process");
 const {
   buildHandoff,
   validateHandoff,
@@ -176,4 +177,63 @@ test("historical single-store handoffs still validate with their original artifa
   const handoff = buildHandoff(f.input);
   assert.equal(handoff.releaseContracts.length, 14);
   assert.deepEqual(f.validate(handoff), []);
+});
+
+test("handoff Markdown escapes labels and still passes --check", (context) => {
+  const setup = fixture(context);
+  const directory = path.dirname(setup.input.inventoryPath);
+  const labels = [
+    ["plain|label", String.raw`plain\|label`],
+    [String.raw`left\|right`, String.raw`left\\\|right`],
+    [String.raw`double\\|pipe`, String.raw`double\\\\\|pipe`],
+  ];
+  const inventory = JSON.parse(fs.readFileSync(setup.input.inventoryPath));
+  const records = [...inventory.hooksFactories, ...inventory.wrapperFactories];
+  records.forEach((record, index) => (record.label = labels[index][0]));
+  fs.writeFileSync(setup.input.inventoryPath, JSON.stringify(inventory));
+  const args = [
+    require.resolve("../generate-handoff"),
+    "--network",
+    setup.input.network,
+    "--release",
+    setup.input.release,
+    "--inventory",
+    setup.input.inventoryPath,
+    "--deployments",
+    setup.input.deploymentsPath,
+    "--plan",
+    setup.input.planPath,
+    "--run-state",
+    setup.input.runStatePath,
+    "--output-dir",
+    directory,
+  ];
+  execFileSync(process.execPath, args, { encoding: "utf8", timeout: 10_000 });
+  const markdownPath = path.join(directory, `handoff-${setup.input.release}.md`);
+  const markdown = fs.readFileSync(markdownPath, "utf8");
+  for (const [, escaped] of labels) {
+    assert.ok(markdown.includes(`| ${escaped} |`), escaped);
+  }
+  const handoff = JSON.parse(
+    fs.readFileSync(path.join(directory, `handoff-${setup.input.release}.json`))
+  );
+  assert.deepEqual(
+    handoff.factoryGenerations.map((generation) => generation.label),
+    labels.map(([label]) => label)
+  );
+  execFileSync(process.execPath, [...args, "--check"], {
+    encoding: "utf8",
+    timeout: 10_000,
+  });
+  fs.writeFileSync(
+    markdownPath,
+    markdown.replace(`| ${labels[1][1]} |`, "| missing-label |")
+  );
+  const missing = spawnSync(process.execPath, [...args, "--check"], {
+    encoding: "utf8",
+    timeout: 10_000,
+  });
+  assert.ifError(missing.error);
+  assert.equal(missing.status, 1);
+  assert.ok(missing.stderr.includes(`omits factory ${labels[1][0]}`));
 });

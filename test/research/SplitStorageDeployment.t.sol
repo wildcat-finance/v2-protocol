@@ -293,6 +293,7 @@ contract SplitStorageParityTest is ProductionMatrixFixture {
         LibSplitInitCode.getPrimaryRuntime(original, address(0))
       );
     }
+    vm.createDir('deploy-out', true);
     vm.writeJson(output, 'deploy-out/split-comparison.json');
   }
 }

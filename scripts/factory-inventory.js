@@ -55,7 +55,7 @@ const WRAPPER_FACTORY_FIELDS = new Set([
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 const SAFE_DEPLOYMENT_KEY_REGEX =
-  /^[A-Za-z][A-Za-z0-9]*(?:(?::|_|-)[A-Za-z0-9-]+)*$/;
+  /^[A-Za-z][A-Za-z0-9]*(?:[:_-][A-Za-z0-9-]+(?:[:_][A-Za-z0-9-]+)*)?$/;
 const RAW_TIMESTAMP_LABEL_REGEX = /(?:^|[_-])\d{8}-\d{6}$/;
 const GET_REGISTERED_CONTROLLER_FACTORIES_SELECTOR = "0x6e0fb58d";
 const GET_REGISTERED_CONTROLLERS_SELECTOR = "0xdb316dbc";

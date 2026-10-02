@@ -359,6 +359,7 @@ contract InitCodeStorageToolsTest is TestKernel {
         'compression-rpc', string.concat(name, '_runtime'), LibCompressedInitCode.getStorageRuntime(original)
       );
     }
+    vm.createDir('deploy-out', true);
     vm.writeJson(output, 'deploy-out/compression-rpc.json');
   }
 }
