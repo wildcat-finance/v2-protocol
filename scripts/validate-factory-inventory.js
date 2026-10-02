@@ -516,6 +516,7 @@ function runFixtures(fixturesDir) {
   const validCases = [
     "factory-inventory-valid-1-0.json",
     "factory-inventory-valid-1-1.json",
+    "factory-inventory-valid-dotted-label.json",
   ];
   const invalidCases = [
     {
@@ -529,10 +530,6 @@ function runFixtures(fixturesDir) {
     {
       file: "factory-inventory-invalid-deleted-record.json",
       expected: "recordCount must equal total inventory records",
-    },
-    {
-      file: "factory-inventory-invalid-dotted-label.json",
-      expected: "label must not contain dots",
     },
   ];
   const failures = [];

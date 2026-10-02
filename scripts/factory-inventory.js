@@ -55,7 +55,8 @@ const WRAPPER_FACTORY_FIELDS = new Set([
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 const SAFE_DEPLOYMENT_KEY_REGEX =
-  /^[A-Za-z][A-Za-z0-9]*(?:[:_-][A-Za-z0-9-]+(?:[:_][A-Za-z0-9-]+)*)?$/;
+  /^[A-Za-z][A-Za-z0-9]*(?:[:_.-][A-Za-z0-9-]+(?:[:_.][A-Za-z0-9-]+)*)?$/;
+const { ROLE_PROVIDER_FACTORIES } = require("./role-provider-factories");
 const RAW_TIMESTAMP_LABEL_REGEX = /(?:^|[_-])\d{8}-\d{6}$/;
 const GET_REGISTERED_CONTROLLER_FACTORIES_SELECTOR = "0x6e0fb58d";
 const GET_REGISTERED_CONTROLLERS_SELECTOR = "0xdb316dbc";
@@ -727,6 +728,25 @@ function assertActivationPlan(plan, network, options = {}) {
     },
   ];
   const omittedDeploymentIds = new Set();
+  if (options.deployAllRoleProviderFactories === true) {
+    if (options.reuseAccessListRoleProviderFactory === true) {
+      throw new Error(
+        "The full provider set must deploy a fresh access-list factory"
+      );
+    }
+    const providerIndex = allExpectedTransactions.findIndex(
+      ({ id }) => id === "deploy-access-list-role-provider-factory"
+    );
+    allExpectedTransactions.splice(
+      providerIndex + 1,
+      0,
+      ...ROLE_PROVIDER_FACTORIES.slice(1).map(({ output, artifactName }) => ({
+        id: `deploy-${output}`,
+        kind: "deploy",
+        artifactName,
+      }))
+    );
+  }
   if (options.reuseIdentityRegistry === true) {
     omittedDeploymentIds.add("deploy-borrower-identity-registry");
   }
@@ -824,7 +844,7 @@ function assertActivationPlan(plan, network, options = {}) {
         transaction.artifactName?.includes(artifact)
       )
   );
-  if (optionalProvider) {
+  if (optionalProvider && options.deployAllRoleProviderFactories !== true) {
     throw new Error(
       `Activation plan includes unsupported optional provider factory ${optionalProvider.artifactName}`
     );
@@ -936,8 +956,10 @@ function validateAllowedFields(errors, entry, allowedFields, prefix) {
 function validateLabel(errors, entry, prefix) {
   if (typeof entry.label !== "string" || entry.label.trim() === "") {
     errors.push(`${prefix}.label must be a nonempty string`);
-  } else if (entry.label.includes(".")) {
-    errors.push(`${prefix}.label must not contain dots`);
+  } else if (!/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(entry.label)) {
+    errors.push(
+      `${prefix}.label must be a safe label with optional dot-separated segments`
+    );
   }
 }
 
@@ -1635,9 +1657,7 @@ function lintDeployments({ inventory, deployments, handoff, legacyKeys }) {
   const allowlistedKeys = new Set(legacyKeys || []);
 
   for (const [key, value] of Object.entries(deployments)) {
-    if (key.includes(".")) {
-      errors.push(`deployments.json key ${key} contains a dot`);
-    } else if (!SAFE_DEPLOYMENT_KEY_REGEX.test(key)) {
+    if (!SAFE_DEPLOYMENT_KEY_REGEX.test(key)) {
       errors.push(`deployments.json key ${key} has an unknown key shape`);
     }
 
@@ -2551,6 +2571,11 @@ async function runApplyRun(args) {
   assertActivationPlan(plan, network, {
     reuseIdentityRegistry: reusedIdentityRecords.length === 1,
     reuseAccessListRoleProviderFactory: reusedAccessListRecords.length === 1,
+    deployAllRoleProviderFactories: pendingRecords.some(
+      ({ rawRecord }) =>
+        rawRecord.role === "roleProviderFactory" &&
+        rawRecord.providerKind !== "ACCESS_LIST"
+    ),
   });
   const originalRecordCount = inventory.recordCount;
   let addedRecords = 0;
@@ -2560,6 +2585,7 @@ async function runApplyRun(args) {
   let marketLens = null;
   let borrowerIdentityRegistry = null;
   let accessListRoleProviderFactory = null;
+  const roleProviderAliases = {};
 
   for (const { filePath, rawRecord } of pendingRecords) {
     if (
@@ -2656,10 +2682,20 @@ async function runApplyRun(args) {
     }
     if (
       record.recordType === "deployment" &&
-      record.role === "roleProviderFactory" &&
-      record.providerKind === "ACCESS_LIST"
+      record.role === "roleProviderFactory"
     ) {
-      accessListRoleProviderFactory = record.address;
+      const definition = ROLE_PROVIDER_FACTORIES.find(
+        ({ providerKind }) => providerKind === record.providerKind
+      );
+      if (!definition || roleProviderAliases[definition.contract]) {
+        throw new Error(
+          `${filePath}: unknown or duplicate role-provider factory kind`
+        );
+      }
+      roleProviderAliases[definition.contract] = record.address;
+      if (record.providerKind === "ACCESS_LIST") {
+        accessListRoleProviderFactory = record.address;
+      }
     }
   }
 
@@ -2674,6 +2710,12 @@ async function runApplyRun(args) {
     throw new Error(
       "Pending records must resolve standard/revolving hooks factories, wrapper factory, borrower identity registry, access-list role-provider factory, and MarketLens"
     );
+  }
+  if (
+    Object.keys(roleProviderAliases).length > 1 &&
+    Object.keys(roleProviderAliases).length !== ROLE_PROVIDER_FACTORIES.length
+  ) {
+    throw new Error("Pending records must include all six role-provider factories");
   }
   if (addedRecords !== 3) {
     throw new Error(
@@ -2694,6 +2736,7 @@ async function runApplyRun(args) {
   deployments.Wildcat4626WrapperFactory = wrapperFactory;
   deployments.WildcatBorrowerIdentityRegistry = borrowerIdentityRegistry;
   deployments.AccessListRoleProviderFactory = accessListRoleProviderFactory;
+  Object.assign(deployments, roleProviderAliases);
   writeInventory(inventoryPath, inventory);
   writeJsonAtomic(deploymentsPath, deployments);
   console.log(

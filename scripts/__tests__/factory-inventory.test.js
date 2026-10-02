@@ -18,6 +18,8 @@ test("inventory lint preserves supported deployment key shapes", () => {
     "a0",
     "HooksFactory",
     "WildcatMarket_initCodeStorage_v2-5",
+    "WildcatMarket_initCodeStorage_v2.5.5_secondary",
+    "HooksFactory_v2.5.5",
     "src:WildcatMarket",
     "A:B-C_D:E",
     "A-0",
@@ -49,6 +51,10 @@ test("inventory lint rejects malformed deployment key shapes", () => {
     "A B",
     "A\\B",
     "A:--!",
+    "A..B",
+    "A.",
+    ".A",
+    "A_../B",
   ]) {
     const result = lintKey(key);
     assert.equal(result.ok, false, key);

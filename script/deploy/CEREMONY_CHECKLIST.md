@@ -1,4 +1,4 @@
-# V2.5.3 Sepolia replacement ceremony
+# V2.5.5 Sepolia activation ceremony
 
 Run the fixed-authority factory replacement twice:
 
@@ -8,19 +8,21 @@ Run the fixed-authority factory replacement twice:
 The stage script derives, validates, prints, and retains the run identity. Do
 not create a manual run sheet.
 
-This ceremony has 22 cards:
+Scope and preparation status live in the
+[v2.5.5 runbook](../../docs/operations/sepolia-v2.5.5.md). This ceremony has 30 cards:
 
-- 12 contract deployments.
+- 20 contract deployments.
 - 10 activation calls.
 
-It does not rotate authority or retire predecessor factories.
+It does not rotate authority, disable templates, or retire predecessor factories.
+Market behavior tests and legacy cleanup happen separately afterward.
 
 ## Fixed inputs
 
 - Live network: Sepolia `11155111`.
 - Rehearsal network: Anvil `31337`, pinned from Sepolia.
 - Executor: `0xCa7007a75296b532Ce1606d9e130eAa849800Ca7`.
-- Activation: 22 cards, consisting of 12 deployments and 10 calls.
+- Activation: 30 cards, consisting of 20 deployments and 10 calls.
 - Authority: Existing helper and SphereX roles remain fixed.
 
 Before connecting the wallet, match the locked UI against the stage output:
@@ -43,6 +45,10 @@ not edit evidence, skip a card, or repair a live package in place.
 
 ## 1. Prepare
 
+- [ ] Use the pinned [JavaScript toolchain](../../CONTRIBUTING.md#javascript-toolchain).
+      The cold gate installs both dependency trees from their lockfiles with
+      lifecycle scripts disabled.
+
 - [ ] From the `v2-protocol` root, define the helpers used below:
 
 ```sh
@@ -53,22 +59,23 @@ export DEPLOYMENTS_NETWORK=anvil
 unset RPC_URL
 
 stage() {
-  bash script/deploy/v2-5/sepolia-fix-1-stage.sh "$@"
+  bash script/deploy/v2-5/sepolia-v2.5.5-stage.sh "$@"
 }
 
 rehearse() {
   FORK_RPC_URL="$FORK_RPC_URL" \
-    bash script/deploy/v2-5/rehearse-sepolia-fix-1.sh "$@"
+    bash script/deploy/v2-5/rehearse-sepolia-v2.5.5.sh "$@"
 }
 ```
 
-- [ ] Run the source, deploy-profile, dependency, UI, and fork gates:
+- [ ] Run the source, deploy-profile, deployment-tooling, dependency, UI, and fork gates:
 
 ```sh
 stage check
 ```
 
 Continue only after it prints `Cold gates GREEN` for the pushed `HEAD`.
+This checks the deployment tooling and transaction executor, not market behavior.
 
 ## 2. Real-wallet Anvil rehearsal
 
@@ -100,8 +107,8 @@ label, and transaction-envelope chain IDs differ from the live plan.
 - [ ] Open `http://127.0.0.1:4173`.
 - [ ] Connect the expected executor to local RPC `http://127.0.0.1:8548`, chain
       `31337`.
-- [ ] Confirm the digest, fingerprint, executor, and 22-card count.
-- [ ] Execute all 22 cards in order. Wait for every receipt and green predicate,
+- [ ] Confirm the digest, fingerprint, executor, and 30-card count.
+- [ ] Execute all 30 cards in order. Wait for every receipt and green predicate,
       then click **Export run state**.
 - [ ] Verify and accept the browser export, print status, then stop only the
       recorded Anvil process:
@@ -147,9 +154,9 @@ The stage reruns live preflight immediately before building the UI.
 
 - [ ] Restart the same preview command from section 2.
 - [ ] Open `http://127.0.0.1:4173` and connect the expected executor to Sepolia.
-- [ ] Confirm chain `11155111`, digest, fingerprint, executor, and 22-card
+- [ ] Confirm chain `11155111`, digest, fingerprint, executor, and 30-card
       count.
-- [ ] Execute all 22 cards in order. Wait for every receipt and green predicate,
+- [ ] Execute all 30 cards in order. Wait for every receipt and green predicate,
       then click **Export run state**.
 - [ ] Verify the export and print final status:
 
@@ -172,17 +179,17 @@ The ignored `deployments/sepolia/ceremony-evidence/` session directory retains:
 - Operator evidence.
 
 The stage also copies the verified run-state to
-`deployments/sepolia/run-state-v2-5-sepolia-fix-1.json` for inventory and
+`deployments/sepolia/run-state-v2.5.5.json` for inventory and
 downstream handoff work.
 
 `finalize-inventory` sends no transactions. It:
 
 - Appends the replacement factory generations.
-- Updates canonical deployment aliases.
+- Updates canonical deployment aliases, including all six provider factories.
 - Writes the release handoff.
 - Reconciles those records against Sepolia.
 
-The predecessor factories remain registered and indexed.
+The predecessor factories retain their registrations and existing indexing policy.
 
 Stop the preview after verification. Do not retire either predecessor factory
 in this ceremony.

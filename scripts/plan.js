@@ -1188,13 +1188,20 @@ function applyCeremonyConfig(network, transactions) {
 function assemblePlan(args) {
   const network = requiredArg(args, "network");
   const release = requiredArg(args, "release");
-  if (!SAFE_ID_REGEX.test(network) || !SAFE_ID_REGEX.test(release)) {
-    throw new Error("Network and release must not contain dots.");
+  if (!/^[A-Za-z0-9_-]+$/.test(network)) {
+    throw new Error(
+      "Network must contain only letters, digits, dashes, and underscores."
+    );
+  }
+  if (!/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(release)) {
+    throw new Error(
+      "Release must be a safe label with optional dot-separated segments."
+    );
   }
   const entriesName = args.entries || "plan-entries";
-  if (!/^[A-Za-z0-9_-]+$/.test(entriesName)) {
+  if (!/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(entriesName)) {
     throw new Error(
-      "Plan entries directory must contain only letters, digits, dashes, and underscores."
+      "Plan entries directory must be a safe label with optional dot-separated segments."
     );
   }
   const entriesDirectory = path.join(

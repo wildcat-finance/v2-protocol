@@ -1,0 +1,29 @@
+{
+  "id": "deploy-erc721-role-provider-factory",
+  "kind": "deploy",
+  "artifactName": "src/providers/ERC721RoleProviderFactory.sol:ERC721RoleProviderFactory",
+  "constructorArgs": {
+    "decoded": []
+  },
+  "output": "erc721-role-provider-factory",
+  "description": "Deploy the v2.5.5 ERC721RoleProviderFactory.",
+  "envelope": {
+    "chainId": 11155111,
+    "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "to": null,
+    "value": "0",
+    "data": "initCode+constructorArgs",
+    "gasLimitPolicy": "estimate*1.3",
+    "nonceCheck": "display-and-confirm"
+  },
+  "predicate": {
+    "type": "codeHash",
+    "target": {
+      "$ref": "erc721-role-provider-factory"
+    },
+    "expect": "0xa1e600c8fde1afbc1d331da958f242374664a061ea75da72c93aded463009698"
+  },
+  "after": [
+    "deploy-erc20-role-provider-factory"
+  ]
+}

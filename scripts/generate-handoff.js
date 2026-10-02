@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { ROLE_PROVIDER_FACTORIES } = require("./role-provider-factories");
 
 const HANDOFF_SCHEMA_VERSION = "1.0.0";
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
@@ -517,7 +518,19 @@ function releaseDefinitions(
   deployments,
   runMetadata = { byOutput: new Map() }
 ) {
-  return RELEASE_CONTRACTS.flatMap((definition) => {
+  const providerDefinitions = ROLE_PROVIDER_FACTORIES.slice(1)
+    .filter(
+      ({ contract, output }) =>
+        deployments[`${contract}_${release}`] || runMetadata.byOutput.has(output)
+    )
+    .map(({ contract, output, artifactName, abiArtifactName }) => ({
+      key: contract,
+      planOutput: output,
+      kind: "role-provider-factory",
+      forgeArtifactName: artifactName,
+      abiArtifactName,
+    }));
+  return [...RELEASE_CONTRACTS, ...providerDefinitions].flatMap((definition) => {
     const deploymentKey = `${definition.key}_${release}`;
     const storage = definition.key.endsWith("_initCodeStorage");
     const primary = { ...definition, deploymentKey, storage };
@@ -626,6 +639,14 @@ function factoryGenerations(inventory, release) {
   return [...hooks, ...wrappers];
 }
 
+function roleProviderAliases(deployments) {
+  return Object.fromEntries(
+    ROLE_PROVIDER_FACTORIES.slice(1)
+      .filter(({ contract }) => deployments[contract])
+      .map(({ contract, alias }) => [alias, deployments[contract]])
+  );
+}
+
 function buildHandoff({
   network,
   release,
@@ -691,6 +712,7 @@ function buildHandoff({
         deployments.WildcatBorrowerIdentityRegistry || null,
       accessListRoleProviderFactory:
         deployments.AccessListRoleProviderFactory || null,
+      ...roleProviderAliases(deployments),
       standardHooksFactory: standard.address,
       revolvingHooksFactory: revolving.address,
       marketLens: deployments.MarketLens || null,
@@ -893,6 +915,7 @@ function validateHandoff(
       deployments.WildcatBorrowerIdentityRegistry || null,
     accessListRoleProviderFactory:
       deployments.AccessListRoleProviderFactory || null,
+    ...roleProviderAliases(deployments),
     standardHooksFactory:
       canonicalHooks.find((record) => record.marketType === "legacy")
         ?.address || null,
@@ -1042,9 +1065,9 @@ function main() {
       "--network must contain only letters, digits, dashes, and underscores"
     );
   }
-  if (!SAFE_PATH_SEGMENT_REGEX.test(release)) {
+  if (!/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(release)) {
     throw new Error(
-      "--release must contain only letters, digits, dashes, and underscores"
+      "--release must be a safe label with optional dot-separated segments"
     );
   }
   const paths = pathsFor(args, network, release);

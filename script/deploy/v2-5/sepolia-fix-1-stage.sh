@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Human-driven stages for the v2.5.3 Sepolia factory replacement.
+# Human-driven stages for a fixed-authority Sepolia activation.
 #
 # This script derives ceremony identity from the reviewed config and generated
 # plan. It never signs or broadcasts. The operator signs every transaction in
@@ -8,10 +8,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../../.."
 
-readonly RELEASE='v2-5-sepolia-fix-1'
+export SEPOLIA_REPLACEMENT_CONFIG="${SEPOLIA_REPLACEMENT_CONFIG:-deployments/sepolia/v2-5-sepolia-fix-1.json}"
+readonly CONFIG="$SEPOLIA_REPLACEMENT_CONFIG"
+RELEASE="$(jq -er '.release' "$CONFIG")"
+readonly RELEASE
 readonly REHEARSAL_RELEASE="${RELEASE}-rehearsal"
 readonly ROTATION_SCRIPT='scripts/sepolia-v2-5-fix-rotation.js'
-readonly CONFIG='deployments/sepolia/v2-5-sepolia-fix-1.json'
 readonly LIVE_PLAN="deployments/sepolia/plan-${RELEASE}.json"
 readonly LIVE_PACKAGE="deployments/sepolia/ceremony-${RELEASE}-eoa.json"
 readonly REHEARSAL_PLAN="deployments/anvil/plan-${REHEARSAL_RELEASE}.json"
@@ -94,7 +96,7 @@ assert_rpc() {
 
 assert_anvil_session() {
   if [[ ! -f "$ANVIL_SESSION_FILE" ]]; then
-    echo 'No recorded UI rehearsal. Start one with rehearse-sepolia-fix-1.sh --ui.' >&2
+    echo 'No recorded UI rehearsal. Start the release rehearsal with --ui.' >&2
     exit 1
   fi
   local evidence_dir pid_file anvil_pid command_line
@@ -223,8 +225,7 @@ generate_artifacts() {
   node scripts/plan.js ceremony-package \
     --plan "$LIVE_PLAN" \
     --mode eoa \
-    --out "$LIVE_PACKAGE" |
-    tee "${LIVE_PACKAGE%.json}.digest.txt"
+    --out "$LIVE_PACKAGE"
   if [[ "$DEPLOYMENTS_NETWORK" == 'anvil' ]]; then
     node "$ROTATION_SCRIPT" generate-rehearsal
   fi
@@ -364,22 +365,28 @@ find_exported_run_state() {
 
 run_check() {
   assert_clean_pushed_source
+  corepack yarn install --frozen-lockfile --ignore-scripts --non-interactive
   local fork_rpc_url
   fork_rpc_url="${FORK_RPC_URL:-$DEFAULT_SEPOLIA_RPC}"
   if [[ "$(cast chain-id --rpc-url "$fork_rpc_url")" != '11155111' ]]; then
     echo 'FORK_RPC_URL is not Sepolia.' >&2
     exit 1
   fi
-  forge test
-  yarn test:fixed
-  FOUNDRY_PROFILE=deploy forge test
-  FOUNDRY_PROFILE=deploy forge build --sizes
+  if [[ "$(jq -er '.schemaVersion' "$CONFIG")" == '1.0.0' ]]; then
+    FOUNDRY_PROFILE=default forge test
+    FOUNDRY_PROFILE=default yarn test:fixed
+    FOUNDRY_PROFILE=deploy forge test
+  fi
+  FOUNDRY_PROFILE=deploy forge build src script/common/PreparedInitCodeStorage.sol
+  FOUNDRY_PROFILE=deploy forge build --sizes src
+  node --test scripts/__tests__/*.test.js
+  generate_artifacts
   (
     cd deploy-ui
-    npm ci
+    npm ci --ignore-scripts
     npm audit
     npm test
-    npm run build
+    CEREMONY_PACKAGE="../$LIVE_PACKAGE" npm run build
     SEPOLIA_RPC_URL="$fork_rpc_url" npm run test:fork
   )
   assert_clean_pushed_source
@@ -500,12 +507,13 @@ finalize_inventory() {
   jq -e \
     --arg plan_sha256 "$(sha256_file "$LIVE_PLAN")" \
     --arg package_digest "$(jq -er '.digest' "$LIVE_PACKAGE")" \
+    --argjson transaction_count "$(jq -er '.transactions | length' "$LIVE_PLAN")" \
     '.status == "ready" and
      .network == "sepolia" and
      .chainId == 11155111 and
      .planSha256 == $plan_sha256 and
      .packageDigest == $package_digest and
-     .transactionCount == 22' \
+     .transactionCount == $transaction_count' \
     "$evidence_dir/identity.json" >/dev/null || {
       echo 'Live evidence does not match the reviewed plan and package.' >&2
       exit 1

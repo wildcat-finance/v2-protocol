@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { execFileSync, spawnSync } = require("node:child_process");
+const { ROLE_PROVIDER_FACTORIES } = require("../role-provider-factories");
 const {
   buildHandoff,
   validateHandoff,
@@ -16,13 +17,17 @@ const LINKED =
   "script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage";
 const address = (i) => `0x${i.toString(16).padStart(40, "0")}`;
 
-function fixture(t, { split = true, splitHook = false } = {}) {
+function fixture(t, { split = true, splitHook = false, providers = false, release = "storage-test" } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "wildcat-handoff-"));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const network = "anvil";
-  const release = "storage-test";
   const deployments = {};
-  for (const [index, definition] of releaseDefinitions(release, {}).entries()) {
+  if (providers) {
+    for (const [index, definition] of ROLE_PROVIDER_FACTORIES.entries()) {
+      deployments[`${definition.contract}_${release}`] = address(index + 201);
+    }
+  }
+  for (const [index, definition] of releaseDefinitions(release, deployments).entries()) {
     deployments[definition.deploymentKey] = address(index + 1);
     if (
       definition.storage &&
@@ -33,6 +38,11 @@ function fixture(t, { split = true, splitHook = false } = {}) {
       deployments[`${definition.deploymentKey}_secondary`] = address(
         index + 101
       );
+    }
+  }
+  if (providers) {
+    for (const definition of ROLE_PROVIDER_FACTORIES) {
+      deployments[definition.contract] = deployments[`${definition.contract}_${release}`];
     }
   }
   const definitions = releaseDefinitions(release, deployments);
@@ -177,6 +187,48 @@ test("historical single-store handoffs still validate with their original artifa
   const handoff = buildHandoff(f.input);
   assert.equal(handoff.releaseContracts.length, 14);
   assert.deepEqual(f.validate(handoff), []);
+});
+
+test("dotted release handoff includes six provider factories and preserves historical indexing flags", (context) => {
+  const setup = fixture(context, { providers: true, release: "v2.5.5" });
+  const inventory = JSON.parse(fs.readFileSync(setup.input.inventoryPath, "utf8"));
+  for (const [index, indexed] of [true, false].entries()) {
+    inventory.hooksFactories.push({
+      label: `historical-${index}`,
+      marketType: "legacy",
+      address: address(index + 501),
+      startBlock: 10,
+      lifecycle: indexed ? "live" : "retired",
+      canonical: false,
+      registered: true,
+      indexed,
+    });
+    inventory.recordCount += 1;
+  }
+  fs.writeFileSync(setup.input.inventoryPath, JSON.stringify(inventory));
+  const outputDirectory = path.dirname(setup.input.inventoryPath);
+  const args = [
+    require.resolve("../generate-handoff"),
+    "--network", setup.input.network,
+    "--release", setup.input.release,
+    "--inventory", setup.input.inventoryPath,
+    "--deployments", setup.input.deploymentsPath,
+    "--plan", setup.input.planPath,
+    "--run-state", setup.input.runStatePath,
+    "--output-dir", outputDirectory,
+  ];
+  execFileSync(process.execPath, args);
+  execFileSync(process.execPath, [...args, "--check"]);
+  const handoff = JSON.parse(fs.readFileSync(path.join(outputDirectory, "handoff-v2.5.5.json"), "utf8"));
+  assert.equal(handoff.releaseContracts.length, 21);
+  assert.equal(handoff.releaseContracts.filter(({ kind }) => kind === "role-provider-factory").length, 6);
+  for (const definition of ROLE_PROVIDER_FACTORIES) {
+    assert.equal(handoff.canonicalAddresses[definition.alias], setup.deployments[definition.contract]);
+  }
+  assert.deepEqual(
+    handoff.factoryGenerations.filter(({ label }) => label.startsWith("historical-")).map(({ indexAll }) => indexAll),
+    [true, false]
+  );
 });
 
 test("handoff Markdown escapes labels and still passes --check", (context) => {

@@ -1,0 +1,11 @@
+{
+  "recordType": "deployment",
+  "role": "roleProviderFactory",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentKey": "MerkleRoleProviderFactory_v2.5.5",
+  "address": {
+    "$ref": "merkle-role-provider-factory"
+  },
+  "providerKind": "MERKLE"
+}

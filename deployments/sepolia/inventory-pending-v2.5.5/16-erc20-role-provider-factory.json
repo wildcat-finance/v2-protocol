@@ -1,0 +1,11 @@
+{
+  "recordType": "deployment",
+  "role": "roleProviderFactory",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentKey": "ERC20RoleProviderFactory_v2.5.5",
+  "address": {
+    "$ref": "erc20-role-provider-factory"
+  },
+  "providerKind": "ERC20"
+}

@@ -1,0 +1,29 @@
+{
+  "id": "deploy-erc4626-assets-role-provider-factory",
+  "kind": "deploy",
+  "artifactName": "src/providers/ERC4626AssetsRoleProviderFactory.sol:ERC4626AssetsRoleProviderFactory",
+  "constructorArgs": {
+    "decoded": []
+  },
+  "output": "erc4626-assets-role-provider-factory",
+  "description": "Deploy the v2.5.5 ERC4626AssetsRoleProviderFactory.",
+  "envelope": {
+    "chainId": 11155111,
+    "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "to": null,
+    "value": "0",
+    "data": "initCode+constructorArgs",
+    "gasLimitPolicy": "estimate*1.3",
+    "nonceCheck": "display-and-confirm"
+  },
+  "predicate": {
+    "type": "codeHash",
+    "target": {
+      "$ref": "erc4626-assets-role-provider-factory"
+    },
+    "expect": "0x0e38efe27197442c93a44c54925d03a1422f8aecde478a22dd2a01b418c52c84"
+  },
+  "after": [
+    "deploy-erc1155-role-provider-factory"
+  ]
+}

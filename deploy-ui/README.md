@@ -15,9 +15,13 @@ and verification model.
 
 The file loader below is for development and debugging only.
 
+Use the pinned Node and npm versions from the
+[JavaScript setup guide](../CONTRIBUTING.md#javascript-toolchain). Dependency
+lifecycle scripts are disabled by default; explicit test and build commands still run.
+
 ```bash
 cd deploy-ui
-npm ci
+npm ci --ignore-scripts
 npm run dev
 ```
 

@@ -63,7 +63,7 @@
     "label": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^[^.]+$"
+      "pattern": "^[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)*$"
     },
     "lifecycle": {
       "enum": ["canonical", "live", "retired"]

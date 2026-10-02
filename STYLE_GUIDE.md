@@ -97,11 +97,16 @@ their parameters, modifiers, and return clauses; short headers may remain on
 one line. This does not force every return parameter onto its own line. Do not
 fight the formatter with manual wrapping that it will immediately undo.
 
-The repository also has older Prettier and Solhint settings, and the package
-lint scripts use those tools. Their Solidity formatting rules are not fully
-aligned with this configuration. Do not alternate formatters or use
-`yarn lint:fix` as a substitute for Forge during this cleanup. Changes to lint
-tooling are a separate task.
+The Solidity override in [`.prettierrc`](./.prettierrc) matches Forge's indentation,
+line width, quotes, and bracket spacing, with a compiler hint of `0.8.25`.
+Solhint's line-length warning also uses 120 columns. The Prettier Solidity plugin
+cannot reproduce Forge's function-header layout, so matching these settings
+does not make the formatters interchangeable. Forge remains authoritative.
+
+`yarn lint:check` runs `forge fmt --check src test`, then Solhint's lint checks.
+`yarn lint:fix` runs `forge fmt src test`, then the same lint checks. Neither
+command uses Prettier, and Solhint does not enforce Prettier formatting. If your
+editor uses Prettier, finish with Forge before committing Solidity changes.
 
 ## Source organization
 

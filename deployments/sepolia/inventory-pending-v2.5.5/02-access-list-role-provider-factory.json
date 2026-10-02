@@ -1,0 +1,11 @@
+{
+  "recordType": "deployment",
+  "role": "roleProviderFactory",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentKey": "AccessListRoleProviderFactory_v2.5.5",
+  "address": {
+    "$ref": "access-list-role-provider-factory"
+  },
+  "providerKind": "ACCESS_LIST"
+}

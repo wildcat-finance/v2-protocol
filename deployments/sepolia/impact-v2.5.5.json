@@ -1,0 +1,325 @@
+{
+  "schemaVersion": "1.1.0",
+  "release": "v2.5.5",
+  "protocolVersion": "2.5.5",
+  "contractSourceCommit": "05165ad4c4020c1400048680b85b3585f84e8527",
+  "status": "prepared-not-deployed",
+  "reused": {
+    "v1WrapperFactory": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843",
+    "borrowerIdentityRegistry": "0xc2cF90781595203D1e75c28246b306C95d4b8b21"
+  },
+  "authority": {
+    "helper": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "archController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+    "sanctionsSentinel": "0xFBCE262eC835be5e6A458cE1722EeCe0E453316B"
+  },
+  "authorityChanges": [],
+  "retirementTargets": [],
+  "deployments": [
+    {
+      "id": "deploy-wildcat-4626-wrapper-factory",
+      "artifactName": "src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory",
+      "output": "wildcat-4626-wrapper-factory",
+      "predicate": {
+        "type": "callEq",
+        "target": {
+          "$ref": "wildcat-4626-wrapper-factory"
+        },
+        "call": {
+          "sig": "v1Factory() view returns (address)",
+          "args": []
+        },
+        "expect": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843"
+      }
+    },
+    {
+      "id": "deploy-access-list-role-provider-factory",
+      "artifactName": "src/providers/AccessListRoleProviderFactory.sol:AccessListRoleProviderFactory",
+      "output": "access-list-role-provider-factory",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "access-list-role-provider-factory"
+        },
+        "expect": "0xe8d1bb37b7664a52343d2b39e42193e77134bdcfdf301fc801d8b0508239539f"
+      }
+    },
+    {
+      "id": "deploy-merkle-role-provider-factory",
+      "artifactName": "src/providers/MerkleRoleProviderFactory.sol:MerkleRoleProviderFactory",
+      "output": "merkle-role-provider-factory",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "merkle-role-provider-factory"
+        },
+        "expect": "0xade613b8557c8e63cb9994de7ecd8cd6b5343fa227623798f78a9baf34cf8bdd"
+      }
+    },
+    {
+      "id": "deploy-erc20-role-provider-factory",
+      "artifactName": "src/providers/ERC20RoleProviderFactory.sol:ERC20RoleProviderFactory",
+      "output": "erc20-role-provider-factory",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "erc20-role-provider-factory"
+        },
+        "expect": "0x6283c6cd54a287c9bd605722bb80990a11316d0250ef1bad78dd1f92caa37b78"
+      }
+    },
+    {
+      "id": "deploy-erc721-role-provider-factory",
+      "artifactName": "src/providers/ERC721RoleProviderFactory.sol:ERC721RoleProviderFactory",
+      "output": "erc721-role-provider-factory",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "erc721-role-provider-factory"
+        },
+        "expect": "0xa1e600c8fde1afbc1d331da958f242374664a061ea75da72c93aded463009698"
+      }
+    },
+    {
+      "id": "deploy-erc1155-role-provider-factory",
+      "artifactName": "src/providers/ERC1155RoleProviderFactory.sol:ERC1155RoleProviderFactory",
+      "output": "erc1155-role-provider-factory",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "erc1155-role-provider-factory"
+        },
+        "expect": "0xf1e3d617480fdc516196134c48b3e0f1e78a90af8535938644dc9e25b61d6035"
+      }
+    },
+    {
+      "id": "deploy-erc4626-assets-role-provider-factory",
+      "artifactName": "src/providers/ERC4626AssetsRoleProviderFactory.sol:ERC4626AssetsRoleProviderFactory",
+      "output": "erc4626-assets-role-provider-factory",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "erc4626-assets-role-provider-factory"
+        },
+        "expect": "0x0e38efe27197442c93a44c54925d03a1422f8aecde478a22dd2a01b418c52c84"
+      }
+    },
+    {
+      "id": "deploy-wildcat-market-init-code-storage-secondary",
+      "artifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "output": "wildcat-market-init-code-storage-secondary",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "wildcat-market-init-code-storage-secondary"
+        },
+        "expect": "0x95bcc3c56ae4f1066e2723dddbc9d1b2528722611868a493a8dbecb659914d69"
+      }
+    },
+    {
+      "id": "deploy-wildcat-market-init-code-storage",
+      "artifactName": "script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage",
+      "output": "wildcat-market-init-code-storage",
+      "predicate": {
+        "type": "splitCodeHash",
+        "target": {
+          "$ref": "wildcat-market-init-code-storage"
+        },
+        "expect": "0xb09006c3cfc2af37704ee4bcb950d315ce635d76fdc08e29ca2b99b2afd0e88d",
+        "initCodeHash": "0x86c8831272dd90f8d01d937bd5cb8be6af1066f0c68e01a651e0ad678964bace",
+        "secondary": {
+          "$ref": "wildcat-market-init-code-storage-secondary"
+        },
+        "secondaryCodeHash": "0x95bcc3c56ae4f1066e2723dddbc9d1b2528722611868a493a8dbecb659914d69"
+      }
+    },
+    {
+      "id": "deploy-hooks-factory-standard",
+      "artifactName": "src/HooksFactory.sol:HooksFactory",
+      "output": "hooks-factory-standard",
+      "predicate": {
+        "type": "callEq",
+        "target": {
+          "$ref": "hooks-factory-standard"
+        },
+        "call": {
+          "sig": "marketInitCodeStorage() view returns (address)",
+          "args": []
+        },
+        "expect": {
+          "$ref": "wildcat-market-init-code-storage"
+        }
+      }
+    },
+    {
+      "id": "deploy-wildcat-market-revolving-init-code-storage-secondary",
+      "artifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "output": "wildcat-market-revolving-init-code-storage-secondary",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "wildcat-market-revolving-init-code-storage-secondary"
+        },
+        "expect": "0xde215d4d5d856076258b61e6b44c7e8744861320d9264854f886d156f55f3fea"
+      }
+    },
+    {
+      "id": "deploy-wildcat-market-revolving-init-code-storage",
+      "artifactName": "script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage",
+      "output": "wildcat-market-revolving-init-code-storage",
+      "predicate": {
+        "type": "splitCodeHash",
+        "target": {
+          "$ref": "wildcat-market-revolving-init-code-storage"
+        },
+        "expect": "0x7f4ef012a288549b718229b9d2cf4c77caa612cc43ac526fca6a6dd0499bb776",
+        "initCodeHash": "0x09beec678715dbd9010a24ea80ea278c23c47ac16e0fd24f26e3cff7f80d1af2",
+        "secondary": {
+          "$ref": "wildcat-market-revolving-init-code-storage-secondary"
+        },
+        "secondaryCodeHash": "0xde215d4d5d856076258b61e6b44c7e8744861320d9264854f886d156f55f3fea"
+      }
+    },
+    {
+      "id": "deploy-hooks-factory-revolving",
+      "artifactName": "src/HooksFactoryRevolving.sol:HooksFactoryRevolving",
+      "output": "hooks-factory-revolving",
+      "predicate": {
+        "type": "callEq",
+        "target": {
+          "$ref": "hooks-factory-revolving"
+        },
+        "call": {
+          "sig": "marketInitCodeStorage() view returns (address)",
+          "args": []
+        },
+        "expect": {
+          "$ref": "wildcat-market-revolving-init-code-storage"
+        }
+      }
+    },
+    {
+      "id": "deploy-market-lens-core",
+      "artifactName": "src/lens/MarketLensCore.sol:MarketLensCore",
+      "output": "market-lens-core",
+      "predicate": {
+        "type": "callEq",
+        "target": {
+          "$ref": "market-lens-core"
+        },
+        "call": {
+          "sig": "hooksFactory() view returns (address)",
+          "args": []
+        },
+        "expect": {
+          "$ref": "hooks-factory-standard"
+        }
+      }
+    },
+    {
+      "id": "deploy-market-lens-aggregator",
+      "artifactName": "src/lens/MarketLensAggregator.sol:MarketLensAggregator",
+      "output": "market-lens-aggregator",
+      "predicate": {
+        "type": "callEq",
+        "target": {
+          "$ref": "market-lens-aggregator"
+        },
+        "call": {
+          "sig": "hooksFactory() view returns (address)",
+          "args": []
+        },
+        "expect": {
+          "$ref": "hooks-factory-standard"
+        }
+      }
+    },
+    {
+      "id": "deploy-market-lens-live",
+      "artifactName": "src/lens/MarketLensLive.sol:MarketLensLive",
+      "output": "market-lens-live",
+      "predicate": {
+        "type": "callEq",
+        "target": {
+          "$ref": "market-lens-live"
+        },
+        "call": {
+          "sig": "hooksFactory() view returns (address)",
+          "args": []
+        },
+        "expect": {
+          "$ref": "hooks-factory-standard"
+        }
+      }
+    },
+    {
+      "id": "deploy-market-lens",
+      "artifactName": "src/lens/MarketLens.sol:MarketLens",
+      "output": "market-lens",
+      "predicate": {
+        "type": "callEq",
+        "target": {
+          "$ref": "market-lens"
+        },
+        "call": {
+          "sig": "aggregationHelper() view returns (address)",
+          "args": []
+        },
+        "expect": {
+          "$ref": "market-lens-aggregator"
+        }
+      }
+    },
+    {
+      "id": "deploy-open-term-hooks-init-code-storage",
+      "artifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "output": "open-term-hooks-init-code-storage",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "open-term-hooks-init-code-storage"
+        },
+        "expect": "0x9fdcd3b93cfb9267275fb74c9c11a7a5f3cf4395d3aab70a5ea719484697ff9b",
+        "initCodeHash": "0x762a05485ff0d04b70e5af7bc370252476e5f8aa3e7d4d6f96575e12e0381d10"
+      }
+    },
+    {
+      "id": "deploy-fixed-term-hooks-init-code-storage",
+      "artifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "output": "fixed-term-hooks-init-code-storage",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "fixed-term-hooks-init-code-storage"
+        },
+        "expect": "0x9d49fbee95366fc5c16bf5c344376b3ff098c92bcc35aaf0dcce9c26361da165",
+        "initCodeHash": "0xb00e9d668240780b8b6ac0bf52293aeaf76cac54dbe08e1321ebd695d943c6b7"
+      }
+    },
+    {
+      "id": "deploy-periodic-term-hooks-init-code-storage",
+      "artifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "output": "periodic-term-hooks-init-code-storage",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "periodic-term-hooks-init-code-storage"
+        },
+        "expect": "0x2886564d9c33fa5d6be0489ce81daac107193d1af002e8919f51c5ab52ac8367",
+        "initCodeHash": "0xb18b582982abb95e47e76df6057046dc16755faed385c0a7d13f85c123fa0a03"
+      }
+    }
+  ],
+  "activationCalls": [
+    "register-controller-factory-standard",
+    "register-controller-factory-revolving",
+    "add-standard-open-term-template",
+    "add-standard-fixed-term-template",
+    "add-standard-periodic-term-template",
+    "add-revolving-open-term-template",
+    "add-revolving-fixed-term-template",
+    "add-revolving-periodic-term-template",
+    "register-hooks-factory-standard",
+    "register-hooks-factory-revolving"
+  ]
+}
