@@ -1,78 +1,76 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LibDeployment
-// ║  ██▀▀     ▀▀██   Deployment execution, init-code storage, and artifact records.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  DEPLOYMENT INITIALIZATION
-// ║  getDeployments()
-// ║  getDeploymentsForNetwork(...)
-// ║
-// ║  DEPLOYMENT
-// ║  getOrDeploy(...)
-// ║  getOrDeploy(...)
-// ║  getOrDeploy(...)
-// ║  deploy(...)
-// ║  getDeployment(...)
-// ║
-// ║  INIT-CODE STORAGE
-// ║  getOrDeployInitcodeStorage(...)
-// ║  getOrDeployInitcodeStorageByLabel(...)
-// ║  isValidInitCodeStorage(...)
-// ║  initCodeStorageRuntime(...)
-// ║  initCodeStorageSecondary(...)
-// ║
-// ║  BROADCASTING
-// ║  withPrivateKeyVarName(...)
-// ║  broadcastCreate(...)
-// ║  broadcastDeployInitcode(...)
-// ║  broadcast(...)
-// ║  broadcastAs(...)
-// ║
-// ║  ARTIFACT RECORDS
-// ║  addArtifactWithoutDeploying(...)
-// ║  pushArtifactFor(...)
-// ║  pushArtifact(...)
-// ║  write(...)
-// ║  writeDeploymentArtifact(...)
-// ║  findForgeArtifact(...)
-// ║
-// ║  NETWORK AND ARTIFACT PATHS
-// ║  getNetworkName()
-// ║  getForgeOutputDirectory()
-// ║  parseContractNamePath(...)
-// ║
-// ║  FILESYSTEM PATHS
-// ║  mkdir(...)
-// ║  pathJoin(...)
-// ║  join(...)
-// ║
-// ║  COMPILER INPUT EXPORT
-// ║  writeStandardJson(...)
-// ║  checkForBashFile()
-// ║
-// ║  JSON OBJECTS
-// ║  create()
-// ║  create(...)
-// ║  set(...)
-// ║  set(...)
-// ║  set(...)
-// ║  has(...)
-// ║  has(...)
-// ║  get(...)
-// ║  get(...)
-// ║  getBytes(...)
-// ║  write(...)
-// ║
-// ║  ENVIRONMENT CHECKS
-// ║  checkFfiEnabled()
-// ║  isFfiEnabled()
-// ║  checkDirectoryExistsAndAccessible(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LibDeployment
+//  \ ^ /   Deployment execution, init-code storage, and artifact records.
+//    V
+//
+//  DEPLOYMENT INITIALIZATION
+//  getDeployments()
+//  getDeploymentsForNetwork(...)
+//
+//  DEPLOYMENT
+//  getOrDeploy(...)
+//  getOrDeploy(...)
+//  getOrDeploy(...)
+//  deploy(...)
+//  getDeployment(...)
+//
+//  INIT-CODE STORAGE
+//  getOrDeployInitcodeStorage(...)
+//  getOrDeployInitcodeStorageByLabel(...)
+//  isValidInitCodeStorage(...)
+//  initCodeStorageRuntime(...)
+//  initCodeStorageSecondary(...)
+//
+//  BROADCASTING
+//  withPrivateKeyVarName(...)
+//  broadcastCreate(...)
+//  broadcastDeployInitcode(...)
+//  broadcast(...)
+//  broadcastAs(...)
+//
+//  ARTIFACT RECORDS
+//  addArtifactWithoutDeploying(...)
+//  pushArtifactFor(...)
+//  pushArtifact(...)
+//  write(...)
+//  writeDeploymentArtifact(...)
+//  findForgeArtifact(...)
+//
+//  NETWORK AND ARTIFACT PATHS
+//  getNetworkName()
+//  getForgeOutputDirectory()
+//  parseContractNamePath(...)
+//
+//  FILESYSTEM PATHS
+//  mkdir(...)
+//  pathJoin(...)
+//  join(...)
+//
+//  COMPILER INPUT EXPORT
+//  writeStandardJson(...)
+//  checkForBashFile()
+//
+//  JSON OBJECTS
+//  create()
+//  create(...)
+//  set(...)
+//  set(...)
+//  set(...)
+//  has(...)
+//  has(...)
+//  get(...)
+//  get(...)
+//  getBytes(...)
+//  write(...)
+//
+//  ENVIRONMENT CHECKS
+//  checkFfiEnabled()
+//  isFfiEnabled()
+//  checkDirectoryExistsAndAccessible(...)
+// ═════
 
 import { Vm as ForgeVM } from 'forge-std/Vm.sol';
 import { console } from 'forge-std/console.sol';

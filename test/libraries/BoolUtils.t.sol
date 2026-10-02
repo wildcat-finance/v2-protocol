@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // BoolUtils.t
-// ║  ██▀▀     ▀▀██   Boolean operation equivalence tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BOOLEAN OPERATIONS
-// ║  test_and(...)
-// ║  test_or(...)
-// ║  test_xor(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // BoolUtils.t
+//  \ ^ /   Boolean operation equivalence tests.
+//    V
+//
+//  BOOLEAN OPERATIONS
+//  test_and(...)
+//  test_or(...)
+//  test_xor(...)
+// ═════
 
 import { BoolUtils } from 'src/libraries/BoolUtils.sol';
 import { TestKernel } from '../shared/TestKernel.sol';

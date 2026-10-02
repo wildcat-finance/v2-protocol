@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IMarketEventsAndErrors
-// ║  ██▀▀     ▀▀██   Shared market errors and lifecycle event declarations.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IMarketEventsAndErrors
+//  \ ^ /   Shared market errors and lifecycle event declarations.
+//    V
+//
+// ═════
 
 import { MarketState } from '../libraries/MarketState.sol';
 

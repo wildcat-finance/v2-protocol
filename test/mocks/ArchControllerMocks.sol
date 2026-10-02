@@ -1,27 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ArchControllerMocks
-// ║  ██▀▀     ▀▀██   Controller registration and engine propagation test targets.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  REGISTERED TARGET
-// ║  constructor(...)
-// ║  changeSphereXEngine(...)
-// ║
-// ║  ENGINE REGISTRATION
-// ║  addAllowedSenderOnChain(...)
-// ║  supportsInterface(...)
-// ║
-// ║  ENGINE VALIDATION
-// ║  sphereXValidatePre(...)
-// ║  sphereXValidatePost(...)
-// ║  sphereXValidateInternalPre(...)
-// ║  sphereXValidateInternalPost(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ArchControllerMocks
+//  \ ^ /   Controller registration and engine propagation test targets.
+//    V
+//
+//  REGISTERED TARGET
+//  constructor(...)
+//  changeSphereXEngine(...)
+//
+//  ENGINE REGISTRATION
+//  addAllowedSenderOnChain(...)
+//  supportsInterface(...)
+//
+//  ENGINE VALIDATION
+//  sphereXValidatePre(...)
+//  sphereXValidatePost(...)
+//  sphereXValidateInternalPre(...)
+//  sphereXValidateInternalPost(...)
+// ═════
 
 import { ISphereXEngine } from 'src/spherex/ISphereXEngine.sol';
 

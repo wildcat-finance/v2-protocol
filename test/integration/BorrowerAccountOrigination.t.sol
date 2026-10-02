@@ -1,49 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // BorrowerAccountOrigination.t
-// ║  ██▀▀     ▀▀██   Account origination, shared hook identity, and principal authority.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  PRODUCTION FIXTURE
-// ║  _newFixture()
-// ║  _deployArchController()
-// ║  _deployRegistry(...)
-// ║  _deployAccountFactory(...)
-// ║  _deployStandardFactory(...)
-// ║  _deployRevolvingFactory(...)
-// ║  _configureFactory(...)
-// ║  _storeInitCode(...)
-// ║  _factory(...)
-// ║
-// ║  ACCOUNT SETUP
-// ║  _deployAccount()
-// ║  _registerAccount(...)
-// ║  _transferAccountPrincipal(...)
-// ║
-// ║  ACCOUNT ORIGINATION
-// ║  test_accountDeploysHookThenMarket_AcrossFactories()
-// ║  test_accountDeploysMarketAndHookTogether_AcrossFactories()
-// ║  test_accountPaysOriginationFees_AcrossFactories()
-// ║  _deployHooks(...)
-// ║  _deployMarket(...)
-// ║  _deployMarketAndHooks(...)
-// ║  _marketInputs(...)
-// ║  _marketSalt(...)
-// ║
-// ║  PRINCIPAL IDENTITY AND AUTHORITY
-// ║  test_accountOriginationUsesCurrentRegistryPrincipal_AcrossFactories()
-// ║  test_accountsForOnePrincipalShareHooks_AcrossFactories()
-// ║  test_accountsForOnePrincipalShareHookNonce_AcrossFactories()
-// ║  test_accountCannotOriginateAfterPrincipalRemoval_AcrossFactories()
-// ║  test_accountOriginationSurvivesFactoryRemoval_AcrossFactories()
-// ║  test_accountCannotUseOtherPrincipalHook_AcrossFactories()
-// ║  _assertMarketIdentity(...)
-// ║  _assertAccountAuthority(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // BorrowerAccountOrigination.t
+//  \ ^ /   Account origination, shared hook identity, and principal authority.
+//    V
+//
+//  PRODUCTION FIXTURE
+//  _newFixture()
+//  _deployArchController()
+//  _deployRegistry(...)
+//  _deployAccountFactory(...)
+//  _deployStandardFactory(...)
+//  _deployRevolvingFactory(...)
+//  _configureFactory(...)
+//  _storeInitCode(...)
+//  _factory(...)
+//
+//  ACCOUNT SETUP
+//  _deployAccount()
+//  _registerAccount(...)
+//  _transferAccountPrincipal(...)
+//
+//  ACCOUNT ORIGINATION
+//  test_accountDeploysHookThenMarket_AcrossFactories()
+//  test_accountDeploysMarketAndHookTogether_AcrossFactories()
+//  test_accountPaysOriginationFees_AcrossFactories()
+//  _deployHooks(...)
+//  _deployMarket(...)
+//  _deployMarketAndHooks(...)
+//  _marketInputs(...)
+//  _marketSalt(...)
+//
+//  PRINCIPAL IDENTITY AND AUTHORITY
+//  test_accountOriginationUsesCurrentRegistryPrincipal_AcrossFactories()
+//  test_accountsForOnePrincipalShareHooks_AcrossFactories()
+//  test_accountsForOnePrincipalShareHookNonce_AcrossFactories()
+//  test_accountCannotOriginateAfterPrincipalRemoval_AcrossFactories()
+//  test_accountOriginationSurvivesFactoryRemoval_AcrossFactories()
+//  test_accountCannotUseOtherPrincipalHook_AcrossFactories()
+//  _assertMarketIdentity(...)
+//  _assertAccountAuthority(...)
+// ═════
 
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { HooksFactory } from 'src/HooksFactory.sol';

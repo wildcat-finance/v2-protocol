@@ -1,67 +1,65 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HookDispatchMocks
-// ║  ██▀▀     ▀▀██   Factory, sanctions, and callback-recording test doubles.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BORROWER REGISTRATION
-// ║  isRegisteredBorrower(...)
-// ║
-// ║  REGISTRY SETUP
-// ║  constructor(...)
-// ║
-// ║  SANCTIONS STATUS
-// ║  setSanctioned(...)
-// ║  isSanctioned(...)
-// ║  isFlaggedByChainalysis(...)
-// ║
-// ║  ESCROW CREATION
-// ║  createEscrow(...)
-// ║  getEscrowAddress(...)
-// ║
-// ║  MARKET DEPLOYMENT
-// ║  setMarketParameters(...)
-// ║  getMarketParameters()
-// ║  deployMarket(...)
-// ║  callMarket(...)
-// ║
-// ║  REVOLVING CONFIGURATION
-// ║  setRevolvingMarketCommitmentFeeResponse(...)
-// ║  getRevolvingMarketCommitmentFeeBips()
-// ║
-// ║  LENS METADATA
-// ║  setLensHooksTemplate(...)
-// ║  getHooksTemplateForInstance(...)
-// ║  getHooksTemplateDetails(...)
-// ║  getMarketsForHooksTemplateCount(...)
-// ║  getMarketsForHooksInstanceCount(...)
-// ║
-// ║  LENDER CALLBACKS
-// ║  onDeposit(...)
-// ║  onTransfer(...)
-// ║  onQueueWithdrawal(...)
-// ║  onExecuteWithdrawal(...)
-// ║
-// ║  BORROWER CALLBACKS
-// ║  onBorrow(...)
-// ║  onRepay(...)
-// ║  onCloseMarket(...)
-// ║
-// ║  CONFIGURATION CALLBACKS
-// ║  onSetMaxTotalSupply(...)
-// ║  setAnnualInterestAndReserveRatioBips(...)
-// ║  onSetAnnualInterestAndReserveRatioBips(...)
-// ║  onSetProtocolFeeBips(...)
-// ║  onNukeFromOrbit(...)
-// ║
-// ║  CALL RECORDS
-// ║  callCount()
-// ║  callAt(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HookDispatchMocks
+//  \ ^ /   Factory, sanctions, and callback-recording test doubles.
+//    V
+//
+//  BORROWER REGISTRATION
+//  isRegisteredBorrower(...)
+//
+//  REGISTRY SETUP
+//  constructor(...)
+//
+//  SANCTIONS STATUS
+//  setSanctioned(...)
+//  isSanctioned(...)
+//  isFlaggedByChainalysis(...)
+//
+//  ESCROW CREATION
+//  createEscrow(...)
+//  getEscrowAddress(...)
+//
+//  MARKET DEPLOYMENT
+//  setMarketParameters(...)
+//  getMarketParameters()
+//  deployMarket(...)
+//  callMarket(...)
+//
+//  REVOLVING CONFIGURATION
+//  setRevolvingMarketCommitmentFeeResponse(...)
+//  getRevolvingMarketCommitmentFeeBips()
+//
+//  LENS METADATA
+//  setLensHooksTemplate(...)
+//  getHooksTemplateForInstance(...)
+//  getHooksTemplateDetails(...)
+//  getMarketsForHooksTemplateCount(...)
+//  getMarketsForHooksInstanceCount(...)
+//
+//  LENDER CALLBACKS
+//  onDeposit(...)
+//  onTransfer(...)
+//  onQueueWithdrawal(...)
+//  onExecuteWithdrawal(...)
+//
+//  BORROWER CALLBACKS
+//  onBorrow(...)
+//  onRepay(...)
+//  onCloseMarket(...)
+//
+//  CONFIGURATION CALLBACKS
+//  onSetMaxTotalSupply(...)
+//  setAnnualInterestAndReserveRatioBips(...)
+//  onSetAnnualInterestAndReserveRatioBips(...)
+//  onSetProtocolFeeBips(...)
+//  onNukeFromOrbit(...)
+//
+//  CALL RECORDS
+//  callCount()
+//  callAt(...)
+// ═════
 
 import { IHooks } from 'src/access/IHooks.sol';
 import { HooksTemplate } from 'src/IHooksFactory.sol';

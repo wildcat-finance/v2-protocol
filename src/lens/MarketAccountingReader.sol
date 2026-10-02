@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketAccountingReader
-// ║  ██▀▀     ▀▀██   Strict accounting reads with exact legacy-tuple padding.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ACCOUNTING QUERIES
-// ║  currentState(...)
-// ║  previousState(...)
-// ║  withdrawalBatch(...)
-// ║
-// ║  LEGACY DECODING
-// ║  _read(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketAccountingReader
+//  \ ^ /   Strict accounting reads with exact legacy-tuple padding.
+//    V
+//
+//  ACCOUNTING QUERIES
+//  currentState(...)
+//  previousState(...)
+//  withdrawalBatch(...)
+//
+//  LEGACY DECODING
+//  _read(...)
+// ═════
 
 import '../market/WildcatMarket.sol';
 

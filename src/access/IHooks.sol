@@ -1,55 +1,53 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IHooks
-// ║  ██▀▀     ▀▀██   Factory-authenticated creation and market callback surface.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor()
-// ║  onCreateMarket(...)
-// ║  _onCreateMarket(...)
-// ║
-// ║  METADATA
-// ║  version()
-// ║  config()
-// ║
-// ║  DEPOSITS
-// ║  onDeposit(...)
-// ║
-// ║  TRANSFERS
-// ║  onTransfer(...)
-// ║
-// ║  BORROWING
-// ║  onBorrow(...)
-// ║
-// ║  REPAYMENT
-// ║  onRepay(...)
-// ║
-// ║  WITHDRAWAL QUEUEING
-// ║  onQueueWithdrawal(...)
-// ║
-// ║  CLAIM COLLECTION
-// ║  onExecuteWithdrawal(...)
-// ║
-// ║  CLOSURE
-// ║  onCloseMarket(...)
-// ║
-// ║  SANCTIONS
-// ║  onNukeFromOrbit(...)
-// ║
-// ║  SUPPLY CAPACITY
-// ║  onSetMaxTotalSupply(...)
-// ║
-// ║  INTEREST AND RESERVES
-// ║  onSetAnnualInterestAndReserveRatioBips(...)
-// ║
-// ║  PROTOCOL FEES
-// ║  onSetProtocolFeeBips(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IHooks
+//  \ ^ /   Factory-authenticated creation and market callback surface.
+//    V
+//
+//  SETUP
+//  constructor()
+//  onCreateMarket(...)
+//  _onCreateMarket(...)
+//
+//  METADATA
+//  version()
+//  config()
+//
+//  DEPOSITS
+//  onDeposit(...)
+//
+//  TRANSFERS
+//  onTransfer(...)
+//
+//  BORROWING
+//  onBorrow(...)
+//
+//  REPAYMENT
+//  onRepay(...)
+//
+//  WITHDRAWAL QUEUEING
+//  onQueueWithdrawal(...)
+//
+//  CLAIM COLLECTION
+//  onExecuteWithdrawal(...)
+//
+//  CLOSURE
+//  onCloseMarket(...)
+//
+//  SANCTIONS
+//  onNukeFromOrbit(...)
+//
+//  SUPPLY CAPACITY
+//  onSetMaxTotalSupply(...)
+//
+//  INTEREST AND RESERVES
+//  onSetAnnualInterestAndReserveRatioBips(...)
+//
+//  PROTOCOL FEES
+//  onSetProtocolFeeBips(...)
+// ═════
 
 import '../types/HooksConfig.sol';
 import '../libraries/MarketState.sol';

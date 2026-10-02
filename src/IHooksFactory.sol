@@ -1,76 +1,74 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IHooksFactory
-// ║  ██▀▀     ▀▀██   Factory metadata readers, hooks lifecycle, and market deployment.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  OPTIONAL HOOKS METADATA
-// ║  getHooksInstanceString(...)
-// ║  getHooksInstanceRoleProviders(...)
-// ║  tryGetHooksInstanceRoleProviders(...)
-// ║
-// ║  SETUP
-// ║  registerWithArchController()
-// ║  archController()
-// ║  name()
-// ║  sanctionsSentinel()
-// ║  wrapperFactory()
-// ║  borrowerIdentityRegistry()
-// ║  marketInitCodeStorage()
-// ║  marketInitCodeHash()
-// ║
-// ║  HOOKS TEMPLATES
-// ║  addHooksTemplate(...)
-// ║  disableHooksTemplate(...)
-// ║
-// ║  TEMPLATE FEES
-// ║  updateHooksTemplateFees(...)
-// ║  pushProtocolFeeBipsUpdates(...)
-// ║  pushProtocolFeeBipsUpdates(...)
-// ║
-// ║  TEMPLATE QUERIES
-// ║  getHooksTemplateDetails(...)
-// ║  getHooksTemplateInitCodeHash(...)
-// ║  isHooksTemplate(...)
-// ║  getHooksTemplates()
-// ║  getHooksTemplates(...)
-// ║  getHooksTemplatesCount()
-// ║
-// ║  HOOKS DEPLOYMENT
-// ║  deployHooksInstance(...)
-// ║  getHooksInstanceDeploymentNonce(...)
-// ║  isHooksInstance(...)
-// ║  getHooksTemplateForInstance(...)
-// ║
-// ║  HOOKS ADMINISTRATION
-// ║  onHooksAdministratorTransferred(...)
-// ║  getHooksAdministrator(...)
-// ║  getHooksInstancesForAdministrator(...)
-// ║  getHooksInstancesForAdministrator(...)
-// ║  getHooksInstancesCountForAdministrator(...)
-// ║  getHooksInstancesForBorrower(...)
-// ║  getHooksInstancesCountForBorrower(...)
-// ║
-// ║  MARKET DEPLOYMENT
-// ║  deployMarket(...)
-// ║  deployMarketAndHooks(...)
-// ║  computeMarketAddress(...)
-// ║
-// ║  CONSTRUCTOR PARAMETERS
-// ║  getMarketParameters()
-// ║
-// ║  MARKET QUERIES
-// ║  getMarketsForHooksTemplate(...)
-// ║  getMarketsForHooksTemplate(...)
-// ║  getMarketsForHooksTemplateCount(...)
-// ║  getMarketsForHooksInstance(...)
-// ║  getMarketsForHooksInstance(...)
-// ║  getMarketsForHooksInstanceCount(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IHooksFactory
+//  \ ^ /   Factory metadata readers, hooks lifecycle, and market deployment.
+//    V
+//
+//  OPTIONAL HOOKS METADATA
+//  getHooksInstanceString(...)
+//  getHooksInstanceRoleProviders(...)
+//  tryGetHooksInstanceRoleProviders(...)
+//
+//  SETUP
+//  registerWithArchController()
+//  archController()
+//  name()
+//  sanctionsSentinel()
+//  wrapperFactory()
+//  borrowerIdentityRegistry()
+//  marketInitCodeStorage()
+//  marketInitCodeHash()
+//
+//  HOOKS TEMPLATES
+//  addHooksTemplate(...)
+//  disableHooksTemplate(...)
+//
+//  TEMPLATE FEES
+//  updateHooksTemplateFees(...)
+//  pushProtocolFeeBipsUpdates(...)
+//  pushProtocolFeeBipsUpdates(...)
+//
+//  TEMPLATE QUERIES
+//  getHooksTemplateDetails(...)
+//  getHooksTemplateInitCodeHash(...)
+//  isHooksTemplate(...)
+//  getHooksTemplates()
+//  getHooksTemplates(...)
+//  getHooksTemplatesCount()
+//
+//  HOOKS DEPLOYMENT
+//  deployHooksInstance(...)
+//  getHooksInstanceDeploymentNonce(...)
+//  isHooksInstance(...)
+//  getHooksTemplateForInstance(...)
+//
+//  HOOKS ADMINISTRATION
+//  onHooksAdministratorTransferred(...)
+//  getHooksAdministrator(...)
+//  getHooksInstancesForAdministrator(...)
+//  getHooksInstancesForAdministrator(...)
+//  getHooksInstancesCountForAdministrator(...)
+//  getHooksInstancesForBorrower(...)
+//  getHooksInstancesCountForBorrower(...)
+//
+//  MARKET DEPLOYMENT
+//  deployMarket(...)
+//  deployMarketAndHooks(...)
+//  computeMarketAddress(...)
+//
+//  CONSTRUCTOR PARAMETERS
+//  getMarketParameters()
+//
+//  MARKET QUERIES
+//  getMarketsForHooksTemplate(...)
+//  getMarketsForHooksTemplate(...)
+//  getMarketsForHooksTemplateCount(...)
+//  getMarketsForHooksInstance(...)
+//  getMarketsForHooksInstance(...)
+//  getMarketsForHooksInstanceCount(...)
+// ═════
 
 import './access/IHooks.sol';
 import './interfaces/WildcatStructsAndEnums.sol';

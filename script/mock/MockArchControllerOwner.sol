@@ -1,41 +1,39 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MockArchControllerOwner
-// ║  ██▀▀     ▀▀██   Testnet authority delegation and reviewed protocol actions.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CONTROLLER QUERY
-// ║  archController()
-// ║
-// ║  LEGACY FEES
-// ║  setProtocolFeeConfiguration(...)
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  EXECUTOR AUTHORITY
-// ║  onlyAuthorized()
-// ║  authorizeAccount(...)
-// ║  _authorizeAccount(...)
-// ║  deauthorizeAccount(...)
-// ║  getAuthorizedAccounts()
-// ║  getAuthorizedAccountsCount()
-// ║  returnOwnership()
-// ║
-// ║  BORROWER REGISTRATION
-// ║  registerBorrower(...)
-// ║  registerBorrowers(...)
-// ║
-// ║  PROTOCOL ACTIONS
-// ║  executeProtocolAction(...)
-// ║  setProtocolFeeConfiguration(...)
-// ║  _executeProtocolAction(...)
-// ║  _requireProtocolTarget(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MockArchControllerOwner
+//  \ ^ /   Testnet authority delegation and reviewed protocol actions.
+//    V
+//
+//  CONTROLLER QUERY
+//  archController()
+//
+//  LEGACY FEES
+//  setProtocolFeeConfiguration(...)
+//
+//  SETUP
+//  constructor(...)
+//
+//  EXECUTOR AUTHORITY
+//  onlyAuthorized()
+//  authorizeAccount(...)
+//  _authorizeAccount(...)
+//  deauthorizeAccount(...)
+//  getAuthorizedAccounts()
+//  getAuthorizedAccountsCount()
+//  returnOwnership()
+//
+//  BORROWER REGISTRATION
+//  registerBorrower(...)
+//  registerBorrowers(...)
+//
+//  PROTOCOL ACTIONS
+//  executeProtocolAction(...)
+//  setProtocolFeeConfiguration(...)
+//  _executeProtocolAction(...)
+//  _requireProtocolTarget(...)
+// ═════
 
 import 'src/WildcatArchController.sol';
 

@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // RecipientRejectingERC20
-// ║  ██▀▀     ▀▀██   ERC-20 transfer rejection and false-return test behavior.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  TOKEN SETUP
-// ║  constructor()
-// ║  rejectRecipient(...)
-// ║
-// ║  TOKEN TRANSFERS
-// ║  transfer(...)
-// ║  transferFrom(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // RecipientRejectingERC20
+//  \ ^ /   ERC-20 transfer rejection and false-return test behavior.
+//    V
+//
+//  TOKEN SETUP
+//  constructor()
+//  rejectRecipient(...)
+//
+//  TOKEN TRANSFERS
+//  transfer(...)
+//  transferFrom(...)
+// ═════
 
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 

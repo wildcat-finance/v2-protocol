@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // BoundedMarketState.t
-// ║  ██▀▀     ▀▀██   Market-liability bounds against independent formulas.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  LIABILITY BOUNDS
-// ║  testFuzz_liabilitiesMatchCheckedFormulas(...)
-// ║  test_liabilitiesAtEveryFieldMaximumAndReserveEdges()
-// ║  test_invalidPendingSupplyKeepsArithmeticPanic()
-// ║
-// ║  REFERENCE COMPARISON
-// ║  _compare(...)
-// ║  referenceValues(...)
-// ║  candidateValues(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // BoundedMarketState.t
+//  \ ^ /   Market-liability bounds against independent formulas.
+//    V
+//
+//  LIABILITY BOUNDS
+//  testFuzz_liabilitiesMatchCheckedFormulas(...)
+//  test_liabilitiesAtEveryFieldMaximumAndReserveEdges()
+//  test_invalidPendingSupplyKeepsArithmeticPanic()
+//
+//  REFERENCE COMPARISON
+//  _compare(...)
+//  referenceValues(...)
+//  candidateValues(...)
+// ═════
 
 import 'src/libraries/MarketState.sol';
 import { TestKernel } from '../shared/TestKernel.sol';

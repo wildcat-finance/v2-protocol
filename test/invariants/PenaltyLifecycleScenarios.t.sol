@@ -1,24 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // PenaltyLifecycleScenarios.t
-// ║  ██▀▀     ▀▀██   Penalty cutoff, observed cure, allocation, and closure scenarios.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  PENALTY TIMELINE
-// ║  testFuzz_penaltyCureAtCutoffAndOneSecondLate(...)
-// ║  testFuzz_observedCureResetsRunWithoutForgivingEconomicTimer(...)
-// ║
-// ║  QUEUE ALLOCATION AND DRAIN
-// ║  test_idleQueueAllocationMatchesOracle()
-// ║  test_donationAndPendingPaymentCanDrainAfterScheduledClosure()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // PenaltyLifecycleScenarios.t
+//  \ ^ /   Penalty cutoff, observed cure, allocation, and closure scenarios.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//
+//  PENALTY TIMELINE
+//  testFuzz_penaltyCureAtCutoffAndOneSecondLate(...)
+//  testFuzz_observedCureResetsRunWithoutForgivingEconomicTimer(...)
+//
+//  QUEUE ALLOCATION AND DRAIN
+//  test_idleQueueAllocationMatchesOracle()
+//  test_donationAndPendingPaymentCanDrainAfterScheduledClosure()
+// ═════
 
 import { PenaltyLifecycleFixture } from './LifecycleFixture.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';

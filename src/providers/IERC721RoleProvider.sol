@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IERC721RoleProvider
-// ║  ██▀▀     ▀▀██   Immutable ERC721 credential-provider configuration.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CONFIGURATION
-// ║  token()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IERC721RoleProvider
+//  \ ^ /   Immutable ERC721 credential-provider configuration.
+//    V
+//
+//  CONFIGURATION
+//  token()
+// ═════
 
 import '../access/IRoleProvider.sol';
 

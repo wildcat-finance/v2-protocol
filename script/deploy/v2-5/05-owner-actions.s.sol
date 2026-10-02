@@ -1,38 +1,36 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // 05-owner-actions.s
-// ║  ██▀▀     ▀▀██   Template storage deployment and protocol owner actions.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  AUTHORITY
-// ║  archController()
-// ║  executeProtocolAction(...)
-// ║
-// ║  OWNER ACTIONS
-// ║  run()
-// ║
-// ║  TEMPLATES AND AUTHORITY
-// ║  _loadTemplate(...)
-// ║  _readTemplateFees(...)
-// ║  _resolveFeeRecipient(...)
-// ║  _resolveAuthorityHelper(...)
-// ║
-// ║  OWNER ACTION PLAN
-// ║  _writePlanEntries(...)
-// ║  _writeTemplateStoragePlanEntry(...)
-// ║  _writeRegisterControllerFactoryPlanEntry(...)
-// ║  _writeAddTemplatePlanEntry(...)
-// ║  _templateRegistrationArgs(...)
-// ║
-// ║  DIRECT OWNER ACTIONS
-// ║  _deployTemplateStorage(...)
-// ║  _registerControllerFactory(...)
-// ║  _addTemplate(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // 05-owner-actions.s
+//  \ ^ /   Template storage deployment and protocol owner actions.
+//    V
+//
+//  AUTHORITY
+//  archController()
+//  executeProtocolAction(...)
+//
+//  OWNER ACTIONS
+//  run()
+//
+//  TEMPLATES AND AUTHORITY
+//  _loadTemplate(...)
+//  _readTemplateFees(...)
+//  _resolveFeeRecipient(...)
+//  _resolveAuthorityHelper(...)
+//
+//  OWNER ACTION PLAN
+//  _writePlanEntries(...)
+//  _writeTemplateStoragePlanEntry(...)
+//  _writeRegisterControllerFactoryPlanEntry(...)
+//  _writeAddTemplatePlanEntry(...)
+//  _templateRegistrationArgs(...)
+//
+//  DIRECT OWNER ACTIONS
+//  _deployTemplateStorage(...)
+//  _registerControllerFactory(...)
+//  _addTemplate(...)
+// ═════
 
 // deploy the v2.5 hooks template init-code storages, then do the owner work
 // that makes the new factories and templates usable.

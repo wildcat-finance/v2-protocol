@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // BoolUtils
-// ║  ██▀▀     ▀▀██   Bitwise operations on canonical boolean values.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BOOLEAN OPERATIONS
-// ║  and(...)
-// ║  or(...)
-// ║  xor(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // BoolUtils
+//  \ ^ /   Bitwise operations on canonical boolean values.
+//    V
+//
+//  BOOLEAN OPERATIONS
+//  and(...)
+//  or(...)
+//  xor(...)
+// ═════
 
 // ┌─ BoolUtils ────────────────────────────────────────────────────────────────
 library BoolUtils {

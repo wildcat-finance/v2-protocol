@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // FactoryScopedHooksTemplateData
-// ║  ██▀▀     ▀▀██   Factory-qualified hooks-template records for aggregation.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // FactoryScopedHooksTemplateData
+//  \ ^ /   Factory-qualified hooks-template records for aggregation.
+//    V
+//
+// ═════
 
 import './HooksTemplateData.sol';
 

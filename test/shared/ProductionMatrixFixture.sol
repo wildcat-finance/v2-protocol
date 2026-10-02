@@ -1,50 +1,48 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ProductionMatrixFixture
-// ║  ██▀▀     ▀▀██   Production deployment matrices and lifecycle assertions.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  PRODUCTION STACK
-// ║  _deployProductionStack()
-// ║  _deployProductionStack(...)
-// ║  _deployProductionDependencies()
-// ║  _deployStandardFactory(...)
-// ║  _deployRevolvingFactory(...)
-// ║  _deployAndRegisterTemplates(...)
-// ║  _storeInitCode(...)
-// ║
-// ║  MATRIX MARKETS
-// ║  _deployMatrixCell(...)
-// ║  _deployMatrixCell(...)
-// ║  _deployMatrixCell(...)
-// ║  _defaultMatrixOptions(...)
-// ║  _factoryFor(...)
-// ║  _marketInputs(...)
-// ║  _hooksData(...)
-// ║  _marketSalt(...)
-// ║  _templateVersion(...)
-// ║
-// ║  LENDER OPERATIONS
-// ║  _authorize(...)
-// ║  _deposit(...)
-// ║  _fundAndApprove(...)
-// ║  _warpToWithdrawalAccess(...)
-// ║
-// ║  BORROWER OPERATIONS
-// ║  _approveBorrower(...)
-// ║  _borrow(...)
-// ║  _repay(...)
-// ║  _close(...)
-// ║
-// ║  ACCRUAL ASSERTIONS
-// ║  _accrueAndCheck(...)
-// ║  _expectedScaleFactorAt(...)
-// ║  _expectedPenaltyTime(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ProductionMatrixFixture
+//  \ ^ /   Production deployment matrices and lifecycle assertions.
+//    V
+//
+//  PRODUCTION STACK
+//  _deployProductionStack()
+//  _deployProductionStack(...)
+//  _deployProductionDependencies()
+//  _deployStandardFactory(...)
+//  _deployRevolvingFactory(...)
+//  _deployAndRegisterTemplates(...)
+//  _storeInitCode(...)
+//
+//  MATRIX MARKETS
+//  _deployMatrixCell(...)
+//  _deployMatrixCell(...)
+//  _deployMatrixCell(...)
+//  _defaultMatrixOptions(...)
+//  _factoryFor(...)
+//  _marketInputs(...)
+//  _hooksData(...)
+//  _marketSalt(...)
+//  _templateVersion(...)
+//
+//  LENDER OPERATIONS
+//  _authorize(...)
+//  _deposit(...)
+//  _fundAndApprove(...)
+//  _warpToWithdrawalAccess(...)
+//
+//  BORROWER OPERATIONS
+//  _approveBorrower(...)
+//  _borrow(...)
+//  _repay(...)
+//  _close(...)
+//
+//  ACCRUAL ASSERTIONS
+//  _accrueAndCheck(...)
+//  _expectedScaleFactorAt(...)
+//  _expectedPenaltyTime(...)
+// ═════
 
 import { HooksFactory } from 'src/HooksFactory.sol';
 import { HooksFactoryRevolving } from 'src/HooksFactoryRevolving.sol';

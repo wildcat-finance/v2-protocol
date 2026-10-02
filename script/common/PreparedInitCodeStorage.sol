@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // PreparedInitCodeStorage
-// ║  ██▀▀     ▀▀██   Install reviewed raw and linked split-storage runtime images.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  PREPARED STORAGE
-// ║  constructor(...)
-// ║
-// ║  LINKED STORAGE
-// ║  constructor(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // PreparedInitCodeStorage
+//  \ ^ /   Install reviewed raw and linked split-storage runtime images.
+//    V
+//
+//  PREPARED STORAGE
+//  constructor(...)
+//
+//  LINKED STORAGE
+//  constructor(...)
+// ═════
 
 // ┌─ PreparedInitCodeStorage ──────────────────────────────────────────────────
 /// @dev install the reviewed runtime image. all splitting happens during preparation.

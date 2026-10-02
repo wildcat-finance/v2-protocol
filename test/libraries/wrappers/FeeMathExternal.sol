@@ -1,27 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // FeeMathExternal
-// ║  ██▀▀     ▀▀██   External adapters for accrual, protocol fees, and delinquency.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ACCRUAL
-// ║  $updateScaleFactorAndFees(...)
-// ║
-// ║  BASE INTEREST
-// ║  $calculateBaseInterest(...)
-// ║  $calculateLinearInterestFromBips(...)
-// ║
-// ║  PROTOCOL FEES
-// ║  $applyProtocolFee(...)
-// ║
-// ║  DELINQUENCY
-// ║  $updateDelinquency(...)
-// ║  $updateTimeDelinquentAndGetPenaltyTime(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // FeeMathExternal
+//  \ ^ /   External adapters for accrual, protocol fees, and delinquency.
+//    V
+//
+//  ACCRUAL
+//  $updateScaleFactorAndFees(...)
+//
+//  BASE INTEREST
+//  $calculateBaseInterest(...)
+//  $calculateLinearInterestFromBips(...)
+//
+//  PROTOCOL FEES
+//  $applyProtocolFee(...)
+//
+//  DELINQUENCY
+//  $updateDelinquency(...)
+//  $updateTimeDelinquentAndGetPenaltyTime(...)
+// ═════
 
 import { FeeMath } from 'src/libraries/FeeMath.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';

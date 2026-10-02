@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatMarketToken
-// ║  ██▀▀     ▀▀██   Normalized balances, allowances, and market-token transfers.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ALLOWANCES
-// ║  approve(...)
-// ║  _approve(...)
-// ║
-// ║  TRANSFERS
-// ║  transfer(...)
-// ║  transferFrom(...)
-// ║  _transfer(...)
-// ║
-// ║  BALANCES AND SUPPLY
-// ║  balanceOf(...)
-// ║  totalSupply()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatMarketToken
+//  \ ^ /   Normalized balances, allowances, and market-token transfers.
+//    V
+//
+//  ALLOWANCES
+//  approve(...)
+//  _approve(...)
+//
+//  TRANSFERS
+//  transfer(...)
+//  transferFrom(...)
+//  _transfer(...)
+//
+//  BALANCES AND SUPPLY
+//  balanceOf(...)
+//  totalSupply()
+// ═════
 
 import './WildcatMarketBase.sol';
 

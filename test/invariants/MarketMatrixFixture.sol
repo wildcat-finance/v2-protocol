@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketMatrixFixture
-// ║  ██▀▀     ▀▀██   Six-cell market matrix deployment and actor configuration.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  MATRIX DEPLOYMENT
-// ║  _deployMatrix(...)
-// ║  _deployMatrixCell(...)
-// ║
-// ║  MATRIX CONFIGURATION
-// ║  _matrixOptions(...)
-// ║  _fixedTermDelay()
-// ║  _actors()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketMatrixFixture
+//  \ ^ /   Six-cell market matrix deployment and actor configuration.
+//    V
+//
+//  MATRIX DEPLOYMENT
+//  _deployMatrix(...)
+//  _deployMatrixCell(...)
+//
+//  MATRIX CONFIGURATION
+//  _matrixOptions(...)
+//  _fixedTermDelay()
+//  _actors()
+// ═════
 
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';

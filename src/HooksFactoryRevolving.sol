@@ -1,78 +1,76 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HooksFactoryRevolving
-// ║  ██▀▀     ▀▀██   Hooks lifecycle and deterministic revolving-market deployment.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║  registerWithArchController()
-// ║  archController()
-// ║  name()
-// ║
-// ║  HOOKS TEMPLATES
-// ║  onlyArchControllerOwner()
-// ║  addHooksTemplate(...)
-// ║  disableHooksTemplate(...)
-// ║
-// ║  TEMPLATE FEES
-// ║  updateHooksTemplateFees(...)
-// ║  _validateFees(...)
-// ║  pushProtocolFeeBipsUpdates(...)
-// ║  pushProtocolFeeBipsUpdates(...)
-// ║
-// ║  TEMPLATE QUERIES
-// ║  getHooksTemplateDetails(...)
-// ║  isHooksTemplate(...)
-// ║  getHooksTemplates()
-// ║  getHooksTemplates(...)
-// ║  getHooksTemplatesCount()
-// ║
-// ║  HOOKS DEPLOYMENT
-// ║  deployHooksInstance(...)
-// ║  _deployHooksInstance(...)
-// ║  _resolveBorrowerPrincipal(...)
-// ║  isHooksInstance(...)
-// ║
-// ║  HOOKS ADMINISTRATION
-// ║  onHooksAdministratorTransferred(...)
-// ║  getHooksInstancesForAdministrator(...)
-// ║  getHooksInstancesForAdministrator(...)
-// ║  getHooksInstancesCountForAdministrator(...)
-// ║  getHooksInstancesForBorrower(...)
-// ║  getHooksInstancesCountForBorrower(...)
-// ║
-// ║  MARKET DEPLOYMENT
-// ║  deployMarket(...)
-// ║  deployMarketAndHooks(...)
-// ║  _deployMarket(...)
-// ║  _decodeMarketData(...)
-// ║  _packString(...)
-// ║  _emitMarketDeployment(...)
-// ║  computeMarketAddress(...)
-// ║
-// ║  CONSTRUCTOR PARAMETERS
-// ║  getMarketParameters()
-// ║  _setTmpMarketParameters(...)
-// ║  _getTmpMarketParameters()
-// ║  _setTmpBorrowerPrincipal(...)
-// ║  _getTmpBorrowerPrincipal()
-// ║  getRevolvingMarketCommitmentFeeBips()
-// ║  _setTmpCommitmentFeeBips(...)
-// ║  _getTmpCommitmentFeeBips()
-// ║
-// ║  MARKET QUERIES
-// ║  getMarketsForHooksTemplate(...)
-// ║  getMarketsForHooksTemplate(...)
-// ║  getMarketsForHooksTemplateCount(...)
-// ║  getMarketsForHooksInstance(...)
-// ║  getMarketsForHooksInstance(...)
-// ║  getMarketsForHooksInstanceCount(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HooksFactoryRevolving
+//  \ ^ /   Hooks lifecycle and deterministic revolving-market deployment.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//  registerWithArchController()
+//  archController()
+//  name()
+//
+//  HOOKS TEMPLATES
+//  onlyArchControllerOwner()
+//  addHooksTemplate(...)
+//  disableHooksTemplate(...)
+//
+//  TEMPLATE FEES
+//  updateHooksTemplateFees(...)
+//  _validateFees(...)
+//  pushProtocolFeeBipsUpdates(...)
+//  pushProtocolFeeBipsUpdates(...)
+//
+//  TEMPLATE QUERIES
+//  getHooksTemplateDetails(...)
+//  isHooksTemplate(...)
+//  getHooksTemplates()
+//  getHooksTemplates(...)
+//  getHooksTemplatesCount()
+//
+//  HOOKS DEPLOYMENT
+//  deployHooksInstance(...)
+//  _deployHooksInstance(...)
+//  _resolveBorrowerPrincipal(...)
+//  isHooksInstance(...)
+//
+//  HOOKS ADMINISTRATION
+//  onHooksAdministratorTransferred(...)
+//  getHooksInstancesForAdministrator(...)
+//  getHooksInstancesForAdministrator(...)
+//  getHooksInstancesCountForAdministrator(...)
+//  getHooksInstancesForBorrower(...)
+//  getHooksInstancesCountForBorrower(...)
+//
+//  MARKET DEPLOYMENT
+//  deployMarket(...)
+//  deployMarketAndHooks(...)
+//  _deployMarket(...)
+//  _decodeMarketData(...)
+//  _packString(...)
+//  _emitMarketDeployment(...)
+//  computeMarketAddress(...)
+//
+//  CONSTRUCTOR PARAMETERS
+//  getMarketParameters()
+//  _setTmpMarketParameters(...)
+//  _getTmpMarketParameters()
+//  _setTmpBorrowerPrincipal(...)
+//  _getTmpBorrowerPrincipal()
+//  getRevolvingMarketCommitmentFeeBips()
+//  _setTmpCommitmentFeeBips(...)
+//  _getTmpCommitmentFeeBips()
+//
+//  MARKET QUERIES
+//  getMarketsForHooksTemplate(...)
+//  getMarketsForHooksTemplate(...)
+//  getMarketsForHooksTemplateCount(...)
+//  getMarketsForHooksInstance(...)
+//  getMarketsForHooksInstance(...)
+//  getMarketsForHooksInstanceCount(...)
+// ═════
 
 import './libraries/LibERC20.sol';
 import './interfaces/IWildcatArchController.sol';

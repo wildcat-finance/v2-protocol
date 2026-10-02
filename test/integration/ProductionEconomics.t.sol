@@ -1,24 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ProductionEconomics.t
-// ║  ██▀▀     ▀▀██   Production delinquency and standard-versus-revolving economics.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  DELINQUENCY LIFECYCLE
-// ║  test_largeBalanceDelinquencyLifecycleMatchesOracleAcrossMarketTypes()
-// ║  _runDelinquencyLifecycle(...)
-// ║
-// ║  YIELD CROSSOVER
-// ║  test_largeBalanceYieldCrossoverPinsStandardAndRevolvingEconomics()
-// ║  _assertYieldOrdering(...)
-// ║
-// ║  ECONOMIC CONFIGURATION
-// ║  _productionOptions(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ProductionEconomics.t
+//  \ ^ /   Production delinquency and standard-versus-revolving economics.
+//    V
+//
+//  DELINQUENCY LIFECYCLE
+//  test_largeBalanceDelinquencyLifecycleMatchesOracleAcrossMarketTypes()
+//  _runDelinquencyLifecycle(...)
+//
+//  YIELD CROSSOVER
+//  test_largeBalanceYieldCrossoverPinsStandardAndRevolvingEconomics()
+//  _assertYieldOrdering(...)
+//
+//  ECONOMIC CONFIGURATION
+//  _productionOptions(...)
+// ═════
 
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';

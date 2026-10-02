@@ -1,47 +1,45 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // BorrowerAccountCompatibility.t
-// ║  ██▀▀     ▀▀██   Operational borrower accounts through full production lifecycles.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ACCOUNT MARKET ACTIONS
-// ║  setMaxTotalSupply(...)
-// ║  borrow(...)
-// ║  repay(...)
-// ║  closeMarket()
-// ║  requestBorrowerTransfer(...)
-// ║  acceptBorrowerTransfer()
-// ║
-// ║  ACCOUNT TOKEN ACTIONS
-// ║  approve(...)
-// ║  transfer(...)
-// ║
-// ║  ACCOUNT LIFECYCLES
-// ║  test_accountExecutionComposesAcrossTheProductionSixCellMatrix()
-// ║  test_accountExecutesCompleteLifecycleAcrossBothMarketTypes()
-// ║
-// ║  ACCOUNT ORIGINATION
-// ║  test_marketSaltIsBoundToTheOperationalAccountAcrossFactories()
-// ║  _deployAccount(...)
-// ║  _deployCellThroughAccount(...)
-// ║  _deployHooksThroughAccount(...)
-// ║  _requestedHooks(...)
-// ║  _marketDeploymentCall(...)
-// ║
-// ║  CREDENTIALED BORROWER MIGRATION
-// ║  test_credentialedBorrowTracksAccountAndPrincipalMigrationAcrossFactories()
-// ║  _runCredentialedBorrowMigration(...)
-// ║  _deployCredentialedBorrowCell(...)
-// ║  _assertCredentialedBorrow(...)
-// ║
-// ║  ACCOUNT EXECUTION
-// ║  _execute(...)
-// ║  _expectAccountRevert(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // BorrowerAccountCompatibility.t
+//  \ ^ /   Operational borrower accounts through full production lifecycles.
+//    V
+//
+//  ACCOUNT MARKET ACTIONS
+//  setMaxTotalSupply(...)
+//  borrow(...)
+//  repay(...)
+//  closeMarket()
+//  requestBorrowerTransfer(...)
+//  acceptBorrowerTransfer()
+//
+//  ACCOUNT TOKEN ACTIONS
+//  approve(...)
+//  transfer(...)
+//
+//  ACCOUNT LIFECYCLES
+//  test_accountExecutionComposesAcrossTheProductionSixCellMatrix()
+//  test_accountExecutesCompleteLifecycleAcrossBothMarketTypes()
+//
+//  ACCOUNT ORIGINATION
+//  test_marketSaltIsBoundToTheOperationalAccountAcrossFactories()
+//  _deployAccount(...)
+//  _deployCellThroughAccount(...)
+//  _deployHooksThroughAccount(...)
+//  _requestedHooks(...)
+//  _marketDeploymentCall(...)
+//
+//  CREDENTIALED BORROWER MIGRATION
+//  test_credentialedBorrowTracksAccountAndPrincipalMigrationAcrossFactories()
+//  _runCredentialedBorrowMigration(...)
+//  _deployCredentialedBorrowCell(...)
+//  _assertCredentialedBorrow(...)
+//
+//  ACCOUNT EXECUTION
+//  _execute(...)
+//  _expectAccountRevert(...)
+// ═════
 
 import { IHooksFactory, IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';
 import { IHooksFactoryRevolving } from 'src/IHooksFactoryRevolving.sol';

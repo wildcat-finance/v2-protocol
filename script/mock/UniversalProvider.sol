@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // UniversalProvider
-// ║  ██▀▀     ▀▀██   Development credentials available to every account.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CREDENTIALS
-// ║  getCredential(...)
-// ║  validateCredential(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // UniversalProvider
+//  \ ^ /   Development credentials available to every account.
+//    V
+//
+//  CREDENTIALS
+//  getCredential(...)
+//  validateCredential(...)
+// ═════
 
 import 'src/access/IRoleProvider.sol';
 

@@ -415,7 +415,11 @@ function manifestFile(
 }
 
 function oneLine(value) {
-  return String(value).replace(/\s+/g, " ").replace(/\|/g, "\\|").trim();
+  return String(value)
+    .replace(/\s+/g, " ")
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|")
+    .trim();
 }
 
 function reviewMarkdown(

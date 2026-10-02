@@ -1,42 +1,40 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensCore
-// ║  ██▀▀     ▀▀██   Strict token, market, lender, and withdrawal-batch reads.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  TOKEN METADATA
-// ║  getTokenInfo(...)
-// ║  getTokensInfo(...)
-// ║
-// ║  MARKET DATA
-// ║  getMarketData(...)
-// ║  getMarketsData(...)
-// ║  getMarketDataV2(...)
-// ║  getMarketsDataV2(...)
-// ║
-// ║  LENDER DATA
-// ║  getMarketDataWithLenderStatus(...)
-// ║  getMarketsDataWithLenderStatus(...)
-// ║  getLenderAccountData(...)
-// ║  getLenderAccountData(...)
-// ║  getLenderAccountsData(...)
-// ║  queryLenderAccount(...)
-// ║  queryLenderAccounts(...)
-// ║
-// ║  WITHDRAWAL BATCHES
-// ║  getWithdrawalBatchData(...)
-// ║  getWithdrawalBatchesData(...)
-// ║  getWithdrawalBatchDataWithLenderStatus(...)
-// ║  getWithdrawalBatchesDataWithLenderStatus(...)
-// ║  getWithdrawalBatchDataWithLendersStatus(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLensCore
+//  \ ^ /   Strict token, market, lender, and withdrawal-batch reads.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//
+//  TOKEN METADATA
+//  getTokenInfo(...)
+//  getTokensInfo(...)
+//
+//  MARKET DATA
+//  getMarketData(...)
+//  getMarketsData(...)
+//  getMarketDataV2(...)
+//  getMarketsDataV2(...)
+//
+//  LENDER DATA
+//  getMarketDataWithLenderStatus(...)
+//  getMarketsDataWithLenderStatus(...)
+//  getLenderAccountData(...)
+//  getLenderAccountData(...)
+//  getLenderAccountsData(...)
+//  queryLenderAccount(...)
+//  queryLenderAccounts(...)
+//
+//  WITHDRAWAL BATCHES
+//  getWithdrawalBatchData(...)
+//  getWithdrawalBatchesData(...)
+//  getWithdrawalBatchDataWithLenderStatus(...)
+//  getWithdrawalBatchesDataWithLenderStatus(...)
+//  getWithdrawalBatchDataWithLendersStatus(...)
+// ═════
 
 import '../IHooksFactory.sol';
 import '../market/WildcatMarket.sol';

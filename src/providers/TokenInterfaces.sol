@@ -1,38 +1,36 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // TokenInterfaces
-// ║  ██▀▀     ▀▀██   Narrow token-query surfaces used by credential providers.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  INTERFACE SUPPORT
-// ║  supportsInterface(...)
-// ║
-// ║  ERC20 BALANCES
-// ║  balanceOf(...)
-// ║
-// ║  VAULT ASSET VALUE
-// ║  balanceOf(...)
-// ║  convertToAssets(...)
-// ║
-// ║  COLLECTION BALANCES
-// ║  balanceOf(...)
-// ║
-// ║  TOKEN OWNERSHIP
-// ║  ownerOf(...)
-// ║
-// ║  TOKEN-ID BALANCES
-// ║  balanceOf(...)
-// ║
-// ║  LOCK STATUS
-// ║  locked(...)
-// ║
-// ║  BURN AUTHORITY
-// ║  burnAuth(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // TokenInterfaces
+//  \ ^ /   Narrow token-query surfaces used by credential providers.
+//    V
+//
+//  INTERFACE SUPPORT
+//  supportsInterface(...)
+//
+//  ERC20 BALANCES
+//  balanceOf(...)
+//
+//  VAULT ASSET VALUE
+//  balanceOf(...)
+//  convertToAssets(...)
+//
+//  COLLECTION BALANCES
+//  balanceOf(...)
+//
+//  TOKEN OWNERSHIP
+//  ownerOf(...)
+//
+//  TOKEN-ID BALANCES
+//  balanceOf(...)
+//
+//  LOCK STATUS
+//  locked(...)
+//
+//  BURN AUTHORITY
+//  burnAuth(...)
+// ═════
 
 // ┌─ IERC165SupportsInterface ─────────────────────────────────────────────────
 /// @dev narrow ERC165 surface used for deployment-time interface checks.

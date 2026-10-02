@@ -1,49 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // FixedTermHooks.t
-// ║  ██▀▀     ▀▀██   Fixed maturity, withdrawal access, and term-management tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _newHooks(...)
-// ║  _newManagementHooks()
-// ║  _createMarket(...)
-// ║  _requestedConfig(...)
-// ║  _term()
-// ║  _addPullProvider(...)
-// ║
-// ║  MARKET CREATION
-// ║  test_metadata_IsCanonical()
-// ║  test_onCreateMarket_ValidatesTermData()
-// ║  test_onCreateMarket_PreservesTermPermissionsAndBatchReads(...)
-// ║  test_onCreateMarket_PreservesTermDecodeAndMinimumFailureOrder()
-// ║
-// ║  ADMINISTRATOR HANDOFF
-// ║  test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority()
-// ║  archController()
-// ║  isRegisteredBorrower(...)
-// ║  onHooksAdministratorTransferred(...)
-// ║
-// ║  TERM MANAGEMENT
-// ║  test_setFixedTermEndTime_EnforcesReductionPolicyAndAuthority()
-// ║  test_setFixedTermEndTime_PreservesEqualAndPastTimeBehavior()
-// ║  test_setFixedTermEndTime_ExtensionAcceptsAndObservesUpdatedTerm(...)
-// ║  test_setFixedTermEndTime_ExtensionRejectsBeforeMaturityWrite()
-// ║  test_setFixedTermEndTime_NativeChecksPrecedeExtensionRejection()
-// ║  test_setFixedTermEndTime_AfterExtensionRejectionRollsBackTermAndBudget()
-// ║  test_termChangeExtensions_DoNotRunOnCreationOrEarlyClosure()
-// ║
-// ║  TERM OPERATIONS
-// ║  test_onQueueWithdrawal_ChecksMaturityBeforeKnownOrCredentialAccess()
-// ║  test_onSetApr_BlocksReductionDuringTermAndDelegatesAllowedChanges()
-// ║  test_onCloseMarket_EnforcesEarlyClosurePolicyAndUpdatesTerm()
-// ║  test_unhookedCloseMarket_Rejects()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // FixedTermHooks.t
+//  \ ^ /   Fixed maturity, withdrawal access, and term-management tests.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//  _newHooks(...)
+//  _newManagementHooks()
+//  _createMarket(...)
+//  _requestedConfig(...)
+//  _term()
+//  _addPullProvider(...)
+//
+//  MARKET CREATION
+//  test_metadata_IsCanonical()
+//  test_onCreateMarket_ValidatesTermData()
+//  test_onCreateMarket_PreservesTermPermissionsAndBatchReads(...)
+//  test_onCreateMarket_PreservesTermDecodeAndMinimumFailureOrder()
+//
+//  ADMINISTRATOR HANDOFF
+//  test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority()
+//  archController()
+//  isRegisteredBorrower(...)
+//  onHooksAdministratorTransferred(...)
+//
+//  TERM MANAGEMENT
+//  test_setFixedTermEndTime_EnforcesReductionPolicyAndAuthority()
+//  test_setFixedTermEndTime_PreservesEqualAndPastTimeBehavior()
+//  test_setFixedTermEndTime_ExtensionAcceptsAndObservesUpdatedTerm(...)
+//  test_setFixedTermEndTime_ExtensionRejectsBeforeMaturityWrite()
+//  test_setFixedTermEndTime_NativeChecksPrecedeExtensionRejection()
+//  test_setFixedTermEndTime_AfterExtensionRejectionRollsBackTermAndBudget()
+//  test_termChangeExtensions_DoNotRunOnCreationOrEarlyClosure()
+//
+//  TERM OPERATIONS
+//  test_onQueueWithdrawal_ChecksMaturityBeforeKnownOrCredentialAccess()
+//  test_onSetApr_BlocksReductionDuringTermAndDelegatesAllowedChanges()
+//  test_onCloseMarket_EnforcesEarlyClosurePolicyAndUpdatesTerm()
+//  test_unhookedCloseMarket_Rejects()
+// ═════
 
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';

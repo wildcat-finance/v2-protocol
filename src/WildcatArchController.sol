@@ -1,63 +1,61 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatArchController
-// ║  ██▀▀     ▀▀██   Protocol registries and coordinated SphereX configuration.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor()
-// ║
-// ║  SPHEREX ENGINE UPDATE
-// ║  updateSphereXEngineOnRegisteredContracts(...)
-// ║  _updateSphereXEngineOnRegisteredContractsInSet(...)
-// ║  _callWith(...)
-// ║
-// ║  BORROWERS
-// ║  registerBorrower(...)
-// ║  removeBorrower(...)
-// ║  isRegisteredBorrower(...)
-// ║  getRegisteredBorrowers()
-// ║  getRegisteredBorrowers(...)
-// ║  getRegisteredBorrowersCount()
-// ║
-// ║  ASSET BLACKLIST
-// ║  addBlacklist(...)
-// ║  removeBlacklist(...)
-// ║  isBlacklistedAsset(...)
-// ║  getBlacklistedAssets()
-// ║  getBlacklistedAssets(...)
-// ║  getBlacklistedAssetsCount()
-// ║
-// ║  CONTROLLER FACTORIES
-// ║  registerControllerFactory(...)
-// ║  removeControllerFactory(...)
-// ║  isRegisteredControllerFactory(...)
-// ║  getRegisteredControllerFactories()
-// ║  getRegisteredControllerFactories(...)
-// ║  getRegisteredControllerFactoriesCount()
-// ║
-// ║  CONTROLLERS
-// ║  onlyControllerFactory()
-// ║  registerController(...)
-// ║  removeController(...)
-// ║  isRegisteredController(...)
-// ║  getRegisteredControllers()
-// ║  getRegisteredControllers(...)
-// ║  getRegisteredControllersCount()
-// ║
-// ║  MARKETS
-// ║  onlyController()
-// ║  registerMarket(...)
-// ║  removeMarket(...)
-// ║  isRegisteredMarket(...)
-// ║  getRegisteredMarkets()
-// ║  getRegisteredMarkets(...)
-// ║  getRegisteredMarketsCount()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatArchController
+//  \ ^ /   Protocol registries and coordinated SphereX configuration.
+//    V
+//
+//  SETUP
+//  constructor()
+//
+//  SPHEREX ENGINE UPDATE
+//  updateSphereXEngineOnRegisteredContracts(...)
+//  _updateSphereXEngineOnRegisteredContractsInSet(...)
+//  _callWith(...)
+//
+//  BORROWERS
+//  registerBorrower(...)
+//  removeBorrower(...)
+//  isRegisteredBorrower(...)
+//  getRegisteredBorrowers()
+//  getRegisteredBorrowers(...)
+//  getRegisteredBorrowersCount()
+//
+//  ASSET BLACKLIST
+//  addBlacklist(...)
+//  removeBlacklist(...)
+//  isBlacklistedAsset(...)
+//  getBlacklistedAssets()
+//  getBlacklistedAssets(...)
+//  getBlacklistedAssetsCount()
+//
+//  CONTROLLER FACTORIES
+//  registerControllerFactory(...)
+//  removeControllerFactory(...)
+//  isRegisteredControllerFactory(...)
+//  getRegisteredControllerFactories()
+//  getRegisteredControllerFactories(...)
+//  getRegisteredControllerFactoriesCount()
+//
+//  CONTROLLERS
+//  onlyControllerFactory()
+//  registerController(...)
+//  removeController(...)
+//  isRegisteredController(...)
+//  getRegisteredControllers()
+//  getRegisteredControllers(...)
+//  getRegisteredControllersCount()
+//
+//  MARKETS
+//  onlyController()
+//  registerMarket(...)
+//  removeMarket(...)
+//  isRegisteredMarket(...)
+//  getRegisteredMarkets()
+//  getRegisteredMarkets(...)
+//  getRegisteredMarketsCount()
+// ═════
 
 import { EnumerableSet } from 'openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import 'solady/auth/Ownable.sol';

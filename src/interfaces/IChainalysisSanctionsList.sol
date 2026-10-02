@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IChainalysisSanctionsList
-// ║  ██▀▀     ▀▀██   External sanctions-oracle query surface.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SANCTION STATUS
-// ║  isSanctioned(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IChainalysisSanctionsList
+//  \ ^ /   External sanctions-oracle query surface.
+//    V
+//
+//  SANCTION STATUS
+//  isSanctioned(...)
+// ═════
 
 // ┌─ IChainalysisSanctionsList ────────────────────────────────────────────────
 /// @notice minimal interface for the external Chainalysis sanctions oracle.

@@ -1,36 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // Wildcat4626WrapperFactory
-// ║  ██▀▀     ▀▀██   Generation-aware deployment and discovery of canonical wrappers.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ROUNDING QUERY
-// ║  scaledTransferRounding()
-// ║
-// ║  MARKET REGISTRATION
-// ║  registerWrapper(...)
-// ║  hooks()
-// ║
-// ║  LEGACY WRAPPERS
-// ║  createWrapper(...)
-// ║  wrapperForMarket(...)
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  WRAPPER DEPLOYMENT
-// ║  createWrapper(...)
-// ║  _validateTransferPolicy(...)
-// ║
-// ║  WRAPPER DISCOVERY
-// ║  wrapperForMarket(...)
-// ║  isFloorRoundingMarket(...)
-// ║  _probeRounding(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // Wildcat4626WrapperFactory
+//  \ ^ /   Generation-aware deployment and discovery of canonical wrappers.
+//    V
+//
+//  ROUNDING QUERY
+//  scaledTransferRounding()
+//
+//  MARKET REGISTRATION
+//  registerWrapper(...)
+//  hooks()
+//
+//  LEGACY WRAPPERS
+//  createWrapper(...)
+//  wrapperForMarket(...)
+//
+//  SETUP
+//  constructor(...)
+//
+//  WRAPPER DEPLOYMENT
+//  createWrapper(...)
+//  _validateTransferPolicy(...)
+//
+//  WRAPPER DISCOVERY
+//  wrapperForMarket(...)
+//  isFloorRoundingMarket(...)
+//  _probeRounding(...)
+// ═════
 
 import { Wildcat4626Wrapper } from './Wildcat4626Wrapper.sol';
 import { IMarketTransferPolicy } from '../access/IMarketTransferPolicy.sol';

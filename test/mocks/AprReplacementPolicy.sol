@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // AprReplacementPolicy
-// ║  ██▀▀     ▀▀██   Test-only alternative APR selection and recording.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  APR SELECTION
-// ║  _selectAprUpdate(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // AprReplacementPolicy
+//  \ ^ /   Test-only alternative APR selection and recording.
+//    V
+//
+//  APR SELECTION
+//  _selectAprUpdate(...)
+// ═════
 
 import { AprValidationPolicy } from './AprValidationPolicy.sol';
 

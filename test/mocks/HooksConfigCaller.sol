@@ -1,34 +1,32 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HooksConfigCaller
-// ║  ██▀▀     ▀▀██   ABI entry points for exact hook-calldata dispatch tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  DISPATCH SETUP
-// ║  setState(...)
-// ║  setConfig(...)
-// ║
-// ║  LENDER OPERATIONS
-// ║  deposit(...)
-// ║  transfer(...)
-// ║  queueWithdrawal(...)
-// ║  executeWithdrawal(...)
-// ║
-// ║  BORROWER OPERATIONS
-// ║  borrow(...)
-// ║  repay(...)
-// ║  closeMarket()
-// ║
-// ║  MARKET CONFIGURATION
-// ║  setMaxTotalSupply(...)
-// ║  setAnnualInterestAndReserveRatioBips(...)
-// ║  setProtocolFeeBips(...)
-// ║  nukeFromOrbit(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HooksConfigCaller
+//  \ ^ /   ABI entry points for exact hook-calldata dispatch tests.
+//    V
+//
+//  DISPATCH SETUP
+//  setState(...)
+//  setConfig(...)
+//
+//  LENDER OPERATIONS
+//  deposit(...)
+//  transfer(...)
+//  queueWithdrawal(...)
+//  executeWithdrawal(...)
+//
+//  BORROWER OPERATIONS
+//  borrow(...)
+//  repay(...)
+//  closeMarket()
+//
+//  MARKET CONFIGURATION
+//  setMaxTotalSupply(...)
+//  setAnnualInterestAndReserveRatioBips(...)
+//  setProtocolFeeBips(...)
+//  nukeFromOrbit(...)
+// ═════
 
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';

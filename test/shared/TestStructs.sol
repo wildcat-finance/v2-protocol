@@ -1,24 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // TestStructs
-// ║  ██▀▀     ▀▀██   Unpacked test representations of roles and hook flags.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ROLE ENCODING
-// ║  toRoleProvider(...)
-// ║
-// ║  HOOK ENCODING
-// ║  toHooksConfig(...)
-// ║  toHooksDeploymentConfig(...)
-// ║
-// ║  HOOK FLAG MERGING
-// ║  mergeFlags(...)
-// ║  mergeSharedFlags(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // TestStructs
+//  \ ^ /   Unpacked test representations of roles and hook flags.
+//    V
+//
+//  ROLE ENCODING
+//  toRoleProvider(...)
+//
+//  HOOK ENCODING
+//  toHooksConfig(...)
+//  toHooksDeploymentConfig(...)
+//
+//  HOOK FLAG MERGING
+//  mergeFlags(...)
+//  mergeSharedFlags(...)
+// ═════
 
 import { RoleProvider, encodeRoleProvider } from 'src/types/RoleProvider.sol';
 import { Bit_Enabled_ExecutePendingAnnualInterestBipsReduction } from 'src/types/HooksConfig.sol';

@@ -1,83 +1,81 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LensMocks
-// ║  ██▀▀     ▀▀██   Lens metadata, capability, and malformed-response fixtures.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CONTROLLER REGISTRATION
-// ║  setControllers(...)
-// ║  getRegisteredControllers()
-// ║
-// ║  BORROWER REGISTRATION
-// ║  setRegisteredBorrower(...)
-// ║  isRegisteredBorrower(...)
-// ║
-// ║  HOOK METADATA
-// ║  constructor(...)
-// ║  version()
-// ║  config()
-// ║
-// ║  FACTORY FAILURE MODES
-// ║  setReverts(...)
-// ║
-// ║  FACTORY TEMPLATES
-// ║  setTemplates(...)
-// ║  getHooksTemplatesCount()
-// ║  getHooksTemplates()
-// ║  setTemplateDetails(...)
-// ║  getHooksTemplateDetails(...)
-// ║
-// ║  FACTORY INSTANCES
-// ║  setInstances(...)
-// ║  getHooksInstancesForBorrower(...)
-// ║  setInstanceTemplate(...)
-// ║  getHooksTemplateForInstance(...)
-// ║  getMarketsForHooksInstanceCount(...)
-// ║
-// ║  FACTORY MARKETS
-// ║  setMarkets(...)
-// ║  getMarketsForHooksTemplateCount(...)
-// ║  getMarketsForHooksTemplate(...)
-// ║  getMarketsForHooksTemplate(...)
-// ║
-// ║  DELEGATED RESPONSES
-// ║  constructor(...)
-// ║  fallback()
-// ║
-// ║  VERSION STRINGS
-// ║  constructor(...)
-// ║  version()
-// ║
-// ║  V1 MARKET METADATA
-// ║  constructor(...)
-// ║  version()
-// ║
-// ║  REVERTING VERSION
-// ║  version()
-// ║
-// ║  MALFORMED VERSION
-// ║  constructor(...)
-// ║  fallback()
-// ║
-// ║  OPTIONAL UINT RESPONSES
-// ║  constructor(...)
-// ║  fallback()
-// ║
-// ║  CAPABILITY PROBES
-// ║  isV2Market(...)
-// ║  hooksKind(...)
-// ║
-// ║  METADATA PROBES
-// ║  constraints(...)
-// ║  lifecycle(...)
-// ║  pendingAprChange(...)
-// ║  decodeFlags(...)
-// ║  optionalUint(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LensMocks
+//  \ ^ /   Lens metadata, capability, and malformed-response fixtures.
+//    V
+//
+//  CONTROLLER REGISTRATION
+//  setControllers(...)
+//  getRegisteredControllers()
+//
+//  BORROWER REGISTRATION
+//  setRegisteredBorrower(...)
+//  isRegisteredBorrower(...)
+//
+//  HOOK METADATA
+//  constructor(...)
+//  version()
+//  config()
+//
+//  FACTORY FAILURE MODES
+//  setReverts(...)
+//
+//  FACTORY TEMPLATES
+//  setTemplates(...)
+//  getHooksTemplatesCount()
+//  getHooksTemplates()
+//  setTemplateDetails(...)
+//  getHooksTemplateDetails(...)
+//
+//  FACTORY INSTANCES
+//  setInstances(...)
+//  getHooksInstancesForBorrower(...)
+//  setInstanceTemplate(...)
+//  getHooksTemplateForInstance(...)
+//  getMarketsForHooksInstanceCount(...)
+//
+//  FACTORY MARKETS
+//  setMarkets(...)
+//  getMarketsForHooksTemplateCount(...)
+//  getMarketsForHooksTemplate(...)
+//  getMarketsForHooksTemplate(...)
+//
+//  DELEGATED RESPONSES
+//  constructor(...)
+//  fallback()
+//
+//  VERSION STRINGS
+//  constructor(...)
+//  version()
+//
+//  V1 MARKET METADATA
+//  constructor(...)
+//  version()
+//
+//  REVERTING VERSION
+//  version()
+//
+//  MALFORMED VERSION
+//  constructor(...)
+//  fallback()
+//
+//  OPTIONAL UINT RESPONSES
+//  constructor(...)
+//  fallback()
+//
+//  CAPABILITY PROBES
+//  isV2Market(...)
+//  hooksKind(...)
+//
+//  METADATA PROBES
+//  constraints(...)
+//  lifecycle(...)
+//  pendingAprChange(...)
+//  decodeFlags(...)
+//  optionalUint(...)
+// ═════
 
 import { HooksConfigData, HooksConfigDataLib } from 'src/lens/HooksConfigData.sol';
 import { HooksInstanceKind } from 'src/lens/HooksConfigData.sol';

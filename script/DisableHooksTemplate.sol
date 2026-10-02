@@ -1,28 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // DisableHooksTemplate
-// ║  ██▀▀     ▀▀██   Resolve a template, disable it, and record the owner action.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  EXECUTION FLOW
-// ║  run()
-// ║
-// ║  CONFIGURATION
-// ║  _resolveDeployments()
-// ║  _resolveAddress(...)
-// ║  _resolveTemplate(...)
-// ║  _broadcaster(...)
-// ║  _shouldDisableDirectly(...)
-// ║
-// ║  ACTION RECORDS
-// ║  _writeDisableAction(...)
-// ║  _disableCalldata(...)
-// ║  _printDisableAction(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // DisableHooksTemplate
+//  \ ^ /   Resolve a template, disable it, and record the owner action.
+//    V
+//
+//  EXECUTION FLOW
+//  run()
+//
+//  CONFIGURATION
+//  _resolveDeployments()
+//  _resolveAddress(...)
+//  _resolveTemplate(...)
+//  _broadcaster(...)
+//  _shouldDisableDirectly(...)
+//
+//  ACTION RECORDS
+//  _writeDisableAction(...)
+//  _disableCalldata(...)
+//  _printDisableAction(...)
+// ═════
 
 import 'forge-std/Script.sol';
 import { console } from 'forge-std/console.sol';

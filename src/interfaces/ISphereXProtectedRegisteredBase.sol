@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ISphereXProtectedRegisteredBase
-// ║  ██▀▀     ▀▀██   ArchController-operated SphereX engine management.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ENGINE MANAGEMENT
-// ║  changeSphereXEngine(...)
-// ║  sphereXEngine()
-// ║  sphereXOperator()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ISphereXProtectedRegisteredBase
+//  \ ^ /   ArchController-operated SphereX engine management.
+//    V
+//
+//  ENGINE MANAGEMENT
+//  changeSphereXEngine(...)
+//  sphereXEngine()
+//  sphereXOperator()
+// ═════
 
 // ┌─ ISphereXProtectedRegisteredBase ──────────────────────────────────────────
 /// @notice management surface shared by contracts whose SphereX operator is the ArchController.

@@ -1,48 +1,46 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IMarketLensAggregator
-// ║  ██▀▀     ▀▀██   Default, explicit, and cross-factory query surfaces.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BORROWER HOOKS DATA
-// ║  getHooksDataForBorrower(...)
-// ║  getHooksDataForBorrower(...)
-// ║  getAggregatedHooksDataForBorrower(...)
-// ║
-// ║  HOOKS INSTANCES
-// ║  getHooksInstancesForBorrower(...)
-// ║  getHooksInstancesForBorrower(...)
-// ║  getAggregatedHooksInstancesForBorrower(...)
-// ║
-// ║  HOOKS TEMPLATES
-// ║  getHooksTemplateForBorrower(...)
-// ║  getHooksTemplateForBorrower(...)
-// ║  getHooksTemplatesForBorrower(...)
-// ║  getHooksTemplatesForBorrower(...)
-// ║  getAllHooksTemplatesForBorrower(...)
-// ║  getAllHooksTemplatesForBorrower(...)
-// ║  getAggregatedAllHooksTemplatesForBorrower(...)
-// ║  getAggregatedHooksTemplatesForBorrowerWithFactory(...)
-// ║
-// ║  TEMPLATE MARKETS
-// ║  getMarketsForHooksTemplateCount(...)
-// ║  getMarketsForHooksTemplateCount(...)
-// ║  getAggregatedMarketsForHooksTemplateCount(...)
-// ║  getPaginatedMarketsDataForHooksTemplate(...)
-// ║  getPaginatedMarketsDataForHooksTemplate(...)
-// ║  getPaginatedMarketsDataV2ForHooksTemplate(...)
-// ║  getPaginatedMarketsDataV2ForHooksTemplate(...)
-// ║  getAllMarketsDataForHooksTemplate(...)
-// ║  getAllMarketsDataForHooksTemplate(...)
-// ║  getAllMarketsDataV2ForHooksTemplate(...)
-// ║  getAllMarketsDataV2ForHooksTemplate(...)
-// ║  getAggregatedAllMarketsDataForHooksTemplate(...)
-// ║  getAggregatedAllMarketsDataV2ForHooksTemplate(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IMarketLensAggregator
+//  \ ^ /   Default, explicit, and cross-factory query surfaces.
+//    V
+//
+//  BORROWER HOOKS DATA
+//  getHooksDataForBorrower(...)
+//  getHooksDataForBorrower(...)
+//  getAggregatedHooksDataForBorrower(...)
+//
+//  HOOKS INSTANCES
+//  getHooksInstancesForBorrower(...)
+//  getHooksInstancesForBorrower(...)
+//  getAggregatedHooksInstancesForBorrower(...)
+//
+//  HOOKS TEMPLATES
+//  getHooksTemplateForBorrower(...)
+//  getHooksTemplateForBorrower(...)
+//  getHooksTemplatesForBorrower(...)
+//  getHooksTemplatesForBorrower(...)
+//  getAllHooksTemplatesForBorrower(...)
+//  getAllHooksTemplatesForBorrower(...)
+//  getAggregatedAllHooksTemplatesForBorrower(...)
+//  getAggregatedHooksTemplatesForBorrowerWithFactory(...)
+//
+//  TEMPLATE MARKETS
+//  getMarketsForHooksTemplateCount(...)
+//  getMarketsForHooksTemplateCount(...)
+//  getAggregatedMarketsForHooksTemplateCount(...)
+//  getPaginatedMarketsDataForHooksTemplate(...)
+//  getPaginatedMarketsDataForHooksTemplate(...)
+//  getPaginatedMarketsDataV2ForHooksTemplate(...)
+//  getPaginatedMarketsDataV2ForHooksTemplate(...)
+//  getAllMarketsDataForHooksTemplate(...)
+//  getAllMarketsDataForHooksTemplate(...)
+//  getAllMarketsDataV2ForHooksTemplate(...)
+//  getAllMarketsDataV2ForHooksTemplate(...)
+//  getAggregatedAllMarketsDataForHooksTemplate(...)
+//  getAggregatedAllMarketsDataV2ForHooksTemplate(...)
+// ═════
 
 import '../FactoryScopedHooksTemplateData.sol';
 import '../HooksDataForBorrower.sol';

@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WithdrawalBatchData
-// ║  ██▀▀     ▀▀██   Withdrawal batch accounting and lender claim previews.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BATCH AND CLAIM DATA
-// ║  fill(...)
-// ║  fill(...)
-// ║  fill(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WithdrawalBatchData
+//  \ ^ /   Withdrawal batch accounting and lender claim previews.
+//    V
+//
+//  BATCH AND CLAIM DATA
+//  fill(...)
+//  fill(...)
+//  fill(...)
+// ═════
 
 import './MarketAccountingReader.sol';
 

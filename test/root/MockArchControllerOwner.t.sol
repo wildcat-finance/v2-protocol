@@ -1,46 +1,44 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MockArchControllerOwner.t
-// ║  ██▀▀     ▀▀██   Executor authority, protocol actions, and ownership recovery.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  _newFixture()
-// ║  _deployArchController()
-// ║  _deployHelper(...)
-// ║  _initialExecutors()
-// ║  _deployProtocolTarget(...)
-// ║  _deployLegacyFactory(...)
-// ║  _deploySphereXEngine()
-// ║
-// ║  EXECUTOR AUTHORITY
-// ║  test_constructor_RecordsExplicitExecutors()
-// ║  test_constructor_RejectsInvalidInputs()
-// ║  test_authorizeAndDeauthorizeAccounts_EmitsAndUsesSwapPop()
-// ║  test_authorizationMutation_ValidatesCallerAndAccount()
-// ║  test_deauthorizeAccount_RejectsFinalExecutor()
-// ║  test_oldAndNewExecutors_OperateConcurrently()
-// ║
-// ║  REGISTRATION AND RECOVERY
-// ║  test_registerBorrowerAndBatch_ArePermissionless()
-// ║  test_returnOwnership_GivesArchControllerToAuthorizedCaller()
-// ║
-// ║  PROTOCOL ACTIONS
-// ║  test_executeProtocolAction_CallsArchController()
-// ║  test_executeProtocolAction_EmitsForBoundTargetAndReturnsData()
-// ║  test_executeProtocolAction_BubblesTargetRevert()
-// ║  test_executeProtocolAction_RejectsInvalidTargetOrData()
-// ║  test_executeProtocolAction_RequiresAuthorization()
-// ║  test_setProtocolFeeConfiguration_PreservesLegacyCallAndRequiresAuthorization()
-// ║
-// ║  ENGINE AUTHORITY
-// ║  test_archControllerSphereXRoles_CanMoveToHelper()
-// ║  test_sphereXEngineRoles_CanMoveToHelper()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MockArchControllerOwner.t
+//  \ ^ /   Executor authority, protocol actions, and ownership recovery.
+//    V
+//
+//  FIXTURE
+//  _newFixture()
+//  _deployArchController()
+//  _deployHelper(...)
+//  _initialExecutors()
+//  _deployProtocolTarget(...)
+//  _deployLegacyFactory(...)
+//  _deploySphereXEngine()
+//
+//  EXECUTOR AUTHORITY
+//  test_constructor_RecordsExplicitExecutors()
+//  test_constructor_RejectsInvalidInputs()
+//  test_authorizeAndDeauthorizeAccounts_EmitsAndUsesSwapPop()
+//  test_authorizationMutation_ValidatesCallerAndAccount()
+//  test_deauthorizeAccount_RejectsFinalExecutor()
+//  test_oldAndNewExecutors_OperateConcurrently()
+//
+//  REGISTRATION AND RECOVERY
+//  test_registerBorrowerAndBatch_ArePermissionless()
+//  test_returnOwnership_GivesArchControllerToAuthorizedCaller()
+//
+//  PROTOCOL ACTIONS
+//  test_executeProtocolAction_CallsArchController()
+//  test_executeProtocolAction_EmitsForBoundTargetAndReturnsData()
+//  test_executeProtocolAction_BubblesTargetRevert()
+//  test_executeProtocolAction_RejectsInvalidTargetOrData()
+//  test_executeProtocolAction_RequiresAuthorization()
+//  test_setProtocolFeeConfiguration_PreservesLegacyCallAndRequiresAuthorization()
+//
+//  ENGINE AUTHORITY
+//  test_archControllerSphereXRoles_CanMoveToHelper()
+//  test_sphereXEngineRoles_CanMoveToHelper()
+// ═════
 
 import 'openzeppelin/contracts/access/IAccessControl.sol';
 import 'openzeppelin/contracts/access/IAccessControlDefaultAdminRules.sol';

@@ -2,39 +2,37 @@
 // (c) SphereX 2023 Terms&Conditions
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // SphereXConfig
-// ║  ██▀▀     ▀▀██   SphereX administrator, operator, and engine lifecycle.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  ADMINISTRATION
-// ║  onlySphereXAdmin()
-// ║  transferSphereXAdminRole(...)
-// ║  acceptSphereXAdminRole()
-// ║  sphereXAdmin()
-// ║  pendingSphereXAdmin()
-// ║
-// ║  OPERATOR
-// ║  changeSphereXOperator(...)
-// ║  spherexOnlyOperator()
-// ║  spherexOnlyOperatorOrAdmin()
-// ║  sphereXOperator()
-// ║
-// ║  ENGINE
-// ║  changeSphereXEngine(...)
-// ║  _setSphereXEngine(...)
-// ║  sphereXEngine()
-// ║  _addAllowedSenderOnChain(...)
-// ║
-// ║  STORAGE ACCESS
-// ║  _setAddress(...)
-// ║  _getAddress(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // SphereXConfig
+//  \ ^ /   SphereX administrator, operator, and engine lifecycle.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//
+//  ADMINISTRATION
+//  onlySphereXAdmin()
+//  transferSphereXAdminRole(...)
+//  acceptSphereXAdminRole()
+//  sphereXAdmin()
+//  pendingSphereXAdmin()
+//
+//  OPERATOR
+//  changeSphereXOperator(...)
+//  spherexOnlyOperator()
+//  spherexOnlyOperatorOrAdmin()
+//  sphereXOperator()
+//
+//  ENGINE
+//  changeSphereXEngine(...)
+//  _setSphereXEngine(...)
+//  sphereXEngine()
+//  _addAllowedSenderOnChain(...)
+//
+//  STORAGE ACCESS
+//  _setAddress(...)
+//  _getAddress(...)
+// ═════
 
 import { ISphereXEngine, ModifierLocals } from './ISphereXEngine.sol';
 import './SphereXProtectedEvents.sol';

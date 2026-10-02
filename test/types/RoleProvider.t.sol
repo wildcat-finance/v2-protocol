@@ -1,36 +1,34 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // RoleProvider.t
-// ║  ██▀▀     ▀▀██   Packed role-provider encoding, updates, and query tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  PROVIDER ENCODING
-// ║  test_encodeRoleProvider(...)
-// ║  test_decodeRoleProvider(...)
-// ║
-// ║  PROVIDER CONFIGURATION
-// ║  test_setTimeToLive(...)
-// ║  test_setProviderAddress(...)
-// ║  test_setPullProviderIndex(...)
-// ║  test_setPushProviderIndex(...)
-// ║  test_setPushProviderIndex()
-// ║  test_setNotPullProvider(...)
-// ║  setNullIndex(...)
-// ║
-// ║  PROVIDER QUERIES
-// ║  test_calculateExpiry(...)
-// ║  test_eq(...)
-// ║  test_isNull(...)
-// ║  test_isPullProvider(...)
-// ║
-// ║  PROVIDER ASSERTIONS
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // RoleProvider.t
+//  \ ^ /   Packed role-provider encoding, updates, and query tests.
+//    V
+//
+//  PROVIDER ENCODING
+//  test_encodeRoleProvider(...)
+//  test_decodeRoleProvider(...)
+//
+//  PROVIDER CONFIGURATION
+//  test_setTimeToLive(...)
+//  test_setProviderAddress(...)
+//  test_setPullProviderIndex(...)
+//  test_setPushProviderIndex(...)
+//  test_setPushProviderIndex()
+//  test_setNotPullProvider(...)
+//  setNullIndex(...)
+//
+//  PROVIDER QUERIES
+//  test_calculateExpiry(...)
+//  test_eq(...)
+//  test_isNull(...)
+//  test_isPullProvider(...)
+//
+//  PROVIDER ASSERTIONS
+//  assertEq(...)
+//  assertEq(...)
+// ═════
 
 import 'src/types/RoleProvider.sol';
 import { TestKernel } from '../shared/TestKernel.sol';

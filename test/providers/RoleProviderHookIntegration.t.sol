@@ -1,40 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // RoleProviderHookIntegration.t
-// ║  ██▀▀     ▀▀██   Pull and push credentials through production hook callbacks.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SHARED FIXTURE
-// ║  setUp()
-// ║  _deployHooks(...)
-// ║  _deposit(...)
-// ║  _expectDepositDenied(...)
-// ║  _assertCredential(...)
-// ║
-// ║  PULL PROVIDER ACCESS
-// ║  test_pullProviderMatrix_RoutesCurrentCredentialsIntoDeposit()
-// ║  test_pullProviderMatrix_ZeroTtlRechecksAndFollowsEligibility()
-// ║  test_pullProviderMatrix_PositiveTtlDelaysRemoval()
-// ║  test_pullProviderMatrix_FailedReadsFailClosedAndDoNotMaskLaterProviders()
-// ║  test_erc4626ConversionFailureAlsoFailsClosed()
-// ║  test_hookBlockOverridesAnEligibleProvider()
-// ║  _newPullFixture(...)
-// ║  _deployPullProvider(...)
-// ║  _setPullEligibility(...)
-// ║  _setPullReadRevert(...)
-// ║
-// ║  PUSH PROVIDER ACCESS
-// ║  test_pushProviderMatrix_RoutesPackedCredentialsIntoDeposit()
-// ║  test_pushProviderMatrix_ExpiredCredentialsRequireFreshOwnership()
-// ║  test_pushProviderMatrix_MalformedCredentialDataFailsClosed()
-// ║  _newPushFixture(...)
-// ║  _deployPushProvider(...)
-// ║  _setPushEligibility(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // RoleProviderHookIntegration.t
+//  \ ^ /   Pull and push credentials through production hook callbacks.
+//    V
+//
+//  SHARED FIXTURE
+//  setUp()
+//  _deployHooks(...)
+//  _deposit(...)
+//  _expectDepositDenied(...)
+//  _assertCredential(...)
+//
+//  PULL PROVIDER ACCESS
+//  test_pullProviderMatrix_RoutesCurrentCredentialsIntoDeposit()
+//  test_pullProviderMatrix_ZeroTtlRechecksAndFollowsEligibility()
+//  test_pullProviderMatrix_PositiveTtlDelaysRemoval()
+//  test_pullProviderMatrix_FailedReadsFailClosedAndDoNotMaskLaterProviders()
+//  test_erc4626ConversionFailureAlsoFailsClosed()
+//  test_hookBlockOverridesAnEligibleProvider()
+//  _newPullFixture(...)
+//  _deployPullProvider(...)
+//  _setPullEligibility(...)
+//  _setPullReadRevert(...)
+//
+//  PUSH PROVIDER ACCESS
+//  test_pushProviderMatrix_RoutesPackedCredentialsIntoDeposit()
+//  test_pushProviderMatrix_ExpiredCredentialsRequireFreshOwnership()
+//  test_pushProviderMatrix_MalformedCredentialDataFailsClosed()
+//  _newPushFixture(...)
+//  _deployPushProvider(...)
+//  _setPushEligibility(...)
+// ═════
 
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';

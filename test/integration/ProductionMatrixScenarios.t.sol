@@ -1,70 +1,68 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ProductionMatrixScenarios.t
-// ║  ██▀▀     ▀▀██   Production factory matrices, composed policies, and lifecycles.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BUILT IN PRODUCTION MATRIX
-// ║  test_productionFactoriesDeployCompleteBuiltInMatrix()
-// ║  test_deterministicLifecycleRunsAcrossProductionMatrix()
-// ║  _runLifecycle(...)
-// ║
-// ║  DEPOSITS AND WITHDRAWAL BOUNDARIES
-// ║  test_minimumDepositOrderingAndLiveUpdatesUseProductionComposition()
-// ║  test_exactMinimumBoundarySurvivesAccruedScaleAcrossProductionHooks()
-// ║  test_withdrawalGatesHoldAtExactProductionMatrixBoundaries()
-// ║  _assertFixedTermGate(...)
-// ║  _assertPeriodicTermGate(...)
-// ║  test_roundingStrandingWindowsCloseAndDrainThroughProductionFactory()
-// ║  _deployRoundingCell(...)
-// ║
-// ║  PERIODIC APR LIFECYCLE
-// ║  test_periodicAprReductionExecutesAcrossProductionMarkets()
-// ║  test_periodicAprExpiryAndCancellationUseProductionMarketState()
-// ║
-// ║  REPLACEMENT APR POLICIES
-// ║  test_replacementFactoriesApplyEffectiveAprAcrossProductionMatrix()
-// ║  test_replacementPeriodicExecutionRechecksBothMarketRoutes()
-// ║  test_replacementPeriodicEqualityAndIncreaseUseMarketState()
-// ║  _aprReplacementArtifacts()
-// ║  _replacementConfig(...)
-// ║  _setAprBounds(...)
-// ║  _callReplacementReduction(...)
-// ║  _assertReductionRejection(...)
-// ║  _assertDedicatedCallData(...)
-// ║  _pendingAprHash(...)
-// ║  _temporaryReserveHash(...)
-// ║
-// ║  REPLACEMENT CLOSURE
-// ║  test_replacementClosureRetainsBatchingAndAccessAcrossProductionMatrix()
-// ║  test_replacementFixedClosurePermissionsRemainIndependentAcrossMarkets()
-// ║  _queueClosingBatch(...)
-// ║  _claimSharedBatch(...)
-// ║
-// ║  COMPOSED BORROW POLICIES
-// ║  test_fourPolicyFactoriesForceCallbacksAcrossProductionMatrix()
-// ║  test_fourPolicyBorrowLimitsRetainTransferRulesAcrossProductionMatrix()
-// ║  test_fourPolicyBorrowAuthorityAndMarketsStayIsolated()
-// ║  test_fourPolicyBorrowRollbackAndCoreGuardsAcrossProductionMatrix()
-// ║  _borrowArtifacts()
-// ║  _deployBorrowCell(...)
-// ║  _assertRecordedBorrow(...)
-// ║  _assertComposedTransfers(...)
-// ║  _assertBorrowTransferRollback(...)
-// ║
-// ║  LENS AND WRAPPER INTEGRATION
-// ║  test_lensDecodesFactoryMarketConfigurationAcrossProductionMatrix()
-// ║  _assertDiscoveredHooks(...)
-// ║  test_lensTracksFactoryInstancesThroughAdministratorTransfer()
-// ║  test_wrappersKeepAccessAndBackingAcrossProductionMatrix()
-// ║
-// ║  SANCTIONS INTEGRATION
-// ║  test_directSanctionsFlowsComposeAcrossProductionMatrix()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ProductionMatrixScenarios.t
+//  \ ^ /   Production factory matrices, composed policies, and lifecycles.
+//    V
+//
+//  BUILT IN PRODUCTION MATRIX
+//  test_productionFactoriesDeployCompleteBuiltInMatrix()
+//  test_deterministicLifecycleRunsAcrossProductionMatrix()
+//  _runLifecycle(...)
+//
+//  DEPOSITS AND WITHDRAWAL BOUNDARIES
+//  test_minimumDepositOrderingAndLiveUpdatesUseProductionComposition()
+//  test_exactMinimumBoundarySurvivesAccruedScaleAcrossProductionHooks()
+//  test_withdrawalGatesHoldAtExactProductionMatrixBoundaries()
+//  _assertFixedTermGate(...)
+//  _assertPeriodicTermGate(...)
+//  test_roundingStrandingWindowsCloseAndDrainThroughProductionFactory()
+//  _deployRoundingCell(...)
+//
+//  PERIODIC APR LIFECYCLE
+//  test_periodicAprReductionExecutesAcrossProductionMarkets()
+//  test_periodicAprExpiryAndCancellationUseProductionMarketState()
+//
+//  REPLACEMENT APR POLICIES
+//  test_replacementFactoriesApplyEffectiveAprAcrossProductionMatrix()
+//  test_replacementPeriodicExecutionRechecksBothMarketRoutes()
+//  test_replacementPeriodicEqualityAndIncreaseUseMarketState()
+//  _aprReplacementArtifacts()
+//  _replacementConfig(...)
+//  _setAprBounds(...)
+//  _callReplacementReduction(...)
+//  _assertReductionRejection(...)
+//  _assertDedicatedCallData(...)
+//  _pendingAprHash(...)
+//  _temporaryReserveHash(...)
+//
+//  REPLACEMENT CLOSURE
+//  test_replacementClosureRetainsBatchingAndAccessAcrossProductionMatrix()
+//  test_replacementFixedClosurePermissionsRemainIndependentAcrossMarkets()
+//  _queueClosingBatch(...)
+//  _claimSharedBatch(...)
+//
+//  COMPOSED BORROW POLICIES
+//  test_fourPolicyFactoriesForceCallbacksAcrossProductionMatrix()
+//  test_fourPolicyBorrowLimitsRetainTransferRulesAcrossProductionMatrix()
+//  test_fourPolicyBorrowAuthorityAndMarketsStayIsolated()
+//  test_fourPolicyBorrowRollbackAndCoreGuardsAcrossProductionMatrix()
+//  _borrowArtifacts()
+//  _deployBorrowCell(...)
+//  _assertRecordedBorrow(...)
+//  _assertComposedTransfers(...)
+//  _assertBorrowTransferRollback(...)
+//
+//  LENS AND WRAPPER INTEGRATION
+//  test_lensDecodesFactoryMarketConfigurationAcrossProductionMatrix()
+//  _assertDiscoveredHooks(...)
+//  test_lensTracksFactoryInstancesThroughAdministratorTransfer()
+//  test_wrappersKeepAccessAndBackingAcrossProductionMatrix()
+//
+//  SANCTIONS INTEGRATION
+//  test_directSanctionsFlowsComposeAcrossProductionMatrix()
+// ═════
 
 import { VmSafe } from 'forge-std/Vm.sol';
 import { WithdrawalBatch } from 'src/libraries/Withdrawal.sol';

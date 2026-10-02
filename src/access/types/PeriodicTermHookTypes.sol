@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // PeriodicTermHookTypes
-// ║  ██▀▀     ▀▀██   Periodic market settings and APR proposal records.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CURRENT APR
-// ║  annualInterestBips()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // PeriodicTermHookTypes
+//  \ ^ /   Periodic market settings and APR proposal records.
+//    V
+//
+//  CURRENT APR
+//  annualInterestBips()
+// ═════
 
 /// @dev per-market schedule and access settings, packed into 31 bytes so the hot callbacks need one
 ///      storage slot. `minimumDeposit` is `uint96`; the external setter keeps its older `uint128`

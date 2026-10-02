@@ -1,40 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // RepayExpiryDelinquency.t
-// ║  ██▀▀     ▀▀██   Repayment and donation ordering across expired withdrawal batches.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  STATE SNAPSHOTS
-// ║  snapshotState()
-// ║  revertToState(...)
-// ║
-// ║  FIXTURE
-// ║  _setUpPendingBatch(...)
-// ║  _setUpExpiredBatch(...)
-// ║  _options(...)
-// ║
-// ║  REPAYMENT AT EXPIRY
-// ║  test_repaymentAtExpiryCountsTowardsCurrentBatch_AcrossMarketTypes()
-// ║
-// ║  LATE FUNDING
-// ║  test_lateCombinedRepaymentDoesNotRewriteExpiredInterval_AcrossMarketTypes()
-// ║  test_latePlainRepaymentDoesNotRewriteExpiredInterval_AcrossMarketTypes()
-// ║  test_lateDonationDoesNotRewriteExpiredInterval_AcrossMarketTypes()
-// ║  test_lateCombinedRepaymentRespectsMaxBatches_AcrossMarketTypes()
-// ║  _assertLateRepaymentOrdering(...)
-// ║  _repay(...)
-// ║  _capture(...)
-// ║  _assertExpectedOutcome(...)
-// ║
-// ║  ASSET CHECKPOINTS
-// ║  test_checkpointedAssetBalanceUsesPaddingSaturatesAndClears()
-// ║  _readCheckpointedTotalAssets(...)
-// ║  _donate(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // RepayExpiryDelinquency.t
+//  \ ^ /   Repayment and donation ordering across expired withdrawal batches.
+//    V
+//
+//  STATE SNAPSHOTS
+//  snapshotState()
+//  revertToState(...)
+//
+//  FIXTURE
+//  _setUpPendingBatch(...)
+//  _setUpExpiredBatch(...)
+//  _options(...)
+//
+//  REPAYMENT AT EXPIRY
+//  test_repaymentAtExpiryCountsTowardsCurrentBatch_AcrossMarketTypes()
+//
+//  LATE FUNDING
+//  test_lateCombinedRepaymentDoesNotRewriteExpiredInterval_AcrossMarketTypes()
+//  test_latePlainRepaymentDoesNotRewriteExpiredInterval_AcrossMarketTypes()
+//  test_lateDonationDoesNotRewriteExpiredInterval_AcrossMarketTypes()
+//  test_lateCombinedRepaymentRespectsMaxBatches_AcrossMarketTypes()
+//  _assertLateRepaymentOrdering(...)
+//  _repay(...)
+//  _capture(...)
+//  _assertExpectedOutcome(...)
+//
+//  ASSET CHECKPOINTS
+//  test_checkpointedAssetBalanceUsesPaddingSaturatesAndClears()
+//  _readCheckpointedTotalAssets(...)
+//  _donate(...)
+// ═════
 
 import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';

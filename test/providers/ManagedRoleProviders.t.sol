@@ -1,67 +1,65 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ManagedRoleProviders.t
-// ║  ██▀▀     ▀▀██   Managed provider authority, membership, and hook integration.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _deployManaged(...)
-// ║  _deployAccessList(...)
-// ║  _deployMerkle(...)
-// ║  _singleMember(...)
-// ║
-// ║  PROVIDER AUTHORITY
-// ║  test_managedProviderMatrix_RejectsZeroAdministrator()
-// ║  test_managedProviderMatrix_RequestReplaceAndCancelTransfer()
-// ║  test_managedProviderMatrix_TransferErrors()
-// ║  test_managedProviderMatrix_AcceptMovesAuthorityAndPreservesConfiguration()
-// ║  _mutateManaged(...)
-// ║  _assertManagedConfiguration(...)
-// ║
-// ║  ACCESS LIST MEMBERSHIP
-// ║  test_accessList_ConstructorAndCredentialsTrackMembership()
-// ║  test_accessList_ConstructorRejectsInvalidInitialMembers()
-// ║  test_accessList_ProviderInstancesKeepIndependentMembership()
-// ║  test_accessList_SingleMemberUpdatesEmitAndAffectCredentials()
-// ║  test_accessList_BatchUpdatesAreAtomic()
-// ║  test_accessList_MemberUpdateErrorsAndAuthority()
-// ║  test_accessList_PaginationClampsAndRejectsInvalidRanges()
-// ║
-// ║  MERKLE MEMBERSHIP
-// ║  test_merkle_ConstructorAndMembershipSurface()
-// ║  testFuzz_merkleGeneratedProofValidatesOnlyItsAccount(...)
-// ║  testFuzz_merkleMalformedCredentialDataFailsClosed(...)
-// ║  test_merkle_NonCanonicalCredentialEncodingsFailClosed()
-// ║  test_merkle_SingleLeafAcceptsCanonicalEmptyProof()
-// ║  test_merkle_RootUpdatesEmitAndRequireAdministrator()
-// ║  _leaf(...)
-// ║  _hashPair(...)
-// ║  _rootFor(...)
-// ║
-// ║  HOOK ACCESS FIXTURES
-// ║  _newHookFixture(...)
-// ║  _deployHooks(...)
-// ║  _deposit(...)
-// ║  _expectDepositDenied(...)
-// ║  _queueWithdrawal(...)
-// ║  _merkleHooksData(...)
-// ║
-// ║  ACCESS LIST HOOK INTEGRATION
-// ║  test_accessListHook_MembershipRemovalRespectsConfiguredTtl()
-// ║  test_accessListHook_LocalBlockAndAttachmentSurviveProviderUpdates()
-// ║
-// ║  MERKLE HOOK INTEGRATION
-// ║  test_merkleHook_ValidProofAllowsMemberAndRejectsNonmember()
-// ║  test_merkleHook_RootUpdateRespectsPositiveTtl()
-// ║  test_merkleHook_ZeroTtlUsesSameBlockCredentialThenRequiresFreshProof()
-// ║  test_merkleHook_MalformedDataFailsClosed()
-// ║  test_merkleHook_EmptyProofTracksSingleLeafRootUpdates()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ManagedRoleProviders.t
+//  \ ^ /   Managed provider authority, membership, and hook integration.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//  _deployManaged(...)
+//  _deployAccessList(...)
+//  _deployMerkle(...)
+//  _singleMember(...)
+//
+//  PROVIDER AUTHORITY
+//  test_managedProviderMatrix_RejectsZeroAdministrator()
+//  test_managedProviderMatrix_RequestReplaceAndCancelTransfer()
+//  test_managedProviderMatrix_TransferErrors()
+//  test_managedProviderMatrix_AcceptMovesAuthorityAndPreservesConfiguration()
+//  _mutateManaged(...)
+//  _assertManagedConfiguration(...)
+//
+//  ACCESS LIST MEMBERSHIP
+//  test_accessList_ConstructorAndCredentialsTrackMembership()
+//  test_accessList_ConstructorRejectsInvalidInitialMembers()
+//  test_accessList_ProviderInstancesKeepIndependentMembership()
+//  test_accessList_SingleMemberUpdatesEmitAndAffectCredentials()
+//  test_accessList_BatchUpdatesAreAtomic()
+//  test_accessList_MemberUpdateErrorsAndAuthority()
+//  test_accessList_PaginationClampsAndRejectsInvalidRanges()
+//
+//  MERKLE MEMBERSHIP
+//  test_merkle_ConstructorAndMembershipSurface()
+//  testFuzz_merkleGeneratedProofValidatesOnlyItsAccount(...)
+//  testFuzz_merkleMalformedCredentialDataFailsClosed(...)
+//  test_merkle_NonCanonicalCredentialEncodingsFailClosed()
+//  test_merkle_SingleLeafAcceptsCanonicalEmptyProof()
+//  test_merkle_RootUpdatesEmitAndRequireAdministrator()
+//  _leaf(...)
+//  _hashPair(...)
+//  _rootFor(...)
+//
+//  HOOK ACCESS FIXTURES
+//  _newHookFixture(...)
+//  _deployHooks(...)
+//  _deposit(...)
+//  _expectDepositDenied(...)
+//  _queueWithdrawal(...)
+//  _merkleHooksData(...)
+//
+//  ACCESS LIST HOOK INTEGRATION
+//  test_accessListHook_MembershipRemovalRespectsConfiguredTtl()
+//  test_accessListHook_LocalBlockAndAttachmentSurviveProviderUpdates()
+//
+//  MERKLE HOOK INTEGRATION
+//  test_merkleHook_ValidProofAllowsMemberAndRejectsNonmember()
+//  test_merkleHook_RootUpdateRespectsPositiveTtl()
+//  test_merkleHook_ZeroTtlUsesSameBlockCredentialThenRequiresFreshProof()
+//  test_merkleHook_MalformedDataFailsClosed()
+//  test_merkleHook_EmptyProofTracksSingleLeafRootUpdates()
+// ═════
 
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { IManagedRoleProvider } from 'src/access/IManagedRoleProvider.sol';

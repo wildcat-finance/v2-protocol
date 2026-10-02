@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // AccessListRoleProviderFactory
-// ║  ██▀▀     ▀▀██   Deterministic AccessList provider deployment and address prediction.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  DEPLOYMENT
-// ║  createRoleProvider(...)
-// ║  createAccessListRoleProvider(...)
-// ║  _createRoleProvider(...)
-// ║
-// ║  ADDRESS PREDICTION
-// ║  computeRoleProviderAddress(...)
-// ║  _computeRoleProviderAddress(...)
-// ║  _deriveSalt(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // AccessListRoleProviderFactory
+//  \ ^ /   Deterministic AccessList provider deployment and address prediction.
+//    V
+//
+//  DEPLOYMENT
+//  createRoleProvider(...)
+//  createAccessListRoleProvider(...)
+//  _createRoleProvider(...)
+//
+//  ADDRESS PREDICTION
+//  computeRoleProviderAddress(...)
+//  _computeRoleProviderAddress(...)
+//  _deriveSalt(...)
+// ═════
 
 import './AccessListRoleProvider.sol';
 import './IAccessListRoleProviderFactory.sol';

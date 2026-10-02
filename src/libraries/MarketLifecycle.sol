@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLifecycle
-// ║  ██▀▀     ▀▀██   Repayment activation, default timing, and funded closure.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  REPAYMENT
-// ║  activateRepayment(...)
-// ║
-// ║  DEFAULT TIMING
-// ║  accrueDefaultRun(...)
-// ║
-// ║  CLOSURE
-// ║  closeFundedState(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLifecycle
+//  \ ^ /   Repayment activation, default timing, and funded closure.
+//    V
+//
+//  REPAYMENT
+//  activateRepayment(...)
+//
+//  DEFAULT TIMING
+//  accrueDefaultRun(...)
+//
+//  CLOSURE
+//  closeFundedState(...)
+// ═════
 
 import './Withdrawal.sol';
 import './BoolUtils.sol';

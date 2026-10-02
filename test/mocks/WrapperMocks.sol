@@ -1,96 +1,94 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WrapperMocks
-// ║  ██▀▀     ▀▀██   Wrapper market, transfer-policy, and adversarial test doubles.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SANCTIONS STATUS
-// ║  setSanctioned(...)
-// ║  isSanctioned(...)
-// ║
-// ║  ESCROW CREATION
-// ║  createEscrow(...)
-// ║  getEscrowAddress(...)
-// ║
-// ║  MARKET REGISTRATION
-// ║  setRegisteredMarket(...)
-// ║
-// ║  V1 WRAPPER CREATION
-// ║  seedWrapper(...)
-// ║  createWrapper(...)
-// ║
-// ║  FACTORY MARKET SETUP
-// ║  constructor(...)
-// ║  registerWrapper(...)
-// ║
-// ║  FACTORY MARKET POLICY
-// ║  setHooksAddress(...)
-// ║  hooks()
-// ║  setTransferPolicy(...)
-// ║  isMarketTransferDisabled(...)
-// ║  isMarketTransferRecipientAllowed(...)
-// ║  scaledTransferRounding()
-// ║
-// ║  FACTORY MARKET TOKEN
-// ║  approve(...)
-// ║  transfer(...)
-// ║  transferFrom(...)
-// ║  totalSupply()
-// ║  scaledBalanceOf(...)
-// ║
-// ║  WRAPPER MARKET SETUP
-// ║  constructor(...)
-// ║  registerWrapper(...)
-// ║  setScaleFactor(...)
-// ║  setMaxTotalSupply(...)
-// ║  setBorrower(...)
-// ║
-// ║  WRAPPER MARKET POLICY
-// ║  hooks()
-// ║  setTransferPolicy(...)
-// ║  isMarketTransferDisabled(...)
-// ║  isMarketTransferRecipientAllowed(...)
-// ║  scaledTransferRounding()
-// ║
-// ║  WRAPPER MARKET TRANSFERS
-// ║  mint(...)
-// ║  approve(...)
-// ║  setTransferSkew(...)
-// ║  transfer(...)
-// ║  transferFrom(...)
-// ║  _transfer(...)
-// ║  balanceOf(...)
-// ║  scaledBalanceOf(...)
-// ║  totalSupply()
-// ║
-// ║  WRAPPER MARKET SANCTIONS
-// ║  setNukeReverts(...)
-// ║  nukeFromOrbit(...)
-// ║
-// ║  PLAIN TOKEN TRANSFERS
-// ║  mint(...)
-// ║  transfer(...)
-// ║
-// ║  SPOOFED ESCROW
-// ║  constructor(...)
-// ║  transferShares(...)
-// ║
-// ║  INCOMPLETE POLICY
-// ║  isMarketTransferDisabled(...)
-// ║
-// ║  SHORT RETURNS
-// ║  fallback()
-// ║
-// ║  WRONG ROUNDING
-// ║  scaledTransferRounding()
-// ║
-// ║  RETURN DATA BOMB
-// ║  fallback()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WrapperMocks
+//  \ ^ /   Wrapper market, transfer-policy, and adversarial test doubles.
+//    V
+//
+//  SANCTIONS STATUS
+//  setSanctioned(...)
+//  isSanctioned(...)
+//
+//  ESCROW CREATION
+//  createEscrow(...)
+//  getEscrowAddress(...)
+//
+//  MARKET REGISTRATION
+//  setRegisteredMarket(...)
+//
+//  V1 WRAPPER CREATION
+//  seedWrapper(...)
+//  createWrapper(...)
+//
+//  FACTORY MARKET SETUP
+//  constructor(...)
+//  registerWrapper(...)
+//
+//  FACTORY MARKET POLICY
+//  setHooksAddress(...)
+//  hooks()
+//  setTransferPolicy(...)
+//  isMarketTransferDisabled(...)
+//  isMarketTransferRecipientAllowed(...)
+//  scaledTransferRounding()
+//
+//  FACTORY MARKET TOKEN
+//  approve(...)
+//  transfer(...)
+//  transferFrom(...)
+//  totalSupply()
+//  scaledBalanceOf(...)
+//
+//  WRAPPER MARKET SETUP
+//  constructor(...)
+//  registerWrapper(...)
+//  setScaleFactor(...)
+//  setMaxTotalSupply(...)
+//  setBorrower(...)
+//
+//  WRAPPER MARKET POLICY
+//  hooks()
+//  setTransferPolicy(...)
+//  isMarketTransferDisabled(...)
+//  isMarketTransferRecipientAllowed(...)
+//  scaledTransferRounding()
+//
+//  WRAPPER MARKET TRANSFERS
+//  mint(...)
+//  approve(...)
+//  setTransferSkew(...)
+//  transfer(...)
+//  transferFrom(...)
+//  _transfer(...)
+//  balanceOf(...)
+//  scaledBalanceOf(...)
+//  totalSupply()
+//
+//  WRAPPER MARKET SANCTIONS
+//  setNukeReverts(...)
+//  nukeFromOrbit(...)
+//
+//  PLAIN TOKEN TRANSFERS
+//  mint(...)
+//  transfer(...)
+//
+//  SPOOFED ESCROW
+//  constructor(...)
+//  transferShares(...)
+//
+//  INCOMPLETE POLICY
+//  isMarketTransferDisabled(...)
+//
+//  SHORT RETURNS
+//  fallback()
+//
+//  WRONG ROUNDING
+//  scaledTransferRounding()
+//
+//  RETURN DATA BOMB
+//  fallback()
+// ═════
 
 import { IMarketTransferPolicy } from 'src/access/IMarketTransferPolicy.sol';
 import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';

@@ -1,34 +1,32 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LibStoredInitCode
-// ║  ██▀▀     ▀▀██   Creation-code storage, deployment, and address prediction.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  INITCODE STORAGE
-// ║  deployInitCode(...)
-// ║  getInitCode(...)
-// ║
-// ║  CREATE DEPLOYMENT
-// ║  createWithStoredInitCode(...)
-// ║  createWithStoredInitCode(...)
-// ║
-// ║  CREATE2 ADDRESSES
-// ║  calculateCreate2Address(...)
-// ║  getCreate2Prefix(...)
-// ║
-// ║  CREATE2 DEPLOYMENT
-// ║  create2WithStoredInitCode(...)
-// ║  create2WithStoredInitCode(...)
-// ║  create2WithStoredInitCode(...)
-// ║  create2WithStoredInitCode(...)
-// ║  create2WithInitCode(...)
-// ║  create2WithStoredInitCodeCD(...)
-// ║  create2WithStoredInitCodeCD(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LibStoredInitCode
+//  \ ^ /   Creation-code storage, deployment, and address prediction.
+//    V
+//
+//  INITCODE STORAGE
+//  deployInitCode(...)
+//  getInitCode(...)
+//
+//  CREATE DEPLOYMENT
+//  createWithStoredInitCode(...)
+//  createWithStoredInitCode(...)
+//
+//  CREATE2 ADDRESSES
+//  calculateCreate2Address(...)
+//  getCreate2Prefix(...)
+//
+//  CREATE2 DEPLOYMENT
+//  create2WithStoredInitCode(...)
+//  create2WithStoredInitCode(...)
+//  create2WithStoredInitCode(...)
+//  create2WithStoredInitCode(...)
+//  create2WithInitCode(...)
+//  create2WithStoredInitCodeCD(...)
+//  create2WithStoredInitCodeCD(...)
+// ═════
 
 // ┌─ LibStoredInitCode ────────────────────────────────────────────────────────
 /// @notice deploy raw code storage and read raw or executable init-code stores.

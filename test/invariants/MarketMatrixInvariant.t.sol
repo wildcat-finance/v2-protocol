@@ -1,37 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketMatrixInvariant.t
-// ║  ██▀▀     ▀▀██   Market-matrix conservation, gate, safety, and liveness invariants.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CAMPAIGN SETUP
-// ║  setUp()
-// ║  _targetHandler()
-// ║
-// ║  WITHDRAWAL GATES
-// ║  invariant_withdrawalGatesAreEnforcedAcrossTheMatrix()
-// ║
-// ║  ACCRUAL AND PRINCIPAL
-// ║  invariant_scaleFactorsNeverDecreaseAcrossTheMatrix()
-// ║  invariant_drawnPrincipalFollowsRevolvingRules()
-// ║  invariant_revolvingUtilizationInterestMatchesTheFormula()
-// ║
-// ║  ACCOUNTING CONSERVATION
-// ║  invariant_scaledSupplyIsConservedAcrossTheMatrix()
-// ║  invariant_withdrawalLiabilitiesAreConservedAcrossTheMatrix()
-// ║  invariant_protocolFeesAreConservedAcrossTheMatrix()
-// ║
-// ║  ACTION SAFETY
-// ║  invariant_underwaterAndRandomizedPathsDoNotPanic()
-// ║  invariant_sanctionsAndExpectedActionsRemainSafe()
-// ║
-// ║  FINAL DRAIN
-// ║  afterInvariant()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketMatrixInvariant.t
+//  \ ^ /   Market-matrix conservation, gate, safety, and liveness invariants.
+//    V
+//
+//  CAMPAIGN SETUP
+//  setUp()
+//  _targetHandler()
+//
+//  WITHDRAWAL GATES
+//  invariant_withdrawalGatesAreEnforcedAcrossTheMatrix()
+//
+//  ACCRUAL AND PRINCIPAL
+//  invariant_scaleFactorsNeverDecreaseAcrossTheMatrix()
+//  invariant_drawnPrincipalFollowsRevolvingRules()
+//  invariant_revolvingUtilizationInterestMatchesTheFormula()
+//
+//  ACCOUNTING CONSERVATION
+//  invariant_scaledSupplyIsConservedAcrossTheMatrix()
+//  invariant_withdrawalLiabilitiesAreConservedAcrossTheMatrix()
+//  invariant_protocolFeesAreConservedAcrossTheMatrix()
+//
+//  ACTION SAFETY
+//  invariant_underwaterAndRandomizedPathsDoNotPanic()
+//  invariant_sanctionsAndExpectedActionsRemainSafe()
+//
+//  FINAL DRAIN
+//  afterInvariant()
+// ═════
 
 import { StdInvariant } from 'forge-std/StdInvariant.sol';
 import { MarketMatrixFixture } from './MarketMatrixFixture.sol';

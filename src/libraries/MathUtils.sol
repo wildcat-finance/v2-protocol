@@ -1,36 +1,34 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MathUtils
-// ║  ██▀▀     ▀▀██   Bounded arithmetic, fixed-point scaling, and linear interest.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BOUNDS AND SELECTION
-// ║  min(...)
-// ║  max(...)
-// ║  ternary(...)
-// ║  satSub(...)
-// ║  satAdd(...)
-// ║
-// ║  MULTIPLY AND DIVIDE
-// ║  mulDiv(...)
-// ║  mulDivUp(...)
-// ║
-// ║  BASIS POINTS
-// ║  bipMul(...)
-// ║  bipDiv(...)
-// ║  bipToRay(...)
-// ║
-// ║  RAY ARITHMETIC
-// ║  rayMul(...)
-// ║  rayDiv(...)
-// ║
-// ║  INTEREST
-// ║  calculateLinearInterestFromBips(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MathUtils
+//  \ ^ /   Bounded arithmetic, fixed-point scaling, and linear interest.
+//    V
+//
+//  BOUNDS AND SELECTION
+//  min(...)
+//  max(...)
+//  ternary(...)
+//  satSub(...)
+//  satAdd(...)
+//
+//  MULTIPLY AND DIVIDE
+//  mulDiv(...)
+//  mulDivUp(...)
+//
+//  BASIS POINTS
+//  bipMul(...)
+//  bipDiv(...)
+//  bipToRay(...)
+//
+//  RAY ARITHMETIC
+//  rayMul(...)
+//  rayDiv(...)
+//
+//  INTEREST
+//  calculateLinearInterestFromBips(...)
+// ═════
 
 import './Errors.sol';
 

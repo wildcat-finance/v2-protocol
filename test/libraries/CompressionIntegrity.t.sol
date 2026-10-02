@@ -1,39 +1,37 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // CompressionIntegrity.t
-// ║  ██▀▀     ▀▀██   Reference-codec, memory-safety, and deployment integrity checks.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  GUARDED STORAGE OPERATIONS
-// ║  guardedRead(...)
-// ║  guardedCreate2(...)
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  REFERENCE CODEC
-// ║  testFuzz_referenceCodec(...)
-// ║  test_referenceArtifactCorpus()
-// ║  test_referenceBoundaryCorpus()
-// ║  _reference(...)
-// ║  _pattern(...)
-// ║
-// ║  READER INTEGRITY
-// ║  testFuzz_largePayloadAndMemory(...)
-// ║  test_readerLiteralAndOverlappingMatchBoundaries()
-// ║  test_decoderDoesNotValidateUntrustedStreams()
-// ║  testFuzz_readerIgnoresCallerAndCalldata(...)
-// ║  _readStream(...)
-// ║
-// ║  DEPLOYMENT INTEGRITY
-// ║  testFuzz_create2MemoryGuards(...)
-// ║  test_creationFailureRollsBackNonceAndValue()
-// ║  test_create2TotalInitCodeLimitIncludesArguments()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // CompressionIntegrity.t
+//  \ ^ /   Reference-codec, memory-safety, and deployment integrity checks.
+//    V
+//
+//  GUARDED STORAGE OPERATIONS
+//  guardedRead(...)
+//  guardedCreate2(...)
+//
+//  FIXTURE
+//  setUp()
+//
+//  REFERENCE CODEC
+//  testFuzz_referenceCodec(...)
+//  test_referenceArtifactCorpus()
+//  test_referenceBoundaryCorpus()
+//  _reference(...)
+//  _pattern(...)
+//
+//  READER INTEGRITY
+//  testFuzz_largePayloadAndMemory(...)
+//  test_readerLiteralAndOverlappingMatchBoundaries()
+//  test_decoderDoesNotValidateUntrustedStreams()
+//  testFuzz_readerIgnoresCallerAndCalldata(...)
+//  _readStream(...)
+//
+//  DEPLOYMENT INTEGRITY
+//  testFuzz_create2MemoryGuards(...)
+//  test_creationFailureRollsBackNonceAndValue()
+//  test_create2TotalInitCodeLimitIncludesArguments()
+// ═════
 
 import './CompressedInitCode.t.sol';
 

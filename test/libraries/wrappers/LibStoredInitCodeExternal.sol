@@ -1,37 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LibStoredInitCodeExternal
-// ║  ██▀▀     ▀▀██   Stored-initcode deployment adapters and constructor probes.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  INITCODE STORAGE
-// ║  deployInitCode(...)
-// ║
-// ║  CREATE DEPLOYMENT
-// ║  createWithStoredInitCode(...)
-// ║  createWithStoredInitCode(...)
-// ║
-// ║  CREATE2 ADDRESSES
-// ║  getCreate2Prefix(...)
-// ║  calculateCreate2Address(...)
-// ║
-// ║  CREATE2 DEPLOYMENT
-// ║  create2WithStoredInitCode(...)
-// ║  create2WithStoredInitCode(...)
-// ║  create2WithStoredInitCode(...)
-// ║  create2WithStoredInitCodeCD(...)
-// ║
-// ║  CONSTRUCTOR PARAMETERS
-// ║  getContractParameters()
-// ║
-// ║  CONSTRUCTOR PROBE
-// ║  constructor()
-// ║  getValue()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LibStoredInitCodeExternal
+//  \ ^ /   Stored-initcode deployment adapters and constructor probes.
+//    V
+//
+//  INITCODE STORAGE
+//  deployInitCode(...)
+//
+//  CREATE DEPLOYMENT
+//  createWithStoredInitCode(...)
+//  createWithStoredInitCode(...)
+//
+//  CREATE2 ADDRESSES
+//  getCreate2Prefix(...)
+//  calculateCreate2Address(...)
+//
+//  CREATE2 DEPLOYMENT
+//  create2WithStoredInitCode(...)
+//  create2WithStoredInitCode(...)
+//  create2WithStoredInitCode(...)
+//  create2WithStoredInitCodeCD(...)
+//
+//  CONSTRUCTOR PARAMETERS
+//  getContractParameters()
+//
+//  CONSTRUCTOR PROBE
+//  constructor()
+//  getValue()
+// ═════
 
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
 

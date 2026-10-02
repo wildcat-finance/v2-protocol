@@ -1,32 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // 04-deploy-market-lens.s
-// ║  ██▀▀     ▀▀██   Plan or deploy and verify the v2.5 lens set.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  EXECUTION FLOW
-// ║  run()
-// ║
-// ║  PLAN ENTRIES
-// ║  _writePlanEntries(...)
-// ║  _writeHelperPlanEntry(...)
-// ║  _twoAddressArgs(...)
-// ║
-// ║  DEPLOYMENT AND VERIFICATION
-// ║  _deployLensSet(...)
-// ║  _verifyFacade(...)
-// ║  _verifyHelper(...)
-// ║
-// ║  INVENTORY RECORDS
-// ║  _writePlanInventoryRecords(...)
-// ║  _writePlanInventoryRecord(...)
-// ║  _writeInventoryRecords(...)
-// ║  _writeInventoryRecord(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // 04-deploy-market-lens.s
+//  \ ^ /   Plan or deploy and verify the v2.5 lens set.
+//    V
+//
+//  EXECUTION FLOW
+//  run()
+//
+//  PLAN ENTRIES
+//  _writePlanEntries(...)
+//  _writeHelperPlanEntry(...)
+//  _twoAddressArgs(...)
+//
+//  DEPLOYMENT AND VERIFICATION
+//  _deployLensSet(...)
+//  _verifyFacade(...)
+//  _verifyHelper(...)
+//
+//  INVENTORY RECORDS
+//  _writePlanInventoryRecords(...)
+//  _writePlanInventoryRecord(...)
+//  _writeInventoryRecords(...)
+//  _writeInventoryRecord(...)
+// ═════
 
 // environment:
 // - both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5),

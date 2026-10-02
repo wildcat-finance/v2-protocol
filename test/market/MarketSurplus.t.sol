@@ -1,35 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketSurplus.t
-// ║  ██▀▀     ▀▀██   Closure funding, surplus recovery, and transfer rejection tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _fixture(...)
-// ║  _deployFixtureDependencies()
-// ║  _reject(...)
-// ║
-// ║  MARKET CLOSURE
-// ║  test_lenderActionsCanCommitClosureWithRejectedBorrower()
-// ║  _lenderAction(...)
-// ║  test_exactFundingClosesEvenWhenBorrowerRejectsTransfers()
-// ║  test_automaticClosureDoesNotPushSurplus()
-// ║  test_repaymentCanCloseWithSurplusAndRejectedBorrower()
-// ║  _assertClosed(...)
-// ║
-// ║  SURPLUS RECOVERY
-// ║  test_surplusRecoveryPreservesEveryLiabilityAndBatchExit()
-// ║  test_surplusRecoveryRequiresBorrowerAndClosedMarket()
-// ║  test_surplusRecoveryCanCommitEffectiveClosure()
-// ║  test_surplusRecoveryFollowsTransferredBorrowerAuthority()
-// ║  test_failedRecoveryRollsBackEffectiveClosureAndStillAllowsCollection()
-// ║  test_manualClosureWithoutTermsAllowsLaterDonationRecovery()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketSurplus.t
+//  \ ^ /   Closure funding, surplus recovery, and transfer rejection tests.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//  _fixture(...)
+//  _deployFixtureDependencies()
+//  _reject(...)
+//
+//  MARKET CLOSURE
+//  test_lenderActionsCanCommitClosureWithRejectedBorrower()
+//  _lenderAction(...)
+//  test_exactFundingClosesEvenWhenBorrowerRejectsTransfers()
+//  test_automaticClosureDoesNotPushSurplus()
+//  test_repaymentCanCloseWithSurplusAndRejectedBorrower()
+//  _assertClosed(...)
+//
+//  SURPLUS RECOVERY
+//  test_surplusRecoveryPreservesEveryLiabilityAndBatchExit()
+//  test_surplusRecoveryRequiresBorrowerAndClosedMarket()
+//  test_surplusRecoveryCanCommitEffectiveClosure()
+//  test_surplusRecoveryFollowsTransferredBorrowerAuthority()
+//  test_failedRecoveryRollsBackEffectiveClosureAndStillAllowsCollection()
+//  test_manualClosureWithoutTermsAllowsLaterDonationRecovery()
+// ═════
 
 import { MarketFixture } from '../shared/MarketFixture.sol';
 import { RecipientRejectingERC20 } from '../mocks/RecipientRejectingERC20.sol';

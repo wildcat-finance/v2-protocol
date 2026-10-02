@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // RepaymentLifecycleInvariant.t
-// ║  ██▀▀     ▀▀██   Stateful repayment timeline, accounting, and scheduled-drain invariants.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CAMPAIGN SETUP
-// ║  setUp()
-// ║
-// ║  REPAYMENT INVARIANT
-// ║  invariant_repaymentTimelineAndAccounting()
-// ║
-// ║  FINAL DRAIN
-// ║  afterInvariant()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // RepaymentLifecycleInvariant.t
+//  \ ^ /   Stateful repayment timeline, accounting, and scheduled-drain invariants.
+//    V
+//
+//  CAMPAIGN SETUP
+//  setUp()
+//
+//  REPAYMENT INVARIANT
+//  invariant_repaymentTimelineAndAccounting()
+//
+//  FINAL DRAIN
+//  afterInvariant()
+// ═════
 
 import { StdInvariant } from 'forge-std/StdInvariant.sol';
 import { LifecycleFixture } from './LifecycleFixture.sol';

@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // FunctionTypeCasts
-// ║  ██▀▀     ▀▀██   Typed views of existing market memory allocations.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  DEPLOYMENT PARAMETERS
-// ║  asReturnsMarketParameters(...)
-// ║
-// ║  STATE AND BATCH VIEWS
-// ║  asReturnsMarketState(...)
-// ║  asReturnsPointers(...)
-// ║
-// ║  TRANSITION ALLOCATION
-// ║  asTransitionAllocator(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // FunctionTypeCasts
+//  \ ^ /   Typed views of existing market memory allocations.
+//    V
+//
+//  DEPLOYMENT PARAMETERS
+//  asReturnsMarketParameters(...)
+//
+//  STATE AND BATCH VIEWS
+//  asReturnsMarketState(...)
+//  asReturnsPointers(...)
+//
+//  TRANSITION ALLOCATION
+//  asTransitionAllocator(...)
+// ═════
 
 import { MarketParameters } from '../interfaces/WildcatStructsAndEnums.sol';
 import { MarketState } from '../libraries/MarketState.sol';

@@ -1,24 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // TransientBytesArray.t
-// ║  ██▀▀     ▀▀██   Transient byte-array round trips and encoding boundaries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  MALFORMED ENCODING ADAPTER
-// ║  readInvalidShortEncoding()
-// ║
-// ║  BYTE STORAGE
-// ║  test_smallBytes(...)
-// ║  test_largeBytes(...)
-// ║  test_read_InvalidShortEncodingLengthReverts()
-// ║
-// ║  BYTE SEQUENCES
-// ║  test_nextBytes(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // TransientBytesArray.t
+//  \ ^ /   Transient byte-array round trips and encoding boundaries.
+//    V
+//
+//  MALFORMED ENCODING ADAPTER
+//  readInvalidShortEncoding()
+//
+//  BYTE STORAGE
+//  test_smallBytes(...)
+//  test_largeBytes(...)
+//  test_read_InvalidShortEncodingLengthReverts()
+//
+//  BYTE SEQUENCES
+//  test_nextBytes(...)
+// ═════
 
 import 'src/types/TransientBytesArray.sol';
 import { PRNG, seedPRNG } from '../shared/PRNG.sol';

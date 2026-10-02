@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // Lender
-// ║  ██▀▀     ▀▀██   Development lender setup, deposits, and withdrawal requests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  LENDER SETUP
-// ║  buildLender(...)
-// ║
-// ║  LENDER ACTIONS
-// ║  deposit(...)
-// ║  withdraw(...)
-// ║  broadcast(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // Lender
+//  \ ^ /   Development lender setup, deposits, and withdrawal requests.
+//    V
+//
+//  LENDER SETUP
+//  buildLender(...)
+//
+//  LENDER ACTIONS
+//  deposit(...)
+//  withdraw(...)
+//  broadcast(...)
+// ═════
 
 import { Vm as ForgeVM } from 'forge-std/Vm.sol';
 import { console } from 'forge-std/console.sol';

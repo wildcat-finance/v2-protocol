@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ReentrancyGuard.t
-// ║  ██▀▀     ▀▀██   Stateful and view reentrancy protection and recovery.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  _newHarness()
-// ║
-// ║  REENTRANCY GUARDS
-// ║  test_guard_AllowsOrdinaryStatefulAndViewCalls()
-// ║  test_guard_RejectsStateChangingReentrancyAndRecovers()
-// ║  test_guard_RejectsViewReentrancyAndRecovers()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ReentrancyGuard.t
+//  \ ^ /   Stateful and view reentrancy protection and recovery.
+//    V
+//
+//  FIXTURE
+//  _newHarness()
+//
+//  REENTRANCY GUARDS
+//  test_guard_AllowsOrdinaryStatefulAndViewCalls()
+//  test_guard_RejectsStateChangingReentrancyAndRecovers()
+//  test_guard_RejectsViewReentrancyAndRecovers()
+// ═════
 
 import { ReentrancyGuard } from 'src/ReentrancyGuard.sol';
 import { ReentrancyHarness } from '../mocks/ReentrancyHarness.sol';

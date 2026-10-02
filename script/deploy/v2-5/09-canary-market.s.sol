@@ -1,33 +1,31 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // 09-canary-market.s
-// ║  ██▀▀     ▀▀██   Dust-market canaries for standard and revolving factories.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CANARY RUN
-// ║  run()
-// ║
-// ║  CANARY PREPARATION
-// ║  _resolveCanaryAsset(...)
-// ║  _ensureCanaryBalance(...)
-// ║  _broadcastAsBorrower(...)
-// ║
-// ║  MARKET DEPLOYMENT
-// ║  _deployStandardMarket(...)
-// ║  _deployRevolvingMarket(...)
-// ║  _marketInputs(...)
-// ║  _marketSalt(...)
-// ║
-// ║  MARKET EXERCISE
-// ║  _prepareMarket(...)
-// ║  _finalizeMarket(...)
-// ║  _findQueuedExpiry(...)
-// ║  _latestTemplateMarket(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // 09-canary-market.s
+//  \ ^ /   Dust-market canaries for standard and revolving factories.
+//    V
+//
+//  CANARY RUN
+//  run()
+//
+//  CANARY PREPARATION
+//  _resolveCanaryAsset(...)
+//  _ensureCanaryBalance(...)
+//  _broadcastAsBorrower(...)
+//
+//  MARKET DEPLOYMENT
+//  _deployStandardMarket(...)
+//  _deployRevolvingMarket(...)
+//  _marketInputs(...)
+//  _marketSalt(...)
+//
+//  MARKET EXERCISE
+//  _prepareMarket(...)
+//  _finalizeMarket(...)
+//  _findQueuedExpiry(...)
+//  _latestTemplateMarket(...)
+// ═════
 
 // direct-only fork/testnet canary. deploy and close one dust market through
 // each v2.5 hooks factory using the v2.5 OpenTermHooks template.

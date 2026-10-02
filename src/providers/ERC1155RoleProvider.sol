@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ERC1155RoleProvider
-// ║  ██▀▀     ▀▀██   Token-ID balance credentials with optional ERC165 checks.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║  _supportsERC165(...)
-// ║  _supportsInterface(...)
-// ║
-// ║  CREDENTIALS
-// ║  getCredential(...)
-// ║  validateCredential(...)
-// ║  _credentialTimestamp(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ERC1155RoleProvider
+//  \ ^ /   Token-ID balance credentials with optional ERC165 checks.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//  _supportsERC165(...)
+//  _supportsInterface(...)
+//
+//  CREDENTIALS
+//  getCredential(...)
+//  validateCredential(...)
+//  _credentialTimestamp(...)
+// ═════
 
 import '../libraries/SafeCastLib.sol';
 import './IERC1155RoleProvider.sol';

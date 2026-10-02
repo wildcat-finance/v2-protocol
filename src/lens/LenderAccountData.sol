@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LenderAccountData
-// ║  ██▀▀     ▀▀██   Lender balances, allowances, and current access status.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  VERSION QUERY
-// ║  version()
-// ║
-// ║  LENDER ACCOUNT DATA
-// ║  fill(...)
-// ║  fill(...)
-// ║  fill(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LenderAccountData
+//  \ ^ /   Lender balances, allowances, and current access status.
+//    V
+//
+//  VERSION QUERY
+//  version()
+//
+//  LENDER ACCOUNT DATA
+//  fill(...)
+//  fill(...)
+//  fill(...)
+// ═════
 
 import '../WildcatArchController.sol';
 import { OpenTermHooks } from '../access/OpenTermHooks.sol';

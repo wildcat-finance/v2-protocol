@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // BaseAccessControlsHarness
-// ║  ██▀▀     ▀▀██   Test adapters for credential and recipient-access checks.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  HARNESS SETUP
-// ║  constructor(...)
-// ║  setIsKnownLender(...)
-// ║
-// ║  ACCESS VALIDATION
-// ║  tryValidateAccess(...)
-// ║  isMarketTransferRecipientAllowed(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // BaseAccessControlsHarness
+//  \ ^ /   Test adapters for credential and recipient-access checks.
+//    V
+//
+//  HARNESS SETUP
+//  constructor(...)
+//  setIsKnownLender(...)
+//
+//  ACCESS VALIDATION
+//  tryValidateAccess(...)
+//  isMarketTransferRecipientAllowed(...)
+// ═════
 
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { LenderStatus } from 'src/types/LenderStatus.sol';

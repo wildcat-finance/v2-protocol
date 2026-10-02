@@ -1,40 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // FIFOQueue.t
-// ║  ██▀▀     ▀▀██   FIFO operations, packed-word boundaries, and reference checks.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  QUEUE LIFECYCLE
-// ║  test()
-// ║  testFuzz_matchesReference(...)
-// ║
-// ║  QUEUE UPDATES
-// ║  test_push()
-// ║  test_shift()
-// ║  test_shift_OutOfBounds()
-// ║  test_shift_AcrossPackedWord()
-// ║  test_shift_ClearsFullWords()
-// ║  test_shiftN()
-// ║  test_shiftN_OutOfBounds()
-// ║  test_shiftN_AcrossPackedWords()
-// ║  test_shiftN_EmptyPartialWordCanBeReused()
-// ║
-// ║  QUEUE QUERIES
-// ║  test_empty()
-// ║  test_first()
-// ║  test_first_OutOfBounds()
-// ║  test_at()
-// ║  test_at_OutOfBounds()
-// ║  test_values()
-// ║  test_values_AcrossPackedWords()
-// ║
-// ║  QUEUE ASSERTIONS
-// ║  assertEq(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // FIFOQueue.t
+//  \ ^ /   FIFO operations, packed-word boundaries, and reference checks.
+//    V
+//
+//  QUEUE LIFECYCLE
+//  test()
+//  testFuzz_matchesReference(...)
+//
+//  QUEUE UPDATES
+//  test_push()
+//  test_shift()
+//  test_shift_OutOfBounds()
+//  test_shift_AcrossPackedWord()
+//  test_shift_ClearsFullWords()
+//  test_shiftN()
+//  test_shiftN_OutOfBounds()
+//  test_shiftN_AcrossPackedWords()
+//  test_shiftN_EmptyPartialWordCanBeReused()
+//
+//  QUEUE QUERIES
+//  test_empty()
+//  test_first()
+//  test_first_OutOfBounds()
+//  test_at()
+//  test_at_OutOfBounds()
+//  test_values()
+//  test_values_AcrossPackedWords()
+//
+//  QUEUE ASSERTIONS
+//  assertEq(...)
+// ═════
 
 import 'src/libraries/FIFOQueue.sol';
 import './wrappers/FIFOQueueLibExternal.sol';

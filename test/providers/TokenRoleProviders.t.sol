@@ -1,58 +1,56 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // TokenRoleProviders.t
-// ║  ██▀▀     ▀▀██   Token-backed credentials, constructor checks, and fail-closed reads.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  TOKEN VALIDATION
-// ║  test_constructorRejectsAddressesWithoutCode()
-// ║  test_constructorRejectsZeroMinimums()
-// ║  test_constructorRejectsMissingTokenInterfaces()
-// ║  test_constructorRejectsInvalidERC165Implementations()
-// ║  test_constructorFailsClosedWhenInterfaceReadReverts()
-// ║  _expectInterfaceConstructorReverts()
-// ║  test_skippingInterfaceChecksCreatesUsableProviders()
-// ║
-// ║  ERC20 CREDENTIALS
-// ║  testFuzz_erc20CredentialTracksCurrentBalance(...)
-// ║  testFuzz_erc20ExactBoundaryAndBalanceMove(...)
-// ║  _deployERC20(...)
-// ║
-// ║  ERC721 CREDENTIALS
-// ║  testFuzz_erc721CredentialTracksCollectionBalance(...)
-// ║  _deployERC721(...)
-// ║
-// ║  ERC1155 CREDENTIALS
-// ║  testFuzz_erc1155CredentialMatchesConfiguredBalance(...)
-// ║  testFuzz_erc1155CredentialMovesAndIgnoresOtherIds(...)
-// ║  _deployERC1155(...)
-// ║
-// ║  ERC4626 CREDENTIALS
-// ║  testFuzz_erc4626CredentialMatchesConvertedAssets(...)
-// ║  testFuzz_erc4626ExactBoundaryAndShareMove(...)
-// ║  test_erc4626ZeroShareBalanceSkipsConversion()
-// ║  _deployERC4626(...)
-// ║
-// ║  ERC5192 CREDENTIALS
-// ║  testFuzz_erc5192CredentialFollowsOwnershipAndLock(...)
-// ║  test_erc5192LockedRequirementIsOptional()
-// ║  test_erc5192MalformedDataAndTokenReadFailuresFailClosed()
-// ║  _deployERC5192(...)
-// ║
-// ║  ERC5484 CREDENTIALS
-// ║  testFuzz_erc5484CredentialMatchesAllowedBurnAuthorization(...)
-// ║  test_erc5484CredentialFollowsOwnership()
-// ║  test_erc5484MalformedUndefinedAndReadFailuresFailClosed()
-// ║  test_erc5484ConstructorRejectsInvalidBurnAuthMasks()
-// ║  _deployERC5484(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // TokenRoleProviders.t
+//  \ ^ /   Token-backed credentials, constructor checks, and fail-closed reads.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//
+//  TOKEN VALIDATION
+//  test_constructorRejectsAddressesWithoutCode()
+//  test_constructorRejectsZeroMinimums()
+//  test_constructorRejectsMissingTokenInterfaces()
+//  test_constructorRejectsInvalidERC165Implementations()
+//  test_constructorFailsClosedWhenInterfaceReadReverts()
+//  _expectInterfaceConstructorReverts()
+//  test_skippingInterfaceChecksCreatesUsableProviders()
+//
+//  ERC20 CREDENTIALS
+//  testFuzz_erc20CredentialTracksCurrentBalance(...)
+//  testFuzz_erc20ExactBoundaryAndBalanceMove(...)
+//  _deployERC20(...)
+//
+//  ERC721 CREDENTIALS
+//  testFuzz_erc721CredentialTracksCollectionBalance(...)
+//  _deployERC721(...)
+//
+//  ERC1155 CREDENTIALS
+//  testFuzz_erc1155CredentialMatchesConfiguredBalance(...)
+//  testFuzz_erc1155CredentialMovesAndIgnoresOtherIds(...)
+//  _deployERC1155(...)
+//
+//  ERC4626 CREDENTIALS
+//  testFuzz_erc4626CredentialMatchesConvertedAssets(...)
+//  testFuzz_erc4626ExactBoundaryAndShareMove(...)
+//  test_erc4626ZeroShareBalanceSkipsConversion()
+//  _deployERC4626(...)
+//
+//  ERC5192 CREDENTIALS
+//  testFuzz_erc5192CredentialFollowsOwnershipAndLock(...)
+//  test_erc5192LockedRequirementIsOptional()
+//  test_erc5192MalformedDataAndTokenReadFailuresFailClosed()
+//  _deployERC5192(...)
+//
+//  ERC5484 CREDENTIALS
+//  testFuzz_erc5484CredentialMatchesAllowedBurnAuthorization(...)
+//  test_erc5484CredentialFollowsOwnership()
+//  test_erc5484MalformedUndefinedAndReadFailuresFailClosed()
+//  test_erc5484ConstructorRejectsInvalidBurnAuthMasks()
+//  _deployERC5484(...)
+// ═════
 
 import { IRoleProvider } from 'src/access/IRoleProvider.sol';
 import { ERC20RoleProvider } from 'src/providers/ERC20RoleProvider.sol';

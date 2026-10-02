@@ -1,35 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // AccessListRoleProvider
-// ║  ██▀▀     ▀▀██   Managed membership and reusable lender credentials.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  MEMBER UPDATES
-// ║  addMember(...)
-// ║  addMembers(...)
-// ║  _addMembers(...)
-// ║  _addMember(...)
-// ║  removeMember(...)
-// ║  removeMembers(...)
-// ║  _removeMember(...)
-// ║
-// ║  MEMBER QUERIES
-// ║  isMember(...)
-// ║  getMembers()
-// ║  getMembers(...)
-// ║  getMembersCount()
-// ║
-// ║  CREDENTIALS
-// ║  getCredential(...)
-// ║  validateCredential(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // AccessListRoleProvider
+//  \ ^ /   Managed membership and reusable lender credentials.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//
+//  MEMBER UPDATES
+//  addMember(...)
+//  addMembers(...)
+//  _addMembers(...)
+//  _addMember(...)
+//  removeMember(...)
+//  removeMembers(...)
+//  _removeMember(...)
+//
+//  MEMBER QUERIES
+//  isMember(...)
+//  getMembers()
+//  getMembers(...)
+//  getMembersCount()
+//
+//  CREDENTIALS
+//  getCredential(...)
+//  validateCredential(...)
+// ═════
 
 import { EnumerableSet } from 'openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import '../libraries/SafeCastLib.sol';

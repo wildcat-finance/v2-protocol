@@ -1,106 +1,104 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketMatrixHandler
-// ║  ██▀▀     ▀▀██   Stateful matrix actions, independent accounting checks, and final drain.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CAMPAIGN SETUP
-// ║  constructor(...)
-// ║  seedAccountingCoverage()
-// ║  cellCount()
-// ║  marketAt(...)
-// ║
-// ║  DEPOSITS AND TRANSFERS
-// ║  deposit(...)
-// ║  _depositCell(...)
-// ║  transfer(...)
-// ║
-// ║  BORROWING AND REPAYMENT
-// ║  borrow(...)
-// ║  repay(...)
-// ║  _repayCell(...)
-// ║  _fundBorrower(...)
-// ║  _maximumRepayWithSurplus(...)
-// ║
-// ║  WITHDRAWAL QUEUEING
-// ║  queueWithdrawal(...)
-// ║  queueWithdrawalScaled(...)
-// ║  queueFullWithdrawal(...)
-// ║  _recordGateResult(...)
-// ║  _trackExpiry(...)
-// ║  _withdrawalsOpen(...)
-// ║
-// ║  BATCH FUNDING AND CLAIMS
-// ║  repayAndProcess(...)
-// ║  _repayAndProcessCell(...)
-// ║  executeWithdrawal(...)
-// ║
-// ║  TIME AND STATE CHECKPOINTS
-// ║  warp(...)
-// ║  updateState()
-// ║  _observe(...)
-// ║
-// ║  PROTOCOL FEES
-// ║  collectFees()
-// ║  _recordProtocolFeeTransition(...)
-// ║  _protocolFeesFromLogs(...)
-// ║  protocolFeesAreConserved()
-// ║  _protocolFeesAreConserved(...)
-// ║
-// ║  APR PROPOSALS
-// ║  proposeAprReduction(...)
-// ║  executeAprReduction()
-// ║
-// ║  SANCTIONS
-// ║  sanctionLender(...)
-// ║  sanctionBorrower()
-// ║  nukeFromOrbit(...)
-// ║
-// ║  CONSERVATION QUERIES
-// ║  scaledSupplyIsConserved()
-// ║  withdrawalLiabilitiesAreConserved()
-// ║  _batchLiabilityMatchesAccounts(...)
-// ║  scaleFactorsAreValid()
-// ║  drawnAmountTransitionsAreValid()
-// ║
-// ║  FINAL DRAIN
-// ║  unwindAndDrain()
-// ║  _closeCell(...)
-// ║  _recoverSurplusAfterDrain(...)
-// ║  _collectFeesAfterDrain(...)
-// ║
-// ║  REVOLVING DEBT MODEL
-// ║  _drawnAmountIfRevolving(...)
-// ║  _drawnAmount(...)
-// ║  _checkDrawnUnchanged(...)
-// ║  _expectedDrawnAfterBorrow(...)
-// ║  _repaymentExpectation(...)
-// ║  _expectedDrawnAfterRepay(...)
-// ║  _finalRepaymentDrawn(...)
-// ║
-// ║  REVOLVING ACCRUAL MODEL
-// ║  _expectedScaleFactorAfterUpdate(...)
-// ║  _expectedUpdatedRevolvingState(...)
-// ║  _getRawPendingBatch(...)
-// ║  _applyExpectedPendingBatchPayment(...)
-// ║  _accrueExpectedRevolvingInterest(...)
-// ║
-// ║  RECORDED CALLS
-// ║  _callAs(...)
-// ║  executeRecordedCall(...)
-// ║  _recordCallResult(...)
-// ║  _selector(...)
-// ║  _isArithmeticPanic(...)
-// ║
-// ║  ACTORS AND BOUNDS
-// ║  _actor(...)
-// ║  _borrower()
-// ║  _bound(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketMatrixHandler
+//  \ ^ /   Stateful matrix actions, independent accounting checks, and final drain.
+//    V
+//
+//  CAMPAIGN SETUP
+//  constructor(...)
+//  seedAccountingCoverage()
+//  cellCount()
+//  marketAt(...)
+//
+//  DEPOSITS AND TRANSFERS
+//  deposit(...)
+//  _depositCell(...)
+//  transfer(...)
+//
+//  BORROWING AND REPAYMENT
+//  borrow(...)
+//  repay(...)
+//  _repayCell(...)
+//  _fundBorrower(...)
+//  _maximumRepayWithSurplus(...)
+//
+//  WITHDRAWAL QUEUEING
+//  queueWithdrawal(...)
+//  queueWithdrawalScaled(...)
+//  queueFullWithdrawal(...)
+//  _recordGateResult(...)
+//  _trackExpiry(...)
+//  _withdrawalsOpen(...)
+//
+//  BATCH FUNDING AND CLAIMS
+//  repayAndProcess(...)
+//  _repayAndProcessCell(...)
+//  executeWithdrawal(...)
+//
+//  TIME AND STATE CHECKPOINTS
+//  warp(...)
+//  updateState()
+//  _observe(...)
+//
+//  PROTOCOL FEES
+//  collectFees()
+//  _recordProtocolFeeTransition(...)
+//  _protocolFeesFromLogs(...)
+//  protocolFeesAreConserved()
+//  _protocolFeesAreConserved(...)
+//
+//  APR PROPOSALS
+//  proposeAprReduction(...)
+//  executeAprReduction()
+//
+//  SANCTIONS
+//  sanctionLender(...)
+//  sanctionBorrower()
+//  nukeFromOrbit(...)
+//
+//  CONSERVATION QUERIES
+//  scaledSupplyIsConserved()
+//  withdrawalLiabilitiesAreConserved()
+//  _batchLiabilityMatchesAccounts(...)
+//  scaleFactorsAreValid()
+//  drawnAmountTransitionsAreValid()
+//
+//  FINAL DRAIN
+//  unwindAndDrain()
+//  _closeCell(...)
+//  _recoverSurplusAfterDrain(...)
+//  _collectFeesAfterDrain(...)
+//
+//  REVOLVING DEBT MODEL
+//  _drawnAmountIfRevolving(...)
+//  _drawnAmount(...)
+//  _checkDrawnUnchanged(...)
+//  _expectedDrawnAfterBorrow(...)
+//  _repaymentExpectation(...)
+//  _expectedDrawnAfterRepay(...)
+//  _finalRepaymentDrawn(...)
+//
+//  REVOLVING ACCRUAL MODEL
+//  _expectedScaleFactorAfterUpdate(...)
+//  _expectedUpdatedRevolvingState(...)
+//  _getRawPendingBatch(...)
+//  _applyExpectedPendingBatchPayment(...)
+//  _accrueExpectedRevolvingInterest(...)
+//
+//  RECORDED CALLS
+//  _callAs(...)
+//  executeRecordedCall(...)
+//  _recordCallResult(...)
+//  _selector(...)
+//  _isArithmeticPanic(...)
+//
+//  ACTORS AND BOUNDS
+//  _actor(...)
+//  _borrower()
+//  _bound(...)
+// ═════
 
 import { Vm } from 'forge-std/Vm.sol';
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';

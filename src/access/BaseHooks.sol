@@ -1,81 +1,79 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // BaseHooks
-// ║  ██▀▀     ▀▀██   Market setup, lender policy, and callback extension points.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  MARKET SETUP
-// ║  constructor(...)
-// ║  _onCreateMarket(...)
-// ║  _initializeMarket(...)
-// ║  _configureMarketAccess(...)
-// ║  _onMarketConfigured(...)
-// ║  _requireHookedMarket(...)
-// ║  _readAccessConfig(...)
-// ║
-// ║  MINIMUM DEPOSITS
-// ║  setMinimumDeposit(...)
-// ║  _isDepositHookEnabled(...)
-// ║  _writeMinimumDeposit(...)
-// ║
-// ║  DEPOSITS
-// ║  onDeposit(...)
-// ║  _processDeposit(...)
-// ║  _checkDeposit(...)
-// ║
-// ║  TRANSFERS
-// ║  onTransfer(...)
-// ║  _processTransfer(...)
-// ║  _checkTransfer(...)
-// ║  isMarketTransferDisabled(...)
-// ║  isMarketTransferRecipientAllowed(...)
-// ║  _defaultTransferRecipientAllowed(...)
-// ║  _featureTransferRecipientAllowed(...)
-// ║
-// ║  BORROWING
-// ║  onBorrow(...)
-// ║  _checkBorrow(...)
-// ║
-// ║  REPAYMENT
-// ║  onRepay(...)
-// ║  _checkRepay(...)
-// ║
-// ║  WITHDRAWAL QUEUEING
-// ║  onQueueWithdrawal(...)
-// ║  _checkWithdrawalSchedule(...)
-// ║  _processWithdrawalAccess(...)
-// ║  _checkQueueWithdrawal(...)
-// ║
-// ║  CLAIM COLLECTION
-// ║  onExecuteWithdrawal(...)
-// ║  _checkExecuteWithdrawal(...)
-// ║
-// ║  CLOSURE
-// ║  onCloseMarket(...)
-// ║  _validateCloseMarket(...)
-// ║  _applyCloseMarket(...)
-// ║
-// ║  SANCTIONS
-// ║  onNukeFromOrbit(...)
-// ║  _checkNukeFromOrbit(...)
-// ║
-// ║  SUPPLY CAPACITY
-// ║  onSetMaxTotalSupply(...)
-// ║  _checkMaxTotalSupply(...)
-// ║
-// ║  INTEREST AND RESERVES
-// ║  onSetAnnualInterestAndReserveRatioBips(...)
-// ║  _applyAprUpdate(...)
-// ║  _checkAprChange(...)
-// ║
-// ║  PROTOCOL FEES
-// ║  onSetProtocolFeeBips(...)
-// ║  _checkProtocolFeeBips(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // BaseHooks
+//  \ ^ /   Market setup, lender policy, and callback extension points.
+//    V
+//
+//  MARKET SETUP
+//  constructor(...)
+//  _onCreateMarket(...)
+//  _initializeMarket(...)
+//  _configureMarketAccess(...)
+//  _onMarketConfigured(...)
+//  _requireHookedMarket(...)
+//  _readAccessConfig(...)
+//
+//  MINIMUM DEPOSITS
+//  setMinimumDeposit(...)
+//  _isDepositHookEnabled(...)
+//  _writeMinimumDeposit(...)
+//
+//  DEPOSITS
+//  onDeposit(...)
+//  _processDeposit(...)
+//  _checkDeposit(...)
+//
+//  TRANSFERS
+//  onTransfer(...)
+//  _processTransfer(...)
+//  _checkTransfer(...)
+//  isMarketTransferDisabled(...)
+//  isMarketTransferRecipientAllowed(...)
+//  _defaultTransferRecipientAllowed(...)
+//  _featureTransferRecipientAllowed(...)
+//
+//  BORROWING
+//  onBorrow(...)
+//  _checkBorrow(...)
+//
+//  REPAYMENT
+//  onRepay(...)
+//  _checkRepay(...)
+//
+//  WITHDRAWAL QUEUEING
+//  onQueueWithdrawal(...)
+//  _checkWithdrawalSchedule(...)
+//  _processWithdrawalAccess(...)
+//  _checkQueueWithdrawal(...)
+//
+//  CLAIM COLLECTION
+//  onExecuteWithdrawal(...)
+//  _checkExecuteWithdrawal(...)
+//
+//  CLOSURE
+//  onCloseMarket(...)
+//  _validateCloseMarket(...)
+//  _applyCloseMarket(...)
+//
+//  SANCTIONS
+//  onNukeFromOrbit(...)
+//  _checkNukeFromOrbit(...)
+//
+//  SUPPLY CAPACITY
+//  onSetMaxTotalSupply(...)
+//  _checkMaxTotalSupply(...)
+//
+//  INTEREST AND RESERVES
+//  onSetAnnualInterestAndReserveRatioBips(...)
+//  _applyAprUpdate(...)
+//  _checkAprChange(...)
+//
+//  PROTOCOL FEES
+//  onSetProtocolFeeBips(...)
+//  _checkProtocolFeeBips(...)
+// ═════
 
 import './BaseAccessControls.sol';
 import './MarketConstraintHooks.sol';

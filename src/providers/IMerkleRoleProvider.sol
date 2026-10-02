@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IMerkleRoleProvider
-// ║  ██▀▀     ▀▀██   Mutable Merkle roots and proof-based membership queries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ROOT MANAGEMENT
-// ║  updateRoot(...)
-// ║  root()
-// ║  isMember(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IMerkleRoleProvider
+//  \ ^ /   Mutable Merkle roots and proof-based membership queries.
+//    V
+//
+//  ROOT MANAGEMENT
+//  updateRoot(...)
+//  root()
+//  isMember(...)
+// ═════
 
 import '../access/IRoleProvider.sol';
 import '../access/IManagedRoleProvider.sol';

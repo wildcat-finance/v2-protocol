@@ -1,34 +1,32 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatMarketWithdrawals
-// ║  ██▀▀     ▀▀██   Withdrawal queueing, batch funding, and claim collection.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  QUEUEING
-// ║  queueWithdrawal(...)
-// ║  queueWithdrawalScaled(...)
-// ║  queueFullWithdrawal()
-// ║  _queueWithdrawal(...)
-// ║
-// ║  BATCH FUNDING
-// ║  repayAndProcessUnpaidWithdrawalBatches(...)
-// ║  _processUnpaidWithdrawalBatch(...)
-// ║
-// ║  CLAIM COLLECTION
-// ║  executeWithdrawal(...)
-// ║  executeWithdrawals(...)
-// ║  _executeWithdrawal(...)
-// ║  getAvailableWithdrawalAmount(...)
-// ║
-// ║  QUERIES
-// ║  getUnpaidBatchExpiries()
-// ║  getWithdrawalBatch(...)
-// ║  getAccountWithdrawalStatus(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatMarketWithdrawals
+//  \ ^ /   Withdrawal queueing, batch funding, and claim collection.
+//    V
+//
+//  QUEUEING
+//  queueWithdrawal(...)
+//  queueWithdrawalScaled(...)
+//  queueFullWithdrawal()
+//  _queueWithdrawal(...)
+//
+//  BATCH FUNDING
+//  repayAndProcessUnpaidWithdrawalBatches(...)
+//  _processUnpaidWithdrawalBatch(...)
+//
+//  CLAIM COLLECTION
+//  executeWithdrawal(...)
+//  executeWithdrawals(...)
+//  _executeWithdrawal(...)
+//  getAvailableWithdrawalAmount(...)
+//
+//  QUERIES
+//  getUnpaidBatchExpiries()
+//  getWithdrawalBatch(...)
+//  getAccountWithdrawalStatus(...)
+// ═════
 
 import './WildcatMarketBase.sol';
 import '../libraries/LibERC20.sol';

@@ -1,35 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // SplitStorageDeployment.t
-// ║  ██▀▀     ▀▀██   Split-storage deployment integrity, limits, and source parity.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  STORAGE READ PROBE
-// ║  readHash(...)
-// ║
-// ║  SPLIT STORAGE FIXTURE
-// ║  _storeInitCode(...)
-// ║
-// ║  FACTORY INTEGRITY
-// ║  test_factoryRejectsCorruptedMarketTailBeforeCreate2()
-// ║  test_factoryRejectsChangedApprovedHookArtifact()
-// ║
-// ║  REAL LIMIT DEPLOYMENTS
-// ║  test_realLimits_SixProductionAndSixComposedMarkets()
-// ║  _exercise(...)
-// ║
-// ║  DEPLOYMENT PARITY
-// ║  test_sameInitializedRuntimeStateEventsAndAddresses()
-// ║  _observe(...)
-// ║  _storeInitCode(...)
-// ║
-// ║  COMPARISON EXPORT
-// ║  test_exportPreparedComparisonArtifacts()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // SplitStorageDeployment.t
+//  \ ^ /   Split-storage deployment integrity, limits, and source parity.
+//    V
+//
+//  STORAGE READ PROBE
+//  readHash(...)
+//
+//  SPLIT STORAGE FIXTURE
+//  _storeInitCode(...)
+//
+//  FACTORY INTEGRITY
+//  test_factoryRejectsCorruptedMarketTailBeforeCreate2()
+//  test_factoryRejectsChangedApprovedHookArtifact()
+//
+//  REAL LIMIT DEPLOYMENTS
+//  test_realLimits_SixProductionAndSixComposedMarkets()
+//  _exercise(...)
+//
+//  DEPLOYMENT PARITY
+//  test_sameInitializedRuntimeStateEventsAndAddresses()
+//  _observe(...)
+//  _storeInitCode(...)
+//
+//  COMPARISON EXPORT
+//  test_exportPreparedComparisonArtifacts()
+// ═════
 
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 import { LibSplitInitCode } from 'src/libraries/LibSplitInitCode.sol';
@@ -295,6 +293,7 @@ contract SplitStorageParityTest is ProductionMatrixFixture {
         LibSplitInitCode.getPrimaryRuntime(original, address(0))
       );
     }
+    vm.createDir('deploy-out', true);
     vm.writeJson(output, 'deploy-out/split-comparison.json');
   }
 }

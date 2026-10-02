@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MerkleRoleProviderFactory
-// ║  ██▀▀     ▀▀██   Deterministic Merkle provider deployment and address prediction.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  DEPLOYMENT
-// ║  createRoleProvider(...)
-// ║  createMerkleRoleProvider(...)
-// ║  _createRoleProvider(...)
-// ║
-// ║  ADDRESS PREDICTION
-// ║  computeRoleProviderAddress(...)
-// ║  _computeRoleProviderAddress(...)
-// ║  _deriveSalt(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MerkleRoleProviderFactory
+//  \ ^ /   Deterministic Merkle provider deployment and address prediction.
+//    V
+//
+//  DEPLOYMENT
+//  createRoleProvider(...)
+//  createMerkleRoleProvider(...)
+//  _createRoleProvider(...)
+//
+//  ADDRESS PREDICTION
+//  computeRoleProviderAddress(...)
+//  _computeRoleProviderAddress(...)
+//  _deriveSalt(...)
+// ═════
 
 import './MerkleRoleProvider.sol';
 import './IMerkleRoleProviderFactory.sol';

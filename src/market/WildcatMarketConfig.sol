@@ -1,40 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatMarketConfig
-// ║  ██▀▀     ▀▀██   Supply limits, interest terms, wrapper setup, and sanctions.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  PERIODIC APR CALLBACK
-// ║  executePendingAnnualInterestBipsReduction(...)
-// ║
-// ║  SUPPLY CAPACITY
-// ║  setMaxTotalSupply(...)
-// ║  maxTotalSupply()
-// ║  maximumDeposit()
-// ║
-// ║  INTEREST AND RESERVES
-// ║  setAnnualInterestAndReserveRatioBips(...)
-// ║  executePendingAnnualInterestBipsReduction()
-// ║  _applyAnnualInterestAndReserveRatioBips(...)
-// ║  annualInterestBips()
-// ║  reserveRatioBips()
-// ║
-// ║  PROTOCOL FEES
-// ║  setProtocolFeeBips(...)
-// ║
-// ║  WRAPPER REGISTRATION
-// ║  registerWrapper(...)
-// ║
-// ║  SANCTIONS
-// ║  nukeFromOrbit(...)
-// ║
-// ║  STATUS
-// ║  isClosed()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatMarketConfig
+//  \ ^ /   Supply limits, interest terms, wrapper setup, and sanctions.
+//    V
+//
+//  PERIODIC APR CALLBACK
+//  executePendingAnnualInterestBipsReduction(...)
+//
+//  SUPPLY CAPACITY
+//  setMaxTotalSupply(...)
+//  maxTotalSupply()
+//  maximumDeposit()
+//
+//  INTEREST AND RESERVES
+//  setAnnualInterestAndReserveRatioBips(...)
+//  executePendingAnnualInterestBipsReduction()
+//  _applyAnnualInterestAndReserveRatioBips(...)
+//  annualInterestBips()
+//  reserveRatioBips()
+//
+//  PROTOCOL FEES
+//  setProtocolFeeBips(...)
+//
+//  WRAPPER REGISTRATION
+//  registerWrapper(...)
+//
+//  SANCTIONS
+//  nukeFromOrbit(...)
+//
+//  STATUS
+//  isClosed()
+// ═════
 
 import './WildcatMarketBase.sol';
 import '../libraries/SafeCastLib.sol';

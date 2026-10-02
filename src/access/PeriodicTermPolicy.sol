@@ -1,50 +1,48 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // PeriodicTermPolicy
-// ║  ██▀▀     ▀▀██   Withdrawal windows, APR proposals, execution, and closure.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  MARKET SETUP
-// ║  _initializeMarket(...)
-// ║  _validatePeriodicTerm(...)
-// ║  _readUint32Cd(...)
-// ║  _readUint96Cd(...)
-// ║  _readBoolCd(...)
-// ║
-// ║  ACCESS CONFIGURATION
-// ║  _readAccessConfig(...)
-// ║  _isDepositHookEnabled(...)
-// ║  _writeMinimumDeposit(...)
-// ║
-// ║  WITHDRAWAL WINDOWS
-// ║  _checkWithdrawalSchedule(...)
-// ║  isWithdrawalWindowOpen(...)
-// ║  _isWithdrawalWindowOpen(...)
-// ║  _getNextWithdrawalWindowStart(...)
-// ║
-// ║  APR PROPOSALS
-// ║  proposeAnnualInterestBips(...)
-// ║  _checkPeriodicProposal(...)
-// ║  getPendingAprChange(...)
-// ║  pendingAprChanges(...)
-// ║
-// ║  APR EXECUTION
-// ║  executePendingAnnualInterestBipsReduction(...)
-// ║  _applyAprUpdate(...)
-// ║  _executePeriodicReduction(...)
-// ║
-// ║  CLOSURE
-// ║  _validateCloseMarket(...)
-// ║  _validatePeriodicCloseMarket()
-// ║  _applyCloseMarket(...)
-// ║  _applyPeriodicCloseMarket()
-// ║  _scheduledMarketClosed(...)
-// ║  _effectiveHookedMarket(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // PeriodicTermPolicy
+//  \ ^ /   Withdrawal windows, APR proposals, execution, and closure.
+//    V
+//
+//  MARKET SETUP
+//  _initializeMarket(...)
+//  _validatePeriodicTerm(...)
+//  _readUint32Cd(...)
+//  _readUint96Cd(...)
+//  _readBoolCd(...)
+//
+//  ACCESS CONFIGURATION
+//  _readAccessConfig(...)
+//  _isDepositHookEnabled(...)
+//  _writeMinimumDeposit(...)
+//
+//  WITHDRAWAL WINDOWS
+//  _checkWithdrawalSchedule(...)
+//  isWithdrawalWindowOpen(...)
+//  _isWithdrawalWindowOpen(...)
+//  _getNextWithdrawalWindowStart(...)
+//
+//  APR PROPOSALS
+//  proposeAnnualInterestBips(...)
+//  _checkPeriodicProposal(...)
+//  getPendingAprChange(...)
+//  pendingAprChanges(...)
+//
+//  APR EXECUTION
+//  executePendingAnnualInterestBipsReduction(...)
+//  _applyAprUpdate(...)
+//  _executePeriodicReduction(...)
+//
+//  CLOSURE
+//  _validateCloseMarket(...)
+//  _validatePeriodicCloseMarket()
+//  _applyCloseMarket(...)
+//  _applyPeriodicCloseMarket()
+//  _scheduledMarketClosed(...)
+//  _effectiveHookedMarket(...)
+// ═════
 
 import './BaseHooks.sol';
 import './types/PeriodicTermHookTypes.sol';

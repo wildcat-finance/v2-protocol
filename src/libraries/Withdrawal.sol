@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // Withdrawal
-// ║  ██▀▀     ▀▀██   Batch liquidity, unpaid shares, and remainder settlement.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BATCH FUNDING
-// ║  availableLiquidityForPendingBatch(...)
-// ║  scaledOwedAmount(...)
-// ║
-// ║  REMAINDER SETTLEMENT
-// ║  releaseRemainder(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // Withdrawal
+//  \ ^ /   Batch liquidity, unpaid shares, and remainder settlement.
+//    V
+//
+//  BATCH FUNDING
+//  availableLiquidityForPendingBatch(...)
+//  scaledOwedAmount(...)
+//
+//  REMAINDER SETTLEMENT
+//  releaseRemainder(...)
+// ═════
 
 import './MarketState.sol';
 import './FIFOQueue.sol';

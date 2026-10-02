@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // Errors
-// ║  ██▀▀     ▀▀██   Panic constants and compact custom-error revert helpers.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CUSTOM ERRORS
-// ║  revertWithSelector(...)
-// ║  revertWithSelector(...)
-// ║
-// ║  ERROR ARGUMENTS
-// ║  revertWithSelectorAndArgument(...)
-// ║  revertWithSelectorAndArgument(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // Errors
+//  \ ^ /   Panic constants and compact custom-error revert helpers.
+//    V
+//
+//  CUSTOM ERRORS
+//  revertWithSelector(...)
+//  revertWithSelector(...)
+//
+//  ERROR ARGUMENTS
+//  revertWithSelectorAndArgument(...)
+//  revertWithSelectorAndArgument(...)
+// ═════
 
 uint256 constant Panic_CompilerPanic = 0x00;
 uint256 constant Panic_AssertFalse = 0x01;

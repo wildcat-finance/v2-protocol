@@ -1,98 +1,96 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // Wildcat4626Wrapper
-// ║  ██▀▀     ▀▀██   Scaled ERC-4626 shares over rebasing Wildcat market tokens.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  MARKET CONFIGURATION
-// ║  hooks()
-// ║  borrower()
-// ║  borrowerPrincipal()
-// ║  sentinel()
-// ║  wrapperFactory()
-// ║
-// ║  SCALED ACCOUNTING
-// ║  scaleFactor()
-// ║  scaledBalanceOf(...)
-// ║  maxTotalSupply()
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║  _useVirtualShares()
-// ║  _underlyingDecimals()
-// ║
-// ║  METADATA AND ASSETS
-// ║  name()
-// ║  symbol()
-// ║  decimals()
-// ║  market()
-// ║  marketOwner()
-// ║  asset()
-// ║  totalAssets()
-// ║
-// ║  DEPOSITS
-// ║  deposit(...)
-// ║  maxDeposit(...)
-// ║  previewDeposit(...)
-// ║  mint(...)
-// ║  maxMint(...)
-// ║  previewMint(...)
-// ║  _maxDepositAndScaleFactor(...)
-// ║  _remainingCapacityAssets()
-// ║  _requireMarketTokenRecipientAllowed()
-// ║  _canReceiveMarketTokens()
-// ║
-// ║  WITHDRAWALS
-// ║  withdraw(...)
-// ║  maxWithdraw(...)
-// ║  previewWithdraw(...)
-// ║  redeem(...)
-// ║  maxRedeem(...)
-// ║  previewRedeem(...)
-// ║
-// ║  CONVERSIONS
-// ║  convertToShares(...)
-// ║  convertToAssets(...)
-// ║  assetsPerShareRay()
-// ║  sharesPerAssetRay()
-// ║  _convertToSharesDown(...)
-// ║  _convertToSharesUp(...)
-// ║  _convertToAssetsDown(...)
-// ║  _convertToAssetsUp(...)
-// ║
-// ║  SURPLUS RECOVERY
-// ║  sweep(...)
-// ║
-// ║  SANCTIONS AND SHARE TRANSFERS
-// ║  nukeFromOrbit(...)
-// ║  _beforeTokenTransfer(...)
-// ║  _isEscrowRelease(...)
-// ║  _getEscrowAddress(...)
-// ║  _checkNotSanctioned(...)
-// ║  _checkNotSanctioned(...)
-// ║  _isSanctioned(...)
-// ║  _isSanctioned(...)
-// ║  _tryIsSanctioned(...)
-// ║
-// ║  OPERATIONAL CHECKS
-// ║  _requireOperational(...)
-// ║  _requireOperational(...)
-// ║  _requireSolvent(...)
-// ║  _isLimitOperational(...)
-// ║
-// ║  MARKET READERS
-// ║  _readMarketAddress(...)
-// ║  _readMarketWord(...)
-// ║  _readMarketWord(...)
-// ║  _tryReadMarketAddress(...)
-// ║  _tryReadMarketWord(...)
-// ║  _tryReadMarketWord(...)
-// ║  _tryReadScaleFactor()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // Wildcat4626Wrapper
+//  \ ^ /   Scaled ERC-4626 shares over rebasing Wildcat market tokens.
+//    V
+//
+//  MARKET CONFIGURATION
+//  hooks()
+//  borrower()
+//  borrowerPrincipal()
+//  sentinel()
+//  wrapperFactory()
+//
+//  SCALED ACCOUNTING
+//  scaleFactor()
+//  scaledBalanceOf(...)
+//  maxTotalSupply()
+//
+//  SETUP
+//  constructor(...)
+//  _useVirtualShares()
+//  _underlyingDecimals()
+//
+//  METADATA AND ASSETS
+//  name()
+//  symbol()
+//  decimals()
+//  market()
+//  marketOwner()
+//  asset()
+//  totalAssets()
+//
+//  DEPOSITS
+//  deposit(...)
+//  maxDeposit(...)
+//  previewDeposit(...)
+//  mint(...)
+//  maxMint(...)
+//  previewMint(...)
+//  _maxDepositAndScaleFactor(...)
+//  _remainingCapacityAssets()
+//  _requireMarketTokenRecipientAllowed()
+//  _canReceiveMarketTokens()
+//
+//  WITHDRAWALS
+//  withdraw(...)
+//  maxWithdraw(...)
+//  previewWithdraw(...)
+//  redeem(...)
+//  maxRedeem(...)
+//  previewRedeem(...)
+//
+//  CONVERSIONS
+//  convertToShares(...)
+//  convertToAssets(...)
+//  assetsPerShareRay()
+//  sharesPerAssetRay()
+//  _convertToSharesDown(...)
+//  _convertToSharesUp(...)
+//  _convertToAssetsDown(...)
+//  _convertToAssetsUp(...)
+//
+//  SURPLUS RECOVERY
+//  sweep(...)
+//
+//  SANCTIONS AND SHARE TRANSFERS
+//  nukeFromOrbit(...)
+//  _beforeTokenTransfer(...)
+//  _isEscrowRelease(...)
+//  _getEscrowAddress(...)
+//  _checkNotSanctioned(...)
+//  _checkNotSanctioned(...)
+//  _isSanctioned(...)
+//  _isSanctioned(...)
+//  _tryIsSanctioned(...)
+//
+//  OPERATIONAL CHECKS
+//  _requireOperational(...)
+//  _requireOperational(...)
+//  _requireSolvent(...)
+//  _isLimitOperational(...)
+//
+//  MARKET READERS
+//  _readMarketAddress(...)
+//  _readMarketWord(...)
+//  _readMarketWord(...)
+//  _tryReadMarketAddress(...)
+//  _tryReadMarketWord(...)
+//  _tryReadMarketWord(...)
+//  _tryReadScaleFactor()
+// ═════
 
 import { ERC4626 } from 'solady/tokens/ERC4626.sol';
 import { IERC20 } from 'openzeppelin/contracts/token/ERC20/IERC20.sol';

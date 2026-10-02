@@ -1,42 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // RepaymentPrototype.t
-// ║  ██▀▀     ▀▀██   Repayment timeline, cure, closure, and real deployment regressions.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _cell(...)
-// ║  _fundAndDraw(...)
-// ║
-// ║  PRODUCTION DEPLOYMENT
-// ║  test_ProductionArtifactsFitActualCodeStorageAndRuntimeLimits()
-// ║  test_AllSixFactoryCombinationsAcceptDisabledAndZeroPeriodTerms()
-// ║
-// ║  REPAYMENT TIMELINE
-// ║  test_AllFourAccrualIntervalsPreserveViewsAndEventChronology()
-// ║  test_ZeroPeriodCureAfterEarlierUpdateInSameBlock()
-// ║  _sameBlockCure(...)
-// ║  test_OneSecondLateRepaymentClosesButRecordsMissedDeadline()
-// ║  _lateCure(...)
-// ║  testFuzz_InclusiveDeadline(...)
-// ║  test_LateDonationCannotRewriteDeadlineOrEmitRepayment()
-// ║
-// ║  PENALTY AND OBSERVED CURE
-// ║  test_NoDatePenaltyCutoffAllowsLaterSameBlockCure()
-// ║  test_NoDateDefaultOnlyRecordsMarkerAndKeepsEconomics()
-// ║  test_ObservedCureResetsDefaultRunWithoutResettingPenaltyEconomics()
-// ║
-// ║  WITHDRAWALS AND CLOSURE
-// ║  test_RepaymentOpensPeriodicQueueButKeepsBatchExpiry()
-// ║  test_AutomaticClosureLeavesFullyBackedFifoForBoundedProcessing()
-// ║  test_PeriodicViewsObserveAutomaticClosureAndRetireProposal()
-// ║  test_AutomaticClosureWithdrawalViewMatchesExecutionBeforeOriginalExpiry()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // RepaymentPrototype.t
+//  \ ^ /   Repayment timeline, cure, closure, and real deployment regressions.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//  _cell(...)
+//  _fundAndDraw(...)
+//
+//  PRODUCTION DEPLOYMENT
+//  test_ProductionArtifactsFitActualCodeStorageAndRuntimeLimits()
+//  test_AllSixFactoryCombinationsAcceptDisabledAndZeroPeriodTerms()
+//
+//  REPAYMENT TIMELINE
+//  test_AllFourAccrualIntervalsPreserveViewsAndEventChronology()
+//  test_ZeroPeriodCureAfterEarlierUpdateInSameBlock()
+//  _sameBlockCure(...)
+//  test_OneSecondLateRepaymentClosesButRecordsMissedDeadline()
+//  _lateCure(...)
+//  testFuzz_InclusiveDeadline(...)
+//  test_LateDonationCannotRewriteDeadlineOrEmitRepayment()
+//
+//  PENALTY AND OBSERVED CURE
+//  test_NoDatePenaltyCutoffAllowsLaterSameBlockCure()
+//  test_NoDateDefaultOnlyRecordsMarkerAndKeepsEconomics()
+//  test_ObservedCureResetsDefaultRunWithoutResettingPenaltyEconomics()
+//
+//  WITHDRAWALS AND CLOSURE
+//  test_RepaymentOpensPeriodicQueueButKeepsBatchExpiry()
+//  test_AutomaticClosureLeavesFullyBackedFifoForBoundedProcessing()
+//  test_PeriodicViewsObserveAutomaticClosureAndRetireProposal()
+//  test_AutomaticClosureWithdrawalViewMatchesExecutionBeforeOriginalExpiry()
+// ═════
 
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';

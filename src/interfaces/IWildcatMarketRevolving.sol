@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IWildcatMarketRevolving
-// ║  ██▀▀     ▀▀██   Revolving principal and fixed commitment-rate queries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  PRINCIPAL ACCOUNTING
-// ║  drawnAmount()
-// ║
-// ║  INTEREST
-// ║  commitmentFeeBips()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IWildcatMarketRevolving
+//  \ ^ /   Revolving principal and fixed commitment-rate queries.
+//    V
+//
+//  PRINCIPAL ACCOUNTING
+//  drawnAmount()
+//
+//  INTEREST
+//  commitmentFeeBips()
+// ═════
 
 // ┌─ IWildcatMarketRevolving ──────────────────────────────────────────────────
 /// @notice read surface specific to revolving credit markets.

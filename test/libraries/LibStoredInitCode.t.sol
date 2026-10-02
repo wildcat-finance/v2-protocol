@@ -1,42 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LibStoredInitCode.t
-// ║  ██▀▀     ▀▀██   Stored-initcode construction, address, and deployment tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FAILED CONSTRUCTION
-// ║  constructor()
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  INITCODE STORAGE
-// ║  test_deployInitCode(...)
-// ║  test_deployInitCode()
-// ║  test_deployInitCode_InitCodeDeploymentFailed()
-// ║
-// ║  CREATE DEPLOYMENT
-// ║  test_createWithStoredInitCode()
-// ║  test_createWithStoredInitCode_WithValue()
-// ║  test_createWithStoredInitCode_DeploymentFailed()
-// ║
-// ║  CREATE2 ADDRESSES
-// ║  test_getCreate2Prefix(...)
-// ║  test_getCreate2Prefix()
-// ║  test_calculateCreate2Address(...)
-// ║  test_calculateCreate2Address()
-// ║
-// ║  CREATE2 DEPLOYMENT
-// ║  test_create2WithStoredInitCode(...)
-// ║  test_create2WithStoredInitCode_DeploymentFailed(...)
-// ║  test_create2WithStoredInitCode_WithValue(...)
-// ║  test_create2WithStoredInitCodeCD_DeploymentFailed(...)
-// ║  test_create2WithStoredInitCode_MemoryConstructorArgs(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LibStoredInitCode.t
+//  \ ^ /   Stored-initcode construction, address, and deployment tests.
+//    V
+//
+//  FAILED CONSTRUCTION
+//  constructor()
+//
+//  FIXTURE
+//  setUp()
+//
+//  INITCODE STORAGE
+//  test_deployInitCode(...)
+//  test_deployInitCode()
+//  test_deployInitCode_InitCodeDeploymentFailed()
+//
+//  CREATE DEPLOYMENT
+//  test_createWithStoredInitCode()
+//  test_createWithStoredInitCode_WithValue()
+//  test_createWithStoredInitCode_DeploymentFailed()
+//
+//  CREATE2 ADDRESSES
+//  test_getCreate2Prefix(...)
+//  test_getCreate2Prefix()
+//  test_calculateCreate2Address(...)
+//  test_calculateCreate2Address()
+//
+//  CREATE2 DEPLOYMENT
+//  test_create2WithStoredInitCode(...)
+//  test_create2WithStoredInitCode_DeploymentFailed(...)
+//  test_create2WithStoredInitCode_WithValue(...)
+//  test_create2WithStoredInitCodeCD_DeploymentFailed(...)
+//  test_create2WithStoredInitCode_MemoryConstructorArgs(...)
+// ═════
 
 import './wrappers/LibStoredInitCodeExternal.sol';
 import { TestKernel } from '../shared/TestKernel.sol';

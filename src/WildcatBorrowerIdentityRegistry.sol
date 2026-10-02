@@ -1,52 +1,50 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatBorrowerIdentityRegistry
-// ║  ██▀▀     ▀▀██   Borrower-account registration, principal transfers, and resolution.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║  archController()
-// ║
-// ║  FACTORY AUTHORIZATION
-// ║  onlyArchControllerOwner()
-// ║  _archControllerOwner()
-// ║  addAccountFactory(...)
-// ║  removeAccountFactory(...)
-// ║  isAccountFactory(...)
-// ║  getAccountFactories()
-// ║  getAccountFactories(...)
-// ║  getAccountFactoriesCount()
-// ║
-// ║  ACCOUNT REGISTRATION
-// ║  onlyAccountFactory()
-// ║  registerBorrowerAccount(...)
-// ║
-// ║  PRINCIPAL TRANSFERS
-// ║  requestBorrowerAccountPrincipalTransfer(...)
-// ║  acceptBorrowerAccountPrincipalTransfer(...)
-// ║  cancelBorrowerAccountPrincipalTransfer(...)
-// ║  _getAccountPrincipal(...)
-// ║  _validatePrincipalTransferTarget(...)
-// ║
-// ║  IDENTITY RESOLUTION
-// ║  resolveBorrower(...)
-// ║  _isRegisteredBorrower(...)
-// ║
-// ║  ACCOUNT ENUMERATION
-// ║  getBorrowerAccounts(...)
-// ║  getBorrowerAccounts(...)
-// ║  getBorrowerAccountsCount(...)
-// ║  _getAddressSetSlice(...)
-// ║  getBorrowerAccountsForFactory(...)
-// ║  getBorrowerAccountsForFactory(...)
-// ║  getBorrowerAccountsForFactoryCount(...)
-// ║  _getAddressSlice(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatBorrowerIdentityRegistry
+//  \ ^ /   Borrower-account registration, principal transfers, and resolution.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//  archController()
+//
+//  FACTORY AUTHORIZATION
+//  onlyArchControllerOwner()
+//  _archControllerOwner()
+//  addAccountFactory(...)
+//  removeAccountFactory(...)
+//  isAccountFactory(...)
+//  getAccountFactories()
+//  getAccountFactories(...)
+//  getAccountFactoriesCount()
+//
+//  ACCOUNT REGISTRATION
+//  onlyAccountFactory()
+//  registerBorrowerAccount(...)
+//
+//  PRINCIPAL TRANSFERS
+//  requestBorrowerAccountPrincipalTransfer(...)
+//  acceptBorrowerAccountPrincipalTransfer(...)
+//  cancelBorrowerAccountPrincipalTransfer(...)
+//  _getAccountPrincipal(...)
+//  _validatePrincipalTransferTarget(...)
+//
+//  IDENTITY RESOLUTION
+//  resolveBorrower(...)
+//  _isRegisteredBorrower(...)
+//
+//  ACCOUNT ENUMERATION
+//  getBorrowerAccounts(...)
+//  getBorrowerAccounts(...)
+//  getBorrowerAccountsCount(...)
+//  _getAddressSetSlice(...)
+//  getBorrowerAccountsForFactory(...)
+//  getBorrowerAccountsForFactory(...)
+//  getBorrowerAccountsForFactoryCount(...)
+//  _getAddressSlice(...)
+// ═════
 
 import { EnumerableSet } from 'openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import './interfaces/IBorrowerIdentityRegistry.sol';

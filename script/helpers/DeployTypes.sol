@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // DeployTypes
-// ║  ██▀▀     ▀▀██   Development market configuration and hook encoding.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  HOOK ENCODING
-// ║  encodeHooksData(...)
-// ║  toHooksConfig(...)
-// ║
-// ║  TOKEN DEPLOYMENT
-// ║  deployMockERC20(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // DeployTypes
+//  \ ^ /   Development market configuration and hook encoding.
+//    V
+//
+//  HOOK ENCODING
+//  encodeHooksData(...)
+//  toHooksConfig(...)
+//
+//  TOKEN DEPLOYMENT
+//  deployMockERC20(...)
+// ═════
 
 import 'src/types/HooksConfig.sol';
 

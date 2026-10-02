@@ -1,74 +1,72 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketErrors
-// ║  ██▀▀     ▀▀██   Compact market errors grouped by the operations they guard.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP AND CONFIGURATION
-// ║  revert_InvalidRepaymentTerms()
-// ║  revert_UnsupportedExecuteWithdrawalHook()
-// ║  revert_NotFactory()
-// ║  revert_CapacityChangeOnClosedMarket()
-// ║  revert_AprChangeOnClosedMarket()
-// ║  revert_AnnualInterestBipsTooHigh()
-// ║  revert_ReserveRatioBipsTooHigh()
-// ║  revert_RepaymentReserveRequired()
-// ║  revert_InsufficientReservesForOldLiquidityRatio()
-// ║  revert_InsufficientReservesForNewLiquidityRatio()
-// ║  revert_ExecutePendingAprReductionNotEnabled()
-// ║  revert_AprReductionNotReduction()
-// ║
-// ║  BORROWER AUTHORITY
-// ║  revert_NotApprovedBorrower()
-// ║  revert_NoPendingBorrowerTransfer()
-// ║  revert_NotPendingBorrower()
-// ║  revert_BorrowerTransferWhileSanctioned(...)
-// ║
-// ║  DEPOSITS AND TRANSFERS
-// ║  revert_NotApprovedLender()
-// ║  revert_DepositToClosedMarket()
-// ║  revert_MaxSupplyExceeded()
-// ║  revert_NullMintAmount()
-// ║  revert_NullTransferAmount()
-// ║
-// ║  BORROWING AND REPAYMENT
-// ║  revert_MarketInRepayment()
-// ║  revert_BorrowWhileSanctioned()
-// ║  revert_BorrowFromClosedMarket()
-// ║  revert_BorrowAmountTooHigh()
-// ║  revert_NullRepayAmount()
-// ║  revert_RepayToClosedMarket()
-// ║
-// ║  PROTOCOL FEES
-// ║  revert_NullFeeAmount()
-// ║  revert_InsufficientReservesForFeeWithdrawal()
-// ║  revert_ProtocolFeeTooHigh()
-// ║  revert_ProtocolFeeRecipientRequired()
-// ║  revert_ProtocolFeeChangeOnClosedMarket()
-// ║
-// ║  WITHDRAWALS
-// ║  revert_NullBurnAmount()
-// ║  revert_NullWithdrawalAmount()
-// ║  revert_WithdrawalBatchKeyAlreadyExists()
-// ║  revert_WithdrawalBatchNotExpired()
-// ║  revert_InvalidArrayLength()
-// ║
-// ║  CLOSURE AND RECOVERY
-// ║  revert_MarketAlreadyClosed()
-// ║  revert_CloseMarketWithUnpaidWithdrawals()
-// ║  revert_BadRescueAsset()
-// ║
-// ║  WRAPPERS AND SANCTIONS
-// ║  revert_NotWrapperFactory()
-// ║  revert_WrapperAlreadyRegistered()
-// ║  revert_CannotNukeWrapper()
-// ║  revert_BadLaunchCode()
-// ║  revert_AccountBlocked()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketErrors
+//  \ ^ /   Compact market errors grouped by the operations they guard.
+//    V
+//
+//  SETUP AND CONFIGURATION
+//  revert_InvalidRepaymentTerms()
+//  revert_UnsupportedExecuteWithdrawalHook()
+//  revert_NotFactory()
+//  revert_CapacityChangeOnClosedMarket()
+//  revert_AprChangeOnClosedMarket()
+//  revert_AnnualInterestBipsTooHigh()
+//  revert_ReserveRatioBipsTooHigh()
+//  revert_RepaymentReserveRequired()
+//  revert_InsufficientReservesForOldLiquidityRatio()
+//  revert_InsufficientReservesForNewLiquidityRatio()
+//  revert_ExecutePendingAprReductionNotEnabled()
+//  revert_AprReductionNotReduction()
+//
+//  BORROWER AUTHORITY
+//  revert_NotApprovedBorrower()
+//  revert_NoPendingBorrowerTransfer()
+//  revert_NotPendingBorrower()
+//  revert_BorrowerTransferWhileSanctioned(...)
+//
+//  DEPOSITS AND TRANSFERS
+//  revert_NotApprovedLender()
+//  revert_DepositToClosedMarket()
+//  revert_MaxSupplyExceeded()
+//  revert_NullMintAmount()
+//  revert_NullTransferAmount()
+//
+//  BORROWING AND REPAYMENT
+//  revert_MarketInRepayment()
+//  revert_BorrowWhileSanctioned()
+//  revert_BorrowFromClosedMarket()
+//  revert_BorrowAmountTooHigh()
+//  revert_NullRepayAmount()
+//  revert_RepayToClosedMarket()
+//
+//  PROTOCOL FEES
+//  revert_NullFeeAmount()
+//  revert_InsufficientReservesForFeeWithdrawal()
+//  revert_ProtocolFeeTooHigh()
+//  revert_ProtocolFeeRecipientRequired()
+//  revert_ProtocolFeeChangeOnClosedMarket()
+//
+//  WITHDRAWALS
+//  revert_NullBurnAmount()
+//  revert_NullWithdrawalAmount()
+//  revert_WithdrawalBatchKeyAlreadyExists()
+//  revert_WithdrawalBatchNotExpired()
+//  revert_InvalidArrayLength()
+//
+//  CLOSURE AND RECOVERY
+//  revert_MarketAlreadyClosed()
+//  revert_CloseMarketWithUnpaidWithdrawals()
+//  revert_BadRescueAsset()
+//
+//  WRAPPERS AND SANCTIONS
+//  revert_NotWrapperFactory()
+//  revert_WrapperAlreadyRegistered()
+//  revert_CannotNukeWrapper()
+//  revert_BadLaunchCode()
+//  revert_AccountBlocked()
+// ═════
 // ░░▒▒▓▓██ [ ERROR SELECTORS ] ────────────────────────────────────────────────
 
 uint256 constant MaxSupplyExceeded_ErrorSelector = 0x8a164f63;

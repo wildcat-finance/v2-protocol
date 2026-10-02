@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensLive
-// ║  ██▀▀     ▀▀██   Compact accrued-state and lender queries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  LIVE MARKET DATA
-// ║  getMarketsLiveDataV2(...)
-// ║  getMarketsLiveDataWithLenderStatusV2(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLensLive
+//  \ ^ /   Compact accrued-state and lender queries.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//
+//  LIVE MARKET DATA
+//  getMarketsLiveDataV2(...)
+//  getMarketsLiveDataWithLenderStatusV2(...)
+// ═════
 
 import '../IHooksFactory.sol';
 import '../market/WildcatMarket.sol';

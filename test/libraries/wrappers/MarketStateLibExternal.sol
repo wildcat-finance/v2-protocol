@@ -1,31 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketStateLibExternal
-// ║  ██▀▀     ▀▀██   External adapters for market state and share conversion.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SUPPLY AND CAPACITY
-// ║  $totalSupply(...)
-// ║  $maximumDeposit(...)
-// ║
-// ║  SHARE CONVERSION
-// ║  $normalizeAmount(...)
-// ║  $scaleAmountDown(...)
-// ║  $maxScaledSettleableAmount(...)
-// ║
-// ║  LIABILITIES AND LIQUIDITY
-// ║  $totalDebts(...)
-// ║  $liquidityRequired(...)
-// ║  $borrowableAssets(...)
-// ║  $withdrawableProtocolFees(...)
-// ║
-// ║  WITHDRAWAL STATUS
-// ║  $hasPendingExpiredBatch(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketStateLibExternal
+//  \ ^ /   External adapters for market state and share conversion.
+//    V
+//
+//  SUPPLY AND CAPACITY
+//  $totalSupply(...)
+//  $maximumDeposit(...)
+//
+//  SHARE CONVERSION
+//  $normalizeAmount(...)
+//  $scaleAmountDown(...)
+//  $maxScaledSettleableAmount(...)
+//
+//  LIABILITIES AND LIQUIDITY
+//  $totalDebts(...)
+//  $liquidityRequired(...)
+//  $borrowableAssets(...)
+//  $withdrawableProtocolFees(...)
+//
+//  WITHDRAWAL STATUS
+//  $hasPendingExpiredBatch(...)
+// ═════
 
 import { MarketState, MarketStateLib } from 'src/libraries/MarketState.sol';
 

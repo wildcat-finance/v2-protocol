@@ -1,25 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HookTemplateFixture
-// ║  ██▀▀     ▀▀██   Production hook deployment and direct-callback fixtures.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  HOOK SETUP
-// ║  _setUpHooks()
-// ║  _newHooks(...)
-// ║
-// ║  MARKET CREATION
-// ║  _createMarket(...)
-// ║  _marketData(...)
-// ║  _termData(...)
-// ║
-// ║  ACCESS QUERIES
-// ║  _access(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HookTemplateFixture
+//  \ ^ /   Production hook deployment and direct-callback fixtures.
+//    V
+//
+//  HOOK SETUP
+//  _setUpHooks()
+//  _newHooks(...)
+//
+//  MARKET CREATION
+//  _createMarket(...)
+//  _marketData(...)
+//  _termData(...)
+//
+//  ACCESS QUERIES
+//  _access(...)
+// ═════
 
 import { BaseHooks, AccessConfig } from 'src/access/BaseHooks.sol';
 import { OpenTermHooks, HookedMarket as OpenMarket } from 'src/access/OpenTermHooks.sol';

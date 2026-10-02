@@ -1,55 +1,53 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // Wildcat4626Wrapper.t
-// ║  ██▀▀     ▀▀██   Wrapper entry, redemption, accounting, sanctions, and recovery.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  _newFixture()
-// ║  _deployMarket(...)
-// ║  _deployWrapper(...)
-// ║  _deposit(...)
-// ║  _fundAndApprove(...)
-// ║
-// ║  CONSTRUCTION AND CONVERSION
-// ║  test_constructorAndMetadataValidateMarketDependencies()
-// ║  testFuzz_conversionPreviewsAndRatesFollowScaleFactor(...)
-// ║
-// ║  ENTRY AND REDEMPTION
-// ║  testFuzz_depositAndMintCreateExactScaledBacking(...)
-// ║  testFuzz_withdrawAndRedeemBurnExactScaledBacking(...)
-// ║  test_spenderAllowancesCoverExactInfiniteAndInsufficientPaths()
-// ║  test_zeroInputsAndCapacityBoundariesUseExactErrors()
-// ║  testFuzz_allEntryPointRoundTripsPreserveScaledOwnership(...)
-// ║
-// ║  SCALED ACCOUNTING
-// ║  test_multipleDepositorsAccrueWithoutSocializingDirectTransfers()
-// ║  test_donationsCannotInflateLaterDepositorShares()
-// ║  test_transferAccountingMismatchGuardsRollBackEveryPath()
-// ║  test_tinyScaleRegressionsKeepMaxWithdrawAndRoundTripsExecutable()
-// ║  _absoluteDifference(...)
-// ║
-// ║  DEPENDENCY AND SANCTIONS GUARDS
-// ║  test_maxLimitsFailClosedOnPrincipalAndSanctionsDependencyFailures()
-// ║  test_maxLimitsFailClosedOnMarketAccountingDependencyFailures()
-// ║  test_lowLevelReadersValidateWordsAddressesPoliciesAndEscrows()
-// ║  test_sanctionsGateLimitsEntryPointsAndShareTransfers()
-// ║  test_wrapperSanctionsAndInsolvencyFailClosedUntilRecovered()
-// ║  _expectSanctioned(...)
-// ║  _assertAllLimitsZero(...)
-// ║  _assertEntryLimitsZero(...)
-// ║
-// ║  ESCROW AND RECOVERY
-// ║  test_nukeCoordinatesMarketAndEscrowsSharesAtomically()
-// ║  test_spoofedEscrowCannotReleaseSharesToSanctionedAccount()
-// ║  testFuzz_sweepAuthorityTracksCurrentBorrowerAndValidatesRecipients(...)
-// ║  testFuzz_marketSweepRemovesOnlySurplusAndPreservesEveryShareholder(...)
-// ║  test_marketSweepMismatchAndEmptyBackingRollBack()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // Wildcat4626Wrapper.t
+//  \ ^ /   Wrapper entry, redemption, accounting, sanctions, and recovery.
+//    V
+//
+//  FIXTURE
+//  _newFixture()
+//  _deployMarket(...)
+//  _deployWrapper(...)
+//  _deposit(...)
+//  _fundAndApprove(...)
+//
+//  CONSTRUCTION AND CONVERSION
+//  test_constructorAndMetadataValidateMarketDependencies()
+//  testFuzz_conversionPreviewsAndRatesFollowScaleFactor(...)
+//
+//  ENTRY AND REDEMPTION
+//  testFuzz_depositAndMintCreateExactScaledBacking(...)
+//  testFuzz_withdrawAndRedeemBurnExactScaledBacking(...)
+//  test_spenderAllowancesCoverExactInfiniteAndInsufficientPaths()
+//  test_zeroInputsAndCapacityBoundariesUseExactErrors()
+//  testFuzz_allEntryPointRoundTripsPreserveScaledOwnership(...)
+//
+//  SCALED ACCOUNTING
+//  test_multipleDepositorsAccrueWithoutSocializingDirectTransfers()
+//  test_donationsCannotInflateLaterDepositorShares()
+//  test_transferAccountingMismatchGuardsRollBackEveryPath()
+//  test_tinyScaleRegressionsKeepMaxWithdrawAndRoundTripsExecutable()
+//  _absoluteDifference(...)
+//
+//  DEPENDENCY AND SANCTIONS GUARDS
+//  test_maxLimitsFailClosedOnPrincipalAndSanctionsDependencyFailures()
+//  test_maxLimitsFailClosedOnMarketAccountingDependencyFailures()
+//  test_lowLevelReadersValidateWordsAddressesPoliciesAndEscrows()
+//  test_sanctionsGateLimitsEntryPointsAndShareTransfers()
+//  test_wrapperSanctionsAndInsolvencyFailClosedUntilRecovered()
+//  _expectSanctioned(...)
+//  _assertAllLimitsZero(...)
+//  _assertEntryLimitsZero(...)
+//
+//  ESCROW AND RECOVERY
+//  test_nukeCoordinatesMarketAndEscrowsSharesAtomically()
+//  test_spoofedEscrowCannotReleaseSharesToSanctionedAccount()
+//  testFuzz_sweepAuthorityTracksCurrentBorrowerAndValidatesRecipients(...)
+//  testFuzz_marketSweepRemovesOnlySurplusAndPreservesEveryShareholder(...)
+//  test_marketSweepMismatchAndEmptyBackingRollBack()
+// ═════
 
 import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
 import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';

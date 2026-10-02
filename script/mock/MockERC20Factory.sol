@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MockERC20Factory
-// ║  ██▀▀     ▀▀██   Deploy and seed development ERC-20 tokens.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  TOKEN DEPLOYMENT
-// ║  deploy(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MockERC20Factory
+//  \ ^ /   Deploy and seed development ERC-20 tokens.
+//    V
+//
+//  TOKEN DEPLOYMENT
+//  deploy(...)
+// ═════
 
 import './MockERC20.sol';
 

@@ -1,49 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // SafeCastLib.t
-// ║  ██▀▀     ▀▀██   Checked unsigned cast boundaries in ascending bit widths.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  UNSIGNED CASTS
-// ║  test_toUint8(...)
-// ║  test_toUint16(...)
-// ║  test_toUint24(...)
-// ║  test_toUint32(...)
-// ║  test_toUint40(...)
-// ║  test_toUint48(...)
-// ║  test_toUint56(...)
-// ║  test_toUint64(...)
-// ║  test_toUint72(...)
-// ║  test_toUint80(...)
-// ║  test_toUint88(...)
-// ║  test_toUint96(...)
-// ║  test_toUint104(...)
-// ║  test_toUint112(...)
-// ║  test_toUint120(...)
-// ║  test_toUint128(...)
-// ║  test_toUint136(...)
-// ║  test_toUint144(...)
-// ║  test_toUint152(...)
-// ║  test_toUint160(...)
-// ║  test_toUint168(...)
-// ║  test_toUint176(...)
-// ║  test_toUint184(...)
-// ║  test_toUint192(...)
-// ║  test_toUint200(...)
-// ║  test_toUint208(...)
-// ║  test_toUint216(...)
-// ║  test_toUint224(...)
-// ║  test_toUint232(...)
-// ║  test_toUint240(...)
-// ║  test_toUint248(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // SafeCastLib.t
+//  \ ^ /   Checked unsigned cast boundaries in ascending bit widths.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//
+//  UNSIGNED CASTS
+//  test_toUint8(...)
+//  test_toUint16(...)
+//  test_toUint24(...)
+//  test_toUint32(...)
+//  test_toUint40(...)
+//  test_toUint48(...)
+//  test_toUint56(...)
+//  test_toUint64(...)
+//  test_toUint72(...)
+//  test_toUint80(...)
+//  test_toUint88(...)
+//  test_toUint96(...)
+//  test_toUint104(...)
+//  test_toUint112(...)
+//  test_toUint120(...)
+//  test_toUint128(...)
+//  test_toUint136(...)
+//  test_toUint144(...)
+//  test_toUint152(...)
+//  test_toUint160(...)
+//  test_toUint168(...)
+//  test_toUint176(...)
+//  test_toUint184(...)
+//  test_toUint192(...)
+//  test_toUint200(...)
+//  test_toUint208(...)
+//  test_toUint216(...)
+//  test_toUint224(...)
+//  test_toUint232(...)
+//  test_toUint240(...)
+//  test_toUint248(...)
+// ═════
 
 import './wrappers/SafeCastLibExternal.sol';
 import { TestKernel } from '../shared/TestKernel.sol';

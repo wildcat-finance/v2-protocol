@@ -1,49 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HookDispatch.t
-// ║  ██▀▀     ▀▀██   Production-market callback calldata and collection boundaries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  _newFixture(...)
-// ║  _newFixture(...)
-// ║  _marketArtifact(...)
-// ║  _flag(...)
-// ║  _deposit(...)
-// ║  _fundAndApprove(...)
-// ║
-// ║  LENDER DISPATCH
-// ║  test_depositEntrypoints_DispatchExactCalldata(...)
-// ║  test_transferEntrypoints_DispatchExactCallerAndCalldata(...)
-// ║  test_queueWithdrawalEntrypoints_DispatchExactCalldata(...)
-// ║
-// ║  NONVETOABLE COLLECTION
-// ║  test_marketCreationRejectsReservedExecutionHookAcrossModels()
-// ║  test_executeWithdrawal_CollectsWithoutHookVeto(...)
-// ║  test_executeWithdrawals_CollectsEveryEntryWithoutHookVeto(...)
-// ║  _blockExecutionHook(...)
-// ║
-// ║  BORROWER DISPATCH
-// ║  test_borrow_DispatchesExactCalldata(...)
-// ║  test_repayEntrypoints_DispatchExactCalldata(...)
-// ║  test_closeMarket_DispatchesExactCalldata(...)
-// ║  test_nonzeroCarrySurvivesRepayAndCloseCalldata(...)
-// ║
-// ║  CONFIGURATION AND SANCTIONS DISPATCH
-// ║  test_setMaxTotalSupply_DispatchesExactCalldata(...)
-// ║  test_setProtocolFeeBips_DispatchesExactCalldata(...)
-// ║  test_setAnnualInterestAndReserveRatioBips_UsesHookReturnValues(...)
-// ║  test_nukeFromOrbit_DispatchesEnabledCallbacksAndIsolatesQueueExtraData(...)
-// ║
-// ║  CALLDATA ASSERTIONS
-// ║  _callMarket(...)
-// ║  _append(...)
-// ║  _assertCall(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HookDispatch.t
+//  \ ^ /   Production-market callback calldata and collection boundaries.
+//    V
+//
+//  FIXTURE
+//  _newFixture(...)
+//  _newFixture(...)
+//  _marketArtifact(...)
+//  _flag(...)
+//  _deposit(...)
+//  _fundAndApprove(...)
+//
+//  LENDER DISPATCH
+//  test_depositEntrypoints_DispatchExactCalldata(...)
+//  test_transferEntrypoints_DispatchExactCallerAndCalldata(...)
+//  test_queueWithdrawalEntrypoints_DispatchExactCalldata(...)
+//
+//  NONVETOABLE COLLECTION
+//  test_marketCreationRejectsReservedExecutionHookAcrossModels()
+//  test_executeWithdrawal_CollectsWithoutHookVeto(...)
+//  test_executeWithdrawals_CollectsEveryEntryWithoutHookVeto(...)
+//  _blockExecutionHook(...)
+//
+//  BORROWER DISPATCH
+//  test_borrow_DispatchesExactCalldata(...)
+//  test_repayEntrypoints_DispatchExactCalldata(...)
+//  test_closeMarket_DispatchesExactCalldata(...)
+//  test_nonzeroCarrySurvivesRepayAndCloseCalldata(...)
+//
+//  CONFIGURATION AND SANCTIONS DISPATCH
+//  test_setMaxTotalSupply_DispatchesExactCalldata(...)
+//  test_setProtocolFeeBips_DispatchesExactCalldata(...)
+//  test_setAnnualInterestAndReserveRatioBips_UsesHookReturnValues(...)
+//  test_nukeFromOrbit_DispatchesEnabledCallbacksAndIsolatesQueueExtraData(...)
+//
+//  CALLDATA ASSERTIONS
+//  _callMarket(...)
+//  _append(...)
+//  _assertCall(...)
+// ═════
 
 import { IHooks } from 'src/access/IHooks.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';

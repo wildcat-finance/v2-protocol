@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ReentrancyGuard
-// ║  ██▀▀     ▀▀██   Transaction-scoped guards for state-changing and view calls.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  STATE-CHANGING GUARD
-// ║  nonReentrant()
-// ║  _setReentrancyGuard()
-// ║  _clearReentrancyGuard()
-// ║
-// ║  VIEW GUARD
-// ║  nonReentrantView()
-// ║  _assertNonReentrant()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ReentrancyGuard
+//  \ ^ /   Transaction-scoped guards for state-changing and view calls.
+//    V
+//
+//  STATE-CHANGING GUARD
+//  nonReentrant()
+//  _setReentrancyGuard()
+//  _clearReentrancyGuard()
+//
+//  VIEW GUARD
+//  nonReentrantView()
+//  _assertNonReentrant()
+// ═════
 
 /// @dev selector for `error NoReentrantCalls()`.
 uint256 constant NoReentrantCalls_ErrorSelector = 0x7fa8a987;

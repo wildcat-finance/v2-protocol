@@ -146,42 +146,42 @@ otherwise undocumented declaration. Reserve `///` for actual declaration and
 function documentation; do not rely on imports to isolate decoration from it.
 
 Keep the logo, project/family label, file name, one-sentence purpose, and complete
-function index inside one open-sided frame. The following is the reference layout:
+function index together under a horizontal rule, without a vertical frame.
+The following is the reference layout:
 
 ```solidity
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatMarketWithdrawals
-// ║  ██▀▀     ▀▀██   Withdrawal queueing, batch funding, and claim collection.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  QUEUEING
-// ║  queueWithdrawal(...)
-// ║  queueWithdrawalScaled(...)
-// ║  queueFullWithdrawal()
-// ║  _queueWithdrawal(...)
-// ║
-// ║  BATCH FUNDING
-// ║  repayAndProcessUnpaidWithdrawalBatches(...)
-// ║  _processUnpaidWithdrawalBatch(...)
-// ║
-// ║  CLAIM COLLECTION
-// ║  executeWithdrawal(...)
-// ║  executeWithdrawals(...)
-// ║  _executeWithdrawal(...)
-// ║  getAvailableWithdrawalAmount(...)
-// ║
-// ║  QUERIES
-// ║  getUnpaidBatchExpiries()
-// ║  getWithdrawalBatch(...)
-// ║  getAccountWithdrawalStatus(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatMarketWithdrawals
+//  \ ^ /   Withdrawal queueing, batch funding, and claim collection.
+//    V
+//
+//  QUEUEING
+//  queueWithdrawal(...)
+//  queueWithdrawalScaled(...)
+//  queueFullWithdrawal()
+//  _queueWithdrawal(...)
+//
+//  BATCH FUNDING
+//  repayAndProcessUnpaidWithdrawalBatches(...)
+//  _processUnpaidWithdrawalBatch(...)
+//
+//  CLAIM COLLECTION
+//  executeWithdrawal(...)
+//  executeWithdrawals(...)
+//  _executeWithdrawal(...)
+//  getAvailableWithdrawalAmount(...)
+//
+//  QUERIES
+//  getUnpaidBatchExpiries()
+//  getWithdrawalBatch(...)
+//  getAccountWithdrawalStatus(...)
+// ═════
 ```
 
-- Keep the five-row logo unchanged. It uses only full and half blocks, not
-  triangle glyphs or terminal color escape sequences. Check its rendering in
-  the editor when applying the style in a different environment.
+- Keep the three-row ASCII logo unchanged. Do not substitute block or triangle
+  glyphs, add terminal color escape sequences, or depend on adjacent rows
+  touching. Font metrics and line spacing still vary; check the target editor
+  and GitHub rather than judging the banner only in a terminal or chat preview.
 - Use `WILDCAT v2.5` as the contract-family identifier, alongside the appropriate
   file or primary declaration name. It distinguishes this family from v2.0 or
   v2.1; it is not a package patch version or evidence of deployment. Keep it
@@ -190,16 +190,20 @@ function index inside one open-sided frame. The following is the reference layou
   `name(...)` when there are parameters and `name()` when there are none.
 - Build the index after reordering. Its entries and conceptual groups must
   match the actual source order. Keep overload entries adjacent.
-- Use one function per line, plain uppercase group labels, and one blank framed
-  line between groups. Do not compress groups into dot-separated lists.
+- Use one function per line, plain uppercase group labels, and one empty `//`
+  line between groups. Indent index text with two spaces after `//`.
+  Do not compress groups into dot-separated lists.
   For multiple declarations or special function kinds, use enough labels to
   reflect the actual layout without introducing another decorative scheme.
 - Repeating a function name in the index, its card, and its signature is
   intentional. Keep all three synchronized; do not remove navigation merely
   to avoid maintaining repeated names.
 - Do not include parameter types, return types, line numbers, or a storage map.
-- Continue the left `║` through the index. End with `// ╚═════`: five double
-  horizontal characters, not a full-width bottom rule. Do not add a right rail.
+- Start with an 80-column double horizontal rule, including the `// ` prefix.
+  End with `// ═════`: five double horizontal characters, not a full-width bottom
+  rule. Do not add corners or vertical rails. Only the logo is ASCII; the
+  horizontal rules, section gradients, and declaration/function cards retain
+  their existing glyphs.
 
 ## Declaration cards
 
@@ -276,7 +280,7 @@ closing rule or intervening blank line. Inside the card:
   the function heading instead.
 - Put decorative headings in `//`, not `///`. Text inside NatSpec can leak into
   generated documentation. Do not prefix the function's NatSpec lines with the
-  file header's `║` rail.
+  banner art or decorative rails.
 
 Refer to the
 [Solidity NatSpec reference](https://docs.soliditylang.org/en/v0.8.25/natspec-format.html)

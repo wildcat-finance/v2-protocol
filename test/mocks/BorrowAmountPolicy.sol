@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // BorrowAmountPolicy
-// ║  ██▀▀     ▀▀██   Per-borrow amount limits for feature integration tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BORROW LIMITS
-// ║  setBorrowAmountLimit(...)
-// ║  _setBorrowAmountLimit(...)
-// ║
-// ║  BORROW RECORDING
-// ║  _recordBorrowAmount(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // BorrowAmountPolicy
+//  \ ^ /   Per-borrow amount limits for feature integration tests.
+//    V
+//
+//  BORROW LIMITS
+//  setBorrowAmountLimit(...)
+//  _setBorrowAmountLimit(...)
+//
+//  BORROW RECORDING
+//  _recordBorrowAmount(...)
+// ═════
 
 import { FeatureAuthority } from './TransferFeaturePolicies.sol';
 

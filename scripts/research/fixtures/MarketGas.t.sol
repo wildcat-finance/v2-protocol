@@ -1,38 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketGas.t
-// ║  ██▀▀     ▀▀██   Production-matrix operation gas and state-fingerprint fixtures.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SNAPSHOT INTERFACE
-// ║  snapshotGasLastFrame(...)
-// ║  snapshotValue(...)
-// ║
-// ║  GAS FIXTURE
-// ║  setUp()
-// ║
-// ║  OPERATION SEQUENCE
-// ║  _common(...)
-// ║
-// ║  MEASUREMENT RECORDS
-// ║  _record(...)
-// ║  _recordState(...)
-// ║  _group(...)
-// ║
-// ║  STANDARD MARKETS
-// ║  test_gas_standardOpen()
-// ║  test_gas_standardFixed()
-// ║  test_gas_standardPeriodic()
-// ║
-// ║  REVOLVING MARKETS
-// ║  test_gas_revolvingOpen()
-// ║  test_gas_revolvingFixed()
-// ║  test_gas_revolvingPeriodic()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketGas.t
+//  \ ^ /   Production-matrix operation gas and state-fingerprint fixtures.
+//    V
+//
+//  SNAPSHOT INTERFACE
+//  snapshotGasLastFrame(...)
+//  snapshotValue(...)
+//
+//  GAS FIXTURE
+//  setUp()
+//
+//  OPERATION SEQUENCE
+//  _common(...)
+//
+//  MEASUREMENT RECORDS
+//  _record(...)
+//  _recordState(...)
+//  _group(...)
+//
+//  STANDARD MARKETS
+//  test_gas_standardOpen()
+//  test_gas_standardFixed()
+//  test_gas_standardPeriodic()
+//
+//  REVOLVING MARKETS
+//  test_gas_revolvingOpen()
+//  test_gas_revolvingFixed()
+//  test_gas_revolvingPeriodic()
+// ═════
 
 import { ProductionMatrixFixture } from 'test/shared/ProductionMatrixFixture.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';

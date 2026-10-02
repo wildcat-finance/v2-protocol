@@ -1,49 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // TransferFeatureHooks
-// ║  ██▀▀     ▀▀██   Transfer-feature integrations across term-policy families.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  OPEN TRANSFER POLICY
-// ║  _authorizeFeatureManagement(...)
-// ║  _onMarketConfigured(...)
-// ║  _checkTransfer(...)
-// ║  _featureTransferRecipientAllowed(...)
-// ║  getHookedMarket(...)
-// ║  getHookedMarkets(...)
-// ║
-// ║  OPEN TRANSFER HOOKS
-// ║  constructor(...)
-// ║  version()
-// ║
-// ║  FIXED TRANSFER POLICY
-// ║  _authorizeFeatureManagement(...)
-// ║  _onMarketConfigured(...)
-// ║  _checkTransfer(...)
-// ║  _featureTransferRecipientAllowed(...)
-// ║  getHookedMarket(...)
-// ║  getHookedMarkets(...)
-// ║
-// ║  FIXED TRANSFER HOOKS
-// ║  constructor(...)
-// ║  version()
-// ║
-// ║  PERIODIC TRANSFER POLICY
-// ║  _authorizeFeatureManagement(...)
-// ║  _onMarketConfigured(...)
-// ║  _checkTransfer(...)
-// ║  _featureTransferRecipientAllowed(...)
-// ║  getHookedMarket(...)
-// ║  getHookedMarkets(...)
-// ║
-// ║  PERIODIC TRANSFER HOOKS
-// ║  constructor(...)
-// ║  version()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // TransferFeatureHooks
+//  \ ^ /   Transfer-feature integrations across term-policy families.
+//    V
+//
+//  OPEN TRANSFER POLICY
+//  _authorizeFeatureManagement(...)
+//  _onMarketConfigured(...)
+//  _checkTransfer(...)
+//  _featureTransferRecipientAllowed(...)
+//  getHookedMarket(...)
+//  getHookedMarkets(...)
+//
+//  OPEN TRANSFER HOOKS
+//  constructor(...)
+//  version()
+//
+//  FIXED TRANSFER POLICY
+//  _authorizeFeatureManagement(...)
+//  _onMarketConfigured(...)
+//  _checkTransfer(...)
+//  _featureTransferRecipientAllowed(...)
+//  getHookedMarket(...)
+//  getHookedMarkets(...)
+//
+//  FIXED TRANSFER HOOKS
+//  constructor(...)
+//  version()
+//
+//  PERIODIC TRANSFER POLICY
+//  _authorizeFeatureManagement(...)
+//  _onMarketConfigured(...)
+//  _checkTransfer(...)
+//  _featureTransferRecipientAllowed(...)
+//  getHookedMarket(...)
+//  getHookedMarkets(...)
+//
+//  PERIODIC TRANSFER HOOKS
+//  constructor(...)
+//  version()
+// ═════
 
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { OpenTermPolicy } from 'src/access/OpenTermPolicy.sol';

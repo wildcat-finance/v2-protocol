@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HooksTemplateData
-// ║  ██▀▀     ▀▀██   Template metadata and borrower origination-fee readiness.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  TEMPLATE AND FEE DATA
-// ║  fill(...)
-// ║  fill(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HooksTemplateData
+//  \ ^ /   Template metadata and borrower origination-fee readiness.
+//    V
+//
+//  TEMPLATE AND FEE DATA
+//  fill(...)
+//  fill(...)
+// ═════
 
 import '../HooksFactory.sol';
 import './TokenData.sol';

@@ -1,33 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ArchControllerOwnerMocks
-// ║  ██▀▀     ▀▀██   Protocol authority, legacy factory, and engine owner mocks.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  PROTOCOL TARGET
-// ║  constructor(...)
-// ║  setValue(...)
-// ║  fail(...)
-// ║
-// ║  LEGACY FACTORY
-// ║  constructor(...)
-// ║  setProtocolFeeConfiguration(...)
-// ║
-// ║  ENGINE AUTHORITY
-// ║  constructor(...)
-// ║  addAllowedSenderOnChain(...)
-// ║  supportsInterface(...)
-// ║
-// ║  ENGINE VALIDATION
-// ║  sphereXValidatePre(...)
-// ║  sphereXValidatePost(...)
-// ║  sphereXValidateInternalPre(...)
-// ║  sphereXValidateInternalPost(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ArchControllerOwnerMocks
+//  \ ^ /   Protocol authority, legacy factory, and engine owner mocks.
+//    V
+//
+//  PROTOCOL TARGET
+//  constructor(...)
+//  setValue(...)
+//  fail(...)
+//
+//  LEGACY FACTORY
+//  constructor(...)
+//  setProtocolFeeConfiguration(...)
+//
+//  ENGINE AUTHORITY
+//  constructor(...)
+//  addAllowedSenderOnChain(...)
+//  supportsInterface(...)
+//
+//  ENGINE VALIDATION
+//  sphereXValidatePre(...)
+//  sphereXValidatePost(...)
+//  sphereXValidateInternalPre(...)
+//  sphereXValidateInternalPost(...)
+// ═════
 
 import 'openzeppelin/contracts/access/AccessControlDefaultAdminRules.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';

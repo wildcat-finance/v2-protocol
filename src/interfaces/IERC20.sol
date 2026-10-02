@@ -1,32 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IERC20
-// ║  ██▀▀     ▀▀██   Token allowances, transfers, balances, and metadata.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ALLOWANCES
-// ║  approve(...)
-// ║  increaseAllowance(...)
-// ║  decreaseAllowance(...)
-// ║  allowance(...)
-// ║
-// ║  TRANSFERS
-// ║  transfer(...)
-// ║  transferFrom(...)
-// ║
-// ║  BALANCES AND SUPPLY
-// ║  balanceOf(...)
-// ║  totalSupply()
-// ║
-// ║  METADATA
-// ║  name()
-// ║  symbol()
-// ║  decimals()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IERC20
+//  \ ^ /   Token allowances, transfers, balances, and metadata.
+//    V
+//
+//  ALLOWANCES
+//  approve(...)
+//  increaseAllowance(...)
+//  decreaseAllowance(...)
+//  allowance(...)
+//
+//  TRANSFERS
+//  transfer(...)
+//  transferFrom(...)
+//
+//  BALANCES AND SUPPLY
+//  balanceOf(...)
+//  totalSupply()
+//
+//  METADATA
+//  name()
+//  symbol()
+//  decimals()
+// ═════
 
 // ┌─ IERC20 ───────────────────────────────────────────────────────────────────
 /// @notice ERC-20 interface used by the protocol, including metadata and allowance helpers.

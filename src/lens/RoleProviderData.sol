@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // RoleProviderData
-// ║  ██▀▀     ▀▀██   Decoded credentials and optional provider administration.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  PROVIDER DATA
-// ║  toRoleProviderDatas(...)
-// ║  fill(...)
-// ║  _tryReadAddress(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // RoleProviderData
+//  \ ^ /   Decoded credentials and optional provider administration.
+//    V
+//
+//  PROVIDER DATA
+//  toRoleProviderDatas(...)
+//  fill(...)
+//  _tryReadAddress(...)
+// ═════
 
 import '../access/IManagedRoleProvider.sol';
 import '../types/RoleProvider.sol';

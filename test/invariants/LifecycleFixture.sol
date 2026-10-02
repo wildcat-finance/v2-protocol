@@ -1,29 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LifecycleFixture
-// ║  ██▀▀     ▀▀██   Lifecycle campaign setup, selectors, assertions, and final drain.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  LIFECYCLE SETUP
-// ║  _setupLifecycle()
-// ║  _matrixOptions(...)
-// ║  _lifecycleSelectors()
-// ║
-// ║  LIFECYCLE ASSERTIONS
-// ║  _assertLifecycle()
-// ║
-// ║  CAMPAIGN COMPLETION
-// ║  _finishLifecycle(...)
-// ║
-// ║  PENALTY SETUP
-// ║  _setupPenaltyLifecycle()
-// ║  _matrixOptions(...)
-// ║  _fixedTermDelay()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LifecycleFixture
+//  \ ^ /   Lifecycle campaign setup, selectors, assertions, and final drain.
+//    V
+//
+//  LIFECYCLE SETUP
+//  _setupLifecycle()
+//  _matrixOptions(...)
+//  _lifecycleSelectors()
+//
+//  LIFECYCLE ASSERTIONS
+//  _assertLifecycle()
+//
+//  CAMPAIGN COMPLETION
+//  _finishLifecycle(...)
+//
+//  PENALTY SETUP
+//  _setupPenaltyLifecycle()
+//  _matrixOptions(...)
+//  _fixedTermDelay()
+// ═════
 
 import { MarketMatrixFixture } from './MarketMatrixFixture.sol';
 import { LifecycleHandler } from './LifecycleHandler.sol';

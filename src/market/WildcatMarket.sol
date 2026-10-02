@@ -1,38 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatMarket
-// ║  ██▀▀     ▀▀██   Deposits, borrowing, repayment, and market settlement.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  DEPOSITS
-// ║  deposit(...)
-// ║  depositUpTo(...)
-// ║  _depositUpTo(...)
-// ║
-// ║  BORROWING
-// ║  borrow(...)
-// ║
-// ║  REPAYMENT
-// ║  repay(...)
-// ║  _repay(...)
-// ║
-// ║  PROTOCOL FEES
-// ║  collectFees()
-// ║
-// ║  CLOSURE AND RECOVERY
-// ║  closeMarket()
-// ║  rescueTokens(...)
-// ║
-// ║  STATE CHECKPOINTING
-// ║  updateState()
-// ║
-// ║  SANCTIONS
-// ║  _blockAccount(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatMarket
+//  \ ^ /   Deposits, borrowing, repayment, and market settlement.
+//    V
+//
+//  DEPOSITS
+//  deposit(...)
+//  depositUpTo(...)
+//  _depositUpTo(...)
+//
+//  BORROWING
+//  borrow(...)
+//
+//  REPAYMENT
+//  repay(...)
+//  _repay(...)
+//
+//  PROTOCOL FEES
+//  collectFees()
+//
+//  CLOSURE AND RECOVERY
+//  closeMarket()
+//  rescueTokens(...)
+//
+//  STATE CHECKPOINTING
+//  updateState()
+//
+//  SANCTIONS
+//  _blockAccount(...)
+// ═════
 
 import './WildcatMarketBase.sol';
 import './WildcatMarketConfig.sol';

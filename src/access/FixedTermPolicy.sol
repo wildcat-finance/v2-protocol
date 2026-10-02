@@ -1,43 +1,41 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // FixedTermPolicy
-// ║  ██▀▀     ▀▀██   Fixed maturity, term reductions, withdrawal and APR rules.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  MARKET SETUP
-// ║  _getParameterConstraints()
-// ║  _initializeMarket(...)
-// ║  _readUint32Cd(...)
-// ║  _readUint128Cd(...)
-// ║  _readBoolCd(...)
-// ║
-// ║  ACCESS CONFIGURATION
-// ║  _readAccessConfig(...)
-// ║  _isDepositHookEnabled(...)
-// ║  _writeMinimumDeposit(...)
-// ║
-// ║  TERM CHANGES
-// ║  setFixedTermEndTime(...)
-// ║  _validateFixedTermChange(...)
-// ║  _afterFixedTermChange(...)
-// ║
-// ║  WITHDRAWAL QUEUEING
-// ║  _checkWithdrawalSchedule(...)
-// ║
-// ║  CLOSURE
-// ║  _validateCloseMarket(...)
-// ║  _validateFixedCloseMarket()
-// ║  _applyCloseMarket(...)
-// ║  _applyFixedCloseMarket()
-// ║
-// ║  INTEREST
-// ║  _applyAprUpdate(...)
-// ║  _validateFixedAprUpdate(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // FixedTermPolicy
+//  \ ^ /   Fixed maturity, term reductions, withdrawal and APR rules.
+//    V
+//
+//  MARKET SETUP
+//  _getParameterConstraints()
+//  _initializeMarket(...)
+//  _readUint32Cd(...)
+//  _readUint128Cd(...)
+//  _readBoolCd(...)
+//
+//  ACCESS CONFIGURATION
+//  _readAccessConfig(...)
+//  _isDepositHookEnabled(...)
+//  _writeMinimumDeposit(...)
+//
+//  TERM CHANGES
+//  setFixedTermEndTime(...)
+//  _validateFixedTermChange(...)
+//  _afterFixedTermChange(...)
+//
+//  WITHDRAWAL QUEUEING
+//  _checkWithdrawalSchedule(...)
+//
+//  CLOSURE
+//  _validateCloseMarket(...)
+//  _validateFixedCloseMarket()
+//  _applyCloseMarket(...)
+//  _applyFixedCloseMarket()
+//
+//  INTEREST
+//  _applyAprUpdate(...)
+//  _validateFixedAprUpdate(...)
+// ═════
 
 import './BaseHooks.sol';
 import './types/FixedTermHookTypes.sol';

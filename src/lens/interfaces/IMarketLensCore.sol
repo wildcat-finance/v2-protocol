@@ -1,39 +1,37 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IMarketLensCore
-// ║  ██▀▀     ▀▀██   Core query surface for tokens, markets, lenders, and claims.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  TOKEN METADATA
-// ║  getTokenInfo(...)
-// ║  getTokensInfo(...)
-// ║
-// ║  MARKET DATA
-// ║  getMarketData(...)
-// ║  getMarketsData(...)
-// ║  getMarketDataV2(...)
-// ║  getMarketsDataV2(...)
-// ║
-// ║  LENDER DATA
-// ║  getMarketDataWithLenderStatus(...)
-// ║  getMarketsDataWithLenderStatus(...)
-// ║  getLenderAccountData(...)
-// ║  getLenderAccountData(...)
-// ║  getLenderAccountsData(...)
-// ║  queryLenderAccount(...)
-// ║  queryLenderAccounts(...)
-// ║
-// ║  WITHDRAWAL BATCHES
-// ║  getWithdrawalBatchData(...)
-// ║  getWithdrawalBatchesData(...)
-// ║  getWithdrawalBatchDataWithLenderStatus(...)
-// ║  getWithdrawalBatchesDataWithLenderStatus(...)
-// ║  getWithdrawalBatchDataWithLendersStatus(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IMarketLensCore
+//  \ ^ /   Core query surface for tokens, markets, lenders, and claims.
+//    V
+//
+//  TOKEN METADATA
+//  getTokenInfo(...)
+//  getTokensInfo(...)
+//
+//  MARKET DATA
+//  getMarketData(...)
+//  getMarketsData(...)
+//  getMarketDataV2(...)
+//  getMarketsDataV2(...)
+//
+//  LENDER DATA
+//  getMarketDataWithLenderStatus(...)
+//  getMarketsDataWithLenderStatus(...)
+//  getLenderAccountData(...)
+//  getLenderAccountData(...)
+//  getLenderAccountsData(...)
+//  queryLenderAccount(...)
+//  queryLenderAccounts(...)
+//
+//  WITHDRAWAL BATCHES
+//  getWithdrawalBatchData(...)
+//  getWithdrawalBatchesData(...)
+//  getWithdrawalBatchDataWithLenderStatus(...)
+//  getWithdrawalBatchesDataWithLenderStatus(...)
+//  getWithdrawalBatchDataWithLendersStatus(...)
+// ═════
 
 import '../LenderAccountData.sol';
 import '../MarketData.sol';

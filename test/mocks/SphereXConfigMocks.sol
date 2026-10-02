@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // SphereXConfigMocks
-// ║  ██▀▀     ▀▀██   Engine configuration and guarded-target test harnesses.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ENGINE CAPABILITIES
-// ║  constructor(...)
-// ║  supportsInterface(...)
-// ║  addAllowedSenderOnChain(...)
-// ║
-// ║  SENDER REGISTRATION
-// ║  constructor(...)
-// ║  addSender(...)
-// ║
-// ║  GUARDED TARGET
-// ║  constructor(...)
-// ║  setValue(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // SphereXConfigMocks
+//  \ ^ /   Engine configuration and guarded-target test harnesses.
+//    V
+//
+//  ENGINE CAPABILITIES
+//  constructor(...)
+//  supportsInterface(...)
+//  addAllowedSenderOnChain(...)
+//
+//  SENDER REGISTRATION
+//  constructor(...)
+//  addSender(...)
+//
+//  GUARDED TARGET
+//  constructor(...)
+//  setValue(...)
+// ═════
 
 import { SphereXConfig } from 'src/spherex/SphereXConfig.sol';
 import { SphereXProtectedRegisteredBase } from 'src/spherex/SphereXProtectedRegisteredBase.sol';

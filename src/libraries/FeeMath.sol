@@ -1,27 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // FeeMath
-// ║  ██▀▀     ▀▀██   Base interest, protocol fees, and delinquency accrual.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ACCRUAL
-// ║  updateScaleFactorAndFees(...)
-// ║
-// ║  BASE INTEREST
-// ║  calculateBaseInterest(...)
-// ║  calculateLinearInterestFromBips(...)
-// ║
-// ║  PROTOCOL FEES
-// ║  applyProtocolFee(...)
-// ║
-// ║  DELINQUENCY
-// ║  updateDelinquency(...)
-// ║  updateTimeDelinquentAndGetPenaltyTime(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // FeeMath
+//  \ ^ /   Base interest, protocol fees, and delinquency accrual.
+//    V
+//
+//  ACCRUAL
+//  updateScaleFactorAndFees(...)
+//
+//  BASE INTEREST
+//  calculateBaseInterest(...)
+//  calculateLinearInterestFromBips(...)
+//
+//  PROTOCOL FEES
+//  applyProtocolFee(...)
+//
+//  DELINQUENCY
+//  updateDelinquency(...)
+//  updateTimeDelinquentAndGetPenaltyTime(...)
+// ═════
 
 import './MathUtils.sol';
 import './SafeCastLib.sol';

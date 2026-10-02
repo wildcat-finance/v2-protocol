@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // PeriodicProposalHooks
-// ║  ██▀▀     ▀▀██   Test-only periodic proposal-window constraints.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  PROPOSAL LIMITS
-// ║  constructor(...)
-// ║  setProposalWindow(...)
-// ║
-// ║  PROPOSAL VALIDATION
-// ║  _checkPeriodicProposal(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // PeriodicProposalHooks
+//  \ ^ /   Test-only periodic proposal-window constraints.
+//    V
+//
+//  PROPOSAL LIMITS
+//  constructor(...)
+//  setProposalWindow(...)
+//
+//  PROPOSAL VALIDATION
+//  _checkPeriodicProposal(...)
+// ═════
 
 import { AprValidationHooks } from './AprValidationHooks.sol';
 

@@ -950,7 +950,7 @@ function validateHandoff(
 
 function markdownCell(value) {
   if (value === null || value === undefined) return "-";
-  return String(value).replace(/\|/g, "\\|");
+  return String(value).replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
 
 function renderMarkdown(handoff) {
@@ -1068,7 +1068,7 @@ function main() {
         errors.push("Markdown companion has an invalid title");
       }
       for (const generation of handoff.factoryGenerations || []) {
-        if (!markdown.includes(generation.label)) {
+        if (!markdown.includes(markdownCell(generation.label))) {
           errors.push(`Markdown companion omits factory ${generation.label}`);
         }
       }

@@ -1,36 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // Sanctions.t
-// ║  ██▀▀     ▀▀██   Sanctions overrides, escrow creation, and release behavior.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  _newFixture()
-// ║  _deploySentinel(...)
-// ║
-// ║  SANCTIONS AND OVERRIDES
-// ║  test_constructor_StoresDependenciesHashAndResetParameters()
-// ║  test_chainalysisRead_ValidatesAndBubblesResponse()
-// ║  testFuzz_isSanctioned_CombinesListAndBorrowerOverride(...)
-// ║  test_overrideLifecycle_EmitsAndRestoresSanction()
-// ║
-// ║  ESCROW CREATION
-// ║  testFuzz_getEscrowAddress_MatchesCreate2Formula(...)
-// ║  test_createEscrow_EmitsInitializesOverridesAndIsIdempotent()
-// ║  _createEscrow(...)
-// ║  _expectedEscrowAddress(...)
-// ║  testFuzz_escrowTracksAssetAndBalance(...)
-// ║
-// ║  ESCROW RELEASE
-// ║  test_canReleaseEscrow_TracksSanctionAndOverride()
-// ║  testFuzz_releaseEscrow_IsPermissionlessAndTransfersFullBalance(...)
-// ║  test_releaseEscrow_UsesBorrowerOverride()
-// ║  test_releaseEscrow_RejectsActiveSanction()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // Sanctions.t
+//  \ ^ /   Sanctions overrides, escrow creation, and release behavior.
+//    V
+//
+//  FIXTURE
+//  _newFixture()
+//  _deploySentinel(...)
+//
+//  SANCTIONS AND OVERRIDES
+//  test_constructor_StoresDependenciesHashAndResetParameters()
+//  test_chainalysisRead_ValidatesAndBubblesResponse()
+//  testFuzz_isSanctioned_CombinesListAndBorrowerOverride(...)
+//  test_overrideLifecycle_EmitsAndRestoresSanction()
+//
+//  ESCROW CREATION
+//  testFuzz_getEscrowAddress_MatchesCreate2Formula(...)
+//  test_createEscrow_EmitsInitializesOverridesAndIsIdempotent()
+//  _createEscrow(...)
+//  _expectedEscrowAddress(...)
+//  testFuzz_escrowTracksAssetAndBalance(...)
+//
+//  ESCROW RELEASE
+//  test_canReleaseEscrow_TracksSanctionAndOverride()
+//  testFuzz_releaseEscrow_IsPermissionlessAndTransfersFullBalance(...)
+//  test_releaseEscrow_UsesBorrowerOverride()
+//  test_releaseEscrow_RejectsActiveSanction()
+// ═════
 
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { WildcatSanctionsEscrow } from 'src/WildcatSanctionsEscrow.sol';

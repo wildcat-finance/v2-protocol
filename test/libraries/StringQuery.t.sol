@@ -1,49 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // StringQuery.t
-// ║  ██▀▀     ▀▀██   Strict and best-effort string metadata boundary tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FAILED STRING RESPONSES
-// ║  setGiveRevertData(...)
-// ║  name()
-// ║  symbol()
-// ║
-// ║  MALFORMED STRING RESPONSES
-// ║  name()
-// ║  symbol()
-// ║
-// ║  TRAILING STRING RESPONSES
-// ║  name()
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  STRICT METADATA READS
-// ║  test_name()
-// ║  test_symbol()
-// ║  test_bytes32ToString_DoesNotDropHighBitFinalByte()
-// ║  test_name_RejectsTruncatedDynamicString()
-// ║  test_symbol_RejectsNonCanonicalDynamicStringOffset()
-// ║  test_name_AcceptsTrailingReturnData()
-// ║  queryName(...)
-// ║  querySymbol(...)
-// ║
-// ║  BEST EFFORT METADATA
-// ║  testFuzz_bestEffort_ArbitraryReturnDataPreservesLaterReads(...)
-// ║  test_emptyDynamicStrings_AcceptCanonicalEncoding()
-// ║  test_emptyDynamicHeader_RejectsNonzeroLengthAndWrongOffset()
-// ║  test_bestEffort_FailedMissingAndOversizedResponsesAreEmpty()
-// ║  test_bestEffort_AcceptsLegacyAndTrailingData()
-// ║  testFuzz_dynamicStrings_RoundTripWithinCosmeticBound(...)
-// ║  test_bestEffort_TextLengthBoundaries()
-// ║  queryNameOrEmpty(...)
-// ║  queryNamesOrEmpty(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // StringQuery.t
+//  \ ^ /   Strict and best-effort string metadata boundary tests.
+//    V
+//
+//  FAILED STRING RESPONSES
+//  setGiveRevertData(...)
+//  name()
+//  symbol()
+//
+//  MALFORMED STRING RESPONSES
+//  name()
+//  symbol()
+//
+//  TRAILING STRING RESPONSES
+//  name()
+//
+//  FIXTURE
+//  setUp()
+//
+//  STRICT METADATA READS
+//  test_name()
+//  test_symbol()
+//  test_bytes32ToString_DoesNotDropHighBitFinalByte()
+//  test_name_RejectsTruncatedDynamicString()
+//  test_symbol_RejectsNonCanonicalDynamicStringOffset()
+//  test_name_AcceptsTrailingReturnData()
+//  queryName(...)
+//  querySymbol(...)
+//
+//  BEST EFFORT METADATA
+//  testFuzz_bestEffort_ArbitraryReturnDataPreservesLaterReads(...)
+//  test_emptyDynamicStrings_AcceptCanonicalEncoding()
+//  test_emptyDynamicHeader_RejectsNonzeroLengthAndWrongOffset()
+//  test_bestEffort_FailedMissingAndOversizedResponsesAreEmpty()
+//  test_bestEffort_AcceptsLegacyAndTrailingData()
+//  testFuzz_dynamicStrings_RoundTripWithinCosmeticBound(...)
+//  test_bestEffort_TextLengthBoundaries()
+//  queryNameOrEmpty(...)
+//  queryNamesOrEmpty(...)
+// ═════
 
 import 'src/libraries/StringQuery.sol';
 import 'src/libraries/LibERC20.sol';

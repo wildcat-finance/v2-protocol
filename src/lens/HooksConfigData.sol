@@ -1,24 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HooksConfigData
-// ║  ██▀▀     ▀▀██   Expanded callback flags and hook-family market configuration.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CONFIGURATION
-// ║  fill(...)
-// ║  fill(...)
-// ║  fill(...)
-// ║  _fillPendingAprChange(...)
-// ║
-// ║  HOOKS CLASSIFICATION
-// ║  kindForHooks(...)
-// ║  kindForVersion(...)
-// ║  _kindForVersionHash(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HooksConfigData
+//  \ ^ /   Expanded callback flags and hook-family market configuration.
+//    V
+//
+//  CONFIGURATION
+//  fill(...)
+//  fill(...)
+//  fill(...)
+//  _fillPendingAprChange(...)
+//
+//  HOOKS CLASSIFICATION
+//  kindForHooks(...)
+//  kindForVersion(...)
+//  _kindForVersionHash(...)
+// ═════
 
 import '../types/HooksConfig.sol';
 import '../access/IHooks.sol';

@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLiveData
-// ║  ██▀▀     ▀▀██   Compact accrued accounting and optional lender status.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  LIVE MARKET DATA
-// ║  fill(...)
-// ║  fill(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLiveData
+//  \ ^ /   Compact accrued accounting and optional lender status.
+//    V
+//
+//  LIVE MARKET DATA
+//  fill(...)
+//  fill(...)
+// ═════
 
 import './MarketAccountingReader.sol';
 

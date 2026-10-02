@@ -1,75 +1,73 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // PeriodicTermHooks.t
-// ║  ██▀▀     ▀▀██   Periodic withdrawal windows and APR proposal lifecycle tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _newHooks(...)
-// ║  _newHooks(...)
-// ║  _newAprMarket(...)
-// ║  _newProposalHooks()
-// ║  _createMarket(...)
-// ║  _createMarket(...)
-// ║  _hooksData()
-// ║  _hooksData(...)
-// ║  _requestedConfig(...)
-// ║  _addPullProvider(...)
-// ║
-// ║  MARKET CREATION
-// ║  test_metadata_IsCanonical()
-// ║  test_onCreateMarket_RequiresPeriodicData()
-// ║  test_onCreateMarket_ValidatesScheduleBounds()
-// ║  test_onCreateMarket_PreservesScheduleDecodeAndMinimumFailureOrder()
-// ║  test_onCreateMarket_PreservesScheduleAndBatchReads()
-// ║  test_onCreateMarket_PreservesPastAndCurrentSchedules()
-// ║
-// ║  ADMINISTRATOR HANDOFF
-// ║  test_administratorTransfer_PreservesConfigurationAndMovesAuthority()
-// ║  archController()
-// ║  isRegisteredBorrower(...)
-// ║  onHooksAdministratorTransferred(...)
-// ║
-// ║  WITHDRAWAL WINDOWS
-// ║  test_withdrawalWindow_TracksEveryBoundaryAndRecurringPeriod(...)
-// ║  _expectedWindowOpen(...)
-// ║  _expectedNextWindowStart(...)
-// ║  test_onQueueWithdrawal_EnforcesWindowClosedStateAndRequestedAccess(...)
-// ║  test_onQueueWithdrawal_ChecksWindowBeforeAccessAndRetainsAccessAfterClosure()
-// ║
-// ║  APR PROPOSALS
-// ║  test_proposeAnnualInterestBips_AuthenticatesAndRejectsInvalidReductions()
-// ║  test_proposeAnnualInterestBips_EnforcesStrictReduction(...)
-// ║  test_proposalTiming_UsesNextScheduledWindowAndOverwriteEvents(...)
-// ║  test_proposalExtension_AcceptsCreationAndReplacement()
-// ║  test_proposalExtension_RejectsCreationBelowAprFloor()
-// ║  test_proposalExtension_RejectsReplacementAndKeepsPriorWindow()
-// ║  test_proposalExtension_ChecksExactResponseWindow(...)
-// ║  test_proposalExtension_PreservesNativeGuardPriority()
-// ║  test_proposalExtension_PreservesResponseWindowWidthChecks()
-// ║  _assertPendingAprChange(...)
-// ║  _assertNoPendingAprChange(...)
-// ║
-// ║  APR REDUCTION EXECUTION
-// ║  test_aprReduction_EnforcesExecutionStateMachine()
-// ║  test_executePendingAnnualInterestBipsReduction_UsesTheSameGates()
-// ║  _assertReductionWithoutProposalReverts()
-// ║  _assertMismatchedReductionReverts()
-// ║  _assertEarlyReductionReverts()
-// ║  _assertUnpaidWithdrawalReductionReverts()
-// ║  _assertExpiredReductionReverts()
-// ║  _assertReductionAtLastValidSecondExecutes()
-// ║
-// ║  APR CANCELLATION AND CLOSURE
-// ║  test_onSetAnnualInterestBips_IncreasesAndEqualityDelegateAndCancelPrecisely()
-// ║  _assertNoCancelledEventRecorded()
-// ║  test_onCloseMarket_OpensWithdrawalsAndHandlesProposalLifecycle()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // PeriodicTermHooks.t
+//  \ ^ /   Periodic withdrawal windows and APR proposal lifecycle tests.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//  _newHooks(...)
+//  _newHooks(...)
+//  _newAprMarket(...)
+//  _newProposalHooks()
+//  _createMarket(...)
+//  _createMarket(...)
+//  _hooksData()
+//  _hooksData(...)
+//  _requestedConfig(...)
+//  _addPullProvider(...)
+//
+//  MARKET CREATION
+//  test_metadata_IsCanonical()
+//  test_onCreateMarket_RequiresPeriodicData()
+//  test_onCreateMarket_ValidatesScheduleBounds()
+//  test_onCreateMarket_PreservesScheduleDecodeAndMinimumFailureOrder()
+//  test_onCreateMarket_PreservesScheduleAndBatchReads()
+//  test_onCreateMarket_PreservesPastAndCurrentSchedules()
+//
+//  ADMINISTRATOR HANDOFF
+//  test_administratorTransfer_PreservesConfigurationAndMovesAuthority()
+//  archController()
+//  isRegisteredBorrower(...)
+//  onHooksAdministratorTransferred(...)
+//
+//  WITHDRAWAL WINDOWS
+//  test_withdrawalWindow_TracksEveryBoundaryAndRecurringPeriod(...)
+//  _expectedWindowOpen(...)
+//  _expectedNextWindowStart(...)
+//  test_onQueueWithdrawal_EnforcesWindowClosedStateAndRequestedAccess(...)
+//  test_onQueueWithdrawal_ChecksWindowBeforeAccessAndRetainsAccessAfterClosure()
+//
+//  APR PROPOSALS
+//  test_proposeAnnualInterestBips_AuthenticatesAndRejectsInvalidReductions()
+//  test_proposeAnnualInterestBips_EnforcesStrictReduction(...)
+//  test_proposalTiming_UsesNextScheduledWindowAndOverwriteEvents(...)
+//  test_proposalExtension_AcceptsCreationAndReplacement()
+//  test_proposalExtension_RejectsCreationBelowAprFloor()
+//  test_proposalExtension_RejectsReplacementAndKeepsPriorWindow()
+//  test_proposalExtension_ChecksExactResponseWindow(...)
+//  test_proposalExtension_PreservesNativeGuardPriority()
+//  test_proposalExtension_PreservesResponseWindowWidthChecks()
+//  _assertPendingAprChange(...)
+//  _assertNoPendingAprChange(...)
+//
+//  APR REDUCTION EXECUTION
+//  test_aprReduction_EnforcesExecutionStateMachine()
+//  test_executePendingAnnualInterestBipsReduction_UsesTheSameGates()
+//  _assertReductionWithoutProposalReverts()
+//  _assertMismatchedReductionReverts()
+//  _assertEarlyReductionReverts()
+//  _assertUnpaidWithdrawalReductionReverts()
+//  _assertExpiredReductionReverts()
+//  _assertReductionAtLastValidSecondExecutes()
+//
+//  APR CANCELLATION AND CLOSURE
+//  test_onSetAnnualInterestBips_IncreasesAndEqualityDelegateAndCancelPrecisely()
+//  _assertNoCancelledEventRecorded()
+//  test_onCloseMarket_OpensWithdrawalsAndHandlesProposalLifecycle()
+// ═════
 
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { Vm } from 'forge-std/Vm.sol';

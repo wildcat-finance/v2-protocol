@@ -1,75 +1,73 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LifecycleHandler
-// ║  ██▀▀     ▀▀██   Boundary-aware lifecycle actions, timeline oracle checks, and drain.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CAMPAIGN SETUP
-// ║  constructor(...)
-// ║  beginExploration()
-// ║  drawAvailable()
-// ║
-// ║  TIME AND STATE CHECKPOINTS
-// ║  advance(...)
-// ║  checkpoint(...)
-// ║
-// ║  FUNDING AND DONATIONS
-// ║  fund(...)
-// ║  donate(...)
-// ║  transferDonation(...)
-// ║  storedAccountingHash(...)
-// ║
-// ║  REPAYMENT RESTRICTIONS
-// ║  probeAdmission(...)
-// ║  changeApr(...)
-// ║  _inRepayment(...)
-// ║  _withdrawalsOpen(...)
-// ║
-// ║  CLAIM COLLECTION
-// ║  collectClaim(...)
-// ║  collectClaims(...)
-// ║  _claimable(...)
-// ║  _claimSnapshot(...)
-// ║
-// ║  CLOSURE AND RECOVERY
-// ║  recoverSurplus(...)
-// ║  _closeCell(...)
-// ║  _recoverSurplusAfterDrain(...)
-// ║
-// ║  ORACLE QUERIES
-// ║  viewsMatchOracle()
-// ║  viewStates(...)
-// ║  expectedDefault(...)
-// ║  penaltyCutoff(...)
-// ║  _preview(...)
-// ║
-// ║  TRANSITION RECORDING
-// ║  _recordCallResult(...)
-// ║  checkRecordedCall(...)
-// ║  _recordBatches(...)
-// ║  _recordLifecycle(...)
-// ║  _checkTransitionEvents(...)
-// ║  _hasStateWrite(...)
-// ║  _arguments(...)
-// ║  _firstWord(...)
-// ║
-// ║  REVOLVING MODEL
-// ║  _checkDrawnUnchanged(...)
-// ║  _expectedUpdatedRevolvingState(...)
-// ║  _expectedDrawnAfterRepay(...)
-// ║  _finalRepaymentDrawn(...)
-// ║  _getRawPendingBatch(...)
-// ║
-// ║  COVERAGE AND FAILURES
-// ║  coverageSnapshot(...)
-// ║  trackedExpiryCount(...)
-// ║  _coverage(...)
-// ║  _check(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LifecycleHandler
+//  \ ^ /   Boundary-aware lifecycle actions, timeline oracle checks, and drain.
+//    V
+//
+//  CAMPAIGN SETUP
+//  constructor(...)
+//  beginExploration()
+//  drawAvailable()
+//
+//  TIME AND STATE CHECKPOINTS
+//  advance(...)
+//  checkpoint(...)
+//
+//  FUNDING AND DONATIONS
+//  fund(...)
+//  donate(...)
+//  transferDonation(...)
+//  storedAccountingHash(...)
+//
+//  REPAYMENT RESTRICTIONS
+//  probeAdmission(...)
+//  changeApr(...)
+//  _inRepayment(...)
+//  _withdrawalsOpen(...)
+//
+//  CLAIM COLLECTION
+//  collectClaim(...)
+//  collectClaims(...)
+//  _claimable(...)
+//  _claimSnapshot(...)
+//
+//  CLOSURE AND RECOVERY
+//  recoverSurplus(...)
+//  _closeCell(...)
+//  _recoverSurplusAfterDrain(...)
+//
+//  ORACLE QUERIES
+//  viewsMatchOracle()
+//  viewStates(...)
+//  expectedDefault(...)
+//  penaltyCutoff(...)
+//  _preview(...)
+//
+//  TRANSITION RECORDING
+//  _recordCallResult(...)
+//  checkRecordedCall(...)
+//  _recordBatches(...)
+//  _recordLifecycle(...)
+//  _checkTransitionEvents(...)
+//  _hasStateWrite(...)
+//  _arguments(...)
+//  _firstWord(...)
+//
+//  REVOLVING MODEL
+//  _checkDrawnUnchanged(...)
+//  _expectedUpdatedRevolvingState(...)
+//  _expectedDrawnAfterRepay(...)
+//  _finalRepaymentDrawn(...)
+//  _getRawPendingBatch(...)
+//
+//  COVERAGE AND FAILURES
+//  coverageSnapshot(...)
+//  trackedExpiryCount(...)
+//  _coverage(...)
+//  _check(...)
+// ═════
 
 import { Vm } from 'forge-std/Vm.sol';
 import { MarketMatrixHandler } from './MarketMatrixHandler.sol';

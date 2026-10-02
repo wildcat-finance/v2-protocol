@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IMarketTransferPolicy
-// ║  ██▀▀     ▀▀██   Read-only transfer policy for wrappers and integrations.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  TRANSFER POLICY
-// ║  isMarketTransferDisabled(...)
-// ║  isMarketTransferRecipientAllowed(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IMarketTransferPolicy
+//  \ ^ /   Read-only transfer policy for wrappers and integrations.
+//    V
+//
+//  TRANSFER POLICY
+//  isMarketTransferDisabled(...)
+//  isMarketTransferRecipientAllowed(...)
+// ═════
 
 // ┌─ IMarketTransferPolicy ────────────────────────────────────────────────────
 /// @notice read-only transfer policy exposed to wrappers and other optional integrations.

@@ -1,28 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // FeeMath.t
-// ║  ██▀▀     ▀▀██   Accrual, protocol fee, and delinquency boundary tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ACCRUAL
-// ║  test_updateScaleFactorAndFees_WithFees()
-// ║  test_updateScaleFactorAndFees_WithoutFeesWithPenalties()
-// ║  test_updateScaleFactorAndFees_WithFeesAndPenalties()
-// ║  test_updateScaleFactorAndFees_WithoutFeesOrPenalties()
-// ║  test_updateScaleFactorAndFees_ZeroDelinquencyFeeAccumulatesTime()
-// ║  test_updateScaleFactorAndFees_ZeroDelinquencyFeeDecaysTime()
-// ║  test_updateScaleFactorAndFees_AcceptedUint112LimitReverts()
-// ║  test_updateScaleFactorAndFees_Uint112MaxStableAtZeroRate()
-// ║  test_updateScaleFactorAndFees_NoTimeDelta(...)
-// ║
-// ║  DELINQUENCY
-// ║  test_updateTimeDelinquentAndGetPenaltyTime(...)
-// ║  testUpdateTimeDelinquentAndGetPenaltyTime()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // FeeMath.t
+//  \ ^ /   Accrual, protocol fee, and delinquency boundary tests.
+//    V
+//
+//  ACCRUAL
+//  test_updateScaleFactorAndFees_WithFees()
+//  test_updateScaleFactorAndFees_WithoutFeesWithPenalties()
+//  test_updateScaleFactorAndFees_WithFeesAndPenalties()
+//  test_updateScaleFactorAndFees_WithoutFeesOrPenalties()
+//  test_updateScaleFactorAndFees_ZeroDelinquencyFeeAccumulatesTime()
+//  test_updateScaleFactorAndFees_ZeroDelinquencyFeeDecaysTime()
+//  test_updateScaleFactorAndFees_AcceptedUint112LimitReverts()
+//  test_updateScaleFactorAndFees_Uint112MaxStableAtZeroRate()
+//  test_updateScaleFactorAndFees_NoTimeDelta(...)
+//
+//  DELINQUENCY
+//  test_updateTimeDelinquentAndGetPenaltyTime(...)
+//  testUpdateTimeDelinquentAndGetPenaltyTime()
+// ═════
 
 import { FeeMath, MathUtils, MarketState } from 'src/libraries/FeeMath.sol';
 import { RAY } from 'src/libraries/MathUtils.sol';

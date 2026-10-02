@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // PRNG
-// ║  ██▀▀     ▀▀██   Deterministic byte generation for fuzz fixtures.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SEEDING
-// ║  seedPRNG(...)
-// ║
-// ║  BYTE GENERATION
-// ║  nextBytes(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // PRNG
+//  \ ^ /   Deterministic byte generation for fuzz fixtures.
+//    V
+//
+//  SEEDING
+//  seedPRNG(...)
+//
+//  BYTE GENERATION
+//  nextBytes(...)
+// ═════
 
 type PRNG is uint256;
 using LibPRNG for PRNG global;

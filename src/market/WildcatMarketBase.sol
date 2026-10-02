@@ -1,104 +1,102 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatMarketBase
-// ║  ██▀▀     ▀▀██   Shared identity, accounting, and market lifecycle machinery.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor()
-// ║  _getMarketParameters()
-// ║
-// ║  METADATA
-// ║  version()
-// ║  scaledTransferRounding()
-// ║  name()
-// ║  symbol()
-// ║  archController()
-// ║  registeredWrapper()
-// ║
-// ║  BORROWER AUTHORITY
-// ║  onlyBorrower()
-// ║  borrower()
-// ║  borrowerPrincipal()
-// ║  requestBorrowerTransfer(...)
-// ║  acceptBorrowerTransfer()
-// ║  cancelBorrowerTransfer()
-// ║  _validateBorrowerTransferTarget(...)
-// ║  _checkBorrowerNotSanctioned(...)
-// ║  _flaggedBorrowerIdentity(...)
-// ║  pendingBorrower()
-// ║  pendingBorrowerPrincipal()
-// ║
-// ║  REPAYMENT TERMS
-// ║  repaymentDate()
-// ║  repaymentPeriod()
-// ║  repaymentDeadline()
-// ║  _isInRepayment()
-// ║  defaultedAt()
-// ║
-// ║  STATE TRANSITIONS
-// ║  currentState()
-// ║  previousState()
-// ║  _calculateCurrentState()
-// ║  _calculateCurrentStatePointers()
-// ║  _getUpdatedState()
-// ║  _getUpdatedState(...)
-// ║  _allocateTransition()
-// ║  _calculateTransition(...)
-// ║  _accrueTransition(...)
-// ║  _updateScaleFactorAndFees(...)
-// ║  _calculateBaseInterest(...)
-// ║
-// ║  BATCH FUNDING
-// ║  _commitTransitionBatch(...)
-// ║  _closeOrQueueWithdrawalBatch(...)
-// ║  _processExpiredWithdrawalBatch(...)
-// ║  _payTransitionBatch(...)
-// ║  _applyWithdrawalBatchPayment(...)
-// ║  _applyWithdrawalBatchPaymentView(...)
-// ║
-// ║  CLOSURE
-// ║  _previewAutomaticClosure(...)
-// ║  _closeAfterCurrentAction(...)
-// ║  _commitAutomaticClosure(...)
-// ║  _onCloseMarket()
-// ║
-// ║  STATE PERSISTENCE
-// ║  _writeState(...)
-// ║  _writeState(...)
-// ║  _checkpointedTotalAssets()
-// ║
-// ║  BORROWING AND REPAYMENT
-// ║  _onBorrow(...)
-// ║  _onRepay(...)
-// ║  _onRepayAndGetTotalAssets(...)
-// ║
-// ║  ACCOUNTING QUERIES
-// ║  totalAssets()
-// ║  totalDebts()
-// ║  coverageLiquidity()
-// ║  borrowableAssets()
-// ║  scaleFactor()
-// ║  scaledTotalSupply()
-// ║  scaledBalanceOf(...)
-// ║  accruedProtocolFees()
-// ║  withdrawableProtocolFees()
-// ║
-// ║  SANCTIONS
-// ║  _getAccount(...)
-// ║  _isSanctioned(...)
-// ║  _blockAccount(...)
-// ║  _isFlaggedByChainalysis(...)
-// ║  _createEscrowForUnderlyingAsset(...)
-// ║
-// ║  RUNTIME CONSTANTS
-// ║  _runtimeConstant(...)
-// ║  _runtimeConstant(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatMarketBase
+//  \ ^ /   Shared identity, accounting, and market lifecycle machinery.
+//    V
+//
+//  SETUP
+//  constructor()
+//  _getMarketParameters()
+//
+//  METADATA
+//  version()
+//  scaledTransferRounding()
+//  name()
+//  symbol()
+//  archController()
+//  registeredWrapper()
+//
+//  BORROWER AUTHORITY
+//  onlyBorrower()
+//  borrower()
+//  borrowerPrincipal()
+//  requestBorrowerTransfer(...)
+//  acceptBorrowerTransfer()
+//  cancelBorrowerTransfer()
+//  _validateBorrowerTransferTarget(...)
+//  _checkBorrowerNotSanctioned(...)
+//  _flaggedBorrowerIdentity(...)
+//  pendingBorrower()
+//  pendingBorrowerPrincipal()
+//
+//  REPAYMENT TERMS
+//  repaymentDate()
+//  repaymentPeriod()
+//  repaymentDeadline()
+//  _isInRepayment()
+//  defaultedAt()
+//
+//  STATE TRANSITIONS
+//  currentState()
+//  previousState()
+//  _calculateCurrentState()
+//  _calculateCurrentStatePointers()
+//  _getUpdatedState()
+//  _getUpdatedState(...)
+//  _allocateTransition()
+//  _calculateTransition(...)
+//  _accrueTransition(...)
+//  _updateScaleFactorAndFees(...)
+//  _calculateBaseInterest(...)
+//
+//  BATCH FUNDING
+//  _commitTransitionBatch(...)
+//  _closeOrQueueWithdrawalBatch(...)
+//  _processExpiredWithdrawalBatch(...)
+//  _payTransitionBatch(...)
+//  _applyWithdrawalBatchPayment(...)
+//  _applyWithdrawalBatchPaymentView(...)
+//
+//  CLOSURE
+//  _previewAutomaticClosure(...)
+//  _closeAfterCurrentAction(...)
+//  _commitAutomaticClosure(...)
+//  _onCloseMarket()
+//
+//  STATE PERSISTENCE
+//  _writeState(...)
+//  _writeState(...)
+//  _checkpointedTotalAssets()
+//
+//  BORROWING AND REPAYMENT
+//  _onBorrow(...)
+//  _onRepay(...)
+//  _onRepayAndGetTotalAssets(...)
+//
+//  ACCOUNTING QUERIES
+//  totalAssets()
+//  totalDebts()
+//  coverageLiquidity()
+//  borrowableAssets()
+//  scaleFactor()
+//  scaledTotalSupply()
+//  scaledBalanceOf(...)
+//  accruedProtocolFees()
+//  withdrawableProtocolFees()
+//
+//  SANCTIONS
+//  _getAccount(...)
+//  _isSanctioned(...)
+//  _blockAccount(...)
+//  _isFlaggedByChainalysis(...)
+//  _createEscrowForUnderlyingAsset(...)
+//
+//  RUNTIME CONSTANTS
+//  _runtimeConstant(...)
+//  _runtimeConstant(...)
+// ═════
 
 import '../ReentrancyGuard.sol';
 import '../spherex/SphereXProtectedRegisteredBase.sol';

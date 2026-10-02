@@ -1,32 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketState
-// ║  ██▀▀     ▀▀██   Share conversion, market liabilities, and available liquidity.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SUPPLY AND CAPACITY
-// ║  totalSupply(...)
-// ║  maximumDeposit(...)
-// ║
-// ║  SHARE CONVERSION
-// ║  normalizeAmount(...)
-// ║  normalizeWithRemainder(...)
-// ║  scaleAmountDown(...)
-// ║  maxScaledSettleableAmount(...)
-// ║
-// ║  LIABILITIES AND LIQUIDITY
-// ║  totalDebts(...)
-// ║  liquidityRequired(...)
-// ║  borrowableAssets(...)
-// ║  withdrawableProtocolFees(...)
-// ║
-// ║  WITHDRAWAL STATUS
-// ║  hasPendingExpiredBatch(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketState
+//  \ ^ /   Share conversion, market liabilities, and available liquidity.
+//    V
+//
+//  SUPPLY AND CAPACITY
+//  totalSupply(...)
+//  maximumDeposit(...)
+//
+//  SHARE CONVERSION
+//  normalizeAmount(...)
+//  normalizeWithRemainder(...)
+//  scaleAmountDown(...)
+//  maxScaledSettleableAmount(...)
+//
+//  LIABILITIES AND LIQUIDITY
+//  totalDebts(...)
+//  liquidityRequired(...)
+//  borrowableAssets(...)
+//  withdrawableProtocolFees(...)
+//
+//  WITHDRAWAL STATUS
+//  hasPendingExpiredBatch(...)
+// ═════
 
 import './MathUtils.sol';
 import './SafeCastLib.sol';

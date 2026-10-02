@@ -1,67 +1,65 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatBorrowerIdentityRegistry.t
-// ║  ██▀▀     ▀▀██   Account factories, borrower identities, and principal transfers.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  _newFixture()
-// ║  _deployArchController()
-// ║  _deployRegistry(...)
-// ║  _deployFactory(...)
-// ║  _deployAccount()
-// ║
-// ║  CONSTRUCTION AND DEPENDENCIES
-// ║  test_constructor_StoresArchController()
-// ║  test_constructor_RejectsInvalidArchController()
-// ║  test_archControllerOwnerRead_ValidatesAndBubblesResponse()
-// ║  test_registeredBorrowerRead_ValidatesAndBubblesResponse()
-// ║
-// ║  ACCOUNT FACTORIES
-// ║  test_addAccountFactory_EmitsAndEnumerates()
-// ║  test_addAccountFactory_FollowsCurrentArchControllerOwner()
-// ║  test_addAccountFactory_RejectsInvalidAddress()
-// ║  test_addAccountFactory_RejectsDuplicate()
-// ║  test_removeAccountFactory_PreservesRegisteredAccountProvenance()
-// ║  test_removeAccountFactory_RequiresOwnerAndExistingFactory()
-// ║  test_getAccountFactories_PaginatesAndValidatesRange()
-// ║
-// ║  ACCOUNT REGISTRATION
-// ║  test_registerAccount_EmitsAndIndexesIdentity()
-// ║  test_registerAccount_AllowsMultipleAccountsForOnePrincipal()
-// ║  test_registerAccount_RequiresApprovedFactory()
-// ║  test_registerAccount_RejectsInvalidAccount()
-// ║  test_registerAccount_RequiresNonzeroRegisteredPrincipal()
-// ║  test_registerAccount_RejectsAmbiguousAccountOrPrincipal()
-// ║  testFuzz_registerAccount_RejectsDuplicateWithoutMutation(...)
-// ║  _registerAccount(...)
-// ║
-// ║  TRANSFER REQUESTS
-// ║  test_requestTransfer_EmitsAndLeavesCurrentPrincipalActive()
-// ║  test_requestTransfer_ReplacesPendingPrincipal()
-// ║  test_requestTransfer_RequiresRegisteredAccountPrincipal()
-// ║  test_requestTransfer_RejectsInvalidOrUnregisteredTarget()
-// ║  test_requestTransfer_RejectsAmbiguousIdentity()
-// ║  _requestTransfer(...)
-// ║  test_cancelTransfer_EmitsAndClearsPendingPrincipal()
-// ║  test_cancelTransfer_RequiresPrincipalAndPendingTransfer()
-// ║
-// ║  TRANSFER ACCEPTANCE
-// ║  test_acceptTransfer_EmitsMovesCurrentEnumerationAndKeepsFactoryHistory()
-// ║  test_acceptTransfer_UpdatesAuthorityAndSupportsRoundTrip()
-// ║  test_acceptTransfer_SurvivesFactoryOrCurrentPrincipalRemoval()
-// ║  test_acceptTransfer_RevalidatesTargetAndAccountIdentity()
-// ║  _acceptTransfer(...)
-// ║
-// ║  IDENTITY QUERIES
-// ║  test_resolveBorrower_HandlesDirectPrincipalAndUnknownAddress()
-// ║  test_resolveBorrower_RejectsStaleOrAmbiguousIdentity()
-// ║  test_getBorrowerAccounts_PaginatesPrincipalAndFactoryIndexes()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatBorrowerIdentityRegistry.t
+//  \ ^ /   Account factories, borrower identities, and principal transfers.
+//    V
+//
+//  FIXTURE
+//  _newFixture()
+//  _deployArchController()
+//  _deployRegistry(...)
+//  _deployFactory(...)
+//  _deployAccount()
+//
+//  CONSTRUCTION AND DEPENDENCIES
+//  test_constructor_StoresArchController()
+//  test_constructor_RejectsInvalidArchController()
+//  test_archControllerOwnerRead_ValidatesAndBubblesResponse()
+//  test_registeredBorrowerRead_ValidatesAndBubblesResponse()
+//
+//  ACCOUNT FACTORIES
+//  test_addAccountFactory_EmitsAndEnumerates()
+//  test_addAccountFactory_FollowsCurrentArchControllerOwner()
+//  test_addAccountFactory_RejectsInvalidAddress()
+//  test_addAccountFactory_RejectsDuplicate()
+//  test_removeAccountFactory_PreservesRegisteredAccountProvenance()
+//  test_removeAccountFactory_RequiresOwnerAndExistingFactory()
+//  test_getAccountFactories_PaginatesAndValidatesRange()
+//
+//  ACCOUNT REGISTRATION
+//  test_registerAccount_EmitsAndIndexesIdentity()
+//  test_registerAccount_AllowsMultipleAccountsForOnePrincipal()
+//  test_registerAccount_RequiresApprovedFactory()
+//  test_registerAccount_RejectsInvalidAccount()
+//  test_registerAccount_RequiresNonzeroRegisteredPrincipal()
+//  test_registerAccount_RejectsAmbiguousAccountOrPrincipal()
+//  testFuzz_registerAccount_RejectsDuplicateWithoutMutation(...)
+//  _registerAccount(...)
+//
+//  TRANSFER REQUESTS
+//  test_requestTransfer_EmitsAndLeavesCurrentPrincipalActive()
+//  test_requestTransfer_ReplacesPendingPrincipal()
+//  test_requestTransfer_RequiresRegisteredAccountPrincipal()
+//  test_requestTransfer_RejectsInvalidOrUnregisteredTarget()
+//  test_requestTransfer_RejectsAmbiguousIdentity()
+//  _requestTransfer(...)
+//  test_cancelTransfer_EmitsAndClearsPendingPrincipal()
+//  test_cancelTransfer_RequiresPrincipalAndPendingTransfer()
+//
+//  TRANSFER ACCEPTANCE
+//  test_acceptTransfer_EmitsMovesCurrentEnumerationAndKeepsFactoryHistory()
+//  test_acceptTransfer_UpdatesAuthorityAndSupportsRoundTrip()
+//  test_acceptTransfer_SurvivesFactoryOrCurrentPrincipalRemoval()
+//  test_acceptTransfer_RevalidatesTargetAndAccountIdentity()
+//  _acceptTransfer(...)
+//
+//  IDENTITY QUERIES
+//  test_resolveBorrower_HandlesDirectPrincipalAndUnknownAddress()
+//  test_resolveBorrower_RejectsStaleOrAmbiguousIdentity()
+//  test_getBorrowerAccounts_PaginatesPrincipalAndFactoryIndexes()
+// ═════
 
 import { WildcatArchController } from 'src/WildcatArchController.sol';
 import { WildcatBorrowerIdentityRegistry } from 'src/WildcatBorrowerIdentityRegistry.sol';

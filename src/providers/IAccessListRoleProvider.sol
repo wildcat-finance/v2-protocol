@@ -1,25 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IAccessListRoleProvider
-// ║  ██▀▀     ▀▀██   Managed membership updates and enumeration queries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  MEMBER UPDATES
-// ║  addMember(...)
-// ║  addMembers(...)
-// ║  removeMember(...)
-// ║  removeMembers(...)
-// ║
-// ║  MEMBER QUERIES
-// ║  isMember(...)
-// ║  getMembers()
-// ║  getMembers(...)
-// ║  getMembersCount()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IAccessListRoleProvider
+//  \ ^ /   Managed membership updates and enumeration queries.
+//    V
+//
+//  MEMBER UPDATES
+//  addMember(...)
+//  addMembers(...)
+//  removeMember(...)
+//  removeMembers(...)
+//
+//  MEMBER QUERIES
+//  isMember(...)
+//  getMembers()
+//  getMembers(...)
+//  getMembersCount()
+// ═════
 
 import '../access/IRoleProvider.sol';
 import '../access/IManagedRoleProvider.sol';

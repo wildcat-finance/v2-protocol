@@ -1,39 +1,37 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ZeroValueTransferReview.t
-// ║  ██▀▀     ▀▀██   Origination-fee transfer behavior across factories and routes.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  TRANSFER REJECTION TARGET
-// ║  constructor(...)
-// ║  transferFrom(...)
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _feeToken(...)
-// ║  _configureFee(...)
-// ║  deployCell(...)
-// ║
-// ║  ZERO FEE TRANSFERS
-// ║  test_zeroFeeSkipsRejectingTokenAcrossFactoriesAndRoutes()
-// ║  test_zeroFeeNullRecipientNeedsNoTransferAcrossFactoriesAndRoutes()
-// ║  test_zeroFeeMakesNoCallEvenWhenTokenWouldAcceptTransfer()
-// ║  test_noFeeTokenNeedsNoTransferAcrossFactoriesAndRoutes()
-// ║
-// ║  POSITIVE FEE TRANSFERS
-// ║  test_positiveFeeTransfersExactlyOnceAcrossFactoriesAndRoutes()
-// ║  test_feeMismatchPrecedesTransferAcrossFactoriesAndRoutes()
-// ║  test_positiveFeeCannotBeBypassedWithZeroAmount()
-// ║  test_positiveFeeStillRequiresSuccessfulTransfer()
-// ║
-// ║  DEPLOYMENT ASSERTIONS
-// ║  _expectDeploymentConfig(...)
-// ║  _assertDeployed(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ZeroValueTransferReview.t
+//  \ ^ /   Origination-fee transfer behavior across factories and routes.
+//    V
+//
+//  TRANSFER REJECTION TARGET
+//  constructor(...)
+//  transferFrom(...)
+//
+//  FIXTURE
+//  setUp()
+//  _feeToken(...)
+//  _configureFee(...)
+//  deployCell(...)
+//
+//  ZERO FEE TRANSFERS
+//  test_zeroFeeSkipsRejectingTokenAcrossFactoriesAndRoutes()
+//  test_zeroFeeNullRecipientNeedsNoTransferAcrossFactoriesAndRoutes()
+//  test_zeroFeeMakesNoCallEvenWhenTokenWouldAcceptTransfer()
+//  test_noFeeTokenNeedsNoTransferAcrossFactoriesAndRoutes()
+//
+//  POSITIVE FEE TRANSFERS
+//  test_positiveFeeTransfersExactlyOnceAcrossFactoriesAndRoutes()
+//  test_feeMismatchPrecedesTransferAcrossFactoriesAndRoutes()
+//  test_positiveFeeCannotBeBypassedWithZeroAmount()
+//  test_positiveFeeStillRequiresSuccessfulTransfer()
+//
+//  DEPLOYMENT ASSERTIONS
+//  _expectDeploymentConfig(...)
+//  _assertDeployed(...)
+// ═════
 
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { IHooksFactory, IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';

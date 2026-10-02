@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LibCompressedInitCode
-// ║  ██▀▀     ▀▀██   Compressed creation-code storage and runtime decoding.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  STORAGE DEPLOYMENT
-// ║  deployInitCode(...)
-// ║  getStorageRuntime(...)
-// ║
-// ║  COMPRESSED READER
-// ║  fallback()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LibCompressedInitCode
+//  \ ^ /   Compressed creation-code storage and runtime decoding.
+//    V
+//
+//  STORAGE DEPLOYMENT
+//  deployInitCode(...)
+//  getStorageRuntime(...)
+//
+//  COMPRESSED READER
+//  fallback()
+// ═════
 
 import { LibZip } from 'solady/utils/LibZip.sol';
 

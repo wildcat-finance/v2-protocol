@@ -1,30 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WithdrawalPaymentCapacity.t
-// ║  ██▀▀     ▀▀██   Payment capacity, carry conservation, and overflow boundaries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  PAYMENT CAPACITY
-// ║  testFuzz_capacityIsMaximalAndDebtIsConserved(...)
-// ║  test_maximumFactorAndDonationDoNotOverflow()
-// ║  testFuzz_paymentPreservesReservesWithFreeSupplyAndOtherCarry(...)
-// ║  test_zeroAndOneUnitLiquidityPreserveCarry()
-// ║  _checkPayment(...)
-// ║
-// ║  HEADROOM AND ACCOUNTING BOUNDS
-// ║  test_globalUnclaimedHeadroomCapsPayment()
-// ║  test_zeroGlobalUnclaimedHeadroomLeavesPositivePaymentUnprocessed()
-// ║  test_cumulativePaidOverflowStillReverts()
-// ║  test_syntheticWideCumulativeStateKeepsItsSmallLiveDifference()
-// ║  test_missingAggregateContributionStillReverts()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WithdrawalPaymentCapacity.t
+//  \ ^ /   Payment capacity, carry conservation, and overflow boundaries.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//
+//  PAYMENT CAPACITY
+//  testFuzz_capacityIsMaximalAndDebtIsConserved(...)
+//  test_maximumFactorAndDonationDoNotOverflow()
+//  testFuzz_paymentPreservesReservesWithFreeSupplyAndOtherCarry(...)
+//  test_zeroAndOneUnitLiquidityPreserveCarry()
+//  _checkPayment(...)
+//
+//  HEADROOM AND ACCOUNTING BOUNDS
+//  test_globalUnclaimedHeadroomCapsPayment()
+//  test_zeroGlobalUnclaimedHeadroomLeavesPositivePaymentUnprocessed()
+//  test_cumulativePaidOverflowStillReverts()
+//  test_syntheticWideCumulativeStateKeepsItsSmallLiveDifference()
+//  test_missingAggregateContributionStillReverts()
+// ═════
 
 import { MarketFixture } from '../shared/MarketFixture.sol';
 import { WithdrawalPaymentHarness } from '../mocks/WithdrawalPaymentHarness.sol';

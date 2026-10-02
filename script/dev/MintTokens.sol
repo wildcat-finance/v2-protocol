@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MintTokens
-// ║  ██▀▀     ▀▀██   Development token approval and market deposit runner.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  TOKEN DEPLOYMENT
-// ║  deployMockERC20(...)
-// ║
-// ║  EXECUTION
-// ║  run()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MintTokens
+//  \ ^ /   Development token approval and market deposit runner.
+//    V
+//
+//  TOKEN DEPLOYMENT
+//  deployMockERC20(...)
+//
+//  EXECUTION
+//  run()
+// ═════
 
 // import 'src/WildcatMarketControllerFactory.sol';
 import 'src/WildcatSanctionsSentinel.sol';

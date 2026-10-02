@@ -1,47 +1,45 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HookExtensions.t
-// ║  ██▀▀     ▀▀██   Composed transfer features, authority, and rollback checks.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _artifact(...)
-// ║  _createCompositionMarket(...)
-// ║
-// ║  COMPOSITION SETUP
-// ║  test_composition_DeclaresTransferWithoutRequiringCredentials()
-// ║  test_composition_RejectsCreationAfterTermSetupWithoutPartialState()
-// ║
-// ║  RECIPIENT RULES
-// ║  test_transferRule_AcceptsAndRejectsAfterCredentialProcessingWithRollback()
-// ║  test_transferRule_StillChecksKnownRecipientsWithoutCredentials()
-// ║  test_transferRule_StillChecksTheRegisteredWrapper()
-// ║  test_transferRule_IsScopedToItsMarket()
-// ║
-// ║  TRANSFER AMOUNTS
-// ║  test_transferAmount_BoundariesAndVolumeAreIndependent(...)
-// ║  test_transferAmount_ObservationalVolumeCannotOverflowIntoTransferLock()
-// ║  test_transferRules_AmountFailurePrecedesRecipientFailureAndRollsBackCredentials()
-// ║
-// ║  FEATURE AUTHORITY
-// ║  test_featureManagement_RequiresAdministratorAndRegistrationAndIsolatesMarkets()
-// ║  test_featureManagement_FollowsAdministratorTransferWithoutResettingState()
-// ║  archController()
-// ║  isRegisteredBorrower(...)
-// ║  onHooksAdministratorTransferred(...)
-// ║
-// ║  PRESERVED TERM BEHAVIOR
-// ║  test_composition_RetainsDepositQueueAprAndClosureRules()
-// ║  test_composition_DisabledTransfersKeepPriorityOverBothFeatures()
-// ║
-// ║  ARTIFACT LIMITS
-// ║  test_composition_FitsRuntimeAndStoredInitcodeLimits()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HookExtensions.t
+//  \ ^ /   Composed transfer features, authority, and rollback checks.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//  _artifact(...)
+//  _createCompositionMarket(...)
+//
+//  COMPOSITION SETUP
+//  test_composition_DeclaresTransferWithoutRequiringCredentials()
+//  test_composition_RejectsCreationAfterTermSetupWithoutPartialState()
+//
+//  RECIPIENT RULES
+//  test_transferRule_AcceptsAndRejectsAfterCredentialProcessingWithRollback()
+//  test_transferRule_StillChecksKnownRecipientsWithoutCredentials()
+//  test_transferRule_StillChecksTheRegisteredWrapper()
+//  test_transferRule_IsScopedToItsMarket()
+//
+//  TRANSFER AMOUNTS
+//  test_transferAmount_BoundariesAndVolumeAreIndependent(...)
+//  test_transferAmount_ObservationalVolumeCannotOverflowIntoTransferLock()
+//  test_transferRules_AmountFailurePrecedesRecipientFailureAndRollsBackCredentials()
+//
+//  FEATURE AUTHORITY
+//  test_featureManagement_RequiresAdministratorAndRegistrationAndIsolatesMarkets()
+//  test_featureManagement_FollowsAdministratorTransferWithoutResettingState()
+//  archController()
+//  isRegisteredBorrower(...)
+//  onHooksAdministratorTransferred(...)
+//
+//  PRESERVED TERM BEHAVIOR
+//  test_composition_RetainsDepositQueueAprAndClosureRules()
+//  test_composition_DisabledTransfersKeepPriorityOverBothFeatures()
+//
+//  ARTIFACT LIMITS
+//  test_composition_FitsRuntimeAndStoredInitcodeLimits()
+// ═════
 
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { BaseHooks } from 'src/access/BaseHooks.sol';
