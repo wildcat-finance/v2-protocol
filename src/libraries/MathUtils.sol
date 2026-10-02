@@ -46,8 +46,7 @@ uint256 constant SECONDS_IN_365_DAYS = 365 days;
 
 // ┌─ MathUtils ────────────────────────────────────────────────────────────────
 library MathUtils {
-  /// @dev The multiply-divide operation failed, either due to a
-  /// multiplication overflow, or a division by a zero.
+  /// @dev multiply-divide failed: the product overflowed or the divisor was zero.
   error MulDivFailed();
 
   using MathUtils for uint256;
@@ -55,20 +54,19 @@ library MathUtils {
   // ░░▒▒▓▓██ [ BOUNDS AND SELECTION ] ─────────────────────────────────────────
 
   // ┌─ min ─────
-  /// @dev Return the smaller of `a` and `b`
+  /// @dev return the smaller of `a` and `b`.
   function min(uint256 a, uint256 b) internal pure returns (uint256 c) {
     c = ternary(a < b, a, b);
   }
 
   // ┌─ max ─────
-  /// @dev Return the larger of `a` and `b`.
+  /// @dev return the larger of `a` and `b`.
   function max(uint256 a, uint256 b) internal pure returns (uint256 c) {
     c = ternary(a < b, b, a);
   }
 
   // ┌─ ternary ─────
-  /// @dev Return `valueIfTrue` if `condition` is true and `valueIfFalse` if it is false.
-  ///      Equivalent to `condition ? valueIfTrue : valueIfFalse`
+  /// @dev select `condition ? valueIfTrue : valueIfFalse`.
   function ternary(bool condition, uint256 valueIfTrue, uint256 valueIfFalse) internal pure returns (uint256 c) {
     assembly ('memory-safe') {
       c := add(valueIfFalse, mul(condition, sub(valueIfTrue, valueIfFalse)))
@@ -76,19 +74,17 @@ library MathUtils {
   }
 
   // ┌─ satSub ─────
-  /// @dev Saturation subtraction. Subtract `b` from `a` and return the result
-  ///      if it is positive or zero if it underflows.
+  /// @dev subtract `b` from `a`, saturating at zero.
   function satSub(uint256 a, uint256 b) internal pure returns (uint256 c) {
     assembly ('memory-safe') {
       // (a > b) * (a - b)
-      // If a-b underflows, the product will be zero
+      // if a-b underflows, the product is zero.
       c := mul(gt(a, b), sub(a, b))
     }
   }
 
   // ┌─ satAdd ─────
-  /// @dev Saturation addition. Add `a` to `b` and return the result
-  ///      if it is less than `maxValue` or `maxValue` if it overflows.
+  /// @dev cap `a + b` at `maxValue`, including when the sum overflows uint256.
   function satAdd(uint256 a, uint256 b, uint256 maxValue) internal pure returns (uint256 c) {
     unchecked {
       c = a + b;
@@ -99,17 +95,16 @@ library MathUtils {
   // ░░▒▒▓▓██ [ MULTIPLY AND DIVIDE ] ──────────────────────────────────────────
 
   // ┌─ mulDiv ─────
-  /// @dev Returns `floor(x * y / d)`.
-  ///      Reverts if `x * y` overflows, or `d` is zero.
+  /// @dev return `floor(x * y / d)`.
+  ///      revert if `x * y` overflows or `d` is zero.
   ///
   /// @custom:author solady/src/utils/FixedPointMathLib.sol
   function mulDiv(uint256 x, uint256 y, uint256 d) internal pure returns (uint256 z) {
     assembly ('memory-safe') {
-      // Equivalent to require(d != 0 && (y == 0 || x <= type(uint256).max / y))
+      // equivalent to require(d != 0 && (y == 0 || x <= type(uint256).max / y))
       if iszero(mul(d, iszero(mul(y, gt(x, div(not(0), y)))))) {
-        // Store the function selector of `MulDivFailed()`.
+        // MulDivFailed()
         mstore(0x00, 0xad251c27)
-        // Revert with (offset, size).
         revert(0x1c, 0x04)
       }
       z := div(mul(x, y), d)
@@ -117,17 +112,16 @@ library MathUtils {
   }
 
   // ┌─ mulDivUp ─────
-  /// @dev Returns `ceil(x * y / d)`.
-  ///      Reverts if `x * y` overflows, or `d` is zero.
+  /// @dev return `ceil(x * y / d)`.
+  ///      revert if `x * y` overflows or `d` is zero.
   ///
   /// @custom:author solady/src/utils/FixedPointMathLib.sol
   function mulDivUp(uint256 x, uint256 y, uint256 d) internal pure returns (uint256 z) {
     assembly ('memory-safe') {
-      // Equivalent to require(d != 0 && (y == 0 || x <= type(uint256).max / y))
+      // equivalent to require(d != 0 && (y == 0 || x <= type(uint256).max / y))
       if iszero(mul(d, iszero(mul(y, gt(x, div(not(0), y)))))) {
-        // Store the function selector of `MulDivFailed()`.
+        // MulDivFailed()
         mstore(0x00, 0xad251c27)
-        // Revert with (offset, size).
         revert(0x1c, 0x04)
       }
       z := add(iszero(iszero(mod(mul(x, y), d))), div(mul(x, y), d))
@@ -137,15 +131,15 @@ library MathUtils {
   // ░░▒▒▓▓██ [ BASIS POINTS ] ─────────────────────────────────────────────────
 
   // ┌─ bipMul ─────
-  /// @dev Multiplies two bip, rounding half up to the nearest bip
+  /// @dev multiply two bip values, rounding half-up.
   ///      see https://twitter.com/transmissions11/status/1451131036377571328
   function bipMul(uint256 a, uint256 b) internal pure returns (uint256 c) {
     assembly ('memory-safe') {
       // equivalent to `require(b == 0 || a <= (type(uint256).max - HALF_BIP) / b)`
       if iszero(or(iszero(b), iszero(gt(a, div(sub(not(0), HALF_BIP), b))))) {
-        // Store the Panic error signature.
+        // Panic(uint256)
         mstore(0, Panic_ErrorSelector)
-        // Store the arithmetic (0x11) panic code.
+        // arithmetic overflow: Panic(0x11).
         mstore(Panic_ErrorCodePointer, Panic_Arithmetic)
         // revert(abi.encodeWithSignature("Panic(uint256)", 0x11))
         revert(Error_SelectorPointer, Panic_ErrorLength)
@@ -156,7 +150,7 @@ library MathUtils {
   }
 
   // ┌─ bipDiv ─────
-  /// @dev Divides two bip, rounding half up to the nearest bip
+  /// @dev divide two bip values, rounding half-up.
   ///      see https://twitter.com/transmissions11/status/1451131036377571328
   function bipDiv(uint256 a, uint256 b) internal pure returns (uint256 c) {
     assembly ('memory-safe') {
@@ -172,7 +166,7 @@ library MathUtils {
   }
 
   // ┌─ bipToRay ─────
-  /// @dev Converts bip up to ray
+  /// @dev convert bip to ray.
   function bipToRay(uint256 a) internal pure returns (uint256 b) {
     // to avoid overflow, b/BIP_RAY_RATIO == a
     assembly ('memory-safe') {
@@ -189,7 +183,7 @@ library MathUtils {
   // ░░▒▒▓▓██ [ RAY ARITHMETIC ] ───────────────────────────────────────────────
 
   // ┌─ rayMul ─────
-  /// @dev Multiplies two ray, rounding half up to the nearest ray
+  /// @dev multiply two ray values, rounding half-up.
   ///      see https://twitter.com/transmissions11/status/1451131036377571328
   function rayMul(uint256 a, uint256 b) internal pure returns (uint256 c) {
     assembly ('memory-safe') {
@@ -205,7 +199,7 @@ library MathUtils {
   }
 
   // ┌─ rayDiv ─────
-  /// @dev Divide two ray, rounding half up to the nearest ray
+  /// @dev divide two ray values, rounding half-up.
   ///      see https://twitter.com/transmissions11/status/1451131036377571328
   function rayDiv(uint256 a, uint256 b) internal pure returns (uint256 c) {
     assembly ('memory-safe') {
@@ -223,12 +217,12 @@ library MathUtils {
   // ░░▒▒▓▓██ [ INTEREST ] ─────────────────────────────────────────────────────
 
   // ┌─ calculateLinearInterestFromBips ─────
-  /// @dev Function to calculate the interest accumulated using a linear interest rate formula
+  /// @dev calculate linear interest over the elapsed interval.
   ///
-  /// @param rateBip   The interest rate, in bips
-  /// @param timeDelta The time elapsed since the last interest accrual
+  /// @param rateBip   annual interest rate, in bips.
+  /// @param timeDelta seconds since the last accrual.
   ///
-  /// @return result The interest rate linearly accumulated during the timeDelta, in ray
+  /// @return result linear interest over `timeDelta`, in ray.
   function calculateLinearInterestFromBips(uint256 rateBip, uint256 timeDelta) internal pure returns (uint256 result) {
     uint256 rate = rateBip.bipToRay();
     uint256 accumulatedInterestRay = rate * timeDelta;

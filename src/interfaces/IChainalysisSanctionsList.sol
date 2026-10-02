@@ -18,6 +18,6 @@ interface IChainalysisSanctionsList {
   // ░░▒▒▓▓██ [ SANCTION STATUS ] ──────────────────────────────────────────────
 
   // ┌─ isSanctioned ─────
-  /// @notice returns the oracle's raw sanction status for `addr`.
+  /// @notice return the oracle's raw sanction status for `addr`.
   function isSanctioned(address addr) external view returns (bool);
 }

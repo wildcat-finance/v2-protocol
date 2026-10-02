@@ -36,19 +36,18 @@ library LibTransientBytesArray {
   // ░░▒▒▓▓██ [ WRITES ] ───────────────────────────────────────────────────────
 
   // ┌─ write ─────
-  /// @dev Write a dynamic bytes array to transient storage.
+  /// @dev write dynamic bytes to transient storage.
   ///
-  /// @param transientSlot Slot for the dynamic bytes array in transient storage
-  /// @param memoryPointer Pointer to the memory location of the array to write
+  /// @param transientSlot transient slot holding the bytes header.
+  /// @param memoryPointer memory array to write.
   function write(TransientBytesArray transientSlot, bytes memory memoryPointer) internal {
     assembly {
       let length := mload(memoryPointer)
       memoryPointer := add(memoryPointer, 0x20)
       switch lt(length, 32)
       case 0 {
-        // For long byte arrays, the length slot holds (length * 2 + 1)
+        // long encoding: the header holds length * 2 + 1; data lives at keccak256(slot).
         tstore(transientSlot, add(1, mul(2, length)))
-        // Calculate the slot of the data portion of the array
         mstore(0, transientSlot)
         let dataTSlot := keccak256(0, 0x20)
         let i := 0
@@ -60,7 +59,7 @@ library LibTransientBytesArray {
         }
       }
       case 1 {
-        // For short byte arrays, the first 31 bytes are the data and the last byte is (length * 2).
+        // short encoding: up to 31 data bytes, then length * 2 in the final byte.
         let lengthByte := mul(2, length)
         let data := mload(memoryPointer)
         tstore(transientSlot, or(data, lengthByte))
@@ -69,7 +68,7 @@ library LibTransientBytesArray {
   }
 
   // ┌─ setEmpty ─────
-  /// @dev writes the empty-array encoding; a later call can overwrite it in the same transaction.
+  /// @dev write the empty-array encoding; a later call can overwrite it in the same transaction.
   function setEmpty(TransientBytesArray transientSlot) internal {
     assembly {
       tstore(transientSlot, 0)
@@ -79,7 +78,7 @@ library LibTransientBytesArray {
   // ░░▒▒▓▓██ [ READS ] ────────────────────────────────────────────────────────
 
   // ┌─ read ─────
-  /// @dev decodes the transient byte array into newly allocated memory.
+  /// @dev decode the transient byte array into newly allocated memory.
   function read(TransientBytesArray transientSlot) internal view returns (bytes memory data) {
     uint256 dataPointer;
     assembly {
@@ -94,12 +93,12 @@ library LibTransientBytesArray {
   }
 
   // ┌─ readToPointer ─────
-  /// @dev Decode a dynamic bytes array from transient storage.
+  /// @dev decode transient bytes into the caller's memory buffer.
   ///
-  /// @param transientSlot Slot for the dynamic bytes array in transient storage
-  /// @param memoryPointer Pointer to the memory location to write the decoded array to
+  /// @param transientSlot transient slot holding the bytes header.
+  /// @param memoryPointer start of the destination memory buffer.
   ///
-  /// @return endPointer Pointer to the end of the decoded array
+  /// @return endPointer end of the decoded memory array.
   function readToPointer(
     TransientBytesArray transientSlot,
     uint256 memoryPointer
@@ -117,9 +116,9 @@ library LibTransientBytesArray {
         }
 
         if eq(outOfPlaceEncoding, lt(length, 32)) {
-          // Store the Panic error signature.
+          // Panic(uint256)
           mstore(0, Panic_ErrorSelector)
-          // Store the arithmetic (0x11) panic code.
+          // malformed storage-byte-array encoding: Panic(0x22).
           mstore(Panic_ErrorCodePointer, Panic_InvalidStorageByteArray)
           // revert(abi.encodeWithSignature("Panic(uint256)", 0x22))
           revert(Error_SelectorPointer, Panic_ErrorLength)
@@ -139,7 +138,6 @@ library LibTransientBytesArray {
       case 1 {
         // long byte array
         mstore(0, transientSlot)
-        // Calculate the slot of the data portion of the array
         let dataTSlot := keccak256(0, 0x20)
         let i := 0
         for { } lt(i, length) {

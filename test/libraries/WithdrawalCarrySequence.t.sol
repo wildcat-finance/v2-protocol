@@ -34,9 +34,9 @@ import { WithdrawalBatch } from 'src/libraries/Withdrawal.sol';
 import { RAY } from 'src/libraries/MathUtils.sol';
 
 // ┌─ WithdrawalCarrySequenceTest ──────────────────────────────────────────────
-/// @dev Exercise the actual payment, pending-liquidity and release helpers with a
-///      separate exact-numerator ledger. This is an accounting-helper sequence,
-///      complementary to the real-market lifecycle and claim invariant suites.
+/// @dev exercise payment, pending-liquidity, and release helpers against an independent
+///      exact-numerator ledger. this helper-level sequence complements the real-market
+///      lifecycle and claim invariant suites.
 contract WithdrawalCarrySequenceTest is MarketFixture {
   WithdrawalPaymentHarness internal harness;
 
@@ -97,7 +97,7 @@ contract WithdrawalCarrySequenceTest is MarketFixture {
         _growCurrent(s, (seed >> 8) % (freeShares + 1));
       } else if (action == 3) {
         _pay(s, 2, _pendingAvailable(s));
-        // The current batch can grow again even if fully paid: do not release it.
+        // a fully paid current batch can still accept requests; don't release it.
       } else {
         uint256 index = s.finalized[0] ? 1 : 0;
         uint256 available = s.cash - s.state.normalizedUnclaimedWithdrawals - s.state.accruedProtocolFees;
@@ -107,8 +107,8 @@ contract WithdrawalCarrySequenceTest is MarketFixture {
       _assertLedger(s);
     }
 
-    // Queue the remaining free shares, then fund precisely the independently
-    // calculated debt. No extra unit may be requested to finish all batches.
+    // fund exactly the independent debt quote after queueing the remaining shares.
+    // completing every batch must not require an extra unit.
     _growCurrent(s, s.state.scaledTotalSupply - s.state.scaledPendingWithdrawals);
     s.cash = _debts(s);
     uint256 owed = s.batches[2].scaledTotalAmount - s.batches[2].scaledAmountBurned;
@@ -171,7 +171,7 @@ contract WithdrawalCarrySequenceTest is MarketFixture {
     assertEq(s.state.liquidityRequired(), beforeReserves, 'payment preserves reserves');
   }
 
-  // Deliberately use binary search instead of the production inverse formula.
+  // binary search keeps this oracle independent of the production inverse formula.
   // ┌─ _affordable ─────
   function _affordable(
     WithdrawalBatch memory batch,
@@ -192,7 +192,7 @@ contract WithdrawalCarrySequenceTest is MarketFixture {
 
   // ┌─ _pendingAvailable ─────
   function _pendingAvailable(Sequence memory s) private view returns (uint256 actual) {
-    // Independently reconstruct prior liabilities from the two older batches.
+    // derive prior liabilities independently from the two older batches.
     uint256 priorShares;
     uint256 priorFractions;
     for (uint256 i; i < 2; ++i) {

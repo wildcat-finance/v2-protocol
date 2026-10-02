@@ -28,7 +28,7 @@ import './libraries/LibERC20.sol';
 // ┌─ WildcatSanctionsEscrow ───────────────────────────────────────────────────
 /// @title Wildcat sanctions escrow
 ///
-/// @notice holds one asset for a sanctioned account until its borrower-scoped status clears.
+/// @notice hold one asset for a sanctioned account until its borrower-scoped status clears.
 ///
 /// @dev configuration comes from the deploying sentinel's temporary parameters. the escrow keeps
 ///      the original borrower namespace even if a market later changes borrower.

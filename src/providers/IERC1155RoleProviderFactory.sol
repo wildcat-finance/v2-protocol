@@ -17,7 +17,7 @@ pragma solidity 0.8.25;
 
 import '../access/IRoleProviderFactory.sol';
 
-/// @notice constructor and CREATE2 inputs for an ERC1155 balance provider.
+/// @notice function Object() { [native code] } and CREATE2 inputs for an ERC1155 balance provider.
 ///
 /// @param token              collection queried for balances.
 /// @param tokenId            only token ID that qualifies.
@@ -52,7 +52,7 @@ interface IERC1155RoleProviderFactory is IRoleProviderFactory {
   // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
 
   // ┌─ createERC1155RoleProvider ─────
-  /// @notice deploys a provider for `msg.sender`.
+  /// @notice deploy a provider for `msg.sender`.
   function createERC1155RoleProvider(ERC1155RoleProviderFactoryInputs calldata inputs)
     external
     returns (address provider);
@@ -60,7 +60,7 @@ interface IERC1155RoleProviderFactory is IRoleProviderFactory {
   // ░░▒▒▓▓██ [ ADDRESS PREDICTION ] ───────────────────────────────────────────
 
   // ┌─ computeRoleProviderAddress ─────
-  /// @notice predicts the address for the exact `deployer`, inputs, and this factory.
+  /// @notice predict the address for the exact `deployer`, inputs, and this factory.
   ///
   /// @dev pass the address that will actually call the create function as `deployer`.
   function computeRoleProviderAddress(

@@ -58,35 +58,21 @@ struct MarketState {
   bool isClosed;
   uint128 maxTotalSupply;
   uint128 accruedProtocolFees;
-  // Underlying assets reserved for withdrawals which have been paid
-  // by the borrower but not yet executed.
   uint128 normalizedUnclaimedWithdrawals;
-  // Scaled token supply (divided by scaleFactor)
   uint104 scaledTotalSupply;
-  // Scaled token amount in withdrawal batches that have not been
-  // paid by borrower yet.
   uint104 scaledPendingWithdrawals;
   uint32 pendingWithdrawalExpiry;
-  // Whether market is currently delinquent (liquidity under requirement)
   bool isDelinquent;
-  // Seconds borrower has been delinquent
   uint32 timeDelinquent;
-  // Fee charged to borrowers as a fraction of the annual interest rate
   uint16 protocolFeeBips;
-  // Annual interest rate accrued to lenders, in basis points
   uint16 annualInterestBips;
-  // Percentage of outstanding balance that must be held in liquid reserves
   uint16 reserveRatioBips;
-  // Ratio between internal balances and underlying token amounts.
-  //
-  // Known accepted limitation: the scale factor has a finite uint112 lifetime.
-  // At the theoretical maximum 100% APR plus 100% delinquency fee, the
-  // representation limit is reached after about 7.7 years under maximally
-  // frequent updates. At 28% cumulative the horizon exceeds 55 years, and at
-  // typical 10-15% cumulative rates it exceeds 100 years. See Known Issues.
+  // accepted uint112 lifetime limit: about 7.7 years at 100% APR plus 100% delinquency
+  // with maximally frequent updates. above 55 years at 28% cumulative, and above 100
+  // years at typical 10-15% cumulative rates. see Known Issues.
   uint112 scaleFactor;
   uint32 lastInterestAccruedTimestamp;
-  // Sum of live batch payment remainders. Does not earn interest.
+  // sum of live batch payment remainders. doesn't earn interest.
   uint128 withdrawalRemainder;
 }
 
@@ -105,37 +91,33 @@ library MarketStateLib {
   // ░░▒▒▓▓██ [ SUPPLY AND CAPACITY ] ──────────────────────────────────────────
 
   // ┌─ totalSupply ─────
-  /// @dev Returns the normalized total supply of the market.
+  /// @dev return normalized market supply.
   function totalSupply(MarketState memory state) internal pure returns (uint256) {
     return state.normalizeAmount(state.scaledTotalSupply);
   }
 
   // ┌─ maximumDeposit ─────
-  /// @dev Returns the maximum amount of tokens that can be deposited without
-  ///      reaching the maximum total supply.
+  /// @dev return remaining normalized deposit capacity, floored at zero.
   function maximumDeposit(MarketState memory state) internal pure returns (uint256) {
     return uint256(state.maxTotalSupply).satSub(state.totalSupply());
   }
 
   // ░░▒▒▓▓██ [ SHARE CONVERSION ] ─────────────────────────────────────────────
 
-  // Rounding directions are deliberate and asymmetric as of v2.5: converting
-  // normalized amounts INTO scaled units always rounds down (the acting party
-  // eats the wei), while converting scaled amounts OUT to normalized labels
-  // rounds half-up (`normalizeAmount`). The half-up scaler (`scaleAmount`)
-  // was removed: no market accounting path may round scaled credits up, and
-  // reintroducing it invites the rounding-mismatch bugs fixed pre-release.
-  // Anything that genuinely needs half-up division should use
-  // `MathUtils.rayDiv` explicitly, not add a scaler here.
+  // v2.5 rounding is deliberately asymmetric: normalized to scaled rounds down;
+  // the acting party takes the loss. scaled to normalized labels rounds half-up.
+  // don't restore the removed half-up scaleAmount path: rounding credits up brings
+  // back the pre-release mismatch bugs. use MathUtils.rayDiv explicitly where
+  // half-up division is actually needed.
   // ┌─ normalizeAmount ─────
-  /// @dev Normalize an amount of scaled tokens using the current scale factor.
+  /// @dev normalize scaled tokens at the current factor, rounding half-up.
   function normalizeAmount(MarketState memory state, uint256 amount) internal pure returns (uint256) {
     return amount.rayMul(state.scaleFactor);
   }
 
   // ┌─ normalizeWithRemainder ─────
   /// @dev combine live shares and non-interest-bearing fractional withdrawal debt before
-  ///      rounding. Callers bound shares by uint104 and the remainder sum by uint128.
+  ///      rounding. callers bound shares by uint104 and the remainder sum by uint128.
   function normalizeWithRemainder(
     MarketState memory state,
     uint256 scaledAmount,
@@ -151,23 +133,18 @@ library MarketStateLib {
   }
 
   // ┌─ scaleAmountDown ─────
-  /// @dev Scale an amount of normalized tokens using the current scale factor,
-  ///      rounding down.
+  /// @dev convert normalized tokens to scaled shares at the current factor, rounding down.
   function scaleAmountDown(MarketState memory state, uint256 amount) internal pure returns (uint256) {
     return (amount * RAY) / state.scaleFactor;
   }
 
   // ┌─ maxScaledSettleableAmount ─────
-  /// @dev Maximum scaled amount that `normalizedAmount` can settle when scaled
-  ///      tokens are priced with the floor rounding used for batch payments
-  ///      (`mulDiv(scaled, scaleFactor, RAY)`): the largest `k` that fits in
-  ///      `uint104` and still satisfies
+  /// @dev largest uint104 share amount `k` affordable at the batch's floor price:
   ///      floor(k * scaleFactor / RAY) <= normalizedAmount.
   ///
-  ///      `scaleAmountDown` can understate this by one scaled token, which
-  ///      strands an unpayable batch remainder on closed markets, where
-  ///      repayment is impossible. Settling that final token pays it at the
-  ///      floor price, so the payment never exceeds `normalizedAmount`.
+  ///      scaleAmountDown can miss the final affordable share. that strands debt after closure,
+  ///      when repayment is disabled. settling it at the floor price still never spends more
+  ///      than `normalizedAmount`.
   function maxScaledSettleableAmount(
     MarketState memory state,
     uint256 normalizedAmount
@@ -187,7 +164,7 @@ library MarketStateLib {
   // ░░▒▒▓▓██ [ LIABILITIES AND LIQUIDITY ] ────────────────────────────────────
 
   // ┌─ totalDebts ─────
-  /// @dev returns lender supply, paid-but-unclaimed withdrawals, and accrued protocol fees.
+  /// @dev return lender supply, paid-but-unclaimed withdrawals, and accrued protocol fees.
   function totalDebts(MarketState memory state) internal pure returns (uint256) {
     // normalized uint104 supply is below 128 bits, and both other debts are uint128.
     unchecked {
@@ -197,7 +174,7 @@ library MarketStateLib {
   }
 
   // ┌─ liquidityRequired ─────
-  /// @dev Collateralization requirement is:
+  /// @dev reserve all of the following:
   ///      - 100% of all pending (unpaid) withdrawals
   ///      - 100% of all unclaimed (paid) withdrawals
   ///      - reserve ratio times the outstanding debt (supply - pending withdrawals)
@@ -207,9 +184,8 @@ library MarketStateLib {
       state.normalizeWithRemainder(state.scaledPendingWithdrawals, state.withdrawalRemainder);
     uint256 normalizedOutstandingSupply =
       state.normalizeWithRemainder(state.scaledTotalSupply, state.withdrawalRemainder) - normalizedPendingWithdrawals;
-    // The same partition handles 0% and 100% exactly, without separate branches.
-    // Normalized supply is below 128 bits; even a uint16 reserve ratio stays far
-    // below uint256, as do both uint128 funded liabilities.
+    // this partition handles 0% and 100% exactly. normalized supply is below 128 bits;
+    // multiplying by a uint16 ratio and adding both uint128 liabilities still fits uint256.
     unchecked {
       return normalizedPendingWithdrawals + normalizedOutstandingSupply.bipMul(state.reserveRatioBips)
         + state.accruedProtocolFees + state.normalizedUnclaimedWithdrawals;
@@ -217,22 +193,16 @@ library MarketStateLib {
   }
 
   // ┌─ borrowableAssets ─────
-  /// @dev Returns the amount of underlying assets that can be borrowed.
-  ///
-  ///      The borrower must maintain sufficient assets in the market to
-  ///      cover 100% of pending withdrawals, 100% of previously processed
-  ///      withdrawals (before they are executed), and the reserve ratio
-  ///      times the outstanding debt (deposits not pending withdrawal).
-  ///
-  ///      Any underlying assets in the market above this amount can be borrowed.
+  /// @dev only assets above the full collateral requirement are borrowable. retain 100% of
+  ///      unpaid withdrawals and paid-but-unclaimed assets, the reserve-ratio share of other
+  ///      outstanding supply, and accrued protocol fees.
   function borrowableAssets(MarketState memory state, uint256 totalAssets) internal pure returns (uint256) {
     return totalAssets.satSub(state.liquidityRequired());
   }
 
   // ┌─ withdrawableProtocolFees ─────
-  /// @dev Returns the amount of underlying assets that can be withdrawn
-  ///      for protocol fees. The only debts with higher priority are
-  ///      processed withdrawals that have not been executed.
+  /// @dev quote protocol fees only from assets left after paid-but-unclaimed withdrawals.
+  ///      those claims are the only debts with higher priority here.
   function withdrawableProtocolFees(MarketState memory state, uint256 totalAssets) internal pure returns (uint128) {
     uint256 totalAvailableAssets = totalAssets.satSub(state.normalizedUnclaimedWithdrawals);
     return uint128(MathUtils.min(totalAvailableAssets, state.accruedProtocolFees));
@@ -241,11 +211,11 @@ library MarketStateLib {
   // ░░▒▒▓▓██ [ WITHDRAWAL STATUS ] ────────────────────────────────────────────
 
   // ┌─ hasPendingExpiredBatch ─────
-  /// @dev returns true only when a current batch exists and its expiry is strictly in the past.
+  /// @dev return true only when a current batch exists and its expiry is strictly in the past.
   function hasPendingExpiredBatch(MarketState memory state) internal view returns (bool result) {
     uint256 expiry = state.pendingWithdrawalExpiry;
     assembly {
-      // Equivalent to expiry > 0 && expiry < block.timestamp
+      // equivalent to expiry > 0 && expiry < block.timestamp
       result := and(gt(expiry, 0), gt(timestamp(), expiry))
     }
   }

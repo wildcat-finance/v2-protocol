@@ -55,8 +55,8 @@ abstract contract MarketMatrixFixture is MarketFixture {
 
   // ┌─ _deployMatrix ─────
   function _deployMatrix(address[] memory actors) internal returns (MatrixDeployment memory matrix) {
-    // Keep the arrays in one memory bundle. Besides making the matrix shape
-    // explicit, this lets Forge's accurate non-IR coverage compiler lower setup.
+    // one memory bundle keeps the matrix shape explicit and lets the non-IR coverage
+    // compiler lower setup without exhausting the stack.
     matrix.markets = new address[](MatrixSize);
     matrix.assets = new address[](MatrixSize);
     matrix.sentinels = new address[](MatrixSize);

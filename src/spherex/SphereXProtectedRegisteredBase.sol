@@ -43,27 +43,21 @@ import './SphereXProtectedEvents.sol';
 import './SphereXProtectedErrors.sol';
 
 // ┌─ SphereXProtectedRegisteredBase ───────────────────────────────────────────
-/// @title Modified version of SphereXProtectedBase for contracts registered
-///        on Wildcat's arch controller.
+/// @title SphereXProtectedBase adapted for Wildcat-registered contracts
 ///
 /// @author Modified from https://github.com/spherex-xyz/spherex-protect-contracts/blob/main/src/SphereXProtectedBase.sol
 ///
-/// @dev In this version, the WildcatArchController deployment is the SphereX operator.
-///      There is no admin because the arch controller address can not be modified.
-///
-///      All admin functions/events/errors have been removed to reduce contract size.
-///
-///      SphereX engine address validation is delegated to the arch controller.
+/// @dev the immutable WildcatArchController is the operator and validates engine addresses.
+///      there is no admin or operator-transfer path. admin functions, events, and errors were
+///      removed to reduce contract size.
 abstract contract SphereXProtectedRegisteredBase {
   // ░░▒▒▓▓██ [ CONFIGURATION ] ────────────────────────────────────────────────
 
-  /// @dev Storage slot with the address of the SphereX engine contract.
+  /// @dev storage slot for the SphereX engine address.
   bytes32 private constant SPHEREX_ENGINE_STORAGE_SLOT =
     bytes32(uint256(keccak256('eip1967.spherex.spherex_engine')) - 1);
 
-  /// @dev Address of the WildcatArchController deployment.
-  ///      The arch controller is able to set the SphereX engine address.
-  ///      The inheriting contract must assign this in the constructor.
+  /// @dev immutable operator allowed to change the engine. the inheriting constructor must set it.
   address internal immutable _archController;
 
   // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
@@ -82,8 +76,7 @@ abstract contract SphereXProtectedRegisteredBase {
   // ░░▒▒▓▓██ [ SETUP ] ────────────────────────────────────────────────────────
 
   // ┌─ __SphereXProtectedRegisteredBase_init ─────
-  /// @dev Initializes the SphereXEngine and emits events for the initial
-  ///      engine and operator (arch controller).
+  /// @dev initialize the engine and emit the initial engine/operator configuration.
   function __SphereXProtectedRegisteredBase_init(address engine) internal virtual {
     emit_ChangedSpherexOperator(address(0), _archController);
     _setAddress(SPHEREX_ENGINE_STORAGE_SLOT, engine);
@@ -101,7 +94,7 @@ abstract contract SphereXProtectedRegisteredBase {
   }
 
   // ┌─ changeSphereXEngine ─────
-  /// @notice replaces the SphereX engine, or disables protection when set to zero.
+  /// @notice replace the SphereX engine, or disable protection when set to zero.
   ///
   /// @dev only the immutable ArchController can call this. it validates the engine before
   ///      forwarding the update, so this size-reduced base does not validate it again.
@@ -112,13 +105,13 @@ abstract contract SphereXProtectedRegisteredBase {
   }
 
   // ┌─ sphereXOperator ─────
-  /// @notice returns the immutable ArchController operator.
+  /// @notice return the immutable ArchController operator.
   function sphereXOperator() public view returns (address) {
     return _archController;
   }
 
   // ┌─ sphereXEngine ─────
-  /// @notice returns the active engine, or zero when protection is disabled.
+  /// @notice return the active engine, or zero when protection is disabled.
   function sphereXEngine() public view returns (address) {
     return _getAddress(SPHEREX_ENGINE_STORAGE_SLOT);
   }
@@ -126,7 +119,7 @@ abstract contract SphereXProtectedRegisteredBase {
   // ░░▒▒▓▓██ [ PROTECTED CALL FLOW ] ──────────────────────────────────────────
 
   // ┌─ sphereXGuardExternal ─────
-  /// @dev Modifier to be incorporated in all external protected non-view functions
+  /// @dev wrap protected external non-view calls with engine validation.
   modifier sphereXGuardExternal() {
     uint256 localsPointer = _sphereXValidateExternalPre();
     _;
@@ -134,15 +127,9 @@ abstract contract SphereXProtectedRegisteredBase {
   }
 
   // ┌─ _sphereXValidateExternalPre ─────
-  /// @dev Wrapper for `_getStorageSlotsAndPreparePostCalldata` that returns
-  ///      a `uint256` pointer to `locals` rather than the struct itself.
-  ///
-  ///      Declaring a return parameter for a struct will always zero and
-  ///      allocate memory for every field in the struct. If the parameter
-  ///      is always reassigned, the gas and memory used on this are wasted.
-  ///
-  ///      Using a `uint256` pointer instead of a struct declaration avoids
-  ///      this waste while being functionally identical.
+  /// @dev return `_getStorageSlotsAndPreparePostCalldata`'s locals as a uint256 pointer.
+  ///      a named struct return would allocate and zero fields before replacing the pointer.
+  ///      the cast reuses the same struct without that redundant allocation.
   function _sphereXValidateExternalPre() internal returns (uint256 localsPointer) {
     return _castFunctionToPointerOutput(_getStorageSlotsAndPreparePostCalldata)(_getSelector());
   }
@@ -158,32 +145,24 @@ abstract contract SphereXProtectedRegisteredBase {
   }
 
   // ┌─ _getStorageSlotsAndPreparePostCalldata ─────
-  /// @dev Internal function for engine communication. We use it to reduce contract size.
-  ///      Should be called before the code of an external function.
+  /// @dev run before the protected external body. sharing engine communication reduces code size.
+  ///      sphereXValidatePre chooses `locals.storageSlots`; snapshot them into `locals.valuesBefore`.
+  ///      allocate and prepare the post-call buffer now, leaving gas and valuesAfter for post-validation.
   ///
-  ///      Queries `storageSlots` from `sphereXValidatePre` on the engine and writes
-  ///      the result to `locals.storageSlots`, then caches the current storage values
-  ///      for those slots in `locals.valuesBefore`.
-  ///
-  ///      Also allocates memory for the calldata of the future call to `sphereXValidatePost`
-  ///      and initializes every value in the calldata except for `gas` and `valuesAfter` data.
-  ///
-  /// @param num function identifier
+  /// @param num function identifier.
   function _getStorageSlotsAndPreparePostCalldata(int256 num)
     internal
     returnsIfNotActivatedPre(locals)
     returns (ModifierLocals memory locals)
   {
     assembly {
-      // Read engine from `locals.engine` - this is filled by `returnsIfNotActivatedPre`
+      // returnsIfNotActivatedPre already resolved locals.engine.
       let engineAddress := mload(add(locals, 0x60))
 
-      // Get free memory pointer - this will be used for the calldata
-      // to `sphereXValidatePre` and then reused for both `storageSlots`
-      // and the future calldata to `sphereXValidatePost`
+      // reuse the pre-call buffer for storageSlots and the later post-call calldata.
       let pointer := mload(0x40)
 
-      // Call `sphereXValidatePre(num, msg.sender, msg.data)`
+      // sphereXValidatePre(num, msg.sender, msg.data)
       mstore(pointer, 0x8925ca5a)
       mstore(add(pointer, 0x20), num)
       mstore(add(pointer, 0x40), caller())
@@ -198,64 +177,54 @@ abstract contract SphereXProtectedRegisteredBase {
       }
       let length := mload(0x20)
 
-      // Set up the memory after the allocation `locals` struct as:
+      // memory after the locals allocation:
       // [0x00:0x20]: `storageSlots.length`
       // [0x20:0x20+(length * 0x20)]: `storageSlots` data
       // [0x20+(length*0x20):]: calldata for `sphereXValidatePost`
 
-      // The layout for the `sphereXValidatePost` calldata is:
+      // sphereXValidatePost arguments, excluding the selector:
       // [0x00:0x20]: num
       // [0x20:0x40]: gas
       // [0x40:0x60]: valuesBefore offset (0x80)
       // [0x60:0x80]: valuesAfter offset (0xa0 + (0x20 * length))
-      // [0x80:0xa0]: valuesBefore length (0xa0 + (0x20 * length))
+      // [0x80:0xa0]: valuesBefore length
       // [0xa0:0xa0+(0x20*length)]: valuesBefore data
       // [0xa0+(0x20*length):0xc0+(0x20*length)] valuesAfter length
       // [0xc0+(0x20*length):0xc0+(0x40*length)]: valuesAfter data
       //
-      // size of calldata: 0xc0 + (0x40 * length)
+      // argument size: 0xc0 + (0x40 * length); calldata adds a four-byte selector.
       //
       // size of allocation: 0xe0 + (0x60 * length)
 
-      // Calculate size of array data (excluding length): 32 * length
       let arrayDataSize := shl(5, length)
 
-      // Finalize memory allocation with space for `storageSlots` and
-      // the calldata for `sphereXValidatePost`.
+      // reserve storageSlots plus the post-call argument buffer.
       mstore(0x40, add(pointer, add(0xe0, mul(arrayDataSize, 3))))
 
-      // Copy `storageSlots` from returndata to the start of the allocated
-      // memory buffer and write the pointer to `locals.storageSlots`
+      // retain the engine's slot list at the start of the allocation.
       returndatacopy(pointer, 0x20, add(arrayDataSize, 0x20))
       mstore(locals, pointer)
 
-      // Get pointer to future calldata.
-      // Add `32 + arrayDataSize` to skip the allocation for `locals.storageSlots`
-      // @todo *could* put `valuesBefore` before `storageSlots` and reuse
-      // the `storageSlots` buffer for `valuesAfter`
+      // post-call arguments start after the storageSlots array.
+      // @todo placing valuesBefore first could let valuesAfter reuse the storageSlots buffer.
       let calldataPointer := add(pointer, add(arrayDataSize, 0x20))
 
-      // Write `-num` to calldata
+      // post-validation uses the negated function identifier.
       mstore(calldataPointer, sub(0, num))
 
-      // Write `valuesBefore` offset to calldata
       mstore(add(calldataPointer, 0x40), 0x80)
 
-      // Write `locals.valuesBefore` pointer
       mstore(add(locals, 0x20), add(calldataPointer, 0x80))
 
-      // Write `valuesAfter` offset to calldata
       mstore(add(calldataPointer, 0x60), add(0xa0, arrayDataSize))
 
-      // Write `gasleft()` to `locals.gas`
       mstore(add(locals, 0x40), gas())
     }
     _readStorageTo(locals.storageSlots, locals.valuesBefore);
   }
 
   // ┌─ _sphereXValidateExternalPost ─────
-  /// @dev Wrapper for `_callSphereXValidatePost` that takes a pointer
-  ///      instead of a struct.
+  /// @dev pass the existing locals pointer to `_callSphereXValidatePost` without a struct copy.
   function _sphereXValidateExternalPost(uint256 locals) internal {
     _castFunctionToPointerInput(_callSphereXValidatePost)(locals);
   }
@@ -302,7 +271,7 @@ abstract contract SphereXProtectedRegisteredBase {
   // ░░▒▒▓▓██ [ STORAGE ACCESS ] ───────────────────────────────────────────────
 
   // ┌─ _setAddress ─────
-  /// @dev Stores an address in an arbitrary slot
+  /// @dev store an address in an arbitrary slot.
   function _setAddress(bytes32 slot, address newAddress) internal {
     assembly {
       sstore(slot, newAddress)
@@ -310,7 +279,7 @@ abstract contract SphereXProtectedRegisteredBase {
   }
 
   // ┌─ _getAddress ─────
-  /// @dev Returns an address from an arbitrary slot.
+  /// @dev read an address from an arbitrary slot.
   function _getAddress(bytes32 slot) internal view returns (address addr) {
     assembly {
       addr := sload(slot)
@@ -318,11 +287,10 @@ abstract contract SphereXProtectedRegisteredBase {
   }
 
   // ┌─ _readStorageTo ─────
-  /// @dev Internal function that reads values from given storage slots
-  ///      and writes them to a particular memory location.
+  /// @dev snapshot the requested storage slots into a preallocated memory array.
   ///
-  /// @param storageSlots array of storage slots to read
-  /// @param values       array of values to write values to
+  /// @param storageSlots storage slots to read, in output order.
+  /// @param values       destination with room for the length and every requested value.
   function _readStorageTo(bytes32[] memory storageSlots, bytes32[] memory values) internal view {
     assembly {
       let length := mload(storageSlots)
@@ -342,7 +310,7 @@ abstract contract SphereXProtectedRegisteredBase {
   // ░░▒▒▓▓██ [ CALL ADAPTERS ] ────────────────────────────────────────────────
 
   // ┌─ _getSelector ─────
-  /// @dev Returns the function selector from the current calldata.
+  /// @dev read the current call's four-byte selector.
   function _getSelector() internal pure returns (int256 selector) {
     assembly {
       selector := shr(224, calldataload(0))

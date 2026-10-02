@@ -19,16 +19,16 @@ pragma solidity 0.8.25;
 // ║  _registerRevolving(...)
 // ╚═════
 
-// Register both v2.5 hooks factories as ArchController controllers.
-// Superseded factories remain registered until the separate retirement
+// register both v2.5 hooks factories as ArchController controllers.
+// superseded factories remain registered until the separate retirement
 // ceremony runs after the new generation is accepted.
 //
-// Environment:
-// - Both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5) and
-//   ARCH_CONTROLLER. Script 05 must precede this script.
-// - Direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
+// environment:
+// - both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5) and
+//   ARCH_CONTROLLER. script 05 must precede this script.
+// - direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
 //   PVT_KEY_<NETWORK>.
-// - Plan: OWNER_MODE=plan, RPC_URL, and EXPECTED_EXECUTOR; no private key is required.
+// - plan: OWNER_MODE=plan, RPC_URL, and EXPECTED_EXECUTOR; no private key is required.
 
 import { IHooksFactory } from 'src/IHooksFactory.sol';
 import { IHooksFactoryRevolving } from 'src/IHooksFactoryRevolving.sol';

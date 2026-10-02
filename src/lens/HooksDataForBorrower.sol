@@ -30,12 +30,12 @@ struct HooksDataForBorrower {
 }
 
 // ┌─ HooksDataForBorrowerLib ──────────────────────────────────────────────────
-/// @notice builds one-factory hooks views for a borrower address.
+/// @notice build one-factory hooks views for a borrower address.
 library HooksDataForBorrowerLib {
   // ░░▒▒▓▓██ [ BORROWER HOOKS DATA ] ──────────────────────────────────────────
 
   // ┌─ fill ─────
-  /// @notice fills borrower status plus every template and borrower-indexed instance in `factory`.
+  /// @notice fill borrower status plus every template and borrower-indexed instance in `factory`.
   function fill(
     HooksDataForBorrower memory data,
     WildcatArchController archController,

@@ -29,10 +29,8 @@ import { RAY } from 'src/libraries/MathUtils.sol';
 import './wrappers/FeeMathExternal.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
-// Uses an external wrapper library to make forge coverage work for FeeMath.
-// Forge is currently incapable of mapping MemberAccess function calls with
-// expressions other than library identifiers (e.g. value.x() vs XLib.x(value))
-// to the correct FunctionDefinition nodes.
+// coverage workaround for FeeMath: the external wrapper uses library-qualified calls
+// (XLib.x(value)), so the mapper sees the library identifier instead of value.x().
 // ┌─ FeeMathTest ──────────────────────────────────────────────────────────────
 contract FeeMathTest is TestKernel {
   using MathUtils for uint256;
@@ -180,8 +178,8 @@ contract FeeMathTest is TestKernel {
   // ┌─ test_updateScaleFactorAndFees_AcceptedUint112LimitReverts ─────
   function test_updateScaleFactorAndFees_AcceptedUint112LimitReverts() external {
     MarketState memory state;
-    // Exact last-safe value after 2,829 daily updates at 100% APR plus a
-    // 100% delinquency fee. The next daily update exceeds uint112.
+    // last safe value after 2,829 daily updates at 100% APR plus a 100% delinquency fee.
+    // the next daily update exceeds uint112.
     state.scaleFactor = 5_173_473_415_954_182_535_546_019_067_317_983;
     state.annualInterestBips = 10_000;
     state.lastInterestAccruedTimestamp = 1;
@@ -253,18 +251,17 @@ contract FeeMathTest is TestKernel {
     (state, timeWithPenalty) = state.$updateTimeDelinquentAndGetPenaltyTime(delinquencyGracePeriod, timeDelta);
     if (isCurrentlyDelinquent) {
       if (previousTimeDelinquent >= delinquencyGracePeriod) {
-        // If already past grace period, full delta incurs penalty
+        // already past grace: the full interval incurs a penalty.
         assertEq(timeWithPenalty, timeDelta, 'should be full delta when past grace period');
       } else if (previousTimeDelinquent + timeDelta >= delinquencyGracePeriod) {
-        // If delta crosses the grace period, only the portion after it incurs
-        // a penalty.
+        // crossing grace charges only the time after the boundary.
         assertEq(
           timeWithPenalty,
           (previousTimeDelinquent + timeDelta) - delinquencyGracePeriod,
           'incorrect partial delta when crossing grace period'
         );
       } else {
-        // If delta does not cross grace period, no penalty
+        // no grace crossing, no penalty.
         assertEq(timeWithPenalty, 0, 'should be no penalty when not past grace period');
       }
       assertEq(state.timeDelinquent, previousTimeDelinquent + timeDelta, 'incorrect timeDelinquent');
@@ -272,11 +269,10 @@ contract FeeMathTest is TestKernel {
       if (previousTimeDelinquent >= delinquencyGracePeriod) {
         uint32 timeLeftWithPenalty = previousTimeDelinquent - delinquencyGracePeriod;
         if (timeLeftWithPenalty >= timeDelta) {
-          // If time left with penalty is greater than delta, full delta incurs penalty
+          // the timer stays above grace for the full interval.
           assertEq(timeWithPenalty, timeDelta, 'should be full delta when time left with penalty is >= delta');
         } else {
-          // If the penalty time is shorter than the delta, only that portion
-          // incurs a penalty.
+          // charge only until the timer decays to grace.
           assertEq(
             timeWithPenalty,
             timeLeftWithPenalty,
@@ -284,7 +280,7 @@ contract FeeMathTest is TestKernel {
           );
         }
       } else {
-        // If not past grace period, no penalty
+        // at or below grace, no penalty.
         assertEq(timeWithPenalty, 0, 'should be no penalty when not past grace period');
       }
 
@@ -300,49 +296,49 @@ contract FeeMathTest is TestKernel {
   function testUpdateTimeDelinquentAndGetPenaltyTime() external pure {
     MarketState memory state;
     uint256 timeWithPenalty;
-    // Within grace period, no penalty
+    // within grace period, no penalty.
     state.timeDelinquent = 50;
     state.isDelinquent = true;
     (state, timeWithPenalty) = state.$updateTimeDelinquentAndGetPenaltyTime(100, 25);
     assertEq(timeWithPenalty, 0);
     assertEq(state.timeDelinquent, 75);
 
-    // Reach grace period cutoff, no penalty
+    // reach grace period cutoff, no penalty.
     state.timeDelinquent = 50;
     state.isDelinquent = true;
     (state, timeWithPenalty) = state.$updateTimeDelinquentAndGetPenaltyTime(100, 50);
     assertEq(timeWithPenalty, 0);
     assertEq(state.timeDelinquent, 100);
 
-    // Cross over grace period, penalty on delta after crossing
+    // cross over grace period, penalty on delta after crossing.
     state.timeDelinquent = 99;
     state.isDelinquent = true;
     (state, timeWithPenalty) = state.$updateTimeDelinquentAndGetPenaltyTime(100, 100);
     assertEq(timeWithPenalty, 99);
     assertEq(state.timeDelinquent, 199);
 
-    // At grace period cutoff, penalty on full delta
+    // at grace period cutoff, penalty on full delta.
     state.timeDelinquent = 100;
     state.isDelinquent = true;
     (state, timeWithPenalty) = state.$updateTimeDelinquentAndGetPenaltyTime(100, 100);
     assertEq(timeWithPenalty, 100);
     assertEq(state.timeDelinquent, 200);
 
-    // Past grace period cutoff, penalty on full delta
+    // past grace period cutoff, penalty on full delta.
     state.timeDelinquent = 101;
     state.isDelinquent = true;
     (state, timeWithPenalty) = state.$updateTimeDelinquentAndGetPenaltyTime(100, 100);
     assertEq(timeWithPenalty, 100);
     assertEq(state.timeDelinquent, 201);
 
-    // Cross under grace period, penalty on delta before crossing
+    // cross under grace period, penalty on delta before crossing.
     state.timeDelinquent = 100;
     state.isDelinquent = false;
     (state, timeWithPenalty) = state.$updateTimeDelinquentAndGetPenaltyTime(99, 100);
     assertEq(timeWithPenalty, 1);
     assertEq(state.timeDelinquent, 0);
 
-    // Reach grace period cutoff, no penalty
+    // reach grace period cutoff, no penalty.
     state.timeDelinquent = 50;
     state.isDelinquent = false;
     (state, timeWithPenalty) = state.$updateTimeDelinquentAndGetPenaltyTime(100, 50);

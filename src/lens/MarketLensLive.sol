@@ -24,7 +24,7 @@ import './interfaces/IMarketLensLive.sol';
 // ┌─ MarketLensLive ───────────────────────────────────────────────────────────
 /// @title compact live market lens helper
 ///
-/// @notice returns accrued accounting state without building the full hooks and configuration
+/// @notice return accrued accounting state without building the full hooks and configuration
 ///         tuple.
 contract MarketLensLive is IMarketLensLive {
   /// @notice ArchController configured for this helper.

@@ -90,15 +90,15 @@ contract DeployV2 is Script {
 
     // addSphereXPatterns(deployments);
 
-    // Deployments for whole protocol
+    // protocol deployments
     address archController = deployments.get('WildcatArchController');
 
-    // Hooks Factory
+    // hooks factory
 
     (address hooksFactory, bool didDeployHooksFactory) =
       _setUpHooksFactory(deployments, WildcatArchController(archController));
 
-    // Lens
+    // lens
     deployments.getOrDeploy(
       'MarketLens',
       _getCreationCode(deployments, 'MarketLens'),
@@ -106,7 +106,7 @@ contract DeployV2 is Script {
       didDeployHooksFactory
     );
 
-    // Validate Deployments
+    // deployment validation
 
     HooksFactory factory = HooksFactory(hooksFactory);
     assertEq(factory.getHooksTemplatesCount(), 2, 'Wrong # of templates');
@@ -121,20 +121,10 @@ contract DeployV2 is Script {
   // ░░▒▒▓▓██ [ FACTORY PREPARATION ] ──────────────────────────────────────────
 
   // ┌─ _setUpHooksFactory ─────
-  /// @dev Initializes the hooks factory, and registers the initial two templates.
-  ///      Intended to gracefully resume a deployment if it was interrupted, or if one of
-  ///      the transactions failed for some reason.
-  ///
-  ///      Steps:
-  ///      - Registers the hooks factory as a controller factory and initializes
-  ///        it with the arch controller, if either has not been done.
-  ///      - Deploys the OpenTermHooks template if it does not exist.
-  ///      - Deploys the FixedTermHooks template if it does not exist.
-  ///      - Registers the templates with the hooks factory if they're not already registered.
-  ///
-  ///      Requirements:
-  ///      - The arch controller must be deployed.
-  ///      - The caller must be the owner of the arch controller.
+  /// @dev resume factory setup after an interruption or failed transaction; completed steps are skipped.
+  ///      register the factory, initialize it with the ArchController, then deploy and register
+  ///      OpenTermHooks and FixedTermHooks. the ArchController must already exist and the caller
+  ///      must own it.
   function _setUpHooksFactory(
     Deployments memory deployments,
     WildcatArchController archController

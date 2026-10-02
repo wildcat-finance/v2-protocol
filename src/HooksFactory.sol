@@ -119,7 +119,7 @@ struct DeployMarketRuntimeParameters {
 // ┌─ HooksFactory ─────────────────────────────────────────────────────────────
 /// @title Wildcat hooks factory
 ///
-/// @notice manages hooks templates and instances, then deploys standard Wildcat markets with them.
+/// @notice manage hooks templates and instances, then deploy standard Wildcat markets with them.
 ///
 /// @dev market constructors read their parameters back from transient storage. templates hold
 ///      raw or compressed creation code, recovered before CREATE2 deployment.
@@ -149,27 +149,25 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   address[] internal _hooksTemplates;
 
-  /// @dev Hooks instances currently administered by each address.
+  /// @dev hooks instances currently administered by each address.
   mapping(address administrator => address[] hooksInstances) internal _hooksInstancesByAdministrator;
 
   /// @notice current administrator tracked for each hooks instance, or zero if unknown.
   mapping(address hooksInstance => address administrator) public override getHooksAdministrator;
 
-  /// @dev Position of each hooks instance in its administrator's array.
+  /// @dev position of each hooks instance in its administrator's array.
   mapping(address hooksInstance => uint256 index) internal _hooksInstanceIndex;
 
   /// @notice next CREATE2 deployment nonce for each hooks administrator.
   mapping(address administrator => uint256 nonce) public override getHooksInstanceDeploymentNonce;
 
-  /// @dev Mapping from hooks template to markets created with it.
-  ///      Used for pushing protocol fee changes to affected markets.
+  /// @dev markets grouped by template so fee changes can reach every affected market.
   mapping(address hooksTemplate => address[] markets) internal _marketsByHooksTemplate;
 
-  /// @dev Mapping from hooks instance to markets deployed using it.
-  ///      Intended primarily for off-chain queries.
+  /// @dev markets grouped by hooks instance, primarily for off-chain queries.
   mapping(address hooksInstance => address[] markets) internal _marketsByHooksInstance;
 
-  /// @dev Mapping from hooks template to its fee configuration and name
+  /// @dev fee configuration and name for each hooks template
   mapping(address hooksTemplate => HooksTemplate details) internal _templateDetails;
 
   mapping(address hooksInstance => address hooksTemplate) public override getHooksTemplateForInstance;
@@ -209,15 +207,12 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   }
 
   // ┌─ name ─────
-  /// @notice returns the stable factory name `WildcatHooksFactory`.
+  /// @notice return the stable factory name `WildcatHooksFactory`.
   function name() external pure override returns (string memory) {
-    // Use yul to avoid duplicate memory allocation and reduce code size
-    // Uses words at 0x20, 0x40, 0x60
-    // 0x20 is overwritten with the ABI offset (32)
-    // 0x40 contains the free pointer which will be 1 byte when this function executes.
-    // The length of the string (19) is written to the last byte of the free pointer word.
-    // 0x60 is the zero slot, so it will not have any dirty bits when this function executes.
-    // It is overwritten with the name bytes in the same operation as the length.
+    // return the ABI string directly to avoid a second allocation and reduce code size.
+    // 0x20 holds the offset. the one-byte free pointer at 0x40 becomes the length (19),
+    // and the clean zero slot at 0x60 becomes the string data. the first store writes
+    // the length and name together. this exits, so neither reserved word needs restoring.
     assembly {
       mstore(0x53, 0x1357696c64636174486f6f6b73466163746f7279)
       mstore(0x20, 0x20)
@@ -236,7 +231,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   }
 
   // ┌─ addHooksTemplate ─────
-  /// @dev Arch-controller-owner-only registration for a hooks template and fee config.
+  /// @dev ArchController-owner-only registration for a hooks template and fee config.
   ///      initCodeHash commits to the compiled template before constructor arguments.
   function addHooksTemplate(
     address hooksTemplate,
@@ -283,14 +278,12 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   }
 
   // ┌─ disableHooksTemplate ─────
-  /// @dev Arch-controller-owner-only disable for an existing hooks template.
-  ///      Reverts if the template does not exist.
+  /// @dev only the ArchController owner can disable a template. unknown templates revert.
   function disableHooksTemplate(address hooksTemplate) external override onlyArchControllerOwner {
     if (!_templateDetails[hooksTemplate].exists) {
       revert HooksTemplateNotFound();
     }
-    // The template is only disabled, not removed: `exists` stays true, so it
-    // can not be re-added and there is no re-enable path.
+    // disabling leaves `exists` set. the template can't be re-added or re-enabled.
     _templateDetails[hooksTemplate].enabled = false;
     emit HooksTemplateDisabled(hooksTemplate, msg.sender);
   }
@@ -383,14 +376,12 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     uint256 setProtocolFeeBipsCalldataPointer;
     uint16 protocolFeeBips = details.protocolFeeBips;
     assembly {
-      // Write the calldata for `market.setProtocolFeeBips(protocolFeeBips)`
-      // this will be reused for every market
+      // reuse one setProtocolFeeBips(uint16) calldata buffer for every market.
       setProtocolFeeBipsCalldataPointer := mload(0x40)
       mstore(0x40, add(setProtocolFeeBipsCalldataPointer, 0x40))
-      // Write selector for `setProtocolFeeBips(uint16)`
       mstore(setProtocolFeeBipsCalldataPointer, 0xae6ea191)
       mstore(add(setProtocolFeeBipsCalldataPointer, 0x20), protocolFeeBips)
-      // Add 28 bytes to get the exact pointer to the first byte of the selector
+      // skip the 28 leading bytes before the right-aligned selector.
       setProtocolFeeBipsCalldataPointer := add(setProtocolFeeBipsCalldataPointer, 0x1c)
     }
     for (uint256 i = 0; i < count; i++) {
@@ -407,7 +398,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
           success := call(gas(), market, 0, setProtocolFeeBipsCalldataPointer, 0x24, 0, 0)
         }
         if iszero(success) {
-          // Equivalent to `revert SetProtocolFeeBipsFailed()`
+          // equivalent to `revert SetProtocolFeeBipsFailed()`
           mstore(0, 0x4484a4a9)
           revert(0x1c, 0x04)
         }
@@ -458,10 +449,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   // ░░▒▒▓▓██ [ HOOKS DEPLOYMENT ] ─────────────────────────────────────────────
 
   // ┌─ deployHooksInstance ─────
-  /// @dev Deploy a hooks instance for an approved template with constructor args.
-  ///      Hooks are deployed and indexed under the caller's resolved principal.
-  ///      Origination fees are not charged here; they are paid when a market
-  ///      is deployed with the instance.
+  /// @dev deploy an approved template under the caller's resolved principal.
+  ///      origination fees apply when a market uses the instance, not when the instance is created.
   function deployHooksInstance(
     address hooksTemplate,
     bytes calldata constructorArgs
@@ -504,18 +493,13 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       let initCodePointer := add(initCode, 0x20)
       let initCodeSize := mload(initCode)
       let endInitCodePointer := add(initCodePointer, initCodeSize)
-      // Write the administrator as the first parameter
+      // append ABI-encoded (administrator, constructorArgs) after the initcode.
       mstore(endInitCodePointer, administrator)
-      // Write the offset to the encoded constructor args
       mstore(add(endInitCodePointer, 0x20), 0x40)
-      // Write the length of the encoded constructor args
       let constructorArgsSize := constructorArgs.length
       mstore(add(endInitCodePointer, 0x40), constructorArgsSize)
-      // Copy constructor args to initcode after the bytes length
       calldatacopy(add(endInitCodePointer, 0x60), constructorArgs.offset, constructorArgsSize)
-      // Get the full size of the initcode with the constructor args
       let initCodeSizeWithArgs := add(add(initCodeSize, 0x60), constructorArgsSize)
-      // Deploy the contract with the initcode
       hooksInstance := create2(0, initCodePointer, initCodeSizeWithArgs, salt)
       if iszero(hooksInstance) {
         mstore(0x00, 0x30116425) // DeploymentFailed()
@@ -737,7 +721,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       revert FeeMismatch();
     }
 
-    // Positive template fees require a token and recipient; zero fees need no token call.
+    // positive template fees need a token and recipient; zero fees need no token call.
     if (runtimeParams.originationFeeAmount != 0) {
       runtimeParams.originationFeeAsset
         .safeTransferFrom(msg.sender, templateDetails.feeRecipient, runtimeParams.originationFeeAmount);
@@ -802,22 +786,20 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   }
 
   // ┌─ _packString ─────
-  /// @dev Given a string of at most 63 bytes, produces a packed version with two words,
-  ///      where the first word contains the length byte and the first 31 bytes of the string,
-  ///      and the second word contains the second 32 bytes of the string.
+  /// @dev pack up to 63 bytes into two words. word 0 holds one length byte and 31 string bytes;
+  ///      word 1 holds the remaining 32 bytes. longer strings revert.
   function _packString(string memory str) internal pure returns (bytes32 word0, bytes32 word1) {
     assembly {
       let length := mload(str)
-      // Equivalent to:
+      // equivalent to:
       // if (str.length > 63) revert NameOrSymbolTooLong();
       if gt(length, 0x3f) {
         mstore(0, 0x19a65cb6)
         revert(0x1c, 0x04)
       }
-      // Load the length and first 31 bytes of the string into the first word
-      // by reading from 31 bytes after the length pointer.
+      // +31 keeps only the low length byte, followed by the first 31 string bytes.
       word0 := mload(add(str, 0x1f))
-      // If the string is less than 32 bytes, the second word will be zeroed out.
+      // short strings don't use word 1; discard whatever follows them in memory.
       word1 := mul(mload(add(str, 0x3f)), gt(mload(str), 0x1f))
     }
   }
@@ -906,13 +888,13 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   }
 
   // ┌─ _setTmpMarketParameters ─────
-  /// @dev Set the temporary market parameters in transient storage.
+  /// @dev store constructor parameters for the deployment callback.
   function _setTmpMarketParameters(TmpMarketParameterStorage memory parameters) internal {
     _tmpMarketParameters.write(abi.encode(parameters));
   }
 
   // ┌─ _getTmpMarketParameters ─────
-  /// @dev Get the temporary market parameters from transient storage.
+  /// @dev read constructor parameters from transient storage.
   function _getTmpMarketParameters() internal view returns (TmpMarketParameterStorage memory parameters) {
     return abi.decode(_tmpMarketParameters.read(), (TmpMarketParameterStorage));
   }

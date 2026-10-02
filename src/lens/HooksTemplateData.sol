@@ -60,7 +60,7 @@ library HooksTemplateDataLib {
   // ░░▒▒▓▓██ [ TEMPLATE AND FEE DATA ] ────────────────────────────────────────
 
   // ┌─ fill ─────
-  /// @notice fills template metadata and fee readiness for `borrower`.
+  /// @notice fill template metadata and fee readiness for `borrower`.
   ///
   /// @dev pass a zero borrower to skip balance and allowance reads.
   function fill(
@@ -88,7 +88,7 @@ library HooksTemplateDataLib {
   }
 
   // ┌─ fill ─────
-  /// @notice fills the fee tuple from an already-loaded template.
+  /// @notice fill the fee tuple from an already-loaded template.
   function fill(
     FeeConfiguration memory data,
     HooksTemplate memory template,

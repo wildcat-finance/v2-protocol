@@ -163,7 +163,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   // ░░▒▒▓▓██ [ SPHEREX ENGINE UPDATE ] ────────────────────────────────────────
 
   // ┌─ updateSphereXEngineOnRegisteredContracts ─────
-  /// @notice pushes the current SphereX engine to selected registered contracts.
+  /// @notice push the current SphereX engine to selected registered contracts.
   ///
   /// @dev only the SphereX operator or admin can call this. it also allows each selected contract
   ///      on the nonzero engine. every address must still be present in the matching registry, and
@@ -254,7 +254,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   // ░░▒▒▓▓██ [ BORROWERS ] ────────────────────────────────────────────────────
 
   // ┌─ registerBorrower ─────
-  /// @dev Owner-only borrower registration. Reverts if already registered.
+  /// @dev owner-only borrower registration. reverts if already registered.
   function registerBorrower(address borrower) external onlyOwner {
     if (!_borrowers.add(borrower)) {
       revert BorrowerAlreadyExists();
@@ -263,7 +263,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ removeBorrower ─────
-  /// @dev Owner-only borrower removal. Reverts if not registered.
+  /// @dev owner-only borrower removal. reverts if not registered.
   function removeBorrower(address borrower) external onlyOwner {
     if (!_borrowers.remove(borrower)) {
       revert BorrowerDoesNotExist();
@@ -272,22 +272,22 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ isRegisteredBorrower ─────
-  /// @notice says whether `borrower` is a currently registered principal.
+  /// @notice report whether `borrower` is a currently registered principal.
   function isRegisteredBorrower(address borrower) external view returns (bool) {
     return _borrowers.contains(borrower);
   }
 
   // ┌─ getRegisteredBorrowers ─────
-  /// @notice returns every registered borrower in unstable enumeration order.
+  /// @notice return every registered borrower in unstable enumeration order.
   function getRegisteredBorrowers() external view returns (address[] memory) {
     return _borrowers.values();
   }
 
   // ┌─ getRegisteredBorrowers ─────
-  /// @notice returns borrowers in `[start, min(end, count))` in unstable enumeration order.
+  /// @notice return borrowers in `[start, min(end, count))` in unstable enumeration order.
   function getRegisteredBorrowers(uint256 start, uint256 end) external view returns (address[] memory arr) {
     // CAF-13 known issue: malformed ranges can panic after `end` is clamped.
-    // The singleton keeps deployed behavior; new registries should reject
+    // the singleton keeps deployed behavior; new registries should reject
     // `start >= end` explicitly before subtracting.
     uint256 len = _borrowers.length();
     end = MathUtils.min(end, len);
@@ -299,7 +299,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ getRegisteredBorrowersCount ─────
-  /// @notice returns the current number of registered borrowers.
+  /// @notice return the current number of registered borrowers.
   function getRegisteredBorrowersCount() external view returns (uint256) {
     return _borrowers.length();
   }
@@ -307,7 +307,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   // ░░▒▒▓▓██ [ ASSET BLACKLIST ] ──────────────────────────────────────────────
 
   // ┌─ addBlacklist ─────
-  /// @dev Owner-only asset blacklist insertion. Reverts if already blacklisted.
+  /// @dev owner-only asset blacklist insertion. reverts if already blacklisted.
   function addBlacklist(address asset) external onlyOwner {
     if (!_assetBlacklist.add(asset)) {
       revert AssetAlreadyBlacklisted();
@@ -316,7 +316,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ removeBlacklist ─────
-  /// @dev Owner-only asset blacklist removal. Reverts if not blacklisted.
+  /// @dev owner-only asset blacklist removal. reverts if not blacklisted.
   function removeBlacklist(address asset) external onlyOwner {
     if (!_assetBlacklist.remove(asset)) {
       revert AssetNotBlacklisted();
@@ -325,19 +325,19 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ isBlacklistedAsset ─────
-  /// @notice says whether `asset` is currently blacklisted.
+  /// @notice report whether `asset` is currently blacklisted.
   function isBlacklistedAsset(address asset) external view returns (bool) {
     return _assetBlacklist.contains(asset);
   }
 
   // ┌─ getBlacklistedAssets ─────
-  /// @notice returns every blacklisted asset in unstable enumeration order.
+  /// @notice return every blacklisted asset in unstable enumeration order.
   function getBlacklistedAssets() external view returns (address[] memory) {
     return _assetBlacklist.values();
   }
 
   // ┌─ getBlacklistedAssets ─────
-  /// @notice returns assets in `[start, min(end, count))` in unstable enumeration order.
+  /// @notice return assets in `[start, min(end, count))` in unstable enumeration order.
   function getBlacklistedAssets(uint256 start, uint256 end) external view returns (address[] memory arr) {
     // CAF-13: keep singleton pagination behavior; see Known Issues.
     uint256 len = _assetBlacklist.length();
@@ -350,7 +350,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ getBlacklistedAssetsCount ─────
-  /// @notice returns the current number of blacklisted assets.
+  /// @notice return the current number of blacklisted assets.
   function getBlacklistedAssetsCount() external view returns (uint256) {
     return _assetBlacklist.length();
   }
@@ -358,10 +358,10 @@ contract WildcatArchController is SphereXConfig, Ownable {
   // ░░▒▒▓▓██ [ CONTROLLER FACTORIES ] ─────────────────────────────────────────
 
   // ┌─ registerControllerFactory ─────
-  /// @dev Owner-only controller factory registration. Reverts if already registered.
+  /// @dev owner-only controller factory registration. reverts if already registered.
   function registerControllerFactory(address factory) external onlyOwner {
     // CAF-16 known issue: the singleton does not validate that `factory` is a
-    // contract or reports this ArchController. Operators must validate before
+    // contract or reports this ArchController. operators must validate before
     // registration; new registry bytecode should enforce it.
     if (!_controllerFactories.add(factory)) {
       revert ControllerFactoryAlreadyExists();
@@ -371,7 +371,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ removeControllerFactory ─────
-  /// @dev Owner-only controller factory removal. Reverts if not registered.
+  /// @dev owner-only controller factory removal. reverts if not registered.
   function removeControllerFactory(address factory) external onlyOwner {
     if (!_controllerFactories.remove(factory)) {
       revert ControllerFactoryDoesNotExist();
@@ -380,19 +380,19 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ isRegisteredControllerFactory ─────
-  /// @notice says whether `factory` is currently registered.
+  /// @notice report whether `factory` is currently registered.
   function isRegisteredControllerFactory(address factory) external view returns (bool) {
     return _controllerFactories.contains(factory);
   }
 
   // ┌─ getRegisteredControllerFactories ─────
-  /// @notice returns every controller factory in unstable enumeration order.
+  /// @notice return every controller factory in unstable enumeration order.
   function getRegisteredControllerFactories() external view returns (address[] memory) {
     return _controllerFactories.values();
   }
 
   // ┌─ getRegisteredControllerFactories ─────
-  /// @notice returns factories in `[start, min(end, count))` in unstable enumeration order.
+  /// @notice return factories in `[start, min(end, count))` in unstable enumeration order.
   function getRegisteredControllerFactories(uint256 start, uint256 end) external view returns (address[] memory arr) {
     // CAF-13: keep singleton pagination behavior; see Known Issues.
     uint256 len = _controllerFactories.length();
@@ -405,7 +405,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ getRegisteredControllerFactoriesCount ─────
-  /// @notice returns the current number of registered controller factories.
+  /// @notice return the current number of registered controller factories.
   function getRegisteredControllerFactoriesCount() external view returns (uint256) {
     return _controllerFactories.length();
   }
@@ -421,10 +421,10 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ registerController ─────
-  /// @dev Registered-factory-only controller registration. Reverts if already registered.
+  /// @dev registered-factory-only controller registration. reverts if already registered.
   function registerController(address controller) external onlyControllerFactory {
     // CAF-16: registered controller addresses are trusted privileged input on
-    // the singleton. Validate offchain before registration.
+    // the singleton. validate off-chain before registration.
     if (!_controllers.add(controller)) {
       revert ControllerAlreadyExists();
     }
@@ -433,7 +433,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ removeController ─────
-  /// @dev Owner-only controller removal. Reverts if not registered.
+  /// @dev owner-only controller removal. reverts if not registered.
   function removeController(address controller) external onlyOwner {
     if (!_controllers.remove(controller)) {
       revert ControllerDoesNotExist();
@@ -442,19 +442,19 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ isRegisteredController ─────
-  /// @notice says whether `controller` is currently registered.
+  /// @notice report whether `controller` is currently registered.
   function isRegisteredController(address controller) external view returns (bool) {
     return _controllers.contains(controller);
   }
 
   // ┌─ getRegisteredControllers ─────
-  /// @notice returns every controller in unstable enumeration order.
+  /// @notice return every controller in unstable enumeration order.
   function getRegisteredControllers() external view returns (address[] memory) {
     return _controllers.values();
   }
 
   // ┌─ getRegisteredControllers ─────
-  /// @notice returns controllers in `[start, min(end, count))` in unstable enumeration order.
+  /// @notice return controllers in `[start, min(end, count))` in unstable enumeration order.
   function getRegisteredControllers(uint256 start, uint256 end) external view returns (address[] memory arr) {
     // CAF-13: keep singleton pagination behavior; see Known Issues.
     uint256 len = _controllers.length();
@@ -467,7 +467,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ getRegisteredControllersCount ─────
-  /// @notice returns the current number of registered controllers.
+  /// @notice return the current number of registered controllers.
   function getRegisteredControllersCount() external view returns (uint256) {
     return _controllers.length();
   }
@@ -483,10 +483,10 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ registerMarket ─────
-  /// @dev Registered-controller-only market registration. Reverts if already registered.
+  /// @dev registered-controller-only market registration. reverts if already registered.
   function registerMarket(address market) external onlyController {
     // CAF-16: the singleton does not validate market code, archController(),
-    // or factory(). Controllers must only register conforming markets.
+    // or factory(). controllers must only register conforming markets.
     if (!_markets.add(market)) {
       revert MarketAlreadyExists();
     }
@@ -495,7 +495,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ removeMarket ─────
-  /// @dev Owner-only market removal. Reverts if not registered.
+  /// @dev owner-only market removal. reverts if not registered.
   function removeMarket(address market) external onlyOwner {
     if (!_markets.remove(market)) {
       revert MarketDoesNotExist();
@@ -504,19 +504,19 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ isRegisteredMarket ─────
-  /// @notice says whether `market` is currently registered.
+  /// @notice report whether `market` is currently registered.
   function isRegisteredMarket(address market) external view returns (bool) {
     return _markets.contains(market);
   }
 
   // ┌─ getRegisteredMarkets ─────
-  /// @notice returns every registered market in unstable enumeration order.
+  /// @notice return every registered market in unstable enumeration order.
   function getRegisteredMarkets() external view returns (address[] memory) {
     return _markets.values();
   }
 
   // ┌─ getRegisteredMarkets ─────
-  /// @notice returns markets in `[start, min(end, count))` in unstable enumeration order.
+  /// @notice return markets in `[start, min(end, count))` in unstable enumeration order.
   function getRegisteredMarkets(uint256 start, uint256 end) external view returns (address[] memory arr) {
     // CAF-13: keep singleton pagination behavior; see Known Issues.
     uint256 len = _markets.length();
@@ -529,7 +529,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   // ┌─ getRegisteredMarketsCount ─────
-  /// @notice returns the current number of registered markets.
+  /// @notice return the current number of registered markets.
   function getRegisteredMarketsCount() external view returns (uint256) {
     return _markets.length();
   }

@@ -51,10 +51,8 @@ import { TestKernel } from '../shared/TestKernel.sol';
 bytes4 constant Panic_ErrorSelector = 0x4e487b71;
 uint256 constant Panic_Arithmetic = 0x11;
 
-// Uses an external wrapper library to make forge coverage work for SafeCastLib.
-// Forge is currently incapable of mapping MemberAccess function calls with
-// expressions other than library identifiers (e.g. value.x() vs XLib.x(value))
-// to the correct FunctionDefinition nodes.
+// coverage workaround for SafeCastLib: the external wrapper uses library-qualified calls
+// (XLib.x(value)), so the mapper sees the library identifier instead of value.x().
 // ┌─ SafeCastLibTest ──────────────────────────────────────────────────────────
 contract SafeCastLibTest is TestKernel {
   SafeCastLibExternal internal wrapper;

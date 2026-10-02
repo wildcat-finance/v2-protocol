@@ -49,29 +49,20 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   constructor() {
     uint16 commitmentFeeBips_;
     assembly {
-      // During construction, `caller()` is the factory that created this market.
-      // The factory keeps the commitment fee in transient deployment data long
-      // enough for the new market to read it here.
-      //
-      // This four-byte selector literal has 28 leading zero bytes in the word
-      // written by `mstore`. Starting at 0x1c skips that padding, so the call input
-      // is exactly `getRevolvingMarketCommitmentFeeBips()` with no arguments.
+      // the deploying factory keeps this fee in transient data until construction finishes.
+      // `caller()` is that factory. start at 0x1c to skip the selector word's 28 zero bytes;
+      // the four-byte input is `getRevolvingMarketCommitmentFeeBips()` with no arguments.
       mstore(0, 0x0e304343) // getRevolvingMarketCommitmentFeeBips()
 
-      // `staticcall(gas, target, inputOffset, inputSize, outputOffset, outputSize)`
-      // forwards the remaining gas, sends those four bytes to the factory, and
-      // copies the first return word back into scratch memory at 0x00.
+      // forward the remaining gas and copy the first return word to scratch memory at 0x00.
       if iszero(staticcall(gas(), caller(), 0x1c, 0x04, 0, 0x20)) {
-        // Preserve the factory's revert data instead of replacing a useful error
-        // with an empty one from the market constructor.
+        // keep the factory's error, not an empty constructor revert.
         returndatacopy(0, 0, returndatasize())
         revert(0, returndatasize())
       }
 
-      // A uint16 still comes back as one 32-byte ABI word. Fewer than 32 bytes
-      // cannot be decoded. Shifting the word right by 16 then checks that every
-      // bit above the low uint16 is zero, which prevents a dirty value from being
-      // silently truncated when it reaches the Solidity variable.
+      // uint16 still needs a full 32-byte ABI word. reject short returns and dirty upper bits;
+      // shifting by 16 must leave zero, not a value that Solidity would silently truncate.
       if or(lt(returndatasize(), 0x20), shr(16, mload(0))) {
         revert(0, 0)
       }
@@ -83,11 +74,9 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   // ░░▒▒▓▓██ [ PRINCIPAL ACCOUNTING ] ─────────────────────────────────────────
 
   // ┌─ _onBorrow ─────
-  /// @dev Increase drawn principal only when post-borrow outstanding debt
-  ///      exceeds the principal already drawn. This lets the borrower recover
-  ///      previously supplied liquidity without double-counting it as a new
-  ///      draw or reducing existing drawn principal.
-  ///      `totalAssets()` has not yet been reduced by the borrowed amount.
+  /// @dev increase drawn principal only where post-borrow debt exceeds the existing draw.
+  ///      recovering previously supplied liquidity isn't a new draw and can't reduce principal.
+  ///      `totalAssets()` still includes the amount about to leave.
   function _onBorrow(MarketState memory state, uint256 amount) internal virtual override {
     uint256 assetsAfterBorrow = totalAssets().satSub(amount);
     uint256 outstandingDebt = state.totalDebts().satSub(assetsAfterBorrow);
@@ -100,7 +89,7 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   }
 
   // ┌─ _onRepay ─────
-  /// @dev reconciles drawn principal after the repayment has reached the market.
+  /// @dev reconcile drawn principal after the repayment reaches the market.
   function _onRepay(MarketState memory state, uint256 amount) internal virtual override {
     _onRepayAndGetTotalAssets(state, amount);
   }
@@ -117,8 +106,8 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   {
     currentTotalAssets = totalAssets();
 
-    // Only the explicit repayment can reduce drawn principal. Existing assets
-    // may include raw donations, which add liquidity without repaying principal.
+    // only this explicit repayment reduces principal. existing assets may include donations;
+    // those add liquidity, not principal repayment.
     uint256 assetsBeforeRepayment = currentTotalAssets.satSub(amount);
     uint256 outstandingDebtBeforeRepayment = state.totalDebts().satSub(assetsBeforeRepayment);
     uint256 nonPrincipalDebt = outstandingDebtBeforeRepayment.satSub(_drawnAmount);
@@ -133,7 +122,7 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   }
 
   // ┌─ _setDrawnAmount ─────
-  /// @dev stores and emits only when the drawn amount actually changes.
+  /// @dev store and emit only when drawn principal changes.
   function _setDrawnAmount(uint256 newDrawnAmount) internal {
     uint256 previousDrawnAmount = _drawnAmount;
     if (previousDrawnAmount != newDrawnAmount) {
@@ -146,9 +135,7 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   /// @inheritdoc IWildcatMarketRevolving
   function drawnAmount() external view override returns (uint256) {
     assembly {
-      // `.slot` is Yul's handle for the storage slot Solidity assigned to the
-      // variable. `_drawnAmount` already fills one complete uint256 slot, so no
-      // masking or shifting is needed before returning it as one ABI word.
+      // `_drawnAmount.slot` holds a full uint256. return that ABI word without masking or shifting.
       mstore(0, sload(_drawnAmount.slot))
       return(0, 0x20)
     }
@@ -157,13 +144,12 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   // ░░▒▒▓▓██ [ INTEREST ] ─────────────────────────────────────────────────────
 
   // ┌─ _calculateBaseInterest ─────
-  /// @dev Base interest rate for a revolving market:
+  /// @dev revolving base rate:
   ///
   ///      commitmentFee + annualInterest * min(drawnAmount, totalSupply) / totalSupply
   ///
-  ///      Unlike the standard market, no interest accrues while the market is
-  ///      closed or has no supply, as the commitment fee would otherwise
-  ///      accrue with no lenders to owe it to.
+  ///      unlike the standard market, skip accrual when closed or supply is zero.
+  ///      otherwise the commitment fee would accrue with no lenders to receive it.
   function _calculateBaseInterest(
     MarketState memory state,
     uint256 timestamp
@@ -175,11 +161,10 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   {
     uint256 timeDelta;
     unchecked {
-      // Accrual timestamps only move forward.
+      // accrual timestamps only move forward.
       timeDelta = timestamp - state.lastInterestAccruedTimestamp;
 
-      // `scaledTotalSupply` is uint104, so the product cannot overflow within
-      // the market's finite timestamp horizon. It is only a compact zero check.
+      // uint104 supply times the finite timestamp delta fits uint256. this is only a zero check.
       if ((timeDelta * uint256(state.scaledTotalSupply) == 0).or(state.isClosed)) {
         return 0;
       }
@@ -198,8 +183,7 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
       uint256 totalSupply = state.totalSupply();
       uint256 drawnClamped = MathUtils.min(drawn, totalSupply);
 
-      // Both rates are bounded uint16 values, so their linear interest cannot
-      // approach uint256 over the market's finite timestamp horizon.
+      // both rates fit uint16; linear accrual over the finite timestamp horizon stays below uint256.
       baseInterestRay += MathUtils.mulDiv(annualInterestRay, drawnClamped, totalSupply);
     }
   }
@@ -209,8 +193,6 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   function commitmentFeeBips() external view override returns (uint256 value) {
     value = _commitmentFeeBips;
     assembly {
-      // A single uint256 return is just one ABI word. Put the Solidity value in
-      // scratch memory and return those 32 bytes directly.
       mstore(0, value)
       return(0, 0x20)
     }

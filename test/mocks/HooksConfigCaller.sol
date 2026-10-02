@@ -34,8 +34,8 @@ import { MarketState } from 'src/libraries/MarketState.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
 
 // ┌─ HooksConfigCaller ────────────────────────────────────────────────────────
-/// @dev Calls LibHooksConfig from normal ABI entry points. Tests append bytes
-///      after those arguments to model the market's hook extraData convention.
+/// @dev call LibHooksConfig through ordinary ABI entrypoints. tests append bytes after the
+///      arguments to match the market's raw extraData suffix.
 contract HooksConfigCaller {
   HooksConfig internal hooks;
   MarketState internal state;

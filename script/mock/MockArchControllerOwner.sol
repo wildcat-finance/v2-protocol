@@ -157,8 +157,8 @@ contract MockArchControllerOwner {
   }
 
   // ┌─ returnOwnership ─────
-  /// @dev lets an authorized executor take ownership back directly. mostly a
-  ///      recovery path, but the old scripts still use it too.
+  /// @dev let an authorized executor take ownership back directly. retained for recovery
+  ///      and legacy scripts.
   function returnOwnership() external onlyAuthorized {
     archController.transferOwnership(msg.sender);
   }
@@ -183,8 +183,7 @@ contract MockArchControllerOwner {
   // ░░▒▒▓▓██ [ PROTOCOL ACTIONS ] ─────────────────────────────────────────────
 
   // ┌─ executeProtocolAction ─────
-  /// @dev runs one reviewed owner action through the helper so we don't have to
-  ///      hand the ArchController to an EOA.
+  /// @dev run a reviewed owner action without handing ArchController ownership to an EOA.
   function executeProtocolAction(
     address target,
     bytes calldata data

@@ -31,7 +31,7 @@ contract ERC4626AssetsRoleProviderFactory is IERC4626AssetsRoleProviderFactory {
   // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
 
   // ┌─ createRoleProvider ─────
-  /// @notice decodes `ERC4626AssetsRoleProviderFactoryInputs` and deploys for `msg.sender`.
+  /// @notice decode `ERC4626AssetsRoleProviderFactoryInputs` and deploy for `msg.sender`.
   ///
   /// @dev when a hooks instance calls this entrypoint, that instance is the CREATE2 namespace.
   function createRoleProvider(bytes calldata data) external override returns (address provider) {
@@ -40,7 +40,7 @@ contract ERC4626AssetsRoleProviderFactory is IERC4626AssetsRoleProviderFactory {
   }
 
   // ┌─ createERC4626AssetsRoleProvider ─────
-  /// @notice deploys an ERC4626 provider in `msg.sender`'s CREATE2 namespace.
+  /// @notice deploy an ERC4626 provider in `msg.sender`'s CREATE2 namespace.
   function createERC4626AssetsRoleProvider(ERC4626AssetsRoleProviderFactoryInputs calldata inputs)
     external
     override
@@ -67,7 +67,7 @@ contract ERC4626AssetsRoleProviderFactory is IERC4626AssetsRoleProviderFactory {
   // ░░▒▒▓▓██ [ ADDRESS PREDICTION ] ───────────────────────────────────────────
 
   // ┌─ computeRoleProviderAddress ─────
-  /// @notice predicts the provider for the exact deployer, constructor inputs, and user salt.
+  /// @notice predict the provider for the exact deployer, constructor inputs, and user salt.
   function computeRoleProviderAddress(
     address deployer,
     ERC4626AssetsRoleProviderFactoryInputs calldata inputs

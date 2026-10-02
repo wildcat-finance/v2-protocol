@@ -23,7 +23,7 @@ using LibBit for uint256;
 // ░░▒▒▓▓██ [ STRING QUERIES ] ─────────────────────────────────────────────────
 
 // ┌─ queryStringOrBytes32AsString ─────
-/// @notice reads token metadata that may return either `string` or legacy `bytes32`.
+/// @notice read token metadata that may return either `string` or legacy `bytes32`.
 ///
 /// @dev bubbles target revert data when present. malformed successful returndata reverts with
 ///      `InvalidReturnDataString`; an empty target revert uses `leftPaddedGenericErrorSelector`.
@@ -79,7 +79,7 @@ function queryStringOrBytes32AsString(
       returndatacopy(0, 0, 0x40)
       let length := mload(0x20)
       // round the declared length up to an ABI word. wrapping below `length` means
-      // the addition overflowed, which is just malformed returndata with extra steps.
+      // the addition overflowed, so the returndata is malformed.
       let paddedLength := and(add(length, 0x1f), not(0x1f))
       // data has to start at 0x40 and fit inside returndata. extra trailing bytes are fine.
       if or(xor(mload(0), 0x20), or(lt(paddedLength, length), gt(paddedLength, sub(returnSize, 0x40)))) {
@@ -116,7 +116,7 @@ function queryStringOrBytes32AsStringOrEmpty(
   bytes32 legacyValue;
   assembly ('memory-safe') {
     mstore(0, leftPaddedFunctionSelector)
-    // No output buffer: a failed or oversized response is never copied into memory.
+    // no output buffer: failed or oversized responses never get copied into memory.
     let success := staticcall(50000, target, 0x1c, 4, 0, 0)
     let size := returndatasize()
     isBytes32 := eq(size, 0x20)
@@ -132,7 +132,7 @@ function queryStringOrBytes32AsStringOrEmpty(
           returndatacopy(0, 0, 0x40)
           let length := mload(0x20)
           let paddedLength := and(add(length, 0x1f), not(0x1f))
-          // The explicit 256-byte bound also rules out padded-length overflow.
+          // the explicit 256-byte bound also rules out padded-length overflow.
           if and(eq(mload(0), 0x20), and(lt(length, 0x101), iszero(gt(paddedLength, sub(size, 0x40))))) {
             str := mload(0x40)
             let allocSize := add(0x20, paddedLength)
@@ -151,7 +151,7 @@ function queryStringOrBytes32AsStringOrEmpty(
 // ░░▒▒▓▓██ [ LEGACY DECODING ] ────────────────────────────────────────────────
 
 // ┌─ bytes32ToString ─────
-/// @notice converts a left-aligned, null-padded `bytes32` string to dynamic form.
+/// @notice convert a left-aligned, null-padded `bytes32` string to dynamic form.
 ///
 /// @dev embedded nulls are preserved; only trailing zero bytes are removed.
 function bytes32ToString(bytes32 value) pure returns (string memory str) {

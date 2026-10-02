@@ -56,7 +56,7 @@ using LibRoleProvider for RoleProvider global;
 // ░░▒▒▓▓██ [ ENCODING ] ───────────────────────────────────────────────────────
 
 // ┌─ encodeRoleProvider ─────
-/// @notice packs provider metadata into a `RoleProvider` word.
+/// @notice pack provider metadata into a `RoleProvider` word.
 ///
 /// @param timeToLive        credential lifetime in seconds; expiry saturates at `type(uint32).max`.
 /// @param providerAddress   contract that grants or verifies the credential.
@@ -88,8 +88,7 @@ library LibRoleProvider {
   // ░░▒▒▓▓██ [ DECODING ] ─────────────────────────────────────────────────────
 
   // ┌─ decodeRoleProvider ─────
-  /// @dev Extract `timeToLive, providerAddress, pullProviderIndex, pushProviderIndex`
-  ///      from a RoleProvider
+  /// @dev unpack `timeToLive, providerAddress, pullProviderIndex, pushProviderIndex`.
   function decodeRoleProvider(RoleProvider provider)
     internal
     pure
@@ -106,9 +105,7 @@ library LibRoleProvider {
   // ░░▒▒▓▓██ [ PROVIDER ADDRESS ] ─────────────────────────────────────────────
 
   // ┌─ setProviderAddress ─────
-  /// @dev Returns new RoleProvider with `providerAddress` set to `_providerAddress`
-  ///
-  ///      Note: This function does not modify the original RoleProvider
+  /// @dev return a copy with `providerAddress` set to `_providerAddress`. the input stays unchanged.
   function setProviderAddress(
     RoleProvider provider,
     address _providerAddress
@@ -126,7 +123,7 @@ library LibRoleProvider {
   }
 
   // ┌─ providerAddress ─────
-  /// @dev Extract `providerAddress` from `provider`
+  /// @dev read `providerAddress` from `provider`.
   function providerAddress(RoleProvider provider) internal pure returns (address _providerAddress) {
     assembly {
       _providerAddress := shr(0x60, shl(0x20, provider))
@@ -136,9 +133,7 @@ library LibRoleProvider {
   // ░░▒▒▓▓██ [ CREDENTIAL LIFETIME ] ──────────────────────────────────────────
 
   // ┌─ setTimeToLive ─────
-  /// @dev Returns new RoleProvider with `timeToLive` set to `_timeToLive`
-  ///
-  ///      Note: This function does not modify the original RoleProvider
+  /// @dev return a copy with `timeToLive` set to `_timeToLive`. the input stays unchanged.
   function setTimeToLive(RoleProvider provider, uint32 _timeToLive) internal pure returns (RoleProvider newProvider) {
     assembly {
       newProvider := or(shr(0x20, shl(0x20, provider)), shl(0xe0, _timeToLive))
@@ -146,7 +141,7 @@ library LibRoleProvider {
   }
 
   // ┌─ timeToLive ─────
-  /// @dev Extract `timeToLive` from `provider`
+  /// @dev read `timeToLive` from `provider`.
   function timeToLive(RoleProvider provider) internal pure returns (uint32 _timeToLive) {
     assembly {
       _timeToLive := shr(0xe0, provider)
@@ -154,9 +149,8 @@ library LibRoleProvider {
   }
 
   // ┌─ calculateExpiry ─────
-  /// @dev Calculate the expiry for a credential granted at `timestamp` by `provider`,
-  ///      adding its time-to-live to the timestamp and maxing out at the max uint32,
-  ///      indicating indefinite access.
+  /// @dev add the provider's TTL to the grant timestamp. saturate at uint32.max,
+  ///      the indefinite-access limit.
   function calculateExpiry(RoleProvider provider, uint256 timestamp) internal pure returns (uint256) {
     return timestamp.satAdd(provider.timeToLive(), type(uint32).max);
   }
@@ -164,9 +158,7 @@ library LibRoleProvider {
   // ░░▒▒▓▓██ [ PULL PROVIDERS ] ───────────────────────────────────────────────
 
   // ┌─ setPullProviderIndex ─────
-  /// @dev Returns new RoleProvider with `pullProviderIndex` set to `_pullProviderIndex`
-  ///
-  ///      Note: This function does not modify the original RoleProvider
+  /// @dev return a copy with `pullProviderIndex` set to `_pullProviderIndex`. the input stays unchanged.
   function setPullProviderIndex(
     RoleProvider provider,
     uint24 _pullProviderIndex
@@ -184,8 +176,7 @@ library LibRoleProvider {
   }
 
   // ┌─ setNotPullProvider ─────
-  /// @dev Set `pullProviderIndex` in `provider` to `NullProviderIndex`
-  ///      to mark it as not a pull provider.
+  /// @dev return a copy with pullProviderIndex set to NullProviderIndex: not a pull provider.
   function setNotPullProvider(RoleProvider provider) internal pure returns (RoleProvider newProvider) {
     assembly {
       newProvider := or(provider, 0xffffff0000000000)
@@ -193,7 +184,7 @@ library LibRoleProvider {
   }
 
   // ┌─ pullProviderIndex ─────
-  /// @dev Extract `pullProviderIndex` from `provider`
+  /// @dev read `pullProviderIndex` from `provider`.
   function pullProviderIndex(RoleProvider provider) internal pure returns (uint24 _pullProviderIndex) {
     assembly {
       _pullProviderIndex := shr(0xe8, shl(0xc0, provider))
@@ -201,8 +192,7 @@ library LibRoleProvider {
   }
 
   // ┌─ isPullProvider ─────
-  /// @dev Returns whether `provider` is a pull provider by checking if
-  ///      `pullProviderIndex` is not equal to `NullProviderIndex`.
+  /// @dev a pull provider has a pullProviderIndex other than NullProviderIndex.
   function isPullProvider(RoleProvider provider) internal pure returns (bool) {
     return provider.pullProviderIndex() != NullProviderIndex;
   }
@@ -210,9 +200,7 @@ library LibRoleProvider {
   // ░░▒▒▓▓██ [ PUSH PROVIDERS ] ───────────────────────────────────────────────
 
   // ┌─ setPushProviderIndex ─────
-  /// @dev Returns new RoleProvider with `pushProviderIndex` set to `_pushProviderIndex`
-  ///
-  ///      Note: This function does not modify the original RoleProvider
+  /// @dev return a copy with `pushProviderIndex` set to `_pushProviderIndex`. the input stays unchanged.
   function setPushProviderIndex(
     RoleProvider provider,
     uint24 _pushProviderIndex
@@ -230,7 +218,7 @@ library LibRoleProvider {
   }
 
   // ┌─ pushProviderIndex ─────
-  /// @dev Extract `pushProviderIndex` from `provider`
+  /// @dev read `pushProviderIndex` from `provider`.
   function pushProviderIndex(RoleProvider provider) internal pure returns (uint24 _pushProviderIndex) {
     assembly {
       _pushProviderIndex := shr(0xe8, shl(0xd8, provider))
@@ -240,7 +228,7 @@ library LibRoleProvider {
   // ░░▒▒▓▓██ [ COMPARISON ] ───────────────────────────────────────────────────
 
   // ┌─ eq ─────
-  /// @dev Checks if two RoleProviders are equal
+  /// @dev compare the full packed provider words.
   function eq(RoleProvider provider, RoleProvider otherRoleProvider) internal pure returns (bool _eq) {
     assembly {
       _eq := eq(provider, otherRoleProvider)
@@ -248,7 +236,7 @@ library LibRoleProvider {
   }
 
   // ┌─ isNull ─────
-  /// @dev Checks if `provider` is null
+  /// @dev check whether `provider` is null.
   function isNull(RoleProvider provider) internal pure returns (bool _null) {
     assembly {
       _null := iszero(provider)

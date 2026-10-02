@@ -93,14 +93,12 @@ using LibDeployment for ContractArtifact global;
 
 ForgeVM constant forgeVm = ForgeVM(address(uint160(uint256(keccak256('hevm cheat code')))));
 
-/// @param dir               The directory where the deployments will be saved.
-///                          `deployments/<network-name>`
-/// @param forgeOutDir       The forge output directory.
-/// @param filePath          The path to the deployments.json file.
-/// @param deployments       The deployments json object.
-/// @param privateKeyVarName The name of the environment variable that
-///                          holds the private key.
-/// @param artifacts         The newly created deployment artifacts.
+/// @param dir               output directory: `deployments/<network-name>`.
+/// @param forgeOutDir       Forge output directory.
+/// @param filePath          path to deployments.json.
+/// @param deployments       in-memory deployment index.
+/// @param privateKeyVarName environment variable holding the private key.
+/// @param artifacts         newly created deployment artifacts awaiting a write.
 struct Deployments {
   string dir;
   string forgeOutDir;
@@ -110,16 +108,15 @@ struct Deployments {
   ContractArtifact[] artifacts;
 }
 
-/// @param namePath        The name or namepath of the contract to deploy,
-///                        e.g. `Counter` or `src/Counter.sol:Counter`
-/// @param name            Name of the contract, e.g. Counter
-/// @param artifactDir     The directory where the deployment artifact will be saved
-/// @param customLabel     Custom label for deployments mapping and output file.
-/// @param constructorArgs The abi-encoded constructor arguments for the deployment
-/// @param deployment      The address of the deployment
+/// @param namePath        contract name or qualified path, e.g. `Counter` or `src/Counter.sol:Counter`.
+/// @param name            contract name, e.g. `Counter`.
+/// @param artifactDir     output directory for this deployment's artifact.
+/// @param customLabel     custom key for the deployment index and output file.
+/// @param constructorArgs ABI-encoded constructor arguments.
+/// @param deployment      deployed contract address.
 struct ContractArtifact {
   string namePath;
-  /// The name of the contract
+  /// contract name.
   string name;
   string artifactDir;
   string customLabel;
@@ -142,8 +139,7 @@ function getDeployments() returns (Deployments memory deployments) {
 }
 
 // ┌─ getDeploymentsForNetwork ─────
-/// @dev Get the deployments object for a given network.
-///      If the deployments directory does not exist, it will be created
+/// @dev load a network's deployment index, creating its directory if needed.
 function getDeploymentsForNetwork(string memory networkName) returns (Deployments memory deployments) {
   checkFfiEnabled();
   deployments.dir = pathJoin('deployments', networkName);
@@ -166,40 +162,35 @@ function getDeploymentsForNetwork(string memory networkName) returns (Deployment
 ///
 /// @author d1ll0n
 ///
-/// @dev Library for managing deployments for Forge scripts.
+/// @dev deployment index and artifact persistence for Forge scripts.
 ///
-/// Provides functions for deploying contracts, retrieving deployments and saving
-/// deployment artifacts that include compiler output, standard input json and
-/// constructor args.
+/// deploy or reuse contracts, then save compiler output, standard input JSON, and
+/// constructor arguments with each deployment.
 ///
 ///
 ///
 /// ===================================================================================
 ///                                   Private Key
 /// ===================================================================================
-///  By default, it will attempt to use the private key at environment variable
-///  `PVT_KEY_<NETWORK NAME>`. If none exists, it will use whatever key is configured
-///  with Foundry.
+///  default: `PVT_KEY_<NETWORK NAME>`, falling back to Foundry's configured key.
 ///
-///  To use another environment variable, use `deployments.withPrivateKeyVarName(name)`.
+///  select another variable with `deployments.withPrivateKeyVarName(name)`.
 ///
 /// ===================================================================================
 ///                              Setup Instructions
 /// ===================================================================================
 ///
-/// 1. Grant access to the `deployments` directory and to the forge output directory.
-///    Add this to foundry.toml:
+/// 1. grant access to the `deployments` directory and to the forge output directory.
+///    add this to foundry.toml:
 ///         fs_permissions = [
 ///             { access = "read-write", path = "./deployments/"},
 ///             { access = "read-write", path = "./out/"},
 ///         ]
-///    If your output directory is different in the foundry profile you are using for
-///    deployment, replace `./out/` with the correct path. The script will automatically
-///    detect the correct output directory for the profile it is running in.
+///    replace `./out/` if the deployment profile uses another output directory.
+///    the script reads that profile's configured path.
 ///
-/// 2. Enable FFI so that the script can rush bash commands. This is used to generate
-///    the standard input json for the contract deployment.
-///    Add `ffi=true` to the foundry.toml file.
+/// 2. enable FFI (`ffi=true` in foundry.toml) for the shell commands that generate
+///    deployment standard input JSON.
 library LibDeployment {
   using LibDeployment for Json;
   using LibDeployment for ContractArtifact[];
@@ -211,39 +202,21 @@ library LibDeployment {
   // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
 
   // ┌─ getOrDeploy ─────
-  /// @dev Deploy a contract or retrieve an existing deployment.
+  /// @dev reuse an indexed deployment unless `overrideExisting` is true. otherwise deploy,
+  ///      update the in-memory index, and queue its artifact. `write` persists the index,
+  ///      compiler output, standard input JSON, and constructor arguments.
+  /// @param self             deployment index and pending artifacts.
   ///
-  ///      If the contract has already been deployed and `overrideExisting`
-  ///      is false, the contract address will be retrieved from the existing
-  ///      deployments. If the contract has not been deployed, or
-  ///      if `overrideExisting` is true, a new contract will be deployed and
-  ///      the deployment address will be saved to the deployments.json file.
+  /// @param namePath         contract name or qualified path, e.g. `Counter` or `src/Counter.sol:Counter`.
   ///
-  ///      If the contract has not been deployed or if `overrideExisting`
-  ///      is true, the contract will be deployed and the deployment address
-  ///      will be saved to the deployments.json file.
+  /// @param creationCode     creation code without constructor arguments.
   ///
-  ///      Additionally, the standard input json will be saved to the deployment
-  ///      artifact directory.
+  /// @param constructorArgs  ABI-encoded constructor arguments.
   ///
+  /// @param overrideExisting whether to replace an already-indexed deployment.
   ///
-  ///
-  /// @param self             The deployments object
-  ///
-  /// @param namePath         The name or namepath of the contract to deploy,
-  ///                          e.g. Counter or src/Counter.sol:Counter
-  ///
-  /// @param creationCode     The creation code of the contract to deploy
-  ///                          (without constructor arguments)
-  ///
-  /// @param constructorArgs  The abi-encoded constructor arguments
-  ///
-  /// @param overrideExisting Whether to override an existing deployment
-  ///                          if one already exists.
-  ///
-  /// @return deployment       The address of the deployed or retrieved contract
-  /// @return didDeploy        Whether the contract was deployed - false if it
-  ///                          already existed and was retrieved
+  /// @return deployment deployed or reused contract address.
+  /// @return didDeploy false when an existing deployment was reused.
   function getOrDeploy(
     Deployments memory self,
     string memory namePath,
@@ -539,14 +512,9 @@ library LibDeployment {
   }
 
   // ┌─ write ─────
-  /// @dev Writes the created deployments to disk.
-  ///
-  ///      1. Writes a mapping from contract name to most recently deployed address
-  ///      to `deployments/<network-name>/deployments.json`.
-  ///
-  ///      2. Writes the artifact for each newly deployed contract to its own subdirectory
-  ///      within the network deployments directory. Artifacts contain standard
-  ///      input json, compiler output and constructor args (if any).
+  /// @dev persist the current name-to-address index in `deployments/<network-name>/deployments.json`.
+  ///      write each new deployment's compiler output, standard input JSON, and constructor
+  ///      arguments (if any) into its own artifact directory.
   function write(Deployments memory deployments) internal {
     deployments.deployments.write(deployments.filePath);
     console.log(string.concat('Wrote deployments to ', deployments.filePath));
@@ -557,9 +525,9 @@ library LibDeployment {
   }
 
   // ┌─ writeDeploymentArtifact ─────
-  /// @dev Creates an artifact directory for the deployed contract at
-  ///      `deployments/<network-name>/<contract-name>-<deployment-address>/`
-  ///      with both the the solc output file and standard input json.
+  /// @dev write compiler output, standard input JSON, and any constructor arguments under
+  ///      `deployments/<network-name>/<contract-name>-<deployment-address>/`.
+  ///      a custom label replaces the final directory name.
   function writeDeploymentArtifact(Deployments memory deployments, ContractArtifact memory artifact) internal {
     string memory deploymentName = bytes(artifact.customLabel).length > 0
       ? artifact.customLabel
@@ -616,9 +584,8 @@ function getNetworkName() view returns (string memory) {
 }
 
 // ┌─ getForgeOutputDirectory ─────
-/// @dev Gets the forge output directory for the current profile
-///      using FFI. When forge is run inside of a running forge
-///      script, it automatically populates the correct profile.
+/// @dev query Forge's output directory through FFI. the subprocess inherits the running
+///      script's Foundry profile.
 function getForgeOutputDirectory() returns (string memory) {
   string[] memory args = new string[](4);
   args[0] = 'forge';
@@ -631,7 +598,7 @@ function getForgeOutputDirectory() returns (string memory) {
 // ┌─ parseContractNamePath ─────
 function parseContractNamePath(string memory namePath) pure returns (ContractArtifact memory path) {
   path.namePath = namePath;
-  // Examples
+  // contract-name extraction:
   // Counter => Counter
   // src/Counter.sol:Counter => Counter
   uint256 indexOfSlash = namePath.indexOf('/');
@@ -727,17 +694,15 @@ library JsonUtil {
   function create() internal returns (Json memory json) {
     bytes32 jsonIdSlot = JSON_ID_SLOT;
     assembly {
-      // Increment counter
       let counter := sload(jsonIdSlot)
       sstore(jsonIdSlot, add(counter, 1))
 
-      // Foundry scripts reject address(this), so derive a per-run unique id
+      // Foundry scripts reject address(this), so derive a per-run unique ID
       // from chain id and the monotonic counter instead.
       mstore(0, chainid())
       mstore(32, counter)
       let id := keccak256(0, 64)
 
-      // Get id string
       let ptr := mload(0x40)
       mstore(ptr, 32)
       mstore(0x40, add(ptr, 64))
@@ -770,7 +735,7 @@ library JsonUtil {
 
   // ┌─ has ─────
   function has(Json memory self, string memory key) internal view returns (bool) {
-    // A freshly created Json has an empty `serialized` until the first set;
+    // a new Json has an empty `serialized` until the first set;
     // vm.keyExists cannot parse an empty string.
     if (bytes(self.serialized).length == 0) return false;
     return forgeVm.keyExists(self.serialized, string.concat('.', key));

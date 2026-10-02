@@ -45,7 +45,7 @@ pragma solidity 0.8.25;
 // ┌─ IBorrowerIdentityRegistry ────────────────────────────────────────────────
 /// @title borrower identity registry
 ///
-/// @notice resolves direct borrowers and factory-deployed borrower accounts to registered
+/// @notice resolve direct borrowers and factory-deployed borrower accounts to registered
 ///         principals.
 ///
 /// @dev removing an account factory stops new registrations. it does not invalidate accounts the
@@ -147,39 +147,39 @@ interface IBorrowerIdentityRegistry {
   // ░░▒▒▓▓██ [ FACTORY AUTHORIZATION ] ────────────────────────────────────────
 
   // ┌─ addAccountFactory ─────
-  /// @notice approves a contract to register borrower accounts.
+  /// @notice approve a contract to register borrower accounts.
   ///
   /// @dev only the current ArchController owner can call this.
   function addAccountFactory(address accountFactory) external;
 
   // ┌─ removeAccountFactory ─────
-  /// @notice stops a factory from registering more accounts.
+  /// @notice stop a factory from registering more accounts.
   ///
   /// @dev only the current ArchController owner can call this. existing accounts keep working.
   function removeAccountFactory(address accountFactory) external;
 
   // ┌─ isAccountFactory ─────
-  /// @notice says whether `accountFactory` may register new borrower accounts.
+  /// @notice report whether `accountFactory` may register new borrower accounts.
   function isAccountFactory(address accountFactory) external view returns (bool);
 
   // ┌─ getAccountFactories ─────
-  /// @notice returns every currently approved account factory in unstable enumeration order.
+  /// @notice return every currently approved account factory in unstable enumeration order.
   function getAccountFactories() external view returns (address[] memory);
 
   // ┌─ getAccountFactories ─────
-  /// @notice returns account factories in the half-open range `[start, end)`.
+  /// @notice return account factories in the half-open range `[start, end)`.
   ///
   /// @dev clamps `end` to the current count. `start > end` reverts.
   function getAccountFactories(uint256 start, uint256 end) external view returns (address[] memory);
 
   // ┌─ getAccountFactoriesCount ─────
-  /// @notice returns the current number of approved account factories.
+  /// @notice return the current number of approved account factories.
   function getAccountFactoriesCount() external view returns (uint256);
 
   // ░░▒▒▓▓██ [ ACCOUNT REGISTRATION ] ─────────────────────────────────────────
 
   // ┌─ registerBorrowerAccount ─────
-  /// @notice associates a deployed borrower account with its initial registered principal.
+  /// @notice associate a deployed borrower account with its initial registered principal.
   ///
   /// @dev only an approved account factory can call this. the account must be deployed code and
   ///      the principal must be a direct, registered borrower.
@@ -192,19 +192,19 @@ interface IBorrowerIdentityRegistry {
   // ░░▒▒▓▓██ [ PRINCIPAL TRANSFERS ] ──────────────────────────────────────────
 
   // ┌─ requestBorrowerAccountPrincipalTransfer ─────
-  /// @notice proposes a new registered principal for `account`, replacing any earlier proposal.
+  /// @notice propose a new registered principal for `account`, replacing any earlier proposal.
   ///
   /// @dev only the current principal can call this.
   function requestBorrowerAccountPrincipalTransfer(address account, address newPrincipal) external;
 
   // ┌─ acceptBorrowerAccountPrincipalTransfer ─────
-  /// @notice accepts the pending principal transfer for `account`.
+  /// @notice accept the pending principal transfer for `account`.
   ///
   /// @dev only the pending principal can call this. factory provenance does not change.
   function acceptBorrowerAccountPrincipalTransfer(address account) external;
 
   // ┌─ cancelBorrowerAccountPrincipalTransfer ─────
-  /// @notice clears the pending principal transfer for `account`.
+  /// @notice clear the pending principal transfer for `account`.
   ///
   /// @dev only the current principal can call this.
   function cancelBorrowerAccountPrincipalTransfer(address account) external;
@@ -220,7 +220,7 @@ interface IBorrowerIdentityRegistry {
   // ░░▒▒▓▓██ [ IDENTITY RESOLUTION ] ──────────────────────────────────────────
 
   // ┌─ resolveBorrower ─────
-  /// @notice resolves a direct principal or borrower account using current ArchController state.
+  /// @notice resolve a direct principal or borrower account using current ArchController state.
   ///
   /// @dev reverts for unknown, unregistered, or ambiguous identities.
   function resolveBorrower(address borrower) external view returns (address principal);
@@ -228,27 +228,27 @@ interface IBorrowerIdentityRegistry {
   // ░░▒▒▓▓██ [ ACCOUNT ENUMERATION ] ──────────────────────────────────────────
 
   // ┌─ getBorrowerAccounts ─────
-  /// @notice returns every current borrower account for `principal` in unstable order.
+  /// @notice return every current borrower account for `principal` in unstable order.
   function getBorrowerAccounts(address principal) external view returns (address[] memory);
 
   // ┌─ getBorrowerAccounts ─────
-  /// @notice returns `principal`'s current accounts in `[start, min(end, count))`.
+  /// @notice return `principal`'s current accounts in `[start, min(end, count))`.
   ///
   /// @dev `start > end` reverts; an empty or out-of-bounds range returns an empty array.
   function getBorrowerAccounts(address principal, uint256 start, uint256 end) external view returns (address[] memory);
 
   // ┌─ getBorrowerAccountsCount ─────
-  /// @notice returns the current number of borrower accounts for `principal`.
+  /// @notice return the current number of borrower accounts for `principal`.
   function getBorrowerAccountsCount(address principal) external view returns (uint256);
 
   // ┌─ getBorrowerAccountsForFactory ─────
-  /// @notice returns every account originally registered by `accountFactory`.
+  /// @notice return every account originally registered by `accountFactory`.
   ///
   /// @dev principal transfers do not change this provenance list.
   function getBorrowerAccountsForFactory(address accountFactory) external view returns (address[] memory);
 
   // ┌─ getBorrowerAccountsForFactory ─────
-  /// @notice returns factory-provenance accounts in `[start, min(end, count))`.
+  /// @notice return factory-provenance accounts in `[start, min(end, count))`.
   ///
   /// @dev `start > end` reverts; an empty or out-of-bounds range returns an empty array.
   function getBorrowerAccountsForFactory(
@@ -261,6 +261,6 @@ interface IBorrowerIdentityRegistry {
     returns (address[] memory);
 
   // ┌─ getBorrowerAccountsForFactoryCount ─────
-  /// @notice returns how many accounts `accountFactory` originally registered.
+  /// @notice return how many accounts `accountFactory` originally registered.
   function getBorrowerAccountsForFactoryCount(address accountFactory) external view returns (uint256);
 }

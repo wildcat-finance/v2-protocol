@@ -582,7 +582,7 @@ contract LifecycleHandler is MarketMatrixHandler {
         (uint256 burned, uint256 paid) = abi.decode(entry.data, (uint256, uint256));
         batch.scaledAmountBurned += uint104(burned);
         batch.normalizedAmountPaid += uint128(paid);
-        // Payment events omit the retained fraction. Read the committed extra word;
+        // payment events omit the retained fraction. read the committed extra word;
         // the oracle still independently predicts subsequent payment transitions.
         bytes32 slot = keccak256(abi.encode(uint256(expiry), uint256(8)));
         batch.paymentRemainder = uint128(uint256(vm.load(address(markets[i]), bytes32(uint256(slot) + 1))) >> 128);

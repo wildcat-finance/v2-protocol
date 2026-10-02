@@ -370,7 +370,7 @@ contract WithdrawalCountersTest is MarketFixture {
     assertTrue(worstCase < type(uint128).max);
   }
 
-  // Use separate external calls so the legacy decoders validate the returned widths.
+  // use separate external calls so the legacy decoders validate the returned widths.
   // ┌─ readNarrowBatch ─────
   function readNarrowBatch(address market, uint32 expiry) external view returns (uint256) {
     return NarrowWithdrawalReader(market).getWithdrawalBatch(expiry).scaledTotalAmount;

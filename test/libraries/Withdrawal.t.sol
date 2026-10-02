@@ -16,10 +16,8 @@ import 'src/libraries/Withdrawal.sol';
 import './wrappers/WithdrawalLibExternal.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
-// Uses an external wrapper library to make forge coverage work for WithdrawalLib.
-// Forge is currently incapable of mapping MemberAccess function calls with
-// expressions other than library identifiers (e.g. value.x() vs XLib.x(value))
-// to the correct FunctionDefinition nodes.
+// coverage workaround for WithdrawalLib: the external wrapper uses library-qualified calls
+// (XLib.x(value)), so the mapper sees the library identifier instead of value.x().
 // ┌─ WithdrawalTest ───────────────────────────────────────────────────────────
 contract WithdrawalTest is TestKernel {
   using WithdrawalLibExternal for WithdrawalBatch;

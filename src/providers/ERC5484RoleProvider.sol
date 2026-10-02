@@ -26,7 +26,7 @@ import 'src/access/IRoleProvider.sol';
 import { IERC165SupportsInterface, IERC5484BurnAuth, IERC721OwnerOf } from './TokenInterfaces.sol';
 
 // ┌─ ERC5484RoleProvider ──────────────────────────────────────────────────────
-/// @notice validates ownership and burn authority for a caller-supplied ERC5484 token ID.
+/// @notice validate ownership and burn authority for a caller-supplied ERC5484 token ID.
 ///
 /// @dev `allowedBurnAuthMask` uses bit 0 for IssuerOnly, bit 1 for OwnerOnly, bit 2 for Both, and
 ///      bit 3 for Neither. hook data is `abi.encodePacked(provider, abi.encode(tokenId))`.

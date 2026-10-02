@@ -206,7 +206,7 @@ abstract contract MarketConstraintHooks is IHooks {
   }
 
   // ┌─ getParameterConstraints ─────
-  /// @notice returns the parameter bounds enforced by this template during market creation.
+  /// @notice return the parameter bounds enforced by this template during market creation.
   function getParameterConstraints() external view returns (MarketParameterConstraints memory constraints) {
     return _getParameterConstraints();
   }
@@ -229,7 +229,7 @@ abstract contract MarketConstraintHooks is IHooks {
   }
 
   // ┌─ assertValueInRange ─────
-  /// @dev reverts with `errorSelector` when `value` falls outside the inclusive range.
+  /// @dev revert with `errorSelector` when `value` falls outside the inclusive range.
   function assertValueInRange(uint256 value, uint256 min, uint256 max, bytes4 errorSelector) internal pure {
     assembly {
       if or(lt(value, min), gt(value, max)) {
@@ -242,7 +242,7 @@ abstract contract MarketConstraintHooks is IHooks {
   // ░░▒▒▓▓██ [ INTEREST AND RESERVES ] ────────────────────────────────────────
 
   // ┌─ _applyDefaultAprUpdate ─────
-  /// @notice applies the shared APR-reduction reserve policy.
+  /// @notice apply the shared APR-reduction reserve policy.
   ///
   /// @dev overriding `_applyDefaultAprUpdate` replaces this calculation while keeping the
   ///      surrounding term checks in `_applyAprUpdate`.
@@ -271,8 +271,7 @@ abstract contract MarketConstraintHooks is IHooks {
       annualInterestBips, MinimumAnnualInterestBips, MaximumAnnualInterestBips, AnnualInterestBipsOutOfBounds.selector
     );
 
-    // get the existing temporary reserve ratio from storage, if any. `tmp` retains the original
-    // APR and reserve ratio across later updates in the same period.
+    // keep the original APR and reserve ratio across updates in the same temporary period.
     TemporaryReserveRatio memory tmp = temporaryExcessReserveRatio[market];
     // don't restore a pre-repayment reserve ratio. the effective validator must see 100% too.
     if (_isMarketInRepayment(market)) {
@@ -301,15 +300,13 @@ abstract contract MarketConstraintHooks is IHooks {
       }
     }
 
-    // get the original APR/reserve values for the ongoing or newly created period.
     // `tmp.expiry == 0` starts from `intermediateState`; otherwise keep the stored originals.
     (uint16 originalAnnualInterestBips, uint16 originalReserveRatioBips) = tmp.expiry == 0
       ? (intermediateState.annualInterestBips, intermediateState.reserveRatioBips)
       : (tmp.originalAnnualInterestBips, tmp.originalReserveRatioBips);
 
     if (annualInterestBips < originalAnnualInterestBips) {
-      // if `annualInterestBips` is below `originalAnnualInterestBips`, calculate the temporarily
-      // increased reserve ratio from that original APR:
+      // measure the reduction from the original APR, not the last update:
       // relativeReduction <= 0.25 ? originalReserveRatio :
       // max(originalReserveRatio, min(2 * relativeReduction, 100%))
       uint16 temporaryReserveRatioBips =
@@ -336,7 +333,7 @@ abstract contract MarketConstraintHooks is IHooks {
   }
 
   // ┌─ _calculateTemporaryReserveRatioBips ─────
-  /// @dev keeps the original reserve ratio for an APR reduction of 25% or less. above that, returns
+  /// @dev keep the original reserve ratio for an APR reduction of 25% or less. above that, return
   ///      the greater of the original ratio and twice the relative APR reduction, capped at 100%.
   function _calculateTemporaryReserveRatioBips(
     uint256 annualInterestBips,

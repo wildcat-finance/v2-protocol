@@ -240,7 +240,7 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   // ┌─ _initialize ─────
-  /// @dev stores the instance name, attaches existing providers, then creates any new providers.
+  /// @dev store the instance name, attach existing providers, then create any new providers.
   ///      all new providers use the one factory supplied in `inputs`.
   function _initialize(NameAndProviderInputs memory inputs) internal {
     if (inputs.roleProviderFactory == address(0) && inputs.newProviderInputs.length > 0) {
@@ -271,7 +271,7 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   // ┌─ requestAdministratorTransfer ─────
-  /// @notice starts or replaces a hooks-administrator transfer.
+  /// @notice start or replace a hooks-administrator transfer.
   ///
   /// @dev the target must be a registered borrower now and again when it accepts. pending status
   ///      grants no authority.
@@ -283,7 +283,7 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   // ┌─ acceptAdministratorTransfer ─────
-  /// @notice completes a pending transfer and updates the creating factory's administrator index.
+  /// @notice complete a pending transfer and update the creating factory's administrator index.
   ///
   /// @dev only the pending administrator may accept. the factory callback is atomic with the state
   ///      change, so a callback failure rolls the whole transfer back. providers, credentials,
@@ -303,7 +303,7 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   // ┌─ cancelAdministratorTransfer ─────
-  /// @notice cancels the pending transfer without changing hooks authority.
+  /// @notice cancel the pending transfer without changing hooks authority.
   function cancelAdministratorTransfer() external override onlyAdministrator {
     address cancelledPendingAdministrator = pendingAdministrator;
     if (cancelledPendingAdministrator == address(0)) {
@@ -334,7 +334,7 @@ contract BaseAccessControls is IHooksAdministrator {
   // ░░▒▒▓▓██ [ INSTANCE METADATA ] ────────────────────────────────────────────
 
   // ┌─ setName ─────
-  /// @notice updates this hooks instance's display name.
+  /// @notice update this hooks instance's display name.
   function setName(string calldata _name) external onlyAdministrator {
     string memory previousName = name;
     name = _name;
@@ -344,7 +344,7 @@ contract BaseAccessControls is IHooksAdministrator {
   // ░░▒▒▓▓██ [ PROVIDER ATTACHMENT ] ──────────────────────────────────────────
 
   // ┌─ createRoleProvider ─────
-  /// @notice deploys a provider through `providerFactory` and attaches it to this hooks instance.
+  /// @notice deploy a provider through `providerFactory` and attach it to this hooks instance.
   ///
   /// @dev reverts if the factory returns the zero address. the provider factory's interpretation
   ///      of `data` and any authority over the result are outside this contract.
@@ -369,7 +369,7 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   // ┌─ addRoleProvider ─────
-  /// @notice attaches a provider or updates its hook-local credential TTL.
+  /// @notice attach a provider or update its hook-local credential TTL.
   ///
   /// @dev a new provider is classified once. only an exact true response from `isPullProvider`
   ///      makes it pull-based; everything else is treated as push-based. updating the TTL does not
@@ -388,8 +388,7 @@ contract BaseAccessControls is IHooksAdministrator {
       (uint24 pullProviderIndex, uint24 pushProviderIndex) = isPullProvider
         ? (uint24(_pullProviders.length), NullProviderIndex)
         : (NullProviderIndex, uint24(_pushProviders.length));
-      // Role providers that are not pull providers have `pullProviderIndex` set to
-      // `NullProviderIndex` (max uint24) to indicate they do not refresh credentials.
+      // `NullProviderIndex` (max uint24) means this provider can't refresh credentials.
       provider = encodeRoleProvider(timeToLive, providerAddress, pullProviderIndex, pushProviderIndex);
       if (isPullProvider) {
         _pullProviders.push(provider);
@@ -398,7 +397,7 @@ contract BaseAccessControls is IHooksAdministrator {
       }
       emit RoleProviderAdded(administrator, providerAddress, timeToLive, pullProviderIndex, pushProviderIndex);
     } else {
-      // If provider already exists, the only value that can be updated is the TTL
+      // attachment fixes the provider type; only TTL can change.
       uint32 previousTimeToLive = provider.timeToLive();
       provider = provider.setTimeToLive(timeToLive);
       uint24 pullProviderIndex = provider.pullProviderIndex();
@@ -419,7 +418,6 @@ contract BaseAccessControls is IHooksAdministrator {
         pushProviderIndex
       );
     }
-    // Update the provider in storage
     _roleProviders[providerAddress] = provider;
   }
 
@@ -449,14 +447,13 @@ contract BaseAccessControls is IHooksAdministrator {
   // ░░▒▒▓▓██ [ PROVIDER REMOVAL ] ─────────────────────────────────────────────
 
   // ┌─ removeRoleProvider ─────
-  /// @notice stops accepting new or cached credentials from `providerAddress`.
+  /// @notice stop accepting new or cached credentials from `providerAddress`.
   ///
   /// @dev lender records are not rewritten immediately. they become unsupported on the next check.
   ///      the removed provider may still revoke a credential that remains recorded as its grant.
   function removeRoleProvider(address providerAddress) external onlyAdministrator {
     RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) revert ProviderNotFound();
-    // Remove the provider from `_roleProviders`
     _roleProviders[providerAddress] = EmptyRoleProvider;
     emit RoleProviderRemoved(
       administrator,
@@ -465,7 +462,6 @@ contract BaseAccessControls is IHooksAdministrator {
       provider.pullProviderIndex(),
       provider.pushProviderIndex()
     );
-    // If the provider is a pull provider, remove it from `_pullProviders`
     if (provider.isPullProvider()) {
       _removePullProvider(provider.pullProviderIndex());
     } else {
@@ -474,23 +470,18 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   // ┌─ _removePullProvider ─────
-  /// @dev swap-removes a pull provider and repairs the moved provider's stored index.
+  /// @dev swap-remove a pull provider and repair the moved provider's stored index.
   function _removePullProvider(uint24 indexToRemove) internal {
-    // Get the last index in the array
     uint256 lastIndex = _pullProviders.length - 1;
-    // If the index to remove is the last index, just pop the last element
     if (indexToRemove == lastIndex) {
       _pullProviders.pop();
       return;
     }
-    // If the index to remove is not the last index, move the last element
-    // to the index of the element being removed
     RoleProvider lastProvider = _pullProviders[lastIndex].setPullProviderIndex(indexToRemove);
     _pullProviders[indexToRemove] = lastProvider;
     _pullProviders.pop();
     address lastProviderAddress = lastProvider.providerAddress();
     _roleProviders[lastProviderAddress] = lastProvider;
-    // Emit an event to notify that the provider's index has been updated
     emit RoleProviderUpdated(
       administrator,
       lastProviderAddress,
@@ -504,23 +495,18 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   // ┌─ _removePushProvider ─────
-  /// @dev swap-removes a push provider and repairs the moved provider's stored index.
+  /// @dev swap-remove a push provider and repair the moved provider's stored index.
   function _removePushProvider(uint24 indexToRemove) internal {
-    // Get the last index in the array
     uint256 lastIndex = _pushProviders.length - 1;
-    // If the index to remove is the last index, just pop the last element
     if (indexToRemove == lastIndex) {
       _pushProviders.pop();
       return;
     }
-    // If the index to remove is not the last index, move the last element
-    // to the index of the element being removed
     RoleProvider lastProvider = _pushProviders[lastIndex].setPushProviderIndex(indexToRemove);
     _pushProviders[indexToRemove] = lastProvider;
     _pushProviders.pop();
     address lastProviderAddress = lastProvider.providerAddress();
     _roleProviders[lastProviderAddress] = lastProvider;
-    // Emit an event to notify that the provider's index has been updated
     emit RoleProviderUpdated(
       administrator,
       lastProviderAddress,
@@ -536,13 +522,13 @@ contract BaseAccessControls is IHooksAdministrator {
   // ░░▒▒▓▓██ [ PROVIDER QUERIES ] ─────────────────────────────────────────────
 
   // ┌─ getRoleProvider ─────
-  /// @notice returns this hook's packed configuration for `providerAddress`.
+  /// @notice return this hook's packed configuration for `providerAddress`.
   function getRoleProvider(address providerAddress) external view returns (RoleProvider) {
     return _roleProviders[providerAddress];
   }
 
   // ┌─ getPullProviders ─────
-  /// @notice returns providers this hook can query without caller-supplied validation data.
+  /// @notice return providers this hook can query without caller-supplied validation data.
   ///
   /// @dev removal uses swap-and-pop, so order and indices are not stable.
   function getPullProviders() external view returns (RoleProvider[] memory) {
@@ -550,7 +536,7 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   // ┌─ getPushProviders ─────
-  /// @notice returns providers this hook will not query automatically.
+  /// @notice return providers this hook will not query automatically.
   ///
   /// @dev this includes push providers and validation-only providers. removal uses swap-and-pop,
   ///      so order and indices are not stable.
@@ -561,7 +547,7 @@ contract BaseAccessControls is IHooksAdministrator {
   // ░░▒▒▓▓██ [ CREDENTIAL GRANTS ] ────────────────────────────────────────────
 
   // ┌─ grantRole ─────
-  /// @notice lets an attached provider push a timestamped credential for `account`.
+  /// @notice let an attached provider push a timestamped credential for `account`.
   ///
   /// @dev the timestamp must be nonzero, no later than now, and unexpired under the provider's
   ///      current TTL. an existing credential can be replaced by its own provider, when its
@@ -576,7 +562,7 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   // ┌─ grantRoles ─────
-  /// @notice batch version of `grantRole`; every credential must pass the same checks.
+  /// @notice grant credentials in a batch; every credential must pass the same checks.
   ///
   /// @dev array lengths must match. one failure reverts the whole batch.
   function grantRoles(address[] calldata accounts, uint32[] calldata roleGrantedTimestamps) external {
@@ -600,19 +586,15 @@ contract BaseAccessControls is IHooksAdministrator {
 
     uint256 newExpiry = callingProvider.calculateExpiry(roleGrantedTimestamp);
 
-    // Check if the new credential is still valid
     if (newExpiry < block.timestamp) revert GrantedCredentialExpired();
 
-    // Check if the account has ever had a credential
     if (status.hasCredential()) {
       RoleProvider lastProvider = _roleProviders[status.lastProvider];
 
-      // Check if the provider that last granted access is still supported
       if (!lastProvider.isNull()) {
         uint256 oldExpiry = lastProvider.calculateExpiry(status.lastApprovalTimestamp);
 
-        // Can only update role if the caller is the previous role provider or the new
-        // expiry is greater than the previous expiry.
+        // replacing another attached provider's credential requires a strictly later expiry.
         if (!((status.lastProvider == msg.sender).or(newExpiry > oldExpiry))) {
           revert ProviderCanNotReplaceCredential();
         }
@@ -631,9 +613,7 @@ contract BaseAccessControls is IHooksAdministrator {
   )
     internal
   {
-    // Update the account's status with the new credential in memory
     status.setCredential(provider, credentialTimestamp);
-    // Update the account's status in storage
     _lenderStatus[accountAddress] = status;
     emit AccountAccessGranted(provider.providerAddress(), accountAddress, msg.sender, credentialTimestamp);
   }
@@ -641,7 +621,7 @@ contract BaseAccessControls is IHooksAdministrator {
   // ░░▒▒▓▓██ [ CREDENTIAL REVOCATION ] ────────────────────────────────────────
 
   // ┌─ revokeRole ─────
-  /// @notice clears `account`'s credential when called by the provider that granted it.
+  /// @notice clear `account`'s credential when called by the provider that granted it.
   ///
   /// @dev removal from this hooks instance does not take away that revocation authority.
   function revokeRole(address account) external {
@@ -649,7 +629,7 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   // ┌─ revokeRoles ─────
-  /// @notice batch version of `revokeRole`; caller must have granted every current credential.
+  /// @notice revoke credentials in a batch; the caller must have granted every current credential.
   function revokeRoles(address[] calldata accounts) external {
     for (uint256 i = 0; i < accounts.length; i++) {
       _revokeRole(accounts[i]);
@@ -671,7 +651,7 @@ contract BaseAccessControls is IHooksAdministrator {
   // ░░▒▒▓▓██ [ DEPOSIT BLOCKS ] ───────────────────────────────────────────────
 
   // ┌─ blockFromDeposits ─────
-  /// @notice clears `account`'s credential and blocks deposits wherever this instance's deposit
+  /// @notice clear `account`'s credential and block deposits wherever this instance's deposit
   ///         callback runs.
   ///
   /// @dev known-lender status is not cleared, so the account may retain transfer and withdrawal
@@ -681,7 +661,7 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   // ┌─ blockFromDeposits ─────
-  /// @notice batch version of `blockFromDeposits`.
+  /// @notice block deposits for a batch of accounts.
   function blockFromDeposits(address[] calldata accounts) external onlyAdministrator {
     for (uint256 i; i < accounts.length; i++) {
       _blockFromDeposits(accounts[i]);
@@ -702,7 +682,7 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   // ┌─ unblockFromDeposits ─────
-  /// @notice clears the local deposit block without restoring the account's old credential.
+  /// @notice clear the local deposit block without restoring the account's old credential.
   function unblockFromDeposits(address account) external onlyAdministrator {
     LenderStatus memory status = _lenderStatus[account];
     status.isBlockedFromDeposits = false;
@@ -713,7 +693,7 @@ contract BaseAccessControls is IHooksAdministrator {
   // ░░▒▒▓▓██ [ CREDENTIAL RESOLUTION ] ────────────────────────────────────────
 
   // ┌─ getLenderStatus ─────
-  /// @notice resolves the lender's current status using cached state and pull providers.
+  /// @notice resolve the lender's current status using cached state and pull providers.
   ///
   /// @dev this is a view, so a refreshed credential exists only in the returned value. it first
   ///      tries the recorded pull provider, then the remaining pull providers. explicit validation
@@ -723,35 +703,30 @@ contract BaseAccessControls is IHooksAdministrator {
 
     uint256 previousPullProviderIndexToSkip = type(uint256).max;
 
-    // Check if user has an existing credential
     if (status.lastApprovalTimestamp > 0) {
       RoleProvider provider = _roleProviders[status.lastProvider];
       if (!provider.isNull()) {
         if (_canUseCachedCredential(status, provider)) return status;
 
-        // If credential is expired but the provider is still supported and
-        // allows refreshing (i.e. it's a pull provider), try to refresh.
+        // expired and zero-TTL pull credentials need a fresh provider check.
         if (status.canRefresh) {
           if (_tryGetCredential(status, provider, accountAddress)) {
             return status;
           }
-          // If refresh fails, provider should be skipped in the query loop
+          // don't retry this provider in the fallback search.
           previousPullProviderIndexToSkip = provider.pullProviderIndex();
         }
       }
-      // If credential could not be refreshed or the provider is no longer
-      // supported, remove it
       status.unsetCredential();
     }
 
-    // Loop over all pull providers to find a valid role for the lender
     if (_loopTryGetCredential(status, accountAddress, previousPullProviderIndexToSkip, type(uint256).max)) {
       return status;
     }
   }
 
   // ┌─ getPreviousLenderStatus ─────
-  /// @notice returns stored lender status without checking providers or clearing stale state.
+  /// @notice return stored lender status without checking providers or clearing stale state.
   function getPreviousLenderStatus(address accountAddress) external view returns (LenderStatus memory status) {
     status = _lenderStatus[accountAddress];
   }
@@ -782,15 +757,13 @@ contract BaseAccessControls is IHooksAdministrator {
     internal
     returns (bool hasValidCredential, bool wasUpdated)
   {
-    // Get the last provider that granted the lender a credential, if any
     RoleProvider lastProvider = status.hasCredential() ? _roleProviders[status.lastProvider] : EmptyRoleProvider;
 
-    // If the lender has a cacheable active credential from a supported provider, return.
+    // only supported, cacheable credentials bypass provider calls.
     if (!lastProvider.isNull() && _canUseCachedCredential(status, lastProvider)) {
       return (true, false);
     }
 
-    // Handle the calldata suffix, if any
     (bool validCredential, uint256 hooksDataPullProviderIndexToSkip) =
       _handleHooksData(status, accountAddress, hooksData);
 
@@ -800,24 +773,21 @@ contract BaseAccessControls is IHooksAdministrator {
 
     uint256 previousPullProviderIndexToSkip = type(uint256).max;
 
-    // If lender has an expired credential from a pull provider, attempt to refresh it
+    // try the recorded pull provider before the fallback search.
     if (!lastProvider.isNull() && status.canRefresh) {
       if (_tryGetCredential(status, lastProvider, accountAddress)) {
         return (true, true);
       }
-      // If refresh fails, provider should be skipped in the query loop
+      // don't retry this provider in the fallback search.
       previousPullProviderIndexToSkip = lastProvider.pullProviderIndex();
     }
 
-    // Loop over all pull providers to find a valid role for the lender
     if (_loopTryGetCredential(
         status, accountAddress, previousPullProviderIndexToSkip, hooksDataPullProviderIndexToSkip
       )) {
       return (true, true);
     }
 
-    // If there was previously a credential and no valid credential could be found,
-    // unset the credential.
     if (status.hasCredential()) {
       status.unsetCredential();
       wasUpdated = true;
@@ -849,10 +819,8 @@ contract BaseAccessControls is IHooksAdministrator {
     returns (bool validCredential, uint256 pullProviderIndexToSkip)
   {
     pullProviderIndexToSkip = type(uint256).max;
-    // Check if the hooks data only contains a provider address
     if (hooksData.length == 20) {
-      // If the data contains only an address, attempt to query a credential from that provider
-      // if it exists and is a pull provider.
+      // an address alone selects an attached pull provider.
       address providerAddress = _readAddress(hooksData);
       RoleProvider provider = _roleProviders[providerAddress];
       if (!provider.isNull() && provider.isPullProvider()) {
@@ -860,8 +828,7 @@ contract BaseAccessControls is IHooksAdministrator {
         validCredential = _tryGetCredential(status, provider, accountAddress);
       }
     } else if (hooksData.length > 20) {
-      // If the data contains both an address and additional bytes, attempt to
-      // validate a credential from that provider
+      // additional bytes select stateful validation, including push providers.
       address providerAddress = _readAddress(hooksData);
       RoleProvider provider = _roleProviders[providerAddress];
       if (!provider.isNull() && provider.isPullProvider()) {
@@ -901,42 +868,31 @@ contract BaseAccessControls is IHooksAdministrator {
     uint credentialTimestamp;
     uint invalidCredentialReturnedSelector = uint32(InvalidCredentialReturned.selector);
     assembly {
-      // Get the offset to the extra data provided in the hooks call, after the provider.
       let validateDataCalldataPointer := add(hooksData.offset, 0x14)
-      // Encode the call to `validateCredential(address account, bytes calldata data)`
       let calldataPointer := mload(0x40)
-      // The selector is right aligned, so the real calldata buffer begins at calldataPointer + 28
+      // the right-aligned selector makes calldata start at calldataPointer + 28.
       mstore(calldataPointer, validateSelector)
       mstore(add(calldataPointer, 0x20), accountAddress)
-      // Write the calldata offset to `data`
       mstore(add(calldataPointer, 0x40), 0x40)
-      // Get length of the data segment in the hooks data
       let dataLength := sub(hooksData.length, 0x14)
-      // Write the length of the calldata to `data`
       mstore(add(calldataPointer, 0x60), dataLength)
-      // Copy the calldata to the buffer
       calldatacopy(add(calldataPointer, 0x80), validateDataCalldataPointer, dataLength)
-      // Call the provider
       if call(gas(), providerAddress, 0, add(calldataPointer, 0x1c), add(dataLength, 0x64), 0, 0x20) {
         switch lt(returndatasize(), 0x20)
         case 1 {
-          // If the returndata is invalid but the call succeeded, the call must throw
-          // because the validateCredential function is stateful and can have side effects.
+          // don't keep provider side effects without a usable credential response.
           mstore(0, invalidCredentialReturnedSelector)
           revert(0x1c, 0x04)
         }
         default {
-          // If the return data is valid, set `credentialTimestamp` to the returned word
-          // with a uint32 mask applied
+          // only the low uint32 is the credential timestamp.
           credentialTimestamp := and(mload(0), 0xffffffff)
         }
       }
     }
-    // If the returned timestamp is null or greater than the current time, return false.
     if (credentialTimestamp == 0 || credentialTimestamp > block.timestamp) {
       return false;
     }
-    // Check if the returned timestamp results in a valid expiry
     if (provider.calculateExpiry(credentialTimestamp) >= block.timestamp) {
       status.setCredential(provider, credentialTimestamp);
       return true;
@@ -975,7 +931,6 @@ contract BaseAccessControls is IHooksAdministrator {
     view
     returns (bool isApproved)
   {
-    // Query provider for user approval
     address providerAddress = provider.providerAddress();
 
     uint32 credentialTimestamp;
@@ -983,22 +938,17 @@ contract BaseAccessControls is IHooksAdministrator {
     assembly {
       mstore(0x00, getCredentialSelector)
       mstore(0x20, accountAddress)
-      // Call the provider and check if the return data is valid
       if and(gt(returndatasize(), 0x1f), staticcall(gas(), providerAddress, 0x1c, 0x24, 0, 0x20)) {
-        // If the return data is valid, set `credentialTimestamp` to the returned word
-        // with a uint32 mask applied
+        // only the low uint32 is the credential timestamp.
         credentialTimestamp := and(mload(0), 0xffffffff)
       }
     }
 
-    // If the returned timestamp is null or greater than the current time, return false.
     if (credentialTimestamp == 0 || credentialTimestamp > block.timestamp) {
       return false;
     }
 
-    // If credential is still valid, update credential
     if (provider.calculateExpiry(credentialTimestamp) >= block.timestamp) {
-      // User is approved, update status with the new approval timestamp and provider
       status.setCredential(provider, credentialTimestamp);
       return true;
     }
@@ -1023,14 +973,12 @@ contract BaseAccessControls is IHooksAdministrator {
         emit AccountAccessRevoked(_lenderStatus[accountAddress].lastProvider, accountAddress, msg.sender);
       }
     }
-    // Mark account as a known lender if they have a valid credential, are not
-    // already known, and the function counts as a deposit.
+    // only entry actions make a lender known; queueing alone doesn't.
     if (canSetKnownLender && hasValidCredential && !isKnownLenderOnMarket[accountAddress][msg.sender]) {
       isKnownLenderOnMarket[accountAddress][msg.sender] = true;
       emit AccountMadeFirstDeposit(msg.sender, accountAddress);
     }
 
-    // Write the account's status to storage if it was updated
     if (wasUpdated) _lenderStatus[accountAddress] = status;
   }
 

@@ -38,10 +38,8 @@ import { TestKernel } from '../shared/TestKernel.sol';
 
 using MathUtils for uint256;
 
-// Uses an external wrapper library to make forge coverage work for MarketStateLib.
-// Forge is currently incapable of mapping MemberAccess function calls with
-// expressions other than library identifiers (e.g. value.x() vs XLib.x(value))
-// to the correct FunctionDefinition nodes.
+// coverage workaround for MarketStateLib: the external wrapper uses library-qualified calls
+// (XLib.x(value)), so the mapper sees the library identifier instead of value.x().
 // ┌─ MarketStateTest ──────────────────────────────────────────────────────────
 contract MarketStateTest is TestKernel {
   using MarketStateLibExternal for MarketState;

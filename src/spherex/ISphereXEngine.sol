@@ -43,11 +43,11 @@ interface ISphereXEngine {
   // ░░▒▒▓▓██ [ EXTERNAL VALIDATION ] ──────────────────────────────────────────
 
   // ┌─ sphereXValidatePre ─────
-  /// @notice starts validation for an external call and returns storage slots to snapshot.
+  /// @notice start validation for an external call and return storage slots to snapshot.
   function sphereXValidatePre(int256 num, address sender, bytes calldata data) external returns (bytes32[] memory);
 
   // ┌─ sphereXValidatePost ─────
-  /// @notice completes validation for an external call using before and after storage values.
+  /// @notice complete validation for an external call using before and after storage values.
   function sphereXValidatePost(
     int256 num,
     uint256 gas,
@@ -59,11 +59,11 @@ interface ISphereXEngine {
   // ░░▒▒▓▓██ [ INTERNAL VALIDATION ] ──────────────────────────────────────────
 
   // ┌─ sphereXValidateInternalPre ─────
-  /// @notice starts validation for an engine-identified internal call.
+  /// @notice start validation for an engine-identified internal call.
   function sphereXValidateInternalPre(int256 num) external returns (bytes32[] memory);
 
   // ┌─ sphereXValidateInternalPost ─────
-  /// @notice completes validation for an engine-identified internal call.
+  /// @notice complete validation for an engine-identified internal call.
   function sphereXValidateInternalPost(
     int256 num,
     uint256 gas,
@@ -75,11 +75,11 @@ interface ISphereXEngine {
   // ░░▒▒▓▓██ [ ENGINE INTEGRATION ] ───────────────────────────────────────────
 
   // ┌─ addAllowedSenderOnChain ─────
-  /// @notice allows a protected contract to send validation calls to the engine.
+  /// @notice allow a protected contract to send validation calls to the engine.
   function addAllowedSenderOnChain(address sender) external;
 
   // ┌─ supportsInterface ─────
-  /// @notice returns whether the engine implements `interfaceId` under ERC-165.
+  /// @notice return whether the engine implements `interfaceId` under ERC-165.
   ///
   /// @dev copied into this interface instead of importing OpenZeppelin to avoid version collisions.
   ///      the call must use less than 30,000 gas. see

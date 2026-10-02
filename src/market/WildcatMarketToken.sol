@@ -36,7 +36,7 @@ contract WildcatMarketToken is WildcatMarketBase {
   mapping(address => mapping(address => uint256)) public allowance;
 
   // ┌─ approve ─────
-  /// @notice sets `spender`'s normalized allowance over the caller's market tokens.
+  /// @notice set `spender`'s normalized allowance over the caller's market tokens.
   ///
   /// @param spender account allowed to spend the caller's tokens.
   /// @param amount  new normalized allowance.
@@ -56,7 +56,7 @@ contract WildcatMarketToken is WildcatMarketBase {
   // ░░▒▒▓▓██ [ TRANSFERS ] ────────────────────────────────────────────────────
 
   // ┌─ transfer ─────
-  /// @notice transfers up to `amount` normalized market tokens from the caller to `to`.
+  /// @notice transfer up to `amount` normalized market tokens from the caller to `to`.
   ///
   /// @dev the moved scaled amount is rounded down. reverts if it is zero, balances are
   ///      insufficient, or the transfer hook rejects the transfer.
@@ -71,7 +71,7 @@ contract WildcatMarketToken is WildcatMarketBase {
   }
 
   // ┌─ transferFrom ─────
-  /// @notice transfers up to `amount` normalized market tokens using the caller's allowance.
+  /// @notice transfer up to `amount` normalized market tokens using the caller's allowance.
   ///
   /// @dev the moved scaled amount is rounded down. infinite allowances aren't decremented.
   ///
@@ -93,7 +93,7 @@ contract WildcatMarketToken is WildcatMarketBase {
   {
     uint256 allowed = allowance[from][msg.sender];
 
-    // Saves gas for unlimited approvals.
+    // an unlimited approval stays unlimited; don't spend a storage write decrementing it.
     if (allowed != type(uint256).max) {
       uint256 newAllowance = allowed - amount;
       _approve(from, msg.sender, newAllowance);
@@ -128,7 +128,7 @@ contract WildcatMarketToken is WildcatMarketBase {
   // ░░▒▒▓▓██ [ BALANCES AND SUPPLY ] ──────────────────────────────────────────
 
   // ┌─ balanceOf ─────
-  /// @notice returns `account`'s normalized balance with interest accrued through this block.
+  /// @notice return `account`'s normalized balance with interest accrued through this block.
   ///
   /// @param account lender whose direct market-token balance is queried.
   function balanceOf(address account) public view virtual nonReentrantView returns (uint256) {
@@ -136,7 +136,7 @@ contract WildcatMarketToken is WildcatMarketBase {
   }
 
   // ┌─ totalSupply ─────
-  /// @notice returns normalized supply with interest accrued through this block.
+  /// @notice return normalized supply with interest accrued through this block.
   function totalSupply() external view virtual nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().totalSupply();
   }

@@ -93,25 +93,22 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
       uint256 /* actualAmount */
     )
   {
-    // Get current state
     MarketState memory state = _getUpdatedState();
 
     if (state.isClosed) revert_DepositToClosedMarket();
     if (_isInRepayment()) revert_MarketInRepayment();
 
-    // Reduce amount if it would exceed the maximum deposit (maxTotalSupply - totalSupply)
+    // capacity limits new deposits, not interest already owed to lenders.
     amount = MathUtils.min(amount, state.maximumDeposit());
 
-    // Scale the mint amount
     uint104 scaledAmount = state.scaleAmountDown(amount).toUint104();
     if (scaledAmount == 0) revert_NullMintAmount();
 
-    // Cache account data and revert if not authorized to deposit.
+    // sanctions checks still apply before hook admission.
     Account memory account = _getAccount(msg.sender);
 
     hooks.onDeposit(msg.sender, scaledAmount, state);
 
-    // Transfer deposit from caller
     asset.safeTransferFrom(msg.sender, address(this), amount);
 
     account.scaledBalance += scaledAmount;
@@ -120,10 +117,8 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
     emit_Transfer(_runtimeConstant(address(0)), msg.sender, amount);
     emit_Deposit(msg.sender, amount, scaledAmount);
 
-    // Increase supply
     state.scaledTotalSupply += scaledAmount;
 
-    // Update stored state
     _writeState(state);
 
     return amount;
@@ -132,15 +127,14 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   // ░░▒▒▓▓██ [ BORROWING ] ────────────────────────────────────────────────────
 
   // ┌─ borrow ─────
-  /// @notice draws `amount` underlying assets to the operational borrower.
+  /// @notice draw `amount` underlying assets to the operational borrower.
   ///
   /// @dev can't exceed assets left after every collateral obligation. raw Chainalysis flags on
   ///      either the borrower or principal block the draw even when a sentinel override exists.
   ///
   /// @param amount underlying assets to draw.
   function borrow(uint256 amount) external virtual onlyBorrower nonReentrant sphereXGuardExternal {
-    // Check the raw Chainalysis status of both borrower identities. Sentinel overrides
-    // must not let either identity draw while flagged.
+    // raw Chainalysis flags block either borrower identity. sentinel overrides don't permit a draw.
     address currentBorrower = msg.sender;
     address currentPrincipal = borrowerPrincipal();
     if (_flaggedBorrowerIdentity(currentBorrower, currentPrincipal) != address(0)) {
@@ -154,7 +148,6 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
     uint256 borrowable = state.borrowableAssets(totalAssets());
     if (amount > borrowable) revert_BorrowAmountTooHigh();
 
-    // Execute borrow hook if enabled
     hooks.onBorrow(amount, state);
 
     _onBorrow(state, amount);
@@ -166,7 +159,7 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   // ░░▒▒▓▓██ [ REPAYMENT ] ────────────────────────────────────────────────────
 
   // ┌─ repay ─────
-  /// @notice transfers `amount` underlying assets into the market as debt repayment.
+  /// @notice transfer `amount` underlying assets into the market as debt repayment.
   ///
   /// @dev anyone can repay, but the market credits no tokens or repayment claim to the caller.
   ///      on revolving markets it also reduces drawn principal.
@@ -181,7 +174,6 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
     MarketState memory state = _getUpdatedState(_runtimeConstant(0) != 0);
     if (state.isClosed) revert_RepayToClosedMarket();
 
-    // Execute repay hook if enabled
     hooks.onRepay(amount, state, _runtimeConstant(0x24));
     uint256 currentTotalAssets = _onRepayAndGetTotalAssets(state, amount);
 
@@ -197,7 +189,6 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
     asset.safeTransferFrom(msg.sender, address(this), amount);
     emit_DebtRepaid(msg.sender, amount);
 
-    // Execute repay hook if enabled
     hooks.onRepay(amount, state, baseCalldataSize);
     _onRepay(state, amount);
   }
@@ -205,7 +196,7 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   // ░░▒▒▓▓██ [ PROTOCOL FEES ] ────────────────────────────────────────────────
 
   // ┌─ collectFees ─────
-  /// @notice sends all currently withdrawable protocol fees to `feeRecipient`.
+  /// @notice send all currently withdrawable protocol fees to `feeRecipient`.
   ///
   /// @dev permissionless. paid-but-unclaimed withdrawals have priority over protocol fees.
   function collectFees() external nonReentrant sphereXGuardExternal {
@@ -224,7 +215,7 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   // ░░▒▒▓▓██ [ CLOSURE AND RECOVERY ] ─────────────────────────────────────────
 
   // ┌─ closeMarket ─────
-  /// @notice fully collateralizes and permanently closes the market.
+  /// @notice fully collateralize and permanently close the market.
   ///
   /// @dev pulls any shortfall from the borrower or returns excess assets, sets APR to zero and
   ///      reserves to 100%, then pays every withdrawal batch. unpaid batches make gas scale with
@@ -239,13 +230,11 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
     uint256 currentlyHeld = totalAssets();
     uint256 totalDebts = state.totalDebts();
     if (currentlyHeld < totalDebts) {
-      // Transfer remaining debts from borrower
       uint256 remainingDebt = totalDebts - currentlyHeld;
       _repay(state, remainingDebt, 0x04);
       currentlyHeld += remainingDebt;
     } else if (currentlyHeld > totalDebts) {
       uint256 excessDebt = currentlyHeld - totalDebts;
-      // Transfer excess assets to borrower
       asset.safeTransfer(msg.sender, excessDebt);
       currentlyHeld -= excessDebt;
     }
@@ -253,15 +242,13 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
     state.annualInterestBips = 0;
     state.isClosed = true;
     state.reserveRatioBips = 10000;
-    // Ensures that delinquency fee doesn't increase scale factor further
-    // as doing so would mean last lender in market couldn't fully redeem
+    // stop delinquency accrual too. further interest would leave the last lender short.
     state.timeDelinquent = 0;
 
-    // Still track available liquidity in case of a rounding error
+    // track the actual liquidity left; don't assume rounding makes every batch fit.
     uint256 availableLiquidity = currentlyHeld.satSub(state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
 
-    // If there is a pending withdrawal batch which is not fully paid off, set aside
-    // up to the available liquidity for that batch.
+    // fund the current batch before releasing it for claims.
     if (state.pendingWithdrawalExpiry != 0) {
       uint32 expiry = state.pendingWithdrawalExpiry;
       WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
@@ -272,15 +259,13 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
       batch.releaseRemainder(state);
       _withdrawalData.batches[expiry] = batch;
 
-      // Remove the pending batch to ensure new withdrawals are not
-      // added to it after the market is closed.
+      // retire this batch so post-close withdrawals can't join its existing claims.
       state.pendingWithdrawalExpiry = 0;
       emit_WithdrawalBatchExpired(expiry, batch.scaledTotalAmount, batch.scaledAmountBurned, batch.normalizedAmountPaid);
       emit_WithdrawalBatchClosed(expiry);
 
-      // If the batch expiry is at the time of the market's closure, create
-      // a new empty batch that expires in one second to ensure new batches
-      // aren't created after the market is closed with the same expiry.
+      // closure at this exact expiry would reuse the key. reserve the next second
+      // for a fresh, empty batch instead.
       if (expiry == block.timestamp) {
         uint32 newExpiry = expiry + 1;
         emit_WithdrawalBatchCreated(newExpiry);
@@ -290,9 +275,7 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
 
     uint256 numBatches = _withdrawalData.unpaidBatches.length();
     for (uint256 i; i < numBatches; i++) {
-      // Process the next unpaid batch using available liquidity
       uint256 normalizedAmountPaid = _processUnpaidWithdrawalBatch(state, availableLiquidity);
-      // Reduce liquidity available to next batch
       availableLiquidity -= normalizedAmountPaid;
     }
 
@@ -309,7 +292,7 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   }
 
   // ┌─ rescueTokens ─────
-  /// @notice sends unrelated tokens or surplus underlying assets after closure to the borrower.
+  /// @notice send unrelated tokens or surplus underlying assets after closure to the borrower.
   ///
   /// @dev totalDebts protects live shares, unpaid batches, paid claims, and protocol fees.
   ///      the market token can't be rescued. a failed surplus transfer affects only this call.
@@ -331,7 +314,7 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   // ░░▒▒▓▓██ [ STATE CHECKPOINTING ] ──────────────────────────────────────────
 
   // ┌─ updateState ─────
-  /// @notice applies accrued interest and fees, processes an expired current batch, and stores
+  /// @notice apply accrued interest and fees, process an expired current batch, and store
   ///         the market's current delinquency status.
   ///
   /// @dev permissionless. nothing accrues twice when called again at the same timestamp.
@@ -343,7 +326,7 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   // ░░▒▒▓▓██ [ SANCTIONS ] ────────────────────────────────────────────────────
 
   // ┌─ _blockAccount ─────
-  /// @dev Queues a full withdrawal of a sanctioned account's assets.
+  /// @dev queue the sanctioned account's full balance for withdrawal.
   function _blockAccount(MarketState memory state, address accountAddress) internal override {
     Account memory account = _accounts[accountAddress];
     if (account.scaledBalance > 0) {
@@ -351,11 +334,10 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
 
       uint256 normalizedAmount = state.normalizeAmount(scaledAmount);
 
-      // caf-03 attempted to bypass `onQueueWithdrawal` here so sanctions withdrawals
-      // could not be vetoed. That bypass also skips term withdrawal restrictions
-      // (fixed-term end times, periodic withdrawal windows), so `nukeFromOrbit`
-      // intentionally uses the ordinary withdrawal path: quarantine can be
-      // deferred until withdrawals open. Accepted behavior; see Known Issues.
+      // caf-03 tried bypassing `onQueueWithdrawal` to remove the sanctions-withdrawal veto.
+      // that also bypasses fixed-term end times and periodic withdrawal windows.
+      // keep `nukeFromOrbit` on the ordinary queue path: term restrictions can defer
+      // quarantine until withdrawals open. accepted behavior; see Known Issues.
       uint32 expiry = _queueWithdrawal(state, account, accountAddress, scaledAmount, normalizedAmount, msg.data.length);
 
       emit_SanctionedAccountAssetsQueuedForWithdrawal(accountAddress, expiry, scaledAmount, normalizedAmount);

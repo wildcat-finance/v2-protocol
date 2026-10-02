@@ -73,11 +73,9 @@ contract Deploy4626Factory is Script {
 
     Wildcat4626WrapperFactory factory;
     if (existingFactory == address(0)) {
-      // Legacy (pre-v2.5, half-up rounding) markets are forwarded to the v1
-      // wrapper factory. The address is REQUIRED and frozen forever in the
-      // facade: a silent zero default would permanently strand legacy
-      // markets on a chain that has a v1 deployment. Pass the zero address
-      // explicitly on chains with no legacy deployment.
+      // legacy half-up markets route to V1. its address is immutable: a silent zero
+      // default would strand legacy markets on chains that have a V1 deployment.
+      // require an explicit zero on chains without one.
       address v1Factory = vm.envAddress('WRAPPER_FACTORY_V1');
       factory = new Wildcat4626WrapperFactory(archController, v1Factory);
     } else {

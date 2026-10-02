@@ -17,7 +17,7 @@ pragma solidity 0.8.25;
 
 import '../access/IRoleProviderFactory.sol';
 
-/// @notice constructor and CREATE2 inputs for an ERC4626 asset-value provider.
+/// @notice function Object() { [native code] } and CREATE2 inputs for an ERC4626 asset-value provider.
 ///
 /// @param vault     contract queried for share balances and asset conversion.
 /// @param minAssets nonzero threshold in underlying-asset base units.
@@ -49,7 +49,7 @@ interface IERC4626AssetsRoleProviderFactory is IRoleProviderFactory {
   // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
 
   // ┌─ createERC4626AssetsRoleProvider ─────
-  /// @notice deploys a provider for `msg.sender`.
+  /// @notice deploy a provider for `msg.sender`.
   function createERC4626AssetsRoleProvider(ERC4626AssetsRoleProviderFactoryInputs calldata inputs)
     external
     returns (address provider);
@@ -57,7 +57,7 @@ interface IERC4626AssetsRoleProviderFactory is IRoleProviderFactory {
   // ░░▒▒▓▓██ [ ADDRESS PREDICTION ] ───────────────────────────────────────────
 
   // ┌─ computeRoleProviderAddress ─────
-  /// @notice predicts the address for the exact `deployer`, inputs, and this factory.
+  /// @notice predict the address for the exact `deployer`, inputs, and this factory.
   ///
   /// @dev pass the address that will actually call the create function as `deployer`.
   function computeRoleProviderAddress(

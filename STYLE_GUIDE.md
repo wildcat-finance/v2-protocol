@@ -11,6 +11,10 @@ generated code, or frozen historical evidence.
 
 Track the repository-wide adoption in [STYLE_ROLLOUT.md](./STYLE_ROLLOUT.md).
 
+For an explicitly requested comment-prose pass, use
+[STYLE_VOICE.md](./STYLE_VOICE.md). It covers wording, not visual layout or permission
+to rewrite comments during a formatting pass.
+
 The intended hierarchy is a prominent file header, full-width logical section
 headers, compact function cards, and ordinary inline comments. Whitespace
 separates ideas; decoration identifies boundaries. Do not add more graphical

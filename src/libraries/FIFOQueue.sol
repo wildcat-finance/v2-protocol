@@ -35,8 +35,8 @@ struct FIFOQueue {
   mapping(uint256 => uint256) data;
 }
 
-// @todo - Add a memory view with (nextIndex, startIndex, storageSlot) if call sites start chaining
-//         queue operations often enough for the extra machinery to pay for itself.
+// @todo add a memory view with (nextIndex, startIndex, storageSlot) only if chained queue
+//       operations become frequent enough to justify it.
 
 using FIFOQueueLib for FIFOQueue global;
 
@@ -52,7 +52,7 @@ library FIFOQueueLib {
   // ░░▒▒▓▓██ [ QUEUE UPDATES ] ────────────────────────────────────────────────
 
   // ┌─ push ─────
-  /// @dev appends `value` without reusing consumed indexes.
+  /// @dev append `value` without reusing consumed indexes.
   function push(FIFOQueue storage arr, uint32 value) internal {
     uint128 nextIndex = arr.nextIndex;
     uint256 wordIndex = nextIndex / ValuesPerWord;
@@ -62,15 +62,15 @@ library FIFOQueueLib {
   }
 
   // ┌─ shift ─────
-  /// @dev removes the oldest value, deleting fully consumed packed words.
+  /// @dev remove the oldest value; delete packed words only once fully consumed.
   function shift(FIFOQueue storage arr) internal {
     uint128 startIndex = arr.startIndex;
     if (startIndex == arr.nextIndex) {
       revert FIFOQueueOutOfBounds();
     }
     uint128 newStartIndex = startIndex + 1;
-    // Partial words stay live until all eight positions have been consumed.
-    // That avoids extra zero-to-nonzero writes and caps retained storage at one word.
+    // retain a partial word until all eight positions are consumed. this avoids extra
+    // zero-to-nonzero writes and retains at most one consumed-but-uncleared word.
     if ((newStartIndex & ValueOffsetMask) == 0) {
       delete arr.data[startIndex / ValuesPerWord];
     }
@@ -78,7 +78,7 @@ library FIFOQueueLib {
   }
 
   // ┌─ shiftN ─────
-  /// @dev removes the oldest `n` values and reverts if fewer are live.
+  /// @dev remove the oldest `n` values. revert if fewer are live.
   function shiftN(FIFOQueue storage arr, uint128 n) internal {
     uint128 startIndex = arr.startIndex;
     uint128 newStartIndex = startIndex + n;
@@ -102,19 +102,19 @@ library FIFOQueueLib {
   // ░░▒▒▓▓██ [ QUEUE QUERIES ] ────────────────────────────────────────────────
 
   // ┌─ empty ─────
-  /// @dev returns true when the queue has no live values.
+  /// @dev return true when the queue has no live values.
   function empty(FIFOQueue storage arr) internal view returns (bool) {
     return arr.nextIndex == arr.startIndex;
   }
 
   // ┌─ length ─────
-  /// @dev returns the number of live values.
+  /// @dev return the number of live values.
   function length(FIFOQueue storage arr) internal view returns (uint128) {
     return arr.nextIndex - arr.startIndex;
   }
 
   // ┌─ first ─────
-  /// @dev returns the oldest live value, reverting when the queue is empty.
+  /// @dev return the oldest live value. an empty queue reverts.
   function first(FIFOQueue storage arr) internal view returns (uint32) {
     if (arr.startIndex == arr.nextIndex) {
       revert FIFOQueueOutOfBounds();
@@ -123,7 +123,7 @@ library FIFOQueueLib {
   }
 
   // ┌─ at ─────
-  /// @dev returns the value at a zero-based live-queue index.
+  /// @dev return the value at a zero-based live-queue index.
   function at(FIFOQueue storage arr, uint256 index) internal view returns (uint32) {
     index += arr.startIndex;
     if (index >= arr.nextIndex) {
@@ -133,7 +133,7 @@ library FIFOQueueLib {
   }
 
   // ┌─ values ─────
-  /// @dev copies every live value to memory in FIFO order.
+  /// @dev copy every live value to memory in FIFO order.
   function values(FIFOQueue storage arr) internal view returns (uint32[] memory _values) {
     uint256 startIndex = arr.startIndex;
     uint256 nextIndex = arr.nextIndex;

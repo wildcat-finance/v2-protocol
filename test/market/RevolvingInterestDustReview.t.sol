@@ -23,7 +23,7 @@ import { MathUtils, RAY, SECONDS_IN_365_DAYS } from 'src/libraries/MathUtils.sol
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 
 // ┌─ RevolvingInterestDustReviewTest ──────────────────────────────────────────
-/// @dev Characterizes unchanged revolving interest; no remediation is asserted.
+/// @dev characterize unchanged revolving interest; no remediation is asserted.
 contract RevolvingInterestDustReviewTest is ProductionMatrixFixture {
   // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
 
@@ -69,7 +69,7 @@ contract RevolvingInterestDustReviewTest is ProductionMatrixFixture {
         MatrixCell memory cell = _reviewMarket(6, supplies[size], MatrixHooksKind(hook), 1);
         vm.warp(start + 12);
         cell.market.updateState();
-        // Fractional interest survives in the stored factor even if it is not
+        // fractional interest survives in the stored factor even if it is not
         // yet visible as a whole underlying token unit.
         assertTrue(cell.market.scaleFactor() > RAY);
       }
@@ -95,7 +95,7 @@ contract RevolvingInterestDustReviewTest is ProductionMatrixFixture {
       once.market.updateState();
       assertEq(frequent.market.scaleFactor(), RAY);
       assertEq(frequent.market.totalSupply(), supply);
-      // Fixed drawn principal, no commitment/protocol/penalty rate: the ideal
+      // fixed drawn principal, no commitment/protocol/penalty rate: the ideal
       // interest for the same 1,200 seconds is exactly eleven atomic units.
       assertEq((drawn * 1_200) / (10_000 * SECONDS_IN_365_DAYS), 11);
       assertEq(once.market.totalSupply(), uint256(supply) + 11);
@@ -119,8 +119,8 @@ contract RevolvingInterestDustReviewTest is ProductionMatrixFixture {
 
   // ┌─ test_representationBoundaryIsNotAUniversalEconomicBound ─────
   function test_representationBoundaryIsNotAUniversalEconomicBound() external pure {
-    // Synthetic arithmetic boundary at the initial factor, not a deployed or
-    // economically representative market. The production utilization division
+    // synthetic arithmetic boundary at the initial factor, not a deployed or
+    // economically representative market. the production utilization division
     // can discard thousands of atoms here while discarding less than one ray.
     uint256 supply = type(uint104).max;
     uint256 interestRay = MathUtils.calculateLinearInterestFromBips(1, 12);

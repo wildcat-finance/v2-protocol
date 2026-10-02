@@ -48,7 +48,7 @@ struct HooksInstanceData {
 }
 
 // ┌─ HooksInstanceDataLib ─────────────────────────────────────────────────────
-/// @notice builds hooks-instance views from factory records and bounded optional probes.
+/// @notice build hooks-instance views from factory records and bounded optional probes.
 library HooksInstanceDataLib {
   using RoleProviderDataLib for *;
 
@@ -59,7 +59,7 @@ library HooksInstanceDataLib {
   // ░░▒▒▓▓██ [ INSTANCE DATA ] ────────────────────────────────────────────────
 
   // ┌─ fill ─────
-  /// @notice fills one hooks instance using factory data and optional typed probes.
+  /// @notice fill one hooks instance using factory data and optional typed probes.
   ///
   /// @param administrator trusted factory-index key, or zero to probe the hooks instance.
   /// @param kind          family already identified from `version()`.

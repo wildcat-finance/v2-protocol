@@ -74,7 +74,7 @@ import './interfaces/IMarketLensAggregator.sol';
 // ┌─ MarketLensAggregator ─────────────────────────────────────────────────────
 /// @title hooks-factory aggregation lens helper
 ///
-/// @notice gathers hooks and market data across the default factory or active factory generations.
+/// @notice gather hooks and market data across the default factory or active factory generations.
 ///
 /// @dev active factories are registered controllers that answer the hooks-factory probe, plus the
 ///      configured default when needed. discovery is interface-based, not provenance.
@@ -96,7 +96,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
   // ░░▒▒▓▓██ [ FACTORY DISCOVERY ] ────────────────────────────────────────────
 
   // ┌─ getActiveHooksFactories ─────
-  /// @notice returns discoverable hooks factories in ArchController order.
+  /// @notice return discoverable hooks factories in ArchController order.
   ///
   /// @dev appends the configured default if it is valid and not already registered.
   function getActiveHooksFactories() public view returns (address[] memory factories) {
@@ -218,7 +218,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
   }
 
   // ┌─ getAggregatedHooksInstancesForBorrowerWithFactories ─────
-  /// @notice combines borrower-indexed instances from a supplied factory list.
+  /// @notice combine borrower-indexed instances from a supplied factory list.
   ///
   /// @dev factory enumeration failures are skipped. duplicate instances use the first factory that
   ///      reported them, and malformed instance metadata can still revert the complete call.
@@ -422,7 +422,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
   }
 
   // ┌─ getAggregatedAllHooksTemplatesForBorrowerWithFactories ─────
-  /// @notice combines templates from a supplied factory list, deduplicated by template address.
+  /// @notice combine templates from a supplied factory list, deduplicated by template address.
   ///
   /// @dev the first factory reporting a duplicate supplies its metadata and fee readiness.
   function getAggregatedAllHooksTemplatesForBorrowerWithFactories(

@@ -91,8 +91,8 @@ import { SanctionsListMock } from '../mocks/SanctionsMocks.sol';
 import { WrapperQueueAccountMock } from '../mocks/WrapperQueueAccountMock.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
-// Keep the concrete hooks and revolving market imports even though deployment uses vm.getCode.
-// The isolated coverage profile only instruments contracts reachable from this source graph.
+// keep concrete hooks and revolving-market imports even though deployment uses vm.getCode.
+// isolated coverage only instruments contracts reachable from this source graph.
 // ┌─ Wildcat4626WrapperIntegrationTest ────────────────────────────────────────
 contract Wildcat4626WrapperIntegrationTest is TestKernel {
   enum HooksKind {

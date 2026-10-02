@@ -67,7 +67,7 @@ contract PeriodicTermHooks is PeriodicTermPolicy {
   }
 
   // ┌─ templateVersion ─────
-  /// @notice returns this template's ABI revision.
+  /// @notice return this template's ABI revision.
   ///
   /// @dev `version()` stays `PeriodicTermHooks` because integrations match that exact string.
   function templateVersion() external pure returns (uint256) {
@@ -77,7 +77,7 @@ contract PeriodicTermHooks is PeriodicTermPolicy {
   // ░░▒▒▓▓██ [ MARKET QUERIES ] ───────────────────────────────────────────────
 
   // ┌─ getHookedMarket ─────
-  /// @notice returns the periodic-term configuration and effective closure for `marketAddress`.
+  /// @notice return the periodic-term configuration and effective closure for `marketAddress`.
   ///
   /// @dev an unattached market returns the zero-value struct.
   function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {

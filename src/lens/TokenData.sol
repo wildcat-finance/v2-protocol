@@ -36,7 +36,7 @@ library TokenMetadataLib {
   // ░░▒▒▓▓██ [ TOKEN METADATA ] ───────────────────────────────────────────────
 
   // ┌─ fill ─────
-  /// @notice fills metadata for `tokenAddress`, with best-effort cosmetic labels.
+  /// @notice fill metadata for `tokenAddress`, with best-effort cosmetic labels.
   ///
   /// @dev a zero address leaves the struct empty. decimals remain strict; failed,
   ///      malformed, oversized or gas-limited name/symbol reads yield empty text.
@@ -52,7 +52,7 @@ library TokenMetadataLib {
   }
 
   // ┌─ checkIsMock ─────
-  /// @notice probes the optional `isMock()` marker without making it a required token interface.
+  /// @notice probe the optional `isMock()` marker without making it a required token interface.
   function checkIsMock(address tokenAddress) internal view returns (bool isMock) {
     assembly {
       mstore(0, 0x28ccaa29)

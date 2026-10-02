@@ -55,7 +55,7 @@ import './interfaces/IWildcatArchController.sol';
 // ┌─ WildcatBorrowerIdentityRegistry ──────────────────────────────────────────
 /// @title Wildcat borrower identity registry
 ///
-/// @notice resolves borrower accounts to registered principals without giving the registry control
+/// @notice resolve borrower accounts to registered principals without giving the registry control
 ///         over either one.
 ///
 /// @dev the current ArchController owner manages account factories. account principals manage their

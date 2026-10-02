@@ -102,7 +102,7 @@ contract DeployV2 is Script {
   function deployAll() internal virtual {
     Deployments memory deployments = getDeploymentsForNetwork('sepolia').withPrivateKeyVarName('PVT_KEY');
 
-    // Deployments for whole protocol
+    // protocol deployments
     address chainalysis = deployments.get('Chainalysis');
     (address archController, bool didDeployArchController) = deployments.getOrDeploy(
       'WildcatArchController', _getCreationCode(deployments, 'WildcatArchController'), RedoAllDeployments
@@ -126,7 +126,7 @@ contract DeployV2 is Script {
     );
     require(!didDeploySentinel, 'Sentinel should already be deployed');
 
-    // Hooks Factory
+    // hooks factory
 
     (address marketTemplate, bool didDeployMarketTemplate, uint256 marketInitCodeHash) =
       _storeMarketInitCode(deployments);
@@ -141,7 +141,7 @@ contract DeployV2 is Script {
     _setUpHooksFactory(deployments, WildcatArchController(archController), HooksFactory(hooksFactory));
     _registerBorrower(deployments, 0xca732651410E915090d7A7D889A1E44eF4575fcE);
 
-    // Lens
+    // lens
     deployments.getOrDeploy(
       'MarketLens',
       _getCreationCode(deployments, 'MarketLens'),
@@ -187,12 +187,9 @@ contract DeployV2 is Script {
   // ░░▒▒▓▓██ [ FACTORY PREPARATION ] ──────────────────────────────────────────
 
   // ┌─ _setUpHooksFactory ─────
-  /// @dev Prepares the hooks factory:
-  ///      - Registers the hooks factory as a controller factory and initializes
-  ///        it with the arch controller, if either has not been done.
-  ///      - Deploys the OpenTermHooks template if it does not exist.
-  ///      - Deploys the FixedTermHooks template if it does not exist.
-  ///      - Registers the templates with the hooks factory if they're not already registered.
+  /// @dev prepare the hooks factory, skipping completed steps: register it as a controller
+  ///      factory, initialize it with the ArchController, then deploy and register the
+  ///      OpenTermHooks and FixedTermHooks templates.
   function _setUpHooksFactory(
     Deployments memory deployments,
     WildcatArchController archController,
@@ -418,7 +415,6 @@ contract DeployV2 is Script {
 
     {
       address borrower = market.borrower();
-      // Set up approvals
       deployments.broadcast();
       token.mint(borrower, 1_000_000_000e18);
       deployments.broadcast();
@@ -426,11 +422,11 @@ contract DeployV2 is Script {
       deployments.broadcast();
       market.approve(borrower, type(uint256).max);
 
-      // Add market artifact - takes no constructor args
+      // market constructors read transient parameters; there are no encoded arguments.
       deployments.addArtifactWithoutDeploying(
         string.concat(marketSymbol, '_market'), 'WildcatMarket', address(market), ''
       );
-      // Add hooks artifact - takes constructor args (address borrower, bytes args)
+      // hooks artifacts need constructor arguments: (address borrower, bytes args).
       deployments.addArtifactWithoutDeploying(
         string.concat(marketSymbol, '_hooks'),
         config.hooks.isOpenTerm ? 'OpenTermHooks' : 'FixedTermHooks',

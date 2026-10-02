@@ -22,17 +22,17 @@ pragma solidity 0.8.25;
 // ║  _writeInventoryRecord(...)
 // ╚═════
 
-// Environment:
-// - Both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5),
-//   ARCH_CONTROLLER, and SKIP_EIP1153_CHECK. The network factory inventory
+// environment:
+// - both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5),
+//   ARCH_CONTROLLER, and SKIP_EIP1153_CHECK. the network factory inventory
 //   must contain one v1 wrapper record, or an explicit empty wrapperFactories array.
-// - Direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
+// - direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
 //   PVT_KEY_<NETWORK> (unless Foundry already has a configured sender).
-// - Plan: OWNER_MODE=plan, RPC_URL, and EXPECTED_EXECUTOR; no private key is required.
+// - plan: OWNER_MODE=plan, RPC_URL, and EXPECTED_EXECUTOR; no private key is required.
 //
-// Direct example:
+// direct example:
 //   OWNER_MODE=direct DEPLOYMENTS_NETWORK=anvil RPC_URL=$RPC_URL PVT_KEY_ANVIL=$KEY forge script script/deploy/v2-5/01-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25 --rpc-url $RPC_URL --broadcast
-// Plan example:
+// plan example:
 //   OWNER_MODE=plan DEPLOYMENTS_NETWORK=anvil EXPECTED_EXECUTOR=0x1234567890123456789012345678901234567890 forge script script/deploy/v2-5/01-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25 --rpc-url $RPC_URL
 
 import { console } from 'forge-std/console.sol';

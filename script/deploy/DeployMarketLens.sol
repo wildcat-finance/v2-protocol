@@ -239,11 +239,9 @@ contract DeployMarketLens is DeployScriptBase {
   // ░░▒▒▓▓██ [ VERIFICATION ] ─────────────────────────────────────────────────
 
   // ┌─ _validateLensSet ─────
-  /// Default-factory overloads resolve against the HELPERS' immutables, not
-  /// the facade's, and `_getOrDeployByLabel` can reuse a previously deployed
-  /// helper without checking its constructor args. Require that the whole
-  /// lens set shares one wiring so a stale helper cannot silently answer
-  /// queries against the wrong factory or arch-controller.
+  /// default-factory calls use helper immutables, not the facade's. `_getOrDeployByLabel`
+  /// can reuse helpers without checking constructor arguments. require matching wiring
+  /// across the lens set so a stale helper can't query the wrong factory or ArchController.
   function _validateLensSet(
     LensDeploymentResult memory result,
     address archController,

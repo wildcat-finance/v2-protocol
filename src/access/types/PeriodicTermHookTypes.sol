@@ -50,6 +50,6 @@ interface IMarketApr {
   // ░░▒▒▓▓██ [ CURRENT APR ] ──────────────────────────────────────────────────
 
   // ┌─ annualInterestBips ─────
-  /// @notice returns the market's current base annual interest rate, in bips.
+  /// @notice return the market's current base annual interest rate, in bips.
   function annualInterestBips() external view returns (uint256);
 }

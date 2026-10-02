@@ -29,16 +29,16 @@ interface ISphereXProtectedRegisteredBase {
   // ░░▒▒▓▓██ [ ENGINE MANAGEMENT ] ────────────────────────────────────────────
 
   // ┌─ changeSphereXEngine ─────
-  /// @notice replaces the engine used by this registered contract.
+  /// @notice replace the engine used by this registered contract.
   ///
   /// @dev only the ArchController can call this; it validates the engine before forwarding here.
   function changeSphereXEngine(address newSphereXEngine) external;
 
   // ┌─ sphereXEngine ─────
-  /// @notice returns the active engine, or zero when protection is disabled.
+  /// @notice return the active engine, or zero when protection is disabled.
   function sphereXEngine() external view returns (address);
 
   // ┌─ sphereXOperator ─────
-  /// @notice returns the immutable ArchController operator.
+  /// @notice return the immutable ArchController operator.
   function sphereXOperator() external view returns (address);
 }

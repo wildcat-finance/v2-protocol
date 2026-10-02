@@ -40,7 +40,7 @@ interface IERC165SupportsInterface {
   // ░░▒▒▓▓██ [ INTERFACE SUPPORT ] ────────────────────────────────────────────
 
   // ┌─ supportsInterface ─────
-  /// @notice returns whether the target claims support for `interfaceId`.
+  /// @notice return whether the target claims support for `interfaceId`.
   function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
@@ -50,7 +50,7 @@ interface IERC20BalanceOf {
   // ░░▒▒▓▓██ [ ERC20 BALANCES ] ───────────────────────────────────────────────
 
   // ┌─ balanceOf ─────
-  /// @notice returns `account`'s token balance in base units.
+  /// @notice return `account`'s token balance in base units.
   function balanceOf(address account) external view returns (uint256);
 }
 
@@ -60,11 +60,11 @@ interface IERC4626Assets {
   // ░░▒▒▓▓██ [ VAULT ASSET VALUE ] ────────────────────────────────────────────
 
   // ┌─ balanceOf ─────
-  /// @notice returns the number of vault shares held by `account`.
+  /// @notice return the number of vault shares held by `account`.
   function balanceOf(address account) external view returns (uint256);
 
   // ┌─ convertToAssets ─────
-  /// @notice quotes the underlying asset value of `shares`.
+  /// @notice quote the underlying asset value of `shares`.
   function convertToAssets(uint256 shares) external view returns (uint256);
 }
 
@@ -74,7 +74,7 @@ interface IERC721BalanceOf {
   // ░░▒▒▓▓██ [ COLLECTION BALANCES ] ──────────────────────────────────────────
 
   // ┌─ balanceOf ─────
-  /// @notice returns the number of collection tokens held by `account`.
+  /// @notice return the number of collection tokens held by `account`.
   function balanceOf(address account) external view returns (uint256);
 }
 
@@ -84,7 +84,7 @@ interface IERC721OwnerOf {
   // ░░▒▒▓▓██ [ TOKEN OWNERSHIP ] ──────────────────────────────────────────────
 
   // ┌─ ownerOf ─────
-  /// @notice returns the current owner of `tokenId`.
+  /// @notice return the current owner of `tokenId`.
   function ownerOf(uint256 tokenId) external view returns (address);
 }
 
@@ -94,7 +94,7 @@ interface IERC1155BalanceOf {
   // ░░▒▒▓▓██ [ TOKEN-ID BALANCES ] ────────────────────────────────────────────
 
   // ┌─ balanceOf ─────
-  /// @notice returns `account`'s balance of token `id`.
+  /// @notice return `account`'s balance of token `id`.
   function balanceOf(address account, uint256 id) external view returns (uint256);
 }
 
@@ -104,7 +104,7 @@ interface IERC5192Locked {
   // ░░▒▒▓▓██ [ LOCK STATUS ] ──────────────────────────────────────────────────
 
   // ┌─ locked ─────
-  /// @notice returns whether `tokenId` is currently locked.
+  /// @notice return whether `tokenId` is currently locked.
   function locked(uint256 tokenId) external view returns (bool);
 }
 
@@ -114,6 +114,6 @@ interface IERC5484BurnAuth {
   // ░░▒▒▓▓██ [ BURN AUTHORITY ] ───────────────────────────────────────────────
 
   // ┌─ burnAuth ─────
-  /// @notice returns the burn-authorization enum value for `tokenId`.
+  /// @notice return the burn-authorization enum value for `tokenId`.
   function burnAuth(uint256 tokenId) external view returns (uint256);
 }

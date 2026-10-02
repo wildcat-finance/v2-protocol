@@ -17,7 +17,7 @@ pragma solidity 0.8.25;
 
 import '../access/IRoleProviderFactory.sol';
 
-/// @notice constructor and CREATE2 inputs for an ERC721 balance provider.
+/// @notice function Object() { [native code] } and CREATE2 inputs for an ERC721 balance provider.
 ///
 /// @param token              collection queried for balances.
 /// @param skipInterfaceCheck skips ERC165 and ERC721 checks, not later `balanceOf` failures.
@@ -49,13 +49,13 @@ interface IERC721RoleProviderFactory is IRoleProviderFactory {
   // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
 
   // ┌─ createERC721RoleProvider ─────
-  /// @notice deploys a provider for `msg.sender`.
+  /// @notice deploy a provider for `msg.sender`.
   function createERC721RoleProvider(ERC721RoleProviderFactoryInputs calldata inputs) external returns (address provider);
 
   // ░░▒▒▓▓██ [ ADDRESS PREDICTION ] ───────────────────────────────────────────
 
   // ┌─ computeRoleProviderAddress ─────
-  /// @notice predicts the address for the exact `deployer`, inputs, and this factory.
+  /// @notice predict the address for the exact `deployer`, inputs, and this factory.
   ///
   /// @dev pass the address that will actually call the create function as `deployer`.
   function computeRoleProviderAddress(

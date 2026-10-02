@@ -48,9 +48,8 @@ import { encodeHooksDeploymentConfig } from 'src/types/HooksConfig.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 
 // ┌─ HooksConfigTarget ────────────────────────────────────────────────────────
-/// @dev Records the exact calldata produced by LibHooksConfig. Keeping this as
-///      an artifact-deployed target avoids embedding its creation code in the
-///      test contract that exercises every hook path.
+/// @dev record LibHooksConfig's exact calldata. deploy from the artifact so the test contract
+///      doesn't embed this target's creation code alongside every hook path.
 contract HooksConfigTarget is IHooks {
   error ForcedRevert();
 

@@ -266,7 +266,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ░░▒▒▓▓██ [ MINIMUM DEPOSITS ] ─────────────────────────────────────────────
 
   // ┌─ setMinimumDeposit ─────
-  /// @notice updates a hooked market's minimum deposit.
+  /// @notice update a hooked market's minimum deposit.
   ///
   /// @dev callback flags can't change. a positive minimum needs `onDeposit` already enabled.
   ///      leave the width check to the adapter, after the caller, market and dispatch checks.
@@ -289,7 +289,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ░░▒▒▓▓██ [ DEPOSITS ] ─────────────────────────────────────────────────────
 
   // ┌─ onDeposit ─────
-  /// @notice enforces the minimum deposit, lender entry policy, and additional deposit rules.
+  /// @notice enforce the minimum deposit, lender entry policy, and additional deposit rules.
   ///
   /// @dev default processing can update credentials and known-lender state. a later check reverting
   ///      rolls those changes back, before the market does its deposit accounting.
@@ -350,7 +350,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ░░▒▒▓▓██ [ TRANSFERS ] ────────────────────────────────────────────────────
 
   // ┌─ onTransfer ─────
-  /// @notice enforces the recipient's transfer policy and additional transfer rules.
+  /// @notice enforce the recipient's transfer policy and additional transfer rules.
   ///
   /// @dev known recipients and the registered wrapper skip default credential/block checks.
   ///      they still reach `_checkTransfer`; an exemption isn't permission to skip feature rules.
@@ -411,7 +411,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     virtual { }
 
   // ┌─ isMarketTransferDisabled ─────
-  /// @notice says whether every market-token transfer is disabled for this market.
+  /// @notice report whether every market-token transfer is disabled for this market.
   ///
   /// @dev reverts for an unregistered market. false is permanent; features must preserve that
   ///      promise when adding transfer rules.
@@ -420,7 +420,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   }
 
   // ┌─ isMarketTransferRecipientAllowed ─────
-  /// @notice says whether `recipient` can receive tokens now without hook data.
+  /// @notice report whether `recipient` can receive tokens now without hook data.
   ///
   /// @dev reverts for an unregistered market. credential exemptions still need feature approval.
   function isMarketTransferRecipientAllowed(
@@ -480,7 +480,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ░░▒▒▓▓██ [ WITHDRAWAL QUEUEING ] ──────────────────────────────────────────
 
   // ┌─ onQueueWithdrawal ─────
-  /// @notice checks the withdrawal schedule, lender access, and additional queue rules.
+  /// @notice check the withdrawal schedule, lender access, and additional queue rules.
   ///
   /// @dev the market still chooses the batch and expiry. queueing doesn't make a lender known.
   function onQueueWithdrawal(
@@ -571,7 +571,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ░░▒▒▓▓██ [ CLOSURE ] ──────────────────────────────────────────────────────
 
   // ┌─ onCloseMarket ─────
-  /// @notice validates closure before applying the hook's closure effects.
+  /// @notice validate closure before applying the hook's closure effects.
   ///
   /// @dev the term policy owns caller checks. open-term closure stays an unguarded no-op.
   ///      the market resets APR/reserves after this; don't invent an APR callback here.
@@ -621,7 +621,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ░░▒▒▓▓██ [ INTEREST AND RESERVES ] ────────────────────────────────────────
 
   // ┌─ onSetAnnualInterestAndReserveRatioBips ─────
-  /// @notice calculates the APR/reserve update, then validates the values the market will apply.
+  /// @notice calculate the APR/reserve update, then validate the values the market will apply.
   ///
   /// @dev `_applyAprUpdate` may change hook state and emit events. if `_checkAprChange` reverts,
   ///      those effects revert too, including temporary reserves and pending APR proposal changes.

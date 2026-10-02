@@ -56,15 +56,15 @@ interface IManagedRoleProvider {
   // ░░▒▒▓▓██ [ ADMINISTRATOR TRANSFER ] ───────────────────────────────────────
 
   // ┌─ requestAdministratorTransfer ─────
-  /// @notice starts or replaces a pending transfer.
+  /// @notice start or replace a pending transfer.
   function requestAdministratorTransfer(address newAdministrator) external;
 
   // ┌─ acceptAdministratorTransfer ─────
-  /// @notice completes the transfer when called by the pending administrator.
+  /// @notice complete the transfer when called by the pending administrator.
   function acceptAdministratorTransfer() external;
 
   // ┌─ cancelAdministratorTransfer ─────
-  /// @notice clears the pending transfer without changing the administrator.
+  /// @notice clear the pending transfer without changing the administrator.
   function cancelAdministratorTransfer() external;
 
   // ░░▒▒▓▓██ [ AUTHORITY QUERIES ] ────────────────────────────────────────────

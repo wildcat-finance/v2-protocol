@@ -40,10 +40,8 @@ pragma solidity 0.8.25;
 import './wrappers/MathUtilsExternal.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
-// Uses an external wrapper library to make forge coverage work for MathUtils.
-// Forge is currently incapable of mapping MemberAccess function calls with
-// expressions other than library identifiers (e.g. value.x() vs XLib.x(value))
-// to the correct FunctionDefinition nodes.
+// coverage workaround for MathUtils: the external wrapper uses library-qualified calls
+// (XLib.x(value)), so the mapper sees the library identifier instead of value.x().
 // ┌─ MathUtilsExternalTest ────────────────────────────────────────────────────
 contract MathUtilsExternalTest is TestKernel {
   bytes4 constant TestPanicErrorSelector = 0x4e487b71;

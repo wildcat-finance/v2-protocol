@@ -66,7 +66,7 @@ library MarketLiveDataLib {
   // ░░▒▒▓▓██ [ LIVE MARKET DATA ] ─────────────────────────────────────────────
 
   // ┌─ fill ─────
-  /// @notice fills accounting state using the market's accrued `currentState()` view.
+  /// @notice fill accounting state using the market's accrued `currentState()` view.
   function fill(MarketLiveDataV2_5 memory data, WildcatMarket market) internal view {
     data.market = address(market);
 

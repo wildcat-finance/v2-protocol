@@ -205,7 +205,7 @@ contract DeployAndExercise4626 is Script {
 
   // ┌─ _deployFactoryAndWrapper ─────
   function _deployFactoryAndWrapper(Config memory cfg) internal returns (address wrapperAddr) {
-    // Exercise flows target freshly deployed v2.5 markets; no legacy factory.
+    // these flows use freshly deployed v2.5 markets; no legacy factory is needed.
     Wildcat4626WrapperFactory factory = new Wildcat4626WrapperFactory(cfg.archController, address(0));
     console.log('Wrapper factory:', address(factory));
 

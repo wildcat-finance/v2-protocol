@@ -49,7 +49,7 @@ interface IWildcatSanctionsEscrow {
   // ░░▒▒▓▓██ [ ESCROW RELEASE ] ───────────────────────────────────────────────
 
   // ┌─ releaseEscrow ─────
-  /// @notice sends the complete escrowed balance to `account`.
+  /// @notice send the complete escrowed balance to `account`.
   function releaseEscrow() external;
 
   // ┌─ canReleaseEscrow ─────
@@ -59,7 +59,7 @@ interface IWildcatSanctionsEscrow {
   // ░░▒▒▓▓██ [ ASSET QUERIES ] ────────────────────────────────────────────────
 
   // ┌─ escrowedAsset ─────
-  /// @notice returns the escrowed token and its current balance.
+  /// @notice return the escrowed token and its current balance.
   function escrowedAsset() external view returns (address token, uint256 amount);
 
   // ┌─ balance ─────

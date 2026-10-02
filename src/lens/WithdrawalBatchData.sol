@@ -86,7 +86,7 @@ library WithdrawalBatchDataLib {
   }
 
   // ┌─ fill ─────
-  /// @notice fills aggregate batch state for `expiry`.
+  /// @notice fill aggregate batch state for `expiry`.
   ///
   /// @dev an unknown expiry is represented by the market's empty batch and classifies as complete.
   function fill(WithdrawalBatchData memory data, WildcatMarket market, uint32 expiry) internal view {
@@ -113,7 +113,7 @@ library WithdrawalBatchDataLib {
   }
 
   // ┌─ fill ─────
-  /// @notice fills the lender's pro-rata paid and unpaid amounts for `batch`.
+  /// @notice fill the lender's pro-rata paid and unpaid amounts for `batch`.
   function fill(
     WithdrawalBatchLenderStatus memory data,
     WildcatMarket market,
@@ -124,13 +124,13 @@ library WithdrawalBatchDataLib {
     view
   {
     data.lender = lender;
-    // Unknown expiries return an empty batch, so there is no lender share to calculate.
+    // unknown expiries have no batch ownership to divide.
     if (batch.scaledTotalAmount == 0) return;
     AccountWithdrawalStatus memory status = market.getAccountWithdrawalStatus(lender, batch.expiry);
     data.scaledAmount = status.scaledAmount;
     data.normalizedAmountWithdrawn = status.normalizedAmountWithdrawn;
-    // Paid volume is uint128, but adding interest on the remaining live shares
-    // can take the quoted total above uint128. Preserve its full-width product
+    // paid volume is uint128, but interest on the remaining live shares can push
+    // the quoted total above uint128. preserve its full-width product
     // with cumulative ownership before dividing; the final claim still fits.
     data.normalizedAmountOwed = FixedPointMathLib.fullMulDiv(
       batch.normalizedTotalAmount, data.scaledAmount, batch.scaledTotalAmount

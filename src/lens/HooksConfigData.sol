@@ -80,17 +80,17 @@ struct MarketHooksData {
   address hooksAddress;
   HooksConfigData flags;
   HooksInstanceKind kind;
-  // Shared flags
+  // shared flags
   bool transferRequiresAccess;
   bool depositRequiresAccess;
   uint128 minimumDeposit;
   bool transfersDisabled;
-  // Fixed term loan flags
+  // fixed-term flags
   bool withdrawalRequiresAccess;
   uint32 fixedTermEndTime;
   bool allowClosureBeforeTerm;
   bool allowTermReduction;
-  // Periodic term flags
+  // periodic-term flags
   uint32 firstWithdrawalWindowStart;
   uint32 periodDuration;
   uint32 withdrawalWindowDuration;
@@ -100,14 +100,14 @@ struct MarketHooksData {
 }
 
 // ┌─ HooksConfigDataLib ───────────────────────────────────────────────────────
-/// @notice decodes packed hook flags and supported family-specific market settings.
+/// @notice decode packed hook flags and supported family-specific market settings.
 library HooksConfigDataLib {
   using HooksConfigDataLib for *;
 
   // ░░▒▒▓▓██ [ CONFIGURATION ] ────────────────────────────────────────────────
 
   // ┌─ fill ─────
-  /// @notice fills callback flags and supported typed configuration for `marketAddress`.
+  /// @notice fill callback flags and supported typed configuration for `marketAddress`.
   ///
   /// @dev family-specific getters are strict once `version()` identifies a known implementation.
   function fill(MarketHooksData memory data, address marketAddress) internal view {
@@ -153,7 +153,7 @@ library HooksConfigDataLib {
   }
 
   // ┌─ fill ─────
-  /// @notice expands the callback flags packed into `hooksConfig`.
+  /// @notice expand the callback flags packed into `hooksConfig`.
   function fill(HooksConfigData memory data, HooksConfig hooksConfig) internal pure {
     data.useOnDeposit = hooksConfig.useOnDeposit();
     data.useOnQueueWithdrawal = hooksConfig.useOnQueueWithdrawal();
@@ -170,7 +170,7 @@ library HooksConfigDataLib {
   }
 
   // ┌─ fill ─────
-  /// @notice expands the optional and required callback flags in `config`.
+  /// @notice expand the optional and required callback flags in `config`.
   function fill(HooksDeploymentFlags memory data, HooksDeploymentConfig config) internal pure {
     data.optional.fill(config.optionalFlags());
     data.required.fill(config.requiredFlags());
@@ -203,7 +203,7 @@ library HooksConfigDataLib {
   // ░░▒▒▓▓██ [ HOOKS CLASSIFICATION ] ─────────────────────────────────────────
 
   // ┌─ kindForHooks ─────
-  /// @notice reads `version()` and classifies a hooks instance.
+  /// @notice read `version()` and classify a hooks instance.
   ///
   /// @dev a failed or malformed required response reverts. unknown valid strings return `Unknown`.
   function kindForHooks(address hooksAddress) internal view returns (HooksInstanceKind) {
@@ -258,7 +258,7 @@ library HooksConfigDataLib {
   }
 
   // ┌─ kindForVersion ─────
-  /// @notice classifies a hooks version string without making an external call.
+  /// @notice classify a hooks version string without making an external call.
   function kindForVersion(string memory version) internal pure returns (HooksInstanceKind) {
     return _kindForVersionHash(keccak256(bytes(version)));
   }

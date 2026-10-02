@@ -20,7 +20,7 @@ pragma solidity 0.8.25;
 import '../market/WildcatMarket.sol';
 
 // ┌─ MarketAccountingReader ───────────────────────────────────────────────────
-/// @dev Older markets return one fewer word for state and batch tuples. Pad only the
+/// @dev older markets return one fewer word for state and batch tuples. pad only the
 ///      exact legacy shape; normal ABI decoding still rejects truncated or dirty values.
 library MarketAccountingReader {
   // ░░▒▒▓▓██ [ ACCOUNTING QUERIES ] ───────────────────────────────────────────

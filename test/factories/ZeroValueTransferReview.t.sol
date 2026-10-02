@@ -45,7 +45,7 @@ import { HooksConfig, HooksDeploymentConfig } from 'src/types/HooksConfig.sol';
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 
 // ┌─ ZeroTransferReviewToken ──────────────────────────────────────────────────
-/// @dev Conventional balance accounting, with configurable transfer rejection.
+/// @dev conventional balance accounting, with configurable transfer rejection.
 contract ZeroTransferReviewToken is MockERC20 {
   bool internal immutable rejectZeroAmount;
   uint256 public transferFromCalls;
@@ -67,7 +67,7 @@ contract ZeroTransferReviewToken is MockERC20 {
 }
 
 // ┌─ ZeroValueTransferReviewTest ──────────────────────────────────────────────
-/// @dev Regression coverage for amount-based origination-fee transfers.
+/// @dev regression coverage for amount-based origination-fee transfers.
 contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
   ProductionStack internal stack;
   address internal constant FeeRecipient = address(0xFEE);
@@ -92,8 +92,7 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
   }
 
   // ┌─ deployCell ─────
-  /// @dev An external boundary keeps expectRevert focused on the complete deployment,
-  /// rather than consuming it on intermediate hooks construction.
+  /// @dev keep expectRevert on the complete deployment, not intermediate hooks construction.
   function deployCell(
     MatrixMarketKind kind,
     bool newHooks,
@@ -156,7 +155,7 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
     ZeroTransferReviewToken token = _feeToken(false);
     for (uint256 i; i < 2; i++) {
       MatrixMarketKind kind = MatrixMarketKind(i);
-      // This configuration is permitted by _validateFees.
+      // this configuration is permitted by _validateFees.
       _configureFee(kind, address(0), address(token), 0);
       for (uint256 route; route < 2; route++) {
         _expectDeploymentConfig(kind, address(token), address(0), uint96(route + 1));
@@ -246,7 +245,7 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
   function test_positiveFeeStillRequiresSuccessfulTransfer() external {
     ZeroTransferReviewToken token = _feeToken(true);
     token.mint(MatrixBorrower, 492);
-    // Deliberately omit approval: positive fees must still fail deployment.
+    // omit approval: positive fees must still fail deployment.
     for (uint256 i; i < 2; i++) {
       MatrixMarketKind kind = MatrixMarketKind(i);
       _configureFee(kind, FeeRecipient, address(token), 123);

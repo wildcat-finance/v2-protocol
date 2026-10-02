@@ -97,7 +97,7 @@ contract BoundedMarketStateTest is TestKernel {
   }
 
   // ┌─ referenceValues ─────
-  /// @dev independent checked formulas. The unified partition now checks normalized
+  /// @dev independent checked formulas. the unified partition checks normalized
   ///      pending <= supply at every reserve ratio, including 0% and 100%.
   function referenceValues(MarketState memory state)
     external

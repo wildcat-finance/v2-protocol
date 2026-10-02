@@ -109,7 +109,7 @@ library LibSplitInitCode {
   // ░░▒▒▓▓██ [ STORAGE QUERIES ] ──────────────────────────────────────────────
 
   // ┌─ getSecondaryAddress ─────
-  /// @dev reads the link only. callers must still authenticate both complete runtimes.
+  /// @dev read the link only. callers must still authenticate both complete runtimes.
   function getSecondaryAddress(address primary) internal view returns (address secondary) {
     uint256 size = primary.code.length;
     if (size < FooterSize || primary.code[0] == bytes1(0)) return address(0);

@@ -1686,7 +1686,7 @@ contract WildcatMarketTest is MarketFixture {
   // ┌─ _forceWithdrawalBatchExists ─────
   function _forceWithdrawalBatchExists(WildcatMarket market, uint32 expiry) private {
     // `_withdrawalData` starts at slot 6 and its `batches` mapping is the third slot.
-    // Writing one to the first packed batch word gives it a nonzero scaled total.
+    // writing one to the first packed batch word gives it a nonzero scaled total.
     bytes32 batchSlot = keccak256(abi.encode(uint256(expiry), uint256(8)));
     vm.store(address(market), batchSlot, bytes32(uint256(1)));
     assertEq(market.getWithdrawalBatch(expiry).scaledTotalAmount, 1, 'forced batch');

@@ -24,9 +24,7 @@ library WithdrawalLibExternal {
   }
 
   // ┌─ $availableLiquidityForPendingBatch ─────
-  /// @dev Get the amount of assets which are not already reserved
-  /// for prior withdrawal batches. This must only be used on
-  /// the latest withdrawal batch to expire.
+  /// @dev quote assets not reserved for earlier batches. use only for the latest batch to expire.
   function $availableLiquidityForPendingBatch(
     WithdrawalBatch memory batch,
     MarketState memory state,

@@ -32,7 +32,7 @@ contract MerkleRoleProviderFactory is IMerkleRoleProviderFactory {
   // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
 
   // ┌─ createRoleProvider ─────
-  /// @notice decodes `MerkleRoleProviderFactoryInputs` and deploys for `msg.sender`.
+  /// @notice decode `MerkleRoleProviderFactoryInputs` and deploy for `msg.sender`.
   ///
   /// @dev when a hooks instance calls this entrypoint, that instance is the CREATE2 namespace.
   function createRoleProvider(bytes calldata data) external override returns (address provider) {
@@ -41,7 +41,7 @@ contract MerkleRoleProviderFactory is IMerkleRoleProviderFactory {
   }
 
   // ┌─ createMerkleRoleProvider ─────
-  /// @notice deploys a Merkle provider in `msg.sender`'s CREATE2 namespace.
+  /// @notice deploy a Merkle provider in `msg.sender`'s CREATE2 namespace.
   function createMerkleRoleProvider(MerkleRoleProviderFactoryInputs calldata inputs)
     external
     override
@@ -68,7 +68,7 @@ contract MerkleRoleProviderFactory is IMerkleRoleProviderFactory {
   // ░░▒▒▓▓██ [ ADDRESS PREDICTION ] ───────────────────────────────────────────
 
   // ┌─ computeRoleProviderAddress ─────
-  /// @notice predicts the provider for the exact deployer, constructor inputs, and user salt.
+  /// @notice predict the provider for the exact deployer, constructor inputs, and user salt.
   function computeRoleProviderAddress(
     address deployer,
     MerkleRoleProviderFactoryInputs calldata inputs

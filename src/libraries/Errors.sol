@@ -36,9 +36,9 @@ uint256 constant Error_SelectorPointer = 0x1c;
 // ░░▒▒▓▓██ [ CUSTOM ERRORS ] ──────────────────────────────────────────────────
 
 // ┌─ revertWithSelector ─────
-/// @dev Reverts with the given error selector.
+/// @dev revert with the supplied error selector.
 ///
-/// @param errorSelector The left-aligned error selector.
+/// @param errorSelector left-aligned error selector.
 function revertWithSelector(bytes4 errorSelector) pure {
   assembly {
     mstore(0, errorSelector)
@@ -47,9 +47,9 @@ function revertWithSelector(bytes4 errorSelector) pure {
 }
 
 // ┌─ revertWithSelector ─────
-/// @dev Reverts with the given error selector.
+/// @dev revert with the supplied error selector.
 ///
-/// @param errorSelector The left-padded error selector.
+/// @param errorSelector error selector in the low four bytes of the word.
 function revertWithSelector(uint256 errorSelector) pure {
   assembly {
     mstore(0, errorSelector)
@@ -60,10 +60,10 @@ function revertWithSelector(uint256 errorSelector) pure {
 // ░░▒▒▓▓██ [ ERROR ARGUMENTS ] ────────────────────────────────────────────────
 
 // ┌─ revertWithSelectorAndArgument ─────
-/// @dev Reverts with the given error selector and argument.
+/// @dev revert with the supplied selector and one argument.
 ///
-/// @param errorSelector The left-aligned error selector.
-/// @param argument      The argument to the error.
+/// @param errorSelector left-aligned error selector.
+/// @param argument      error argument.
 function revertWithSelectorAndArgument(bytes4 errorSelector, uint256 argument) pure {
   assembly {
     mstore(0, errorSelector)
@@ -73,10 +73,10 @@ function revertWithSelectorAndArgument(bytes4 errorSelector, uint256 argument) p
 }
 
 // ┌─ revertWithSelectorAndArgument ─────
-/// @dev Reverts with the given error selector and argument.
+/// @dev revert with the supplied selector and one argument.
 ///
-/// @param errorSelector The left-padded error selector.
-/// @param argument      The argument to the error.
+/// @param errorSelector error selector in the low four bytes of the word.
+/// @param argument      error argument.
 function revertWithSelectorAndArgument(uint256 errorSelector, uint256 argument) pure {
   assembly {
     mstore(0, errorSelector)

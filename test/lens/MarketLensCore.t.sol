@@ -394,10 +394,9 @@ contract MarketLensCoreTest is MarketFixture {
 
   // ┌─ test_withdrawalReads_WideOwnershipAndAccruedUnpaidAmount ─────
   function test_withdrawalReads_WideOwnershipAndAccruedUnpaidAmount() external {
-    // A batch can accumulate paid volume near uint128 while its remaining live
-    // share accrues interest. The quoted total can exceed uint128 even after
-    // the lender has collected the paid portion. Mock only the market reads;
-    // the actual lens must preserve the exact remaining four-unit claim.
+    // paid volume near uint128 plus interest on live shares can push the quote above uint128,
+    // even after the paid portion is collected. mock only market reads; the real lens must
+    // preserve the exact remaining four-unit claim.
     uint256 total = type(uint128).max;
     uint32 expiry = 1;
     vm.mockCall(

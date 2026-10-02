@@ -135,23 +135,22 @@ abstract contract PeriodicTermPolicy is BaseHooks {
 
   // ░░▒▒▓▓██ [ STATE ] ────────────────────────────────────────────────────────
 
-  // TODO FOR MAINNET: Finalize the minimum period duration with the team.
+  // TODO FOR MAINNET: finalize the minimum period duration with the team.
   /// @notice shortest supported time between withdrawal-window starts.
   uint32 public constant MinimumPeriodDuration = 6 minutes;
-  // TODO FOR MAINNET: Finalize the maximum period duration with the team.
+  // TODO FOR MAINNET: finalize the maximum period duration with the team.
   /// @notice longest supported time between withdrawal-window starts.
   uint32 public constant MaximumPeriodDuration = 365 days;
-  // TODO FOR MAINNET: Finalize the minimum withdrawal window duration with the team.
+  // TODO FOR MAINNET: finalize the minimum withdrawal window duration with the team.
   /// @notice shortest supported withdrawal window.
   uint32 public constant MinimumWithdrawalWindowDuration = 1 minutes;
-  // TODO FOR MAINNET: Finalize the maximum initial withdrawal window delay with the team.
+  // TODO FOR MAINNET: finalize the maximum initial withdrawal window delay with the team.
   /// @notice longest delay allowed before the first withdrawal window starts.
   uint32 public constant MaximumInitialWithdrawalWindowDelay = MaximumPeriodDuration;
 
   /// @notice number of periods from response-window start until an APR proposal expires.
   ///
-  /// @dev number of periods from response-window start before a proposal expires. one makes the
-  ///      execution interval `[responseWindowEnd, nextWindowStart)`.
+  /// @dev one makes the execution interval `[responseWindowEnd, nextWindowStart)`.
   uint32 public constant AprReductionProposalValidityPeriods = 1;
 
   mapping(address => HookedMarket) internal _hookedMarkets;
@@ -160,7 +159,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   // ░░▒▒▓▓██ [ MARKET SETUP ] ─────────────────────────────────────────────────
 
   // ┌─ _initializeMarket ─────
-  /// @dev binds the market after BaseHooks checks `administrator_` against the current
+  /// @dev bind the market after BaseHooks checks `administrator_` against the current
   ///      administrator. `hooksData` is `(uint32 firstWithdrawalWindowStart, uint32 periodDuration,
   ///      uint32 withdrawalWindowDuration, uint96 minimumDeposit?, bool transfersDisabled?)`.
   ///      the first three words are required; missing optional words read as zero. gated
@@ -229,7 +228,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
       revert WithdrawalWindowDurationOutOfBounds();
     }
 
-    // Once the schedule has started a window always begins within one period,
+    // once the schedule starts, a window always begins within one period,
     // and periods are capped at the maximum delay, so only a future
     // `firstWithdrawalWindowStart` can push the first window too far out.
     if (firstWithdrawalWindowStart > currentTimestamp + MaximumInitialWithdrawalWindowDelay) {
@@ -311,7 +310,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   }
 
   // ┌─ isWithdrawalWindowOpen ─────
-  /// @notice says whether withdrawals may be queued at the current timestamp.
+  /// @notice report whether withdrawals may be queued at the current timestamp.
   ///
   /// @dev closed markets always return true. for open markets, window start is inclusive and end is
   ///      exclusive. reverts for a market not bound to this hooks instance.
@@ -350,7 +349,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   // ░░▒▒▓▓██ [ APR PROPOSALS ] ────────────────────────────────────────────────
 
   // ┌─ proposeAnnualInterestBips ─────
-  /// @notice proposes a strict APR reduction and fixes the next window as the lender response
+  /// @notice propose a strict APR reduction and fix the next window as the lender response
   ///         window.
   ///
   /// @dev only the hooks administrator may propose. the market must be hooked, open, and outside a
@@ -413,7 +412,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     virtual { }
 
   // ┌─ getPendingAprChange ─────
-  /// @notice returns a proposal and the response-window bounds fixed when it was created.
+  /// @notice return a proposal and the response-window bounds fixed when it was created.
   ///
   /// @dev an expired proposal remains readable until it is replaced, cancelled by an APR increase
   ///      or closure, or executed.
@@ -436,7 +435,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   }
 
   // ┌─ pendingAprChanges ─────
-  /// @notice returns the proposed APR and proposal time in the first template version's ABI.
+  /// @notice return the proposed APR and proposal time in the first template version's ABI.
   ///
   /// @dev use `getPendingAprChange` when the fixed response-window bounds are also needed.
   function pendingAprChanges(address market)
@@ -452,7 +451,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   // ░░▒▒▓▓██ [ APR EXECUTION ] ────────────────────────────────────────────────
 
   // ┌─ executePendingAnnualInterestBipsReduction ─────
-  /// @notice lets a hooked market apply its matured APR reduction through the permissionless path.
+  /// @notice let a hooked market apply its matured APR reduction through the permissionless path.
   ///
   /// @dev users call the market; the market calls this hook and keeps its current reserve ratio.
   ///
@@ -521,7 +520,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   }
 
   // ┌─ _executePeriodicReduction ─────
-  /// @dev applies an exact pending reduction after its response window and before expiry. the APR
+  /// @dev apply an exact pending reduction after its response window and before expiry. the APR
   ///      must still be a strict reduction, and all scaled pending withdrawals must be paid first.
   ///      success deletes the proposal.
   function _executePeriodicReduction(

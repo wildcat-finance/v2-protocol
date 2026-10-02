@@ -67,7 +67,7 @@ contract NukeBatchAveragingTest is MarketFixture {
     assertEq(batch.scaledAmountBurned, EarlyAmount, 'initial scaled burn');
     assertEq(batch.normalizedAmountPaid, EarlyAmount, 'initial normalized payment');
 
-    // At the exact expiry, the batch remains current and the scale factor has doubled. Add the
+    // at exact expiry the batch is still current and the scale factor has doubled. add the
     // interest needed to pay the late lender before entering through either equivalent path.
     vm.warp(expiry);
     fixture.asset.mint(address(fixture.market), LateAmount);

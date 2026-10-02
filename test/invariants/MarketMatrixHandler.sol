@@ -115,11 +115,9 @@ import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { HookDispatchSentinelMock } from '../mocks/HookDispatchMocks.sol';
 
 // ┌─ MarketMatrixHandler ──────────────────────────────────────────────────────
-/// @dev Stateful action driver for the complete built-in hook × market matrix.
-///      Every public action receives one generated input and applies it to all
-///      six cells. Foundry is configured to tolerate action reverts, so any
-///      unexpected result is recorded in a ghost counter and asserted by the
-///      invariant contract after the generated sequence finishes.
+/// @dev apply each generated action input to all six built-in hook × market cells.
+///      Foundry tolerates action reverts, so record unexpected results in ghost counters.
+///      invariant checks inspect those counters after the sequence.
 contract MarketMatrixHandler {
   using FeeMath for MarketState;
   using MathUtils for uint256;
@@ -167,8 +165,8 @@ contract MarketMatrixHandler {
   mapping(address actor => bool sanctioned) internal sanctionedActors;
   bool internal borrowerSanctioned;
 
-  // Action-time assertions cannot revert safely while fail_on_revert is false.
-  // Keep durable counters instead so the invariant entrypoints own the failure.
+  // with fail_on_revert false, action assertions can disappear into tolerated reverts.
+  // retain failure counters for the invariant entrypoints instead.
   uint256 public withdrawalGateViolations;
   uint256 public scaleFactorDecreases;
   uint256 public drawnAmountFailures;
@@ -826,7 +824,7 @@ contract MarketMatrixHandler {
     if (drawnAmountFailures != 0) return false;
     for (uint256 i; i < markets.length; i++) {
       if (!revolving[i]) continue;
-      // Lender exits and donated liquidity deliberately do not repay borrower
+      // lender exits and donated liquidity don't repay borrower
       // principal, so drawn amount is not globally bounded by live lender debt.
       if (markets[i].isClosed() && _drawnAmount(i) != 0) return false;
     }
@@ -837,8 +835,8 @@ contract MarketMatrixHandler {
 
   // ┌─ unwindAndDrain ─────
   function unwindAndDrain() external returns (uint256 failureCell, uint256 failureCode) {
-    // This is the liveness half of the matrix: every randomized state must still
-    // close, settle each historical batch, and let every lender leave.
+    // every randomized state must still close, settle every historical batch, and let
+    // every lender exit. conservation alone doesn't prove that.
     for (uint256 i; i < markets.length; i++) {
       WildcatMarket market = markets[i];
       if (!_closeCell(i)) return (i, 5);
@@ -1015,7 +1013,7 @@ contract MarketMatrixHandler {
     WithdrawalBatch memory batch;
     if (expiry != 0) batch = _getRawPendingBatch(cellIndex, state, expiry);
 
-    // Accrue to the batch boundary first. Settlement changes supply, so folding
+    // accrue to the batch boundary first. settlement changes supply, so folding
     // both time segments together would calculate utilization from the wrong base.
     if (expiry != 0 && expiry < timestamp) {
       if (expiry != state.lastInterestAccruedTimestamp) {
@@ -1054,8 +1052,8 @@ contract MarketMatrixHandler {
     MarketState memory calculatedState = market.currentState();
     batch = market.getWithdrawalBatch(expiry);
 
-    // Both public views include the pending payment they can calculate from live
-    // liquidity. Back that simulated delta out so the oracle starts from the
+    // both public views include the pending payment available from live liquidity.
+    // back out that simulated delta so the oracle starts from the
     // stored batch and independently applies the transition below.
     uint256 scaledAmountBurned = previousState.scaledTotalSupply - calculatedState.scaledTotalSupply;
     uint256 normalizedAmountPaid =

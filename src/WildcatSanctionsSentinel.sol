@@ -33,7 +33,7 @@ import { WildcatSanctionsEscrow } from './WildcatSanctionsEscrow.sol';
 // ┌─ WildcatSanctionsSentinel ─────────────────────────────────────────────────
 /// @title Wildcat sanctions sentinel
 ///
-/// @notice combines the external sanctions list with borrower-scoped overrides and escrows.
+/// @notice combine the external sanctions list with borrower-scoped overrides and escrows.
 ///
 /// @dev overrides allow a flagged account; they do not change the external list.
 contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
@@ -134,7 +134,6 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
   {
     escrowContract = getEscrowAddress(borrower, account, asset);
 
-    // Skip creation if the address code size is non-zero
     if (escrowContract.code.length != 0) return escrowContract;
 
     tmpEscrowParams = TmpEscrowParams(borrower, account, asset);
@@ -165,38 +164,35 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
     bytes32 salt = _deriveSalt(borrower, account, asset);
     bytes32 initCodeHash = WildcatSanctionsEscrowInitcodeHash;
     assembly {
-      // Cache the free memory pointer so it can be restored at the end
+      // the hash buffer borrows 0x40; restore it before leaving.
       let freeMemoryPointer := mload(0x40)
 
-      // Write 0xff + address(this) to bytes 11:32
+      // bytes 11:32 hold 0xff followed by address(this).
       mstore(0x00, or(0xff0000000000000000000000000000000000000000, address()))
 
-      // Write salt to bytes 32:64
+      // bytes 32:64 hold the salt.
       mstore(0x20, salt)
 
-      // Write initcode hash to bytes 64:96
+      // bytes 64:96 hold the initcode hash.
       mstore(0x40, initCodeHash)
 
-      // Calculate create2 hash
       escrowAddress := and(keccak256(0x0b, 0x55), 0xffffffffffffffffffffffffffffffffffffffff)
 
-      // Restore the free memory pointer
       mstore(0x40, freeMemoryPointer)
     }
   }
 
   // ┌─ _deriveSalt ─────
-  /// @dev derives the CREATE2 salt for one borrower, account, and asset tuple.
+  /// @dev derive the CREATE2 salt for one borrower, account, and asset tuple.
   function _deriveSalt(address borrower, address account, address asset) internal pure returns (bytes32 salt) {
     assembly {
-      // Cache free memory pointer
+      // the third ABI word borrows 0x40; restore it after hashing.
       let freeMemoryPointer := mload(0x40)
       // `keccak256(abi.encode(borrower, account, asset))`
       mstore(0x00, borrower)
       mstore(0x20, account)
       mstore(0x40, asset)
       salt := keccak256(0, 0x60)
-      // Restore free memory pointer
       mstore(0x40, freeMemoryPointer)
     }
   }

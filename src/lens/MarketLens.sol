@@ -102,7 +102,7 @@ import './interfaces/IMarketLensLive.sol';
 /// @dev each function forwards its original calldata by `staticcall` and passes the helper's exact
 ///      result through. splitting the implementation keeps the facade under the code-size limit.
 contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
-  /// @dev Declared for ABI completeness: raised in the data-filling libraries
+  /// @dev declared for ABI completeness: raised in the data-filling libraries
   ///      and bubbled up to callers through `_delegate`.
   error NotV2Market();
   error InvalidParameterConstraints();
@@ -628,7 +628,7 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   }
 
   // ┌─ _delegate ─────
-  /// @dev forwards the original calldata to `helper` and passes its complete result through.
+  /// @dev forward the original calldata to `helper` and pass its complete result through.
   ///      the helper has to expose the same function signature. there is no fallback routing.
   function _delegate(address helper) internal view {
     assembly ('memory-safe') {

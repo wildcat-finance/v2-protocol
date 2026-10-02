@@ -39,35 +39,35 @@ struct MarketConfig {
   string marketSymbol;
 }
 
-///  Level of access required for accounts to receive a transfer
+/// recipient access required for market-token transfers.
 enum TransferAccess {
-  /// No transfers allowed
+  /// no transfers allowed.
   /// `transfersDisabled` = true
   Disabled,
-  /// Transfer recipient must have a credential or be a known lender
+  /// recipient needs a credential or known-lender status.
   /// `transfersDisabled` = false, `useOnTransfer` = true (in deployment hooks config)
   RequiresCredential,
-  /// Anyone can receive a transfer
+  /// anyone can receive a transfer.
   /// `transfersDisabled` = false, `useOnTransfer` = false (in deployment hooks config)
   Open
 }
 
-///  Level of access required for a lender to make a deposit
+/// lender access required for deposits.
 enum DepositAccess {
-  /// Depositors must have a credential
+  /// depositors need a credential.
   /// `useOnDeposit` = true (in deployment hooks config)
   RequiresCredential,
-  /// Anyone can make a deposit
+  /// anyone can deposit.
   /// `useOnDeposit` = false (in deployment hooks config)
   Open
 }
 
-///  Level of access required for a lender to make a withdrawal request
+/// lender access required to queue a withdrawal.
 enum WithdrawalAccess {
-  /// Withdrawing account must have a credential or be a known lender
+  /// withdrawer needs a credential or known-lender status.
   /// `useOnQueueWithdrawal` = true (in deployment hooks config)
   RequiresCredential,
-  /// Anyone can make a withdrawal request
+  /// anyone can queue a withdrawal.
   /// `useOnQueueWithdrawal` = false (in deployment hooks config)
   Open
 }

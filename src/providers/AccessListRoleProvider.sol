@@ -139,7 +139,7 @@ contract AccessListRoleProvider is IAccessListRoleProvider, ManagedRoleProvider 
   // ░░▒▒▓▓██ [ CREDENTIALS ] ──────────────────────────────────────────────────
 
   // ┌─ getCredential ─────
-  /// @dev returns the current timestamp for a member and zero for everyone else.
+  /// @dev return the current timestamp for a member and zero for everyone else.
   function getCredential(address account) external view override returns (uint32 credentialTimestamp) {
     if (_members.contains(account)) credentialTimestamp = block.timestamp.toUint32();
   }

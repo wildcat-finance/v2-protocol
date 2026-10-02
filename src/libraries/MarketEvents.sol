@@ -71,19 +71,14 @@ function emit_BorrowerTransferRequested(
   address pendingBorrowerPrincipal
 ) {
   assembly {
-    // An EVM event is split between topics and ordinary data. Topic zero is the
-    // event signature hash. The three indexed borrower addresses fill the other
-    // three topics, while the principal addresses are ABI-encoded in memory.
-    //
-    // Memory from 0x00 through 0x3f is scratch space, but 0x40 normally holds
-    // Solidity's free-memory pointer. This event needs three words, so save that
-    // pointer before borrowing its slot and put it back when the log is written.
+    // topic zero is the event signature; the three indexed borrower addresses fill the rest.
+    // principals go in three ABI data words. scratch only covers 0x00-0x3f, so borrow
+    // the free memory pointer's slot at 0x40 and restore it after the log.
     let freePointer := mload(0x40)
     mstore(0, borrowerPrincipal)
     mstore(0x20, previousPendingBorrowerPrincipal)
     mstore(0x40, pendingBorrowerPrincipal)
-    // `log4(offset, size, topic0, topic1, topic2, topic3)` reads the three
-    // non-indexed values from memory 0x00 through 0x5f.
+    // log4 reads the three non-indexed words from 0x00-0x5f.
     log4(
       0,
       0x60,
@@ -104,9 +99,8 @@ function emit_BorrowerTransferred(
   address newBorrowerPrincipal
 ) {
   assembly {
-    // `newBorrowerPrincipal` is indexed here, so it belongs in a topic rather
-    // than the data buffer. That leaves only `previousBorrowerPrincipal` in
-    // memory. `log4` then writes the signature hash and all three indexed fields.
+    // newBorrowerPrincipal is indexed: keep it in a topic, not the data buffer.
+    // only previousBorrowerPrincipal goes in memory; log4 carries the signature and three indexed fields.
     mstore(0, previousBorrowerPrincipal)
     log4(
       0,
@@ -127,9 +121,7 @@ function emit_BorrowerTransferCancelled(
   address cancelledPendingBorrowerPrincipal
 ) {
   assembly {
-    // This event has two indexed values, so `log3` carries the signature hash
-    // plus those two addresses as topics. The two principal addresses are the
-    // ordinary event data, laid out as two 32-byte ABI words in scratch memory.
+    // log3 carries the signature and two indexed addresses. the principals are two ABI data words.
     mstore(0, borrowerPrincipal)
     mstore(0x20, cancelledPendingBorrowerPrincipal)
     log3(

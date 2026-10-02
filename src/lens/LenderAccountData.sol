@@ -39,7 +39,7 @@ struct LenderAccountData {
   uint256 normalizedBalance;
   uint256 underlyingBalance;
   uint256 underlyingApproval;
-  // Hooks data
+  // hooks data
   bool isBlockedFromDeposits;
   RoleProviderData lastProvider;
   bool canRefresh;
@@ -52,7 +52,7 @@ interface IVersionedContract {
   // ░░▒▒▓▓██ [ VERSION QUERY ] ────────────────────────────────────────────────
 
   // ┌─ version ─────
-  /// @notice returns the contract's declared Wildcat version string.
+  /// @notice return the contract's declared Wildcat version string.
   function version() external view returns (string memory);
 }
 

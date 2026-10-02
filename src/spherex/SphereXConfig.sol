@@ -43,7 +43,7 @@ import './SphereXProtectedErrors.sol';
 // ┌─ SphereXConfig ────────────────────────────────────────────────────────────
 /// @title SphereX configuration
 ///
-/// @notice manages the admin, operator, and engine used by a SphereX-protected contract.
+/// @notice manage the admin, operator, and engine used by a SphereX-protected contract.
 ///
 /// @dev the admin changes the operator through a direct update. admin transfer is two-step. the
 ///      operator changes the engine, and setting it to zero disables protection.
@@ -116,7 +116,7 @@ abstract contract SphereXConfig {
   }
 
   // ┌─ transferSphereXAdminRole ─────
-  /// @notice proposes `newAdmin` as the next SphereX admin.
+  /// @notice propose `newAdmin` as the next SphereX admin.
   ///
   /// @dev only the current admin can call this. a new proposal replaces the old one.
   function transferSphereXAdminRole(address newAdmin) public virtual onlySphereXAdmin {
@@ -125,7 +125,7 @@ abstract contract SphereXConfig {
   }
 
   // ┌─ acceptSphereXAdminRole ─────
-  /// @notice accepts a pending admin transfer.
+  /// @notice accept a pending admin transfer.
   ///
   /// @dev only the pending admin can call this.
   function acceptSphereXAdminRole() public virtual {
@@ -139,13 +139,13 @@ abstract contract SphereXConfig {
   }
 
   // ┌─ sphereXAdmin ─────
-  /// @notice returns the current admin, which can replace the operator.
+  /// @notice return the current admin, which can replace the operator.
   function sphereXAdmin() public view returns (address) {
     return _getAddress(SPHEREX_ADMIN_STORAGE_SLOT);
   }
 
   // ┌─ pendingSphereXAdmin ─────
-  /// @notice returns the address allowed to accept the pending admin transfer.
+  /// @notice return the address allowed to accept the pending admin transfer.
   function pendingSphereXAdmin() public view returns (address) {
     return _getAddress(SPHEREX_PENDING_ADMIN_STORAGE_SLOT);
   }
@@ -153,7 +153,7 @@ abstract contract SphereXConfig {
   // ░░▒▒▓▓██ [ OPERATOR ] ─────────────────────────────────────────────────────
 
   // ┌─ changeSphereXOperator ─────
-  /// @notice replaces the SphereX operator.
+  /// @notice replace the SphereX operator.
   ///
   /// @dev only the current admin can call this.
   function changeSphereXOperator(address newSphereXOperator) external onlySphereXAdmin {
@@ -179,7 +179,7 @@ abstract contract SphereXConfig {
   }
 
   // ┌─ sphereXOperator ─────
-  /// @notice returns the current operator, which can replace the engine.
+  /// @notice return the current operator, which can replace the engine.
   function sphereXOperator() public view returns (address) {
     return _getAddress(SPHEREX_OPERATOR_STORAGE_SLOT);
   }
@@ -187,7 +187,7 @@ abstract contract SphereXConfig {
   // ░░▒▒▓▓██ [ ENGINE ] ───────────────────────────────────────────────────────
 
   // ┌─ changeSphereXEngine ─────
-  /// @notice replaces the SphereX engine, or disables protection when set to zero.
+  /// @notice replace the SphereX engine, or disable protection when set to zero.
   ///
   /// @dev only the operator can call this. nonzero engines must support `ISphereXEngine`.
   function changeSphereXEngine(address newSphereXEngine) external spherexOnlyOperator {
@@ -209,7 +209,7 @@ abstract contract SphereXConfig {
   }
 
   // ┌─ sphereXEngine ─────
-  /// @notice returns the active engine, or zero when protection is disabled.
+  /// @notice return the active engine, or zero when protection is disabled.
   function sphereXEngine() public view returns (address) {
     return _getAddress(SPHEREX_ENGINE_STORAGE_SLOT);
   }

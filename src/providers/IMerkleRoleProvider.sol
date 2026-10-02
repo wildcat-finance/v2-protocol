@@ -29,7 +29,7 @@ interface IMerkleRoleProvider is IRoleProvider, IManagedRoleProvider {
   // ░░▒▒▓▓██ [ ROOT MANAGEMENT ] ──────────────────────────────────────────────
 
   // ┌─ updateRoot ─────
-  /// @notice replaces the root without changing provider address or hook attachments.
+  /// @notice replace the root without changing provider address or hook attachments.
   function updateRoot(bytes32 newRoot) external;
 
   // ┌─ root ─────
@@ -37,6 +37,6 @@ interface IMerkleRoleProvider is IRoleProvider, IManagedRoleProvider {
   function root() external view returns (bytes32);
 
   // ┌─ isMember ─────
-  /// @notice verifies `account` against the current root with a sorted-pair proof.
+  /// @notice verify `account` against the current root with a sorted-pair proof.
   function isMember(address account, bytes32[] calldata proof) external view returns (bool);
 }

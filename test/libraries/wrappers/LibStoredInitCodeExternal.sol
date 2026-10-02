@@ -61,8 +61,8 @@ contract LibStoredInitCodeExternal {
   // ░░▒▒▓▓██ [ CREATE2 ADDRESSES ] ────────────────────────────────────────────
 
   // ┌─ getCreate2Prefix ─────
-  /// @dev Returns the create2 prefix for a given deployer address.
-  /// Equivalent to `uint256(uint160(deployer)) | (0xff << 160)`
+  /// @dev return the CREATE2 prefix for a given deployer address.
+  /// equivalent to `uint256(uint160(deployer)) | (0xff << 160)`
   function getCreate2Prefix(address deployer) external pure returns (uint256 create2Prefix) {
     return LibStoredInitCode.getCreate2Prefix(deployer);
   }

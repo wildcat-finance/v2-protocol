@@ -26,7 +26,7 @@ import 'src/access/IRoleProvider.sol';
 import { IERC165SupportsInterface, IERC5192Locked, IERC721OwnerOf } from './TokenInterfaces.sol';
 
 // ┌─ ERC5192RoleProvider ──────────────────────────────────────────────────────
-/// @notice validates ownership of a caller-supplied token ID from one ERC5192 collection.
+/// @notice validate ownership of a caller-supplied token ID from one ERC5192 collection.
 ///
 /// @dev hook data is `abi.encodePacked(provider, abi.encode(tokenId))`. when `requireLocked` is
 ///      true, the token must also report itself locked. malformed input, missing tokens, and failed

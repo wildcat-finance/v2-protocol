@@ -24,7 +24,7 @@ import { IERC4626Assets } from './TokenInterfaces.sol';
 using SafeCastLib for uint256;
 
 // ┌─ ERC4626AssetsRoleProvider ────────────────────────────────────────────────
-/// @notice grants credentials while an account's ERC4626 shares convert to at least `minAssets`.
+/// @notice grant credentials while an account's ERC4626 shares convert to at least `minAssets`.
 ///
 /// @dev the immutable threshold uses underlying-asset base units. this trusts the vault's balance
 ///      and conversion answers; it does not check redeemability, liquidity, fees, or holding
@@ -55,7 +55,7 @@ contract ERC4626AssetsRoleProvider is IERC4626AssetsRoleProvider {
   }
 
   // ┌─ validateCredential ─────
-  /// @notice runs the live share-value check for `account`; caller data is ignored.
+  /// @notice run the live share-value check for `account`; caller data is ignored.
   function validateCredential(address account, bytes calldata) external view override returns (uint32 timestamp) {
     return _credentialTimestamp(account);
   }

@@ -567,7 +567,7 @@ contract HookDispatchTest is TestKernel {
     );
     _fundAndApprove(fixture, Borrower, 10);
 
-    // Build the post-payment callback state independently, including its final word.
+    // derive the post-payment callback state independently, including its final word.
     MarketState memory expected = fixture.market.previousState();
     assertEq(expected.scaleFactor, (5 * RAY) / 4);
     expected.scaledTotalSupply = 1;

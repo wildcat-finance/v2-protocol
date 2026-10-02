@@ -37,7 +37,7 @@ abstract contract OpenTermPolicy is BaseHooks {
   // ░░▒▒▓▓██ [ MARKET SETUP ] ─────────────────────────────────────────────────
 
   // ┌─ _initializeMarket ─────
-  /// @dev binds the market after BaseHooks checks `administrator_` against the current
+  /// @dev bind the market after BaseHooks checks `administrator_` against the current
   ///      administrator. `hooksData` is `(uint128 minimumDeposit?, bool transfersDisabled?)`;
   ///      missing words read as zero. gated withdrawals need gated deposits and gated or disabled
   ///      transfers. otherwise a lender can enter without credentials and get stuck on exit.

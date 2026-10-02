@@ -30,12 +30,12 @@ pragma solidity 0.8.25;
 
 // Sepolia-only repair for the v2.5 template fee recipient.
 //
-// The activation package registered all three templates on both v2.5 factories
-// with the retained executor as fee recipient. This script moves only that
+// the activation package registered all three templates on both v2.5 factories
+// with the retained executor as fee recipient. this script moves only that
 // field to the new executor through the replacement authority helper.
 //
-// Run through update-template-fee-recipient.sh. The script is safe to rerun:
-// registrations already using the new recipient are verified and skipped.
+// use update-template-fee-recipient.sh. reruns verify and skip completed registrations:
+// only the recipient field changes.
 
 import { console } from 'forge-std/console.sol';
 

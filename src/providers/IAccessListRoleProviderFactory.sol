@@ -17,7 +17,7 @@ pragma solidity 0.8.25;
 
 import '../access/IRoleProviderFactory.sol';
 
-/// @notice constructor and CREATE2 inputs for an access-list provider.
+/// @notice function Object() { [native code] } and CREATE2 inputs for an access-list provider.
 ///
 /// @param administrator  initial authority over membership and provider administration.
 /// @param initialMembers initial nonzero members; duplicates revert deployment.
@@ -49,7 +49,7 @@ interface IAccessListRoleProviderFactory is IRoleProviderFactory {
   // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
 
   // ┌─ createAccessListRoleProvider ─────
-  /// @notice deploys a provider for `msg.sender` with the supplied initial authority and members.
+  /// @notice deploy a provider for `msg.sender` with the supplied initial authority and members.
   function createAccessListRoleProvider(AccessListRoleProviderFactoryInputs calldata inputs)
     external
     returns (address provider);
@@ -57,7 +57,7 @@ interface IAccessListRoleProviderFactory is IRoleProviderFactory {
   // ░░▒▒▓▓██ [ ADDRESS PREDICTION ] ───────────────────────────────────────────
 
   // ┌─ computeRoleProviderAddress ─────
-  /// @notice predicts the address for the exact `deployer`, inputs, and this factory.
+  /// @notice predict the address for the exact `deployer`, inputs, and this factory.
   ///
   /// @dev pass the address that will actually call the create function as `deployer`.
   function computeRoleProviderAddress(

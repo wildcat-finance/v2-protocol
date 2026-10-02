@@ -31,7 +31,7 @@ contract ERC721RoleProviderFactory is IERC721RoleProviderFactory {
   // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
 
   // ┌─ createRoleProvider ─────
-  /// @notice decodes `ERC721RoleProviderFactoryInputs` and deploys for `msg.sender`.
+  /// @notice decode `ERC721RoleProviderFactoryInputs` and deploy for `msg.sender`.
   ///
   /// @dev when a hooks instance calls this entrypoint, that instance is the CREATE2 namespace.
   function createRoleProvider(bytes calldata data) external override returns (address provider) {
@@ -40,7 +40,7 @@ contract ERC721RoleProviderFactory is IERC721RoleProviderFactory {
   }
 
   // ┌─ createERC721RoleProvider ─────
-  /// @notice deploys an ERC721 provider in `msg.sender`'s CREATE2 namespace.
+  /// @notice deploy an ERC721 provider in `msg.sender`'s CREATE2 namespace.
   function createERC721RoleProvider(ERC721RoleProviderFactoryInputs calldata inputs)
     external
     override
@@ -67,7 +67,7 @@ contract ERC721RoleProviderFactory is IERC721RoleProviderFactory {
   // ░░▒▒▓▓██ [ ADDRESS PREDICTION ] ───────────────────────────────────────────
 
   // ┌─ computeRoleProviderAddress ─────
-  /// @notice predicts the provider for the exact deployer, constructor inputs, and user salt.
+  /// @notice predict the provider for the exact deployer, constructor inputs, and user salt.
   function computeRoleProviderAddress(
     address deployer,
     ERC721RoleProviderFactoryInputs calldata inputs

@@ -32,7 +32,7 @@ contract AccessListRoleProviderFactory is IAccessListRoleProviderFactory {
   // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
 
   // ┌─ createRoleProvider ─────
-  /// @notice decodes `AccessListRoleProviderFactoryInputs` and deploys for `msg.sender`.
+  /// @notice decode `AccessListRoleProviderFactoryInputs` and deploy for `msg.sender`.
   ///
   /// @dev when a hooks instance calls this entrypoint, that instance is the CREATE2 namespace.
   function createRoleProvider(bytes calldata data) external override returns (address provider) {
@@ -41,7 +41,7 @@ contract AccessListRoleProviderFactory is IAccessListRoleProviderFactory {
   }
 
   // ┌─ createAccessListRoleProvider ─────
-  /// @notice deploys an access-list provider in `msg.sender`'s CREATE2 namespace.
+  /// @notice deploy an access-list provider in `msg.sender`'s CREATE2 namespace.
   function createAccessListRoleProvider(AccessListRoleProviderFactoryInputs calldata inputs)
     external
     override
@@ -68,7 +68,7 @@ contract AccessListRoleProviderFactory is IAccessListRoleProviderFactory {
   // ░░▒▒▓▓██ [ ADDRESS PREDICTION ] ───────────────────────────────────────────
 
   // ┌─ computeRoleProviderAddress ─────
-  /// @notice predicts the provider for the exact deployer, constructor inputs, and user salt.
+  /// @notice predict the provider for the exact deployer, constructor inputs, and user salt.
   function computeRoleProviderAddress(
     address deployer,
     AccessListRoleProviderFactoryInputs calldata inputs

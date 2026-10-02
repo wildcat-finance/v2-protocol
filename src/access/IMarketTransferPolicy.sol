@@ -22,11 +22,11 @@ interface IMarketTransferPolicy {
   // ░░▒▒▓▓██ [ TRANSFER POLICY ] ──────────────────────────────────────────────
 
   // ┌─ isMarketTransferDisabled ─────
-  /// @notice says whether every market-token transfer is disabled for `market`.
+  /// @notice report whether every market-token transfer is disabled for `market`.
   function isMarketTransferDisabled(address market) external view returns (bool);
 
   // ┌─ isMarketTransferRecipientAllowed ─────
-  /// @notice says whether `recipient` can receive `market` tokens right now without hook data.
+  /// @notice report whether `recipient` can receive `market` tokens right now without hook data.
   ///
   /// @dev this doesn't check balance, allowance, or amount-specific failures. false is an ordinary
   ///      policy denial; integrations can treat a revert as an unavailable policy answer.

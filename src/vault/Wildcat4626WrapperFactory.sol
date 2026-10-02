@@ -53,7 +53,7 @@ interface IWrapperAwareMarket {
   // ░░▒▒▓▓██ [ MARKET REGISTRATION ] ──────────────────────────────────────────
 
   // ┌─ registerWrapper ─────
-  /// @notice records this market's canonical wrapper.
+  /// @notice record this market's canonical wrapper.
   function registerWrapper(address wrapper) external;
 
   // ┌─ hooks ─────
@@ -67,11 +67,11 @@ interface IWildcat4626WrapperFactoryV1 {
   // ░░▒▒▓▓██ [ LEGACY WRAPPERS ] ──────────────────────────────────────────────
 
   // ┌─ createWrapper ─────
-  /// @notice deploys the legacy wrapper for `market`.
+  /// @notice deploy the legacy wrapper for `market`.
   function createWrapper(address market) external returns (address wrapper);
 
   // ┌─ wrapperForMarket ─────
-  /// @notice returns the legacy wrapper for `market`, or zero if none exists.
+  /// @notice return the legacy wrapper for `market`, or zero if none exists.
   function wrapperForMarket(address market) external view returns (address wrapper);
 }
 
@@ -136,9 +136,8 @@ contract Wildcat4626WrapperFactory {
   /// @param v1Factory_      legacy factory for undeclared half-up markets, or zero to reject them.
   constructor(address archController_, address v1Factory_) {
     archController = IWildcatArchController(archController_);
-    // A wrong-but-nonzero v1 address would permanently brick legacy routing
-    // (and make discovery revert on codeless addresses), so prove at deploy
-    // time that it answers `wrapperForMarket`.
+    // a wrong V1 address permanently breaks legacy routing and can revert discovery.
+    // require a usable wrapperForMarket answer at deployment, not only a nonzero address.
     if (v1Factory_ != address(0)) {
       (bool success, bytes memory data) = v1Factory_.staticcall(
         abi.encodeWithSelector(IWildcat4626WrapperFactoryV1.wrapperForMarket.selector, address(0))
@@ -151,7 +150,7 @@ contract Wildcat4626WrapperFactory {
   // ░░▒▒▓▓██ [ WRAPPER DEPLOYMENT ] ───────────────────────────────────────────
 
   // ┌─ createWrapper ─────
-  /// @notice deploys and registers the generation-appropriate wrapper for `market`.
+  /// @notice deploy and register the generation-appropriate wrapper for `market`.
   ///
   /// @dev callable by anyone. local floor-rounding markets must be registered, globally
   ///      transferable, expose the full transfer-policy interface, and name this contract as their
@@ -166,12 +165,11 @@ contract Wildcat4626WrapperFactory {
 
     (bool declared, bytes32 rounding) = _probeRounding(market);
     if (!declared) {
-      // The v1 factory performs its own registration and duplicate checks.
+      // V1 owns its registration and duplicate checks.
       if (address(v1Factory) == address(0)) revert LegacyMarketsNotSupported(market);
       return v1Factory.createWrapper(market);
     }
-    // A future market generation with different rounding needs a matching
-    // future wrapper factory; forwarding it to v1 would mispair it silently.
+    // new rounding needs a matching wrapper generation, not a silent fallback to V1.
     if (rounding != FloorRounding) revert UnsupportedMarketRounding(market, rounding);
 
     if (!archController.isRegisteredMarket(market)) revert NotRegisteredMarket(market);
@@ -191,7 +189,7 @@ contract Wildcat4626WrapperFactory {
     IMarketTransferPolicy transferPolicy = IMarketTransferPolicy(hooksAddress);
     try transferPolicy.isMarketTransferDisabled(market) returns (bool transfersDisabled) {
       // ask for both methods the wrapper needs. supporting half the policy interface would
-      // just move this failure into maxDeposit later.
+      // move the failure into maxDeposit later.
       try transferPolicy.isMarketTransferRecipientAllowed(market, address(this)) returns (bool) {
         return transfersDisabled;
       } catch {
@@ -205,7 +203,7 @@ contract Wildcat4626WrapperFactory {
   // ░░▒▒▓▓██ [ WRAPPER DISCOVERY ] ────────────────────────────────────────────
 
   // ┌─ wrapperForMarket ─────
-  /// @notice returns the wrapper for `market` from the matching factory generation.
+  /// @notice return the wrapper for `market` from the matching factory generation.
   ///
   /// @dev local records win even if a later rounding probe changes. any declared rounding stays in
   ///      this registry; only undeclared markets fall through to V1, so a mispaired legacy wrapper
@@ -220,7 +218,7 @@ contract Wildcat4626WrapperFactory {
   }
 
   // ┌─ isFloorRoundingMarket ─────
-  /// @notice returns whether `market` declares the floor rounding used by this wrapper generation.
+  /// @notice return whether `market` declares the floor rounding used by this wrapper generation.
   function isFloorRoundingMarket(address market) public view returns (bool) {
     (bool declared, bytes32 rounding) = _probeRounding(market);
     return declared && rounding == FloorRounding;

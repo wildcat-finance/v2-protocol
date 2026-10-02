@@ -114,7 +114,7 @@ abstract contract FixedTermPolicy is BaseHooks {
   }
 
   // ┌─ _initializeMarket ─────
-  /// @dev binds the market after BaseHooks checks `administrator_` against the current
+  /// @dev bind the market after BaseHooks checks `administrator_` against the current
   ///      administrator. `hooksData` is `(uint32 fixedTermEndTime, uint128 minimumDeposit?,
   ///      bool transfersDisabled?, bool allowClosureBeforeTerm?, bool allowTermReduction?)`.
   ///      maturity is required, can't be in the past, and can't be more than 365 days away.
@@ -212,7 +212,7 @@ abstract contract FixedTermPolicy is BaseHooks {
   // ░░▒▒▓▓██ [ TERM CHANGES ] ─────────────────────────────────────────────────
 
   // ┌─ setFixedTermEndTime ─────
-  /// @notice moves a hooked market's maturity earlier when term reduction was enabled at creation.
+  /// @notice move a hooked market's maturity earlier when term reduction was enabled at creation.
   ///
   /// @dev the new time may be now or in the past. maturity can never be extended.
   function setFixedTermEndTime(address market, uint32 newFixedTermEndTime) external onlyAdministrator {
@@ -324,7 +324,6 @@ abstract contract FixedTermPolicy is BaseHooks {
   function _validateFixedAprUpdate(uint16 annualInterestBips, MarketState calldata intermediateState) internal view {
     HookedMarket storage hookedMarket = _hookedMarkets[msg.sender];
 
-    /* Revert if market is still in fixed term and new APR is lower than it was */
     if (
       (hookedMarket.fixedTermEndTime > block.timestamp) && (annualInterestBips < intermediateState.annualInterestBips)
     ) {

@@ -38,7 +38,7 @@ library RoleProviderDataLib {
   // ░░▒▒▓▓██ [ PROVIDER DATA ] ────────────────────────────────────────────────
 
   // ┌─ toRoleProviderDatas ─────
-  /// @notice decodes each packed provider while preserving input order.
+  /// @notice decode each packed provider while preserving input order.
   function toRoleProviderDatas(RoleProvider[] memory providers) internal view returns (RoleProviderData[] memory data) {
     data = new RoleProviderData[](providers.length);
     for (uint256 i; i < providers.length; i++) {
@@ -47,7 +47,7 @@ library RoleProviderDataLib {
   }
 
   // ┌─ fill ─────
-  /// @notice decodes a packed provider and probes the optional managed-provider interface.
+  /// @notice decode a packed provider and probe the optional managed-provider interface.
   function fill(RoleProviderData memory data, RoleProvider provider) internal view {
     (data.timeToLive, data.providerAddress, data.pullProviderIndex, data.pushProviderIndex) =
       provider.decodeRoleProvider();

@@ -25,7 +25,7 @@ interface IRoleProvider {
   // ░░▒▒▓▓██ [ DISCOVERY ] ────────────────────────────────────────────────────
 
   // ┌─ isPullProvider ─────
-  /// @notice says whether hooks may refresh credentials with `getCredential`.
+  /// @notice report whether hooks may refresh credentials with `getCredential`.
   ///
   /// @dev hooks classify a provider when it is attached. returning false does not prevent explicit
   ///      validation or credentials pushed through the hook's grant functions.
@@ -34,13 +34,13 @@ interface IRoleProvider {
   // ░░▒▒▓▓██ [ CREDENTIALS ] ──────────────────────────────────────────────────
 
   // ┌─ getCredential ─────
-  /// @notice returns when `account`'s current credential was granted, or zero if none is available.
+  /// @notice return when `account`'s current credential was granted, or zero if none is available.
   ///
   /// @dev hooks reject future timestamps and apply their own provider TTL to the result.
   function getCredential(address account) external view returns (uint32 timestamp);
 
   // ┌─ validateCredential ─────
-  /// @notice validates caller-supplied provider data for `account`.
+  /// @notice validate caller-supplied provider data for `account`.
   ///
   /// @dev this may change provider state. return zero for an invalid credential; hooks reject
   ///      future timestamps and apply their own provider TTL to nonzero results.

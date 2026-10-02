@@ -128,7 +128,7 @@ contract WithdrawalRoundingCarryTest is MarketFixture {
       Fixture memory f = _frozen(8, date, i >= 2, HooksKind(i % 2));
       (uint32 first, uint32 second) = this.prepareTwoBatches(f);
       f.asset.mint(address(f.market), 3);
-      // Write this backing before the repayment boundary so the historical decision sees it.
+      // write this backing before the repayment boundary so the historical decision sees it.
       f.market.updateState();
       vm.warp(date);
       f.market.updateState();
@@ -229,8 +229,8 @@ contract WithdrawalRoundingCarryTest is MarketFixture {
     _setFactor(f, uint112((5 * RAY) / 4));
   }
 
-  // Establish a valid fixed scale without accruing again during the scenario. This avoids
-  // making the expected rounding depend on timing or the revolving utilization formula.
+  // fix a valid scale without accruing again, so expected rounding doesn't depend on timing
+  // or the revolving utilization formula.
   // ┌─ _setFactor ─────
   function _setFactor(Fixture memory f, uint112 factor) private {
     bytes32 word = vm.load(address(f.market), bytes32(uint256(3)));

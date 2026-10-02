@@ -203,7 +203,7 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     harness.applyPayment(batch, state, 1);
   }
 
-  // Defensive helper behavior for synthetic state outside the queue-admission invariant.
+  // defensive helper behavior for synthetic state outside the queue-admission invariant.
   // ┌─ test_syntheticWideCumulativeStateKeepsItsSmallLiveDifference ─────
   function test_syntheticWideCumulativeStateKeepsItsSmallLiveDifference() external view {
     MarketState memory state;

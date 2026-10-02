@@ -25,8 +25,8 @@ using WithdrawalLib for WithdrawalBatch global;
 /// @notice aggregate accounting for requests sharing one expiry.
 ///
 /// @dev tokens keep earning interest until payment reserves assets and burns scaled supply.
-///      The fields retain a uint128 ABI, but queue admission caps cumulative scaled ownership
-///      at uint104.max so cumulative normalized payments remain representable. The scaled
+///      the fields retain a uint128 ABI, but queue admission caps cumulative scaled ownership
+///      at uint104.max so cumulative normalized payments remain representable. the scaled
 ///      counters share one slot; normalized payments occupy a second.
 ///
 /// @param scaledTotalAmount    cumulative scaled amount requested for the batch.
@@ -36,7 +36,7 @@ struct WithdrawalBatch {
   uint128 scaledTotalAmount;
   uint128 scaledAmountBurned;
   uint128 normalizedAmountPaid;
-  // Ray numerator retained between payments; always less than RAY.
+  // ray numerator retained between payments; always less than RAY.
   uint128 paymentRemainder;
 }
 
@@ -68,9 +68,8 @@ library WithdrawalLib {
   // ░░▒▒▓▓██ [ BATCH FUNDING ] ────────────────────────────────────────────────
 
   // ┌─ availableLiquidityForPendingBatch ─────
-  /// @dev Get the amount of assets which are not already reserved
-  ///      for prior withdrawal batches. This must only be used on
-  ///      the latest withdrawal batch to expire.
+  /// @dev liquidity left after prior batches, paid claims, and protocol fees.
+  ///      use only for the latest batch to expire; older batches have priority.
   function availableLiquidityForPendingBatch(
     WithdrawalBatch memory batch,
     MarketState memory state,
@@ -80,8 +79,7 @@ library WithdrawalLib {
     pure
     returns (uint256)
   {
-    // Subtract normalized value of pending scaled withdrawals, processed
-    // withdrawals and protocol fees.
+    // reserve the older unpaid shares and their carry, not this batch's own unpaid amount.
     uint256 priorScaledAmountPending = (state.scaledPendingWithdrawals - batch.scaledOwedAmount());
     uint256 unavailableAssets = state.normalizedUnclaimedWithdrawals
       + state.normalizeWithRemainder(priorScaledAmountPending, state.withdrawalRemainder - batch.paymentRemainder)
@@ -90,7 +88,7 @@ library WithdrawalLib {
   }
 
   // ┌─ scaledOwedAmount ─────
-  /// @dev returns the scaled part of `batch` that still needs payment.
+  /// @dev return the scaled part of `batch` that still needs payment.
   function scaledOwedAmount(WithdrawalBatch memory batch) internal pure returns (uint128) {
     return batch.scaledTotalAmount - batch.scaledAmountBurned;
   }
@@ -98,7 +96,7 @@ library WithdrawalLib {
   // ░░▒▒▓▓██ [ REMAINDER SETTLEMENT ] ─────────────────────────────────────────
 
   // ┌─ releaseRemainder ─────
-  /// @dev only call once this batch cannot accept more requests. No whole token is owed
+  /// @dev only call once this batch cannot accept more requests. no whole token is owed
   ///      by its final sub-RAY remainder; release it from the market-wide liability.
   function releaseRemainder(WithdrawalBatch memory batch, MarketState memory state) internal pure {
     if (batch.scaledTotalAmount == batch.scaledAmountBurned) {

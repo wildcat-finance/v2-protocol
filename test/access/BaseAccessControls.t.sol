@@ -551,15 +551,12 @@ contract BaseAccessControlsTest is TestKernel {
     _expectRoleProviderAdded(address(mockProvider1), ttl1, provider.pullProviderIndex, provider.pushProviderIndex);
     baseHooks.addRoleProvider(address(mockProvider1), ttl1);
 
-    // Validate the initial state
     _validateRoleProviders();
 
-    // Update the TTL using `addRoleProvider`
     provider.timeToLive = ttl2;
     _expectRoleProviderUpdated(address(mockProvider1), ttl2, provider.pullProviderIndex, provider.pushProviderIndex);
     baseHooks.addRoleProvider(address(mockProvider1), ttl2);
 
-    // Validate the updated state
     _validateRoleProviders();
   }
 
@@ -569,15 +566,12 @@ contract BaseAccessControlsTest is TestKernel {
     _expectRoleProviderAdded(address(mockProvider1), ttl1, provider.pullProviderIndex, provider.pushProviderIndex);
     baseHooks.addRoleProvider(address(mockProvider1), ttl1);
 
-    // Validate the initial state
     _validateRoleProviders();
 
-    // Update the TTL using `addRoleProvider`
     provider.timeToLive = ttl2;
     _expectRoleProviderUpdated(address(mockProvider1), ttl2, provider.pullProviderIndex, provider.pushProviderIndex);
     baseHooks.addRoleProvider(address(mockProvider1), ttl2);
 
-    // Validate the updated state
     _validateRoleProviders();
   }
 
@@ -587,15 +581,12 @@ contract BaseAccessControlsTest is TestKernel {
     _expectRoleProviderAdded(address(mockProvider1), ttl1, provider.pullProviderIndex, provider.pushProviderIndex);
     baseHooks.addRoleProvider(address(mockProvider1), ttl1);
 
-    // Validate the initial state
     _validateRoleProviders();
 
-    // Update the TTL using `addRoleProvider`
     provider.timeToLive = ttl2;
     _expectRoleProviderUpdated(address(mockProvider1), ttl2, provider.pullProviderIndex, provider.pushProviderIndex);
     baseHooks.addRoleProvider(address(mockProvider1), ttl2);
 
-    // Validate the updated state
     _validateRoleProviders();
   }
 
@@ -625,8 +616,7 @@ contract BaseAccessControlsTest is TestKernel {
   }
 
   // ┌─ test_removeRoleProvider_LastPullProvider ─────
-  /// @dev Remove the last pull provider. Should not cause any changes
-  ///      to other pull providers.
+  /// @dev removing the last pull provider must leave every other provider unchanged.
   function test_removeRoleProvider_LastPullProvider() external {
     mockProvider1.setIsPullProvider(true);
     mockProvider2.setIsPullProvider(true);
@@ -647,9 +637,7 @@ contract BaseAccessControlsTest is TestKernel {
   }
 
   // ┌─ test_removeRoleProvider_NotLastPullProvider ─────
-  /// @dev Remove a pull provider that is not the last pull provider.
-  ///      Should cause the last pull provider to be moved to the
-  ///      removed provider's index
+  /// @dev removing a middle pull provider must move the last provider into its index.
   function test_removeRoleProvider_NotLastPullProvider() external {
     mockProvider1.setIsPullProvider(true);
     mockProvider2.setIsPullProvider(true);
@@ -662,7 +650,6 @@ contract BaseAccessControlsTest is TestKernel {
       })
     );
 
-    // Add two pull providers
     _expectRoleProviderAdded(address(mockProvider1), 1, 0, NullProviderIndex);
     baseHooks.addRoleProvider(address(mockProvider1), 1);
 
@@ -677,9 +664,7 @@ contract BaseAccessControlsTest is TestKernel {
   }
 
   // ┌─ test_removeRoleProvider_NotLastPushProvider ─────
-  /// @dev Remove a push provider that is not the last push provider.
-  ///      Should cause the last push provider to be moved to the
-  ///      removed provider's index
+  /// @dev removing a middle push provider must move the last provider into its index.
   function test_removeRoleProvider_NotLastPushProvider() external {
     mockProvider1.setIsPullProvider(false);
     mockProvider2.setIsPullProvider(false);
@@ -692,7 +677,6 @@ contract BaseAccessControlsTest is TestKernel {
       })
     );
 
-    // Add two pull providers
     _expectRoleProviderAdded(address(mockProvider1), 1, NullProviderIndex, 0);
     baseHooks.addRoleProvider(address(mockProvider1), 1);
 
@@ -747,7 +731,6 @@ contract BaseAccessControlsTest is TestKernel {
         assertEq(pushProviders[pushIndex++], expectedRoleProviders[i], 'push provider');
       }
       address providerAddress = expectedRoleProviders[i].providerAddress;
-      // Check _roleProviders[provider] matches expected provider
       RoleProvider provider = baseHooks.getRoleProvider(providerAddress);
       assertEq(provider, expectedRoleProviders[i], 'provider mapping');
     }
@@ -904,7 +887,7 @@ contract BaseAccessControlsTest is TestKernel {
   }
 
   // ┌─ test_grantRole_laterExpiry ─────
-  /// @dev Provider can replace credentials with an earlier expiry
+  /// @dev a provider may shorten the expiry of its own credential.
   function test_grantRole_laterExpiry(
     address account,
     uint32 timeToLive1,
@@ -915,7 +898,7 @@ contract BaseAccessControlsTest is TestKernel {
   {
     timeToLive1 = uint32(bound(timeToLive1, 0, type(uint32).max - 2));
     timeToLive2 = uint32(bound(timeToLive2, timeToLive1 + 1, type(uint32).max));
-    // Keep provider 1's expiry below max uint32 so provider 2 can extend it.
+    // leave room below max uint32 so provider 2 can extend provider 1's expiry.
     uint256 minTimestamp = block.timestamp.satSub(timeToLive1);
     if (minTimestamp == 0) minTimestamp = 1;
     uint256 maxTimestamp = uint(type(uint32).max).satSub(timeToLive1) - 1;
@@ -934,7 +917,7 @@ contract BaseAccessControlsTest is TestKernel {
   }
 
   // ┌─ test_grantRole_oldProviderRemoved ─────
-  /// @dev Provider can replace credentials if the provider has been removed
+  /// @dev a removed provider's credential can be replaced without extending expiry.
   function test_grantRole_oldProviderRemoved(
     address account,
     uint32 timeToLive1,
@@ -943,10 +926,9 @@ contract BaseAccessControlsTest is TestKernel {
   )
     external
   {
-    // Keep the second TTL shorter so removing provider 1 is the reason replacement works.
+    // use a shorter second TTL so removal, not extended expiry, permits replacement.
     timeToLive2 = uint32(bound(timeToLive2, 0, type(uint32).max - 2));
     timeToLive1 = uint32(bound(timeToLive1, timeToLive2 + 1, type(uint32).max));
-    // Make sure the timestamp won't result in an expired credential
     uint256 minTimestamp = block.timestamp.satSub(timeToLive2);
     if (minTimestamp == 0) minTimestamp = 1;
     uint256 maxTimestamp = uint(type(uint32).max).satSub(timeToLive2) - 1;
@@ -969,8 +951,7 @@ contract BaseAccessControlsTest is TestKernel {
   }
 
   // ┌─ test_grantRole_ProviderCanNotReplaceCredential ─────
-  /// @dev Provider can not replace a credential from another provider unless it has
-  ///      a greater expiry.
+  /// @dev replacing another supported provider's credential requires a strictly later expiry.
   function test_grantRole_ProviderCanNotReplaceCredential(
     address account,
     uint32 timeToLive1,
@@ -1202,7 +1183,7 @@ contract BaseAccessControlsTest is TestKernel {
     bytes memory hooksData;
 
     if (scenario == 0) {
-      // A supported, unexpired credential wins before hooks data is considered.
+      // supported, cacheable credentials take priority over hooks data.
       baseHooks.addRoleProvider(address(mockProvider1), 1 days);
       vm.prank(address(mockProvider1));
       baseHooks.grantRole(account, currentTimestamp);
@@ -1211,7 +1192,7 @@ contract BaseAccessControlsTest is TestKernel {
       expectedTimestamp = currentTimestamp;
       expectedValid = true;
     } else if (scenario == 1) {
-      // Data after the provider address uses validateCredential, including for push providers.
+      // data after the provider address uses validateCredential, including for push providers.
       bytes memory credentialData = hex'aabbcc';
       baseHooks.addRoleProvider(address(mockProvider2), 1 days);
       mockProvider2.approveCredentialData(keccak256(credentialData), currentTimestamp);
@@ -1221,7 +1202,7 @@ contract BaseAccessControlsTest is TestKernel {
       expectedValid = true;
       expectedUpdated = true;
     } else if (scenario == 2) {
-      // A bare provider address selects getCredential, but only for a pull provider.
+      // a bare provider address selects getCredential, but only for a pull provider.
       mockProvider2.setIsPullProvider(true);
       mockProvider2.setCredential(account, currentTimestamp);
       baseHooks.addRoleProvider(address(mockProvider2), 1 days);
@@ -1232,7 +1213,7 @@ contract BaseAccessControlsTest is TestKernel {
       expectedUpdated = true;
       expectedCanRefresh = true;
     } else if (scenario == 3) {
-      // An expired credential refreshes from its previous pull provider.
+      // an expired credential refreshes from its previous pull provider.
       _grantExpiredCredential(mockProvider1, account);
       mockProvider1.setCredential(account, currentTimestamp);
       expectedProvider = address(mockProvider1);
@@ -1241,7 +1222,7 @@ contract BaseAccessControlsTest is TestKernel {
       expectedUpdated = true;
       expectedCanRefresh = true;
     } else if (scenario == 4) {
-      // With no selected provider, the pull-provider list is searched in order.
+      // with no selected provider, the pull-provider list is searched in order.
       mockProvider1.setIsPullProvider(true);
       mockProvider2.setIsPullProvider(true);
       mockProvider2.setCredential(account, currentTimestamp);
@@ -1253,15 +1234,15 @@ contract BaseAccessControlsTest is TestKernel {
       expectedUpdated = true;
       expectedCanRefresh = true;
     } else if (scenario == 5) {
-      // Unknown providers in hooks data are ignored.
+      // unknown providers in hooks data are ignored.
       hooksData = abi.encodePacked(address(0xBAD), hex'aabbcc');
     } else if (scenario == 6) {
-      // Provider reverts are treated as failed credentials, not bubbled reverts.
+      // provider reverts are treated as failed credentials, not bubbled reverts.
       baseHooks.addRoleProvider(address(mockProvider2), 1 days);
       mockProvider2.setCallShouldRevert(true);
       hooksData = abi.encodePacked(address(mockProvider2), hex'aabbcc');
     } else if (scenario == 7) {
-      // A successful stateful validation must return a complete word.
+      // a successful stateful validation must return a complete word.
       baseHooks.addRoleProvider(address(mockProvider2), 1 days);
       mockProvider2.setCallShouldReturnCorruptedData(true);
       hooksData = abi.encodePacked(address(mockProvider2), hex'aabbcc');
@@ -1269,13 +1250,13 @@ contract BaseAccessControlsTest is TestKernel {
       baseHooks.tryValidateAccess(account, hooksData);
       return;
     } else if (scenario == 8) {
-      // A correctly encoded credential is still rejected when its TTL has elapsed.
+      // a correctly encoded credential is still rejected when its TTL has elapsed.
       bytes memory credentialData = hex'aabbcc';
       baseHooks.addRoleProvider(address(mockProvider2), 1);
       mockProvider2.approveCredentialData(keccak256(credentialData), currentTimestamp - 2);
       hooksData = abi.encodePacked(address(mockProvider2), credentialData);
     } else if (scenario == 9) {
-      // An expired credential from a push provider is cleared when no replacement exists.
+      // an expired credential from a push provider is cleared when no replacement exists.
       uint256 nowBeforeWarp = getTimestamp();
       baseHooks.addRoleProvider(address(mockProvider1), 1);
       warp(nowBeforeWarp - 2);
@@ -1285,7 +1266,7 @@ contract BaseAccessControlsTest is TestKernel {
       revokedProvider = address(mockProvider1);
       expectedUpdated = true;
     } else if (scenario == 10) {
-      // A failed hooks-data pull does not prevent a different provider from succeeding.
+      // a failed hooks-data pull does not prevent a different provider from succeeding.
       mockProvider1.setIsPullProvider(true);
       mockProvider2.setIsPullProvider(true);
       mockProvider1.setCredential(account, currentTimestamp);
@@ -1298,7 +1279,7 @@ contract BaseAccessControlsTest is TestKernel {
       expectedUpdated = true;
       expectedCanRefresh = true;
     } else {
-      // A failed refresh skips the previous provider, then continues through the list.
+      // a failed refresh skips the previous provider, then continues through the list.
       _grantExpiredCredential(mockProvider1, account);
       mockProvider2.setIsPullProvider(true);
       mockProvider2.setCredential(account, currentTimestamp);

@@ -153,13 +153,13 @@ interface IWildcatArchController {
   // ░░▒▒▓▓██ [ SPHEREX CONFIGURATION ] ────────────────────────────────────────
 
   // ┌─ transferSphereXAdminRole ─────
-  /// @notice starts a two-step SphereX admin transfer.
+  /// @notice start a two-step SphereX admin transfer.
   ///
   /// @dev only the current SphereX admin can call this.
   function transferSphereXAdminRole(address newAdmin) external virtual;
 
   // ┌─ acceptSphereXAdminRole ─────
-  /// @notice accepts the pending SphereX admin transfer.
+  /// @notice accept the pending SphereX admin transfer.
   function acceptSphereXAdminRole() external virtual;
 
   // ┌─ sphereXAdmin ─────
@@ -171,7 +171,7 @@ interface IWildcatArchController {
   function pendingSphereXAdmin() external view returns (address);
 
   // ┌─ changeSphereXOperator ─────
-  /// @notice replaces the SphereX operator.
+  /// @notice replace the SphereX operator.
   ///
   /// @dev only the SphereX admin can call this.
   function changeSphereXOperator(address newSphereXOperator) external;
@@ -181,7 +181,7 @@ interface IWildcatArchController {
   function sphereXOperator() external view returns (address);
 
   // ┌─ changeSphereXEngine ─────
-  /// @notice replaces the SphereX engine, or disables protection when set to zero.
+  /// @notice replace the SphereX engine, or disable protection when set to zero.
   ///
   /// @dev only the SphereX operator can call this. nonzero engines must support `ISphereXEngine`.
   function changeSphereXEngine(address newSphereXEngine) external;
@@ -193,160 +193,160 @@ interface IWildcatArchController {
   // ░░▒▒▓▓██ [ BORROWERS ] ────────────────────────────────────────────────────
 
   // ┌─ registerBorrower ─────
-  /// @notice approves a borrower principal.
+  /// @notice approve a borrower principal.
   ///
   /// @dev only the protocol owner can call this.
   function registerBorrower(address borrower) external;
 
   // ┌─ removeBorrower ─────
-  /// @notice removes a borrower principal from the registry.
+  /// @notice remove a borrower principal from the registry.
   ///
   /// @dev only the protocol owner can call this. existing markets are not changed.
   function removeBorrower(address borrower) external;
 
   // ┌─ isRegisteredBorrower ─────
-  /// @notice says whether `borrower` is a currently registered principal.
+  /// @notice report whether `borrower` is a currently registered principal.
   function isRegisteredBorrower(address borrower) external view returns (bool);
 
   // ┌─ getRegisteredBorrowers ─────
-  /// @notice returns every registered borrower in unstable enumeration order.
+  /// @notice return every registered borrower in unstable enumeration order.
   function getRegisteredBorrowers() external view returns (address[] memory);
 
   // ┌─ getRegisteredBorrowers ─────
-  /// @notice returns borrowers in `[start, min(end, count))`.
+  /// @notice return borrowers in `[start, min(end, count))`.
   ///
   /// @dev retained singleton behavior panics when `start` exceeds the clamped end.
   function getRegisteredBorrowers(uint256 start, uint256 end) external view returns (address[] memory);
 
   // ┌─ getRegisteredBorrowersCount ─────
-  /// @notice returns the current number of registered borrowers.
+  /// @notice return the current number of registered borrowers.
   function getRegisteredBorrowersCount() external view returns (uint256);
 
   // ░░▒▒▓▓██ [ ASSET BLACKLIST ] ──────────────────────────────────────────────
 
   // ┌─ addBlacklist ─────
-  /// @notice blocks `asset` from use by factories that consult this registry.
+  /// @notice block `asset` from use by factories that consult this registry.
   ///
   /// @dev only the protocol owner can call this. existing markets are not changed.
   function addBlacklist(address asset) external;
 
   // ┌─ removeBlacklist ─────
-  /// @notice removes `asset` from the blacklist.
+  /// @notice remove `asset` from the blacklist.
   ///
   /// @dev only the protocol owner can call this.
   function removeBlacklist(address asset) external;
 
   // ┌─ isBlacklistedAsset ─────
-  /// @notice says whether `asset` is currently blacklisted.
+  /// @notice report whether `asset` is currently blacklisted.
   function isBlacklistedAsset(address asset) external view returns (bool);
 
   // ┌─ getBlacklistedAssets ─────
-  /// @notice returns every blacklisted asset in unstable enumeration order.
+  /// @notice return every blacklisted asset in unstable enumeration order.
   function getBlacklistedAssets() external view returns (address[] memory);
 
   // ┌─ getBlacklistedAssets ─────
-  /// @notice returns blacklisted assets in `[start, min(end, count))`.
+  /// @notice return blacklisted assets in `[start, min(end, count))`.
   ///
   /// @dev retained singleton behavior panics when `start` exceeds the clamped end.
   function getBlacklistedAssets(uint256 start, uint256 end) external view returns (address[] memory);
 
   // ┌─ getBlacklistedAssetsCount ─────
-  /// @notice returns the current number of blacklisted assets.
+  /// @notice return the current number of blacklisted assets.
   function getBlacklistedAssetsCount() external view returns (uint256);
 
   // ░░▒▒▓▓██ [ CONTROLLER FACTORIES ] ─────────────────────────────────────────
 
   // ┌─ registerControllerFactory ─────
-  /// @notice adds a controller factory to the registry.
+  /// @notice add a controller factory to the registry.
   ///
   /// @dev only the protocol owner can call this.
   function registerControllerFactory(address factory) external;
 
   // ┌─ removeControllerFactory ─────
-  /// @notice removes a controller factory without changing controllers it already registered.
+  /// @notice remove a controller factory without changing controllers it already registered.
   ///
   /// @dev only the protocol owner can call this.
   function removeControllerFactory(address factory) external;
 
   // ┌─ isRegisteredControllerFactory ─────
-  /// @notice says whether `factory` is currently registered.
+  /// @notice report whether `factory` is currently registered.
   function isRegisteredControllerFactory(address factory) external view returns (bool);
 
   // ┌─ getRegisteredControllerFactories ─────
-  /// @notice returns every controller factory in unstable enumeration order.
+  /// @notice return every controller factory in unstable enumeration order.
   function getRegisteredControllerFactories() external view returns (address[] memory);
 
   // ┌─ getRegisteredControllerFactories ─────
-  /// @notice returns controller factories in `[start, min(end, count))`.
+  /// @notice return controller factories in `[start, min(end, count))`.
   ///
   /// @dev retained singleton behavior panics when `start` exceeds the clamped end.
   function getRegisteredControllerFactories(uint256 start, uint256 end) external view returns (address[] memory);
 
   // ┌─ getRegisteredControllerFactoriesCount ─────
-  /// @notice returns the current number of registered controller factories.
+  /// @notice return the current number of registered controller factories.
   function getRegisteredControllerFactoriesCount() external view returns (uint256);
 
   // ░░▒▒▓▓██ [ CONTROLLERS ] ──────────────────────────────────────────────────
 
   // ┌─ registerController ─────
-  /// @notice adds a controller to the registry.
+  /// @notice add a controller to the registry.
   ///
   /// @dev only a registered controller factory can call this.
   function registerController(address controller) external;
 
   // ┌─ removeController ─────
-  /// @notice removes a controller without changing markets it already registered.
+  /// @notice remove a controller without changing markets it already registered.
   ///
   /// @dev only the protocol owner can call this.
   function removeController(address controller) external;
 
   // ┌─ isRegisteredController ─────
-  /// @notice says whether `controller` is currently registered.
+  /// @notice report whether `controller` is currently registered.
   function isRegisteredController(address controller) external view returns (bool);
 
   // ┌─ getRegisteredControllers ─────
-  /// @notice returns every controller in unstable enumeration order.
+  /// @notice return every controller in unstable enumeration order.
   function getRegisteredControllers() external view returns (address[] memory);
 
   // ┌─ getRegisteredControllers ─────
-  /// @notice returns controllers in `[start, min(end, count))`.
+  /// @notice return controllers in `[start, min(end, count))`.
   ///
   /// @dev retained singleton behavior panics when `start` exceeds the clamped end.
   function getRegisteredControllers(uint256 start, uint256 end) external view returns (address[] memory);
 
   // ┌─ getRegisteredControllersCount ─────
-  /// @notice returns the current number of registered controllers.
+  /// @notice return the current number of registered controllers.
   function getRegisteredControllersCount() external view returns (uint256);
 
   // ░░▒▒▓▓██ [ MARKETS ] ──────────────────────────────────────────────────────
 
   // ┌─ registerMarket ─────
-  /// @notice adds a market to the registry.
+  /// @notice add a market to the registry.
   ///
   /// @dev only a registered controller can call this.
   function registerMarket(address market) external;
 
   // ┌─ removeMarket ─────
-  /// @notice removes a market from the registry without changing the market contract.
+  /// @notice remove a market from the registry without changing the market contract.
   ///
   /// @dev only the protocol owner can call this.
   function removeMarket(address market) external;
 
   // ┌─ isRegisteredMarket ─────
-  /// @notice says whether `market` is currently registered.
+  /// @notice report whether `market` is currently registered.
   function isRegisteredMarket(address market) external view returns (bool);
 
   // ┌─ getRegisteredMarkets ─────
-  /// @notice returns every registered market in unstable enumeration order.
+  /// @notice return every registered market in unstable enumeration order.
   function getRegisteredMarkets() external view returns (address[] memory);
 
   // ┌─ getRegisteredMarkets ─────
-  /// @notice returns markets in `[start, min(end, count))`.
+  /// @notice return markets in `[start, min(end, count))`.
   ///
   /// @dev retained singleton behavior panics when `start` exceeds the clamped end.
   function getRegisteredMarkets(uint256 start, uint256 end) external view returns (address[] memory);
 
   // ┌─ getRegisteredMarketsCount ─────
-  /// @notice returns the current number of registered markets.
+  /// @notice return the current number of registered markets.
   function getRegisteredMarketsCount() external view returns (uint256);
 }

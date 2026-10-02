@@ -45,7 +45,7 @@ interface IPeriodicTermAprReductionHooks {
   // ░░▒▒▓▓██ [ PERIODIC APR CALLBACK ] ────────────────────────────────────────
 
   // ┌─ executePendingAnnualInterestBipsReduction ─────
-  /// @dev validates the pending proposal against `intermediateState` and consumes it.
+  /// @dev validate the pending proposal against `intermediateState`, then consume it.
   ///
   /// @param intermediateState market state after current accrual and batch processing.
   ///
@@ -64,7 +64,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   // ░░▒▒▓▓██ [ SUPPLY CAPACITY ] ──────────────────────────────────────────────
 
   // ┌─ setMaxTotalSupply ─────
-  /// @notice sets the normalized supply cap for future deposits.
+  /// @notice set the normalized supply cap for future deposits.
   ///
   /// @dev only the borrower can call. the hook may accept or revert but can't rewrite the value.
   ///      this does not cap interest growth or force existing supply down.
@@ -82,7 +82,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   }
 
   // ┌─ maxTotalSupply ─────
-  /// @notice returns the normalized supply cap applied to deposits.
+  /// @notice return the normalized supply cap applied to deposits.
   ///
   /// @dev interest can grow total supply above this value.
   function maxTotalSupply() external view returns (uint256) {
@@ -90,7 +90,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   }
 
   // ┌─ maximumDeposit ─────
-  /// @notice returns the most underlying assets a deposit can currently add.
+  /// @notice return the most underlying assets a deposit can currently add.
   ///
   /// @dev includes interest accrued through this block and saturates at zero.
   function maximumDeposit() external view returns (uint256) {
@@ -102,7 +102,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   // ░░▒▒▓▓██ [ INTEREST AND RESERVES ] ────────────────────────────────────────
 
   // ┌─ setAnnualInterestAndReserveRatioBips ─────
-  /// @notice asks the market hook to apply new lender APR and reserve-ratio values.
+  /// @notice ask the market hook to apply new lender APR and reserve-ratio values.
   ///
   /// @dev only the borrower can call. the hook may rewrite both values and each result must stay at
   ///      or below 10,000 bips. a flat or lower reserve ratio requires the market to be healthy
@@ -131,7 +131,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   }
 
   // ┌─ executePendingAnnualInterestBipsReduction ─────
-  /// @notice permissionlessly applies an executable periodic-term APR reduction.
+  /// @notice apply an executable periodic-term APR reduction; anyone can call.
   ///
   /// @dev the hook supplies the APR. the caller can't choose it or change the reserve ratio. the
   ///      hook enforces proposal timing and withdrawal conditions; non-periodic markets revert.
@@ -199,13 +199,13 @@ contract WildcatMarketConfig is WildcatMarketBase {
   }
 
   // ┌─ annualInterestBips ─────
-  /// @notice returns the stored base annual lender rate, in bips.
+  /// @notice return the stored base annual lender rate, in bips.
   function annualInterestBips() external view returns (uint256) {
     return _state.annualInterestBips;
   }
 
   // ┌─ reserveRatioBips ─────
-  /// @notice returns the stored reserve requirement on outstanding supply, in bips.
+  /// @notice return the stored reserve requirement on outstanding supply, in bips.
   function reserveRatioBips() external view returns (uint256) {
     return _state.reserveRatioBips;
   }
@@ -213,7 +213,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   // ░░▒▒▓▓██ [ PROTOCOL FEES ] ────────────────────────────────────────────────
 
   // ┌─ setProtocolFeeBips ─────
-  /// @notice updates the protocol share of base interest from the deploying factory.
+  /// @notice update the protocol share of base interest from the deploying factory.
   ///
   /// @dev capped at 1,000 bips. a positive fee needs a nonzero immutable recipient, and the hook
   ///      may reject the update. closed markets can't change fees.
@@ -239,7 +239,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   // ░░▒▒▓▓██ [ WRAPPER REGISTRATION ] ─────────────────────────────────────────
 
   // ┌─ registerWrapper ─────
-  /// @notice stores the canonical ERC-4626 wrapper supplied by `wrapperFactory`.
+  /// @notice store the canonical ERC-4626 wrapper supplied by `wrapperFactory`.
   ///
   /// @dev normally called during wrapper deployment. a nonzero stored wrapper blocks replacement.
   ///
@@ -276,7 +276,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   //   /\     * 💰/\ 💰  * 💰/\ 💰  *    _____.,-#%&$@%#&#~,._____   *
   // ******************************************************************
   // ┌─ nukeFromOrbit ─────
-  /// @notice quarantines a sanctioned lender by queueing its full direct balance for withdrawal.
+  /// @notice quarantine a sanctioned lender by queueing its full direct balance for withdrawal.
   ///
   /// @dev permissionless. the target must still pass the normal queue-withdrawal hook, so a term
   ///      policy can defer quarantine until withdrawals open. the canonical wrapper is excluded.
@@ -296,7 +296,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   // ░░▒▒▓▓██ [ STATUS ] ───────────────────────────────────────────────────────
 
   // ┌─ isClosed ─────
-  /// @notice returns whether the market has been permanently closed.
+  /// @notice return whether the market has been permanently closed.
   function isClosed() external view returns (bool) {
     // scheduled completion can close the market between writes. no hook call is needed here.
     return _state.isClosed || (_isInRepayment() && _calculateCurrentStatePointers.asReturnsMarketState()().isClosed);

@@ -223,7 +223,7 @@ function jsonValueToString(Json value) view returns (string memory str) {
       str := mload(0x40)
       mstore(0x40, add(str, 0x40))
       calldatacopy(str, calldatasize(), 0x40)
-      // Write length 4 and string "null"
+      // ABI string: length 4 followed by "null".
       mstore(str, 0x046e756c6c)
     }
     return str;
@@ -236,11 +236,11 @@ function jsonValueToString(Json value) view returns (string memory str) {
       let isTrue := and(value, 0x01)
       switch isTrue
       case 1 {
-        // Write length 4 and string "true"
+        // ABI string: length 4 followed by "true".
         mstore(add(str, 4), 0x0474727565)
       }
       default {
-        // Write length 5 and string "false"
+        // ABI string: length 5 followed by "false".
         mstore(add(str, 5), 0x0566616c7365)
       }
     }
@@ -249,7 +249,7 @@ function jsonValueToString(Json value) view returns (string memory str) {
   if (_type == JsonType.SmallUint) {
     uint num;
     assembly {
-      // Clear the top 8 bits (containing the type)
+      // strip the type tag from the top byte.
       num := shr(8, shl(8, value))
     }
     return LibJson.serializeUint256(num);
@@ -257,7 +257,7 @@ function jsonValueToString(Json value) view returns (string memory str) {
   if (_type == JsonType.BigUint) {
     uint num;
     assembly {
-      // Read last 4 bytes as transient storage slot
+      // the low four bytes identify the transient storage slot.
       let tSlot := and(value, 0xffffffff)
       num := tload(tSlot)
     }
@@ -274,7 +274,7 @@ function jsonValueToString(Json value) view returns (string memory str) {
   if (_type == JsonType.BigInt) {
     int num;
     assembly {
-      // Read last 4 bytes as transient storage slot
+      // the low four bytes identify the transient storage slot.
       let tSlot := and(value, 0xffffffff)
       num := tload(tSlot)
     }
@@ -522,7 +522,7 @@ library LibJson {
 
   // ┌─ serializeUint256 ─────
   function serializeUint256(uint256 value) internal pure returns (string memory) {
-    // Max safe number in JS
+    // larger integers need strings to survive JavaScript's number precision.
     if (value > 9007199254740991) {
       return value.toHexString().serializeString();
     }
@@ -531,7 +531,7 @@ library LibJson {
 
   // ┌─ serializeInt256 ─────
   function serializeInt256(int256 value) internal pure returns (string memory) {
-    // Min/max safe numbers in JS
+    // integers outside JavaScript's exact range need string encoding.
     if (value > 9007199254740991 || value < -9007199254740991) {
       return value.toHexString().serializeString();
     }
@@ -548,12 +548,11 @@ library LibJson {
     }
     /// @solidity memory-safe-assembly
     assembly {
-      // We still have some spare memory space on the left,
-      // as we have allocated 3 words (96 bytes) for up to 78 digits.
-      let length := mload(str) // Load the string length.
-      mstore(str, 0x2d) // Store the '-' character.
-      str := sub(str, 1) // Move back the string pointer by a byte.
-      mstore(str, add(length, 1)) // Update the string length.
+      // the formatter leaves prefix room before the digits; reuse it for the minus sign.
+      let length := mload(str)
+      mstore(str, 0x2d) // '-'
+      str := sub(str, 1)
+      mstore(str, add(length, 1))
     }
   }
 
@@ -647,34 +646,26 @@ library LibStringStub {
   // ░░▒▒▓▓██ [ DECIMAL STRINGS ] ──────────────────────────────────────────────
 
   // ┌─ toString ─────
-  /// @dev Returns the base 10 decimal representation of `value`.
+  /// @dev return `value` in base 10.
   function toString(uint256 value) internal pure returns (string memory str) {
     /// @solidity memory-safe-assembly
     assembly {
-      // The maximum value of a uint256 contains 78 digits (1 byte per digit), but
-      // we allocate 0xa0 bytes to keep the free memory pointer 32-byte word aligned.
-      // We will need 1 word for the trailing zeros padding, 1 word for the length,
-      // and 3 words for a maximum of 78 digits.
+      // uint256 needs at most 78 decimal digits. allocate 0xa0 bytes: three words for
+      // digits, one for length, and one for trailing zeros. keep the free pointer aligned.
       str := add(mload(0x40), 0x80)
-      // Update the free memory pointer to allocate.
       mstore(0x40, add(str, 0x20))
-      // Zeroize the slot after the string.
       mstore(str, 0)
 
-      // Cache the end of the memory to calculate the length later.
       let end := str
 
-      let w := not(0) // Tsk.
-      // We write the string from rightmost digit to leftmost digit.
-      // The following is essentially a do-while loop that also handles the zero case.
+      let w := not(0)
+      // write at least one byte so zero is represented too.
       for {
         let temp := value
       } 1 { } {
         str := add(str, w) // `sub(str, 1)`.
-        // Write the character to the pointer.
-        // The ASCII index of the '0' character is 48.
+        // ASCII '0' starts at 48.
         mstore8(str, add(48, mod(temp, 10)))
-        // Keep dividing `temp` until zero.
         temp := div(temp, 10)
         if iszero(temp) {
           break
@@ -682,15 +673,14 @@ library LibStringStub {
       }
 
       let length := sub(end, str)
-      // Move the pointer 32 bytes leftwards to make room for the length.
+      // prepend the ABI length word.
       str := sub(str, 0x20)
-      // Store the length.
       mstore(str, length)
     }
   }
 
   // ┌─ toString ─────
-  /// @dev Returns the base 10 decimal representation of `value`.
+  /// @dev return `value` in base 10.
   function toString(int256 value) internal pure returns (string memory str) {
     if (value >= 0) {
       return toString(uint256(value));
@@ -700,89 +690,74 @@ library LibStringStub {
     }
     /// @solidity memory-safe-assembly
     assembly {
-      // We still have some spare memory space on the left,
-      // as we have allocated 3 words (96 bytes) for up to 78 digits.
-      let length := mload(str) // Load the string length.
-      mstore(str, 0x2d) // Store the '-' character.
-      str := sub(str, 1) // Move back the string pointer by a byte.
-      mstore(str, add(length, 1)) // Update the string length.
+      // the formatter leaves prefix room before the digits; reuse it for the minus sign.
+      let length := mload(str)
+      mstore(str, 0x2d) // '-'
+      str := sub(str, 1)
+      mstore(str, add(length, 1))
     }
   }
 
   // ░░▒▒▓▓██ [ HEXADECIMAL STRINGS ] ──────────────────────────────────────────
 
   // ┌─ toHexString ─────
-  /// @dev Returns the hexadecimal representation of `value`.
-  /// The output is prefixed with "0x" and encoded using 2 hexadecimal digits per byte.
-  /// As address are 20 bytes long, the output will left-padded to have
-  /// a length of `20 * 2 + 2` bytes.
+  /// @dev return `value` as whole-byte hex with a 0x prefix; zero is 0x00.
   function toHexString(uint256 value) internal pure returns (string memory str) {
     str = toHexStringNoPrefix(value);
 
     /// @solidity memory-safe-assembly
     assembly {
-      let strLength := add(mload(str), 2) // Compute the length.
-      mstore(str, 0x3078) // Write the "0x" prefix.
-      str := sub(str, 2) // Move the pointer.
-      mstore(str, strLength) // Write the length.
+      let strLength := add(mload(str), 2)
+      mstore(str, 0x3078) // '0x'
+      str := sub(str, 2)
+      mstore(str, strLength)
     }
   }
 
   // ┌─ toHexString ─────
-  /// @dev Returns the hexadecimal representation of `value`.
-  /// The output is prefixed with "0x" and encoded using 2 hexadecimal digits per byte.
+  /// @dev return the address as 40 hex digits with a 0x prefix, keeping leading zeros.
   function toHexString(address value) internal pure returns (string memory str) {
     str = toHexStringNoPrefix(value);
 
     /// @solidity memory-safe-assembly
     assembly {
-      let strLength := add(mload(str), 2) // Compute the length.
-      mstore(str, 0x3078) // Write the "0x" prefix.
-      str := sub(str, 2) // Move the pointer.
-      mstore(str, strLength) // Write the length.
+      let strLength := add(mload(str), 2)
+      mstore(str, 0x3078) // '0x'
+      str := sub(str, 2)
+      mstore(str, strLength)
     }
   }
 
   // ┌─ toHexString ─────
-  /// @dev Returns the hex encoded string from the raw bytes.
-  /// The output is encoded using 2 hexadecimal digits per byte.
+  /// @dev encode every input byte as two hex digits, including leading zeros.
   function toHexString(bytes memory raw) internal pure returns (string memory str) {
     str = toHexStringNoPrefix(raw);
 
     /// @solidity memory-safe-assembly
     assembly {
-      let strLength := add(mload(str), 2) // Compute the length.
-      mstore(str, 0x3078) // Write the "0x" prefix.
-      str := sub(str, 2) // Move the pointer.
-      mstore(str, strLength) // Write the length.
+      let strLength := add(mload(str), 2)
+      mstore(str, 0x3078) // '0x'
+      str := sub(str, 2)
+      mstore(str, strLength)
     }
   }
 
   // ┌─ toHexStringNoPrefix ─────
-  /// @dev Returns the hexadecimal representation of `value`.
-  /// The output is encoded using 2 hexadecimal digits per byte.
-  /// As address are 20 bytes long, the output will left-padded to have
-  /// a length of `20 * 2` bytes.
+  /// @dev return whole-byte hex without a prefix, dropping leading zero bytes except for zero.
   function toHexStringNoPrefix(uint256 value) internal pure returns (string memory str) {
     /// @solidity memory-safe-assembly
     assembly {
-      // We need 0x20 bytes for the trailing zeros padding, 0x20 bytes for the length,
-      // 0x02 bytes for the prefix, and 0x40 bytes for the digits.
-      // The next multiple of 0x20 above (0x20 + 0x20 + 0x02 + 0x40) is 0xa0.
+      // length, trailing zeros, prefix room, and up to 64 hex digits need 0xa0 aligned bytes.
       str := add(mload(0x40), 0x80)
-      // Allocate the memory.
       mstore(0x40, add(str, 0x20))
-      // Zeroize the slot after the string.
       mstore(str, 0)
 
-      // Cache the end to calculate the length later.
       let end := str
-      // Store "0123456789abcdef" in scratch space.
+      // nibble-to-ASCII lookup in scratch space.
       mstore(0x0f, 0x30313233343536373839616263646566)
 
-      let w := not(1) // Tsk.
-      // We write the string from rightmost digit to leftmost digit.
-      // The following is essentially a do-while loop that also handles the zero case.
+      let w := not(1)
+      // write at least one byte so zero is represented too.
       for {
         let temp := value
       } 1 { } {
@@ -795,29 +770,24 @@ library LibStringStub {
         }
       }
 
-      // Compute the string's length.
       let strLength := sub(end, str)
-      // Move the pointer and write the length.
+      // prepend the ABI length word.
       str := sub(str, 0x20)
       mstore(str, strLength)
     }
   }
 
   // ┌─ toHexStringNoPrefix ─────
-  /// @dev Returns the hexadecimal representation of `value`.
-  /// The output is encoded using 2 hexadecimal digits per byte.
+  /// @dev return all 40 address hex digits without a prefix.
   function toHexStringNoPrefix(address value) internal pure returns (string memory str) {
     /// @solidity memory-safe-assembly
     assembly {
       str := mload(0x40)
 
-      // Allocate the memory.
-      // We need 0x20 bytes for the trailing zeros padding, 0x20 bytes for the length,
-      // 0x02 bytes for the prefix, and 0x28 bytes for the digits.
-      // The next multiple of 0x20 above (0x20 + 0x20 + 0x02 + 0x28) is 0x80.
+      // length, trailing zeros, prefix room, and 40 address digits need 0x80 aligned bytes.
       mstore(0x40, add(str, 0x80))
 
-      // Store "0123456789abcdef" in scratch space.
+      // nibble-to-ASCII lookup in scratch space.
       mstore(0x0f, 0x30313233343536373839616263646566)
 
       str := add(str, 2)
@@ -828,8 +798,7 @@ library LibStringStub {
 
       value := shl(96, value)
 
-      // We write the string from rightmost digit to leftmost digit.
-      // The following is essentially a do-while loop that also handles the zero case.
+      // encode all 20 address bytes, including leading zeros.
       for {
         let i := 0
       } 1 { } {
@@ -846,16 +815,15 @@ library LibStringStub {
   }
 
   // ┌─ toHexStringNoPrefix ─────
-  /// @dev Returns the hex encoded string from the raw bytes.
-  /// The output is encoded using 2 hexadecimal digits per byte.
+  /// @dev encode every input byte as two hex digits, including leading zeros.
   function toHexStringNoPrefix(bytes memory raw) internal pure returns (string memory str) {
     /// @solidity memory-safe-assembly
     assembly {
       let length := mload(raw)
-      str := add(mload(0x40), 2) // Skip 2 bytes for the optional prefix.
-      mstore(str, add(length, length)) // Store the length of the output.
+      str := add(mload(0x40), 2) // reserve two bytes for an optional prefix.
+      mstore(str, add(length, length))
 
-      // Store "0123456789abcdef" in scratch space.
+      // nibble-to-ASCII lookup in scratch space.
       mstore(0x0f, 0x30313233343536373839616263646566)
 
       let o := add(str, 0x20)
@@ -867,8 +835,8 @@ library LibStringStub {
         mstore8(o, mload(and(shr(4, mload(raw)), 15)))
         o := add(o, 2)
       }
-      mstore(o, 0) // Zeroize the slot after the string.
-      mstore(0x40, and(add(o, 31), not(31))) // Allocate the memory.
+      mstore(o, 0)
+      mstore(0x40, and(add(o, 31), not(31)))
     }
   }
 }

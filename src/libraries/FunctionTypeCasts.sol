@@ -25,19 +25,13 @@ import { WithdrawalBatch } from '../libraries/Withdrawal.sol';
 import { LifecycleTransition } from './MarketLifecycle.sol';
 
 // ┌─ FunctionTypeCasts ────────────────────────────────────────────────────────
-/// @dev Type-casts to convert functions returning raw (uint) pointers
-///      to functions returning memory pointers of specific types.
-///
-///      Used to get around solc's over-allocation of memory when
-///      dynamic return parameters are re-assigned.
-///
-///      With `viaIR` enabled, calling any of these functions is a noop.
+/// @dev treat raw uint return pointers as typed memory references. this avoids solc allocating
+///      another buffer when dynamic return parameters are reassigned. with `viaIR`, the casts are no-ops.
 library FunctionTypeCasts {
   // ░░▒▒▓▓██ [ DEPLOYMENT PARAMETERS ] ────────────────────────────────────────
 
   // ┌─ asReturnsMarketParameters ─────
-  /// @dev Function type cast to avoid duplicate declaration/allocation
-  ///      of manually allocated MarketParameters in market constructor.
+  /// @dev reuse the constructor's manually allocated MarketParameters buffer.
   function asReturnsMarketParameters(function() internal view returns (uint256) fnIn)
     internal
     pure
@@ -51,8 +45,7 @@ library FunctionTypeCasts {
   // ░░▒▒▓▓██ [ STATE AND BATCH VIEWS ] ────────────────────────────────────────
 
   // ┌─ asReturnsMarketState ─────
-  /// @dev Function type cast to avoid duplicate declaration/allocation
-  ///      of MarketState return parameter.
+  /// @dev reuse the returned MarketState buffer instead of allocating another.
   function asReturnsMarketState(function() internal view returns (uint256) fnIn)
     internal
     pure
@@ -64,8 +57,7 @@ library FunctionTypeCasts {
   }
 
   // ┌─ asReturnsPointers ─────
-  /// @dev Function type cast to avoid duplicate declaration/allocation
-  ///      of MarketState and WithdrawalBatch return parameters.
+  /// @dev reuse the MarketState and WithdrawalBatch return buffers.
   function asReturnsPointers(function() internal view returns (MarketState memory, uint32, WithdrawalBatch memory) fnIn)
     internal
     pure

@@ -47,7 +47,7 @@ import './interfaces/IMarketLensCore.sol';
 // ┌─ MarketLensCore ───────────────────────────────────────────────────────────
 /// @title core market lens helper
 ///
-/// @notice implements strict token, market, lender, and withdrawal reads for the `MarketLens`
+/// @notice provide strict token, market, lender, and withdrawal reads for the `MarketLens`
 ///         facade.
 contract MarketLensCore is IMarketLensCore {
   /// @notice ArchController configured for this helper.

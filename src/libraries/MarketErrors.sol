@@ -182,7 +182,7 @@ function revert_NotFactory() pure {
 }
 
 // ┌─ revert_CapacityChangeOnClosedMarket ─────
-/// @dev Equivalent to `revert CapacityChangeOnClosedMarket()`
+/// @dev equivalent to `revert CapacityChangeOnClosedMarket()`
 function revert_CapacityChangeOnClosedMarket() pure {
   assembly {
     mstore(0, 0x81b21078)
@@ -191,7 +191,7 @@ function revert_CapacityChangeOnClosedMarket() pure {
 }
 
 // ┌─ revert_AprChangeOnClosedMarket ─────
-/// @dev Equivalent to `revert AprChangeOnClosedMarket()`
+/// @dev equivalent to `revert AprChangeOnClosedMarket()`
 function revert_AprChangeOnClosedMarket() pure {
   assembly {
     mstore(0, 0xb9de88a2)
@@ -200,7 +200,7 @@ function revert_AprChangeOnClosedMarket() pure {
 }
 
 // ┌─ revert_AnnualInterestBipsTooHigh ─────
-/// @dev Equivalent to `revert AnnualInterestBipsTooHigh()`
+/// @dev equivalent to `revert AnnualInterestBipsTooHigh()`
 function revert_AnnualInterestBipsTooHigh() pure {
   assembly {
     mstore(0, 0xcf1f916f)
@@ -209,7 +209,7 @@ function revert_AnnualInterestBipsTooHigh() pure {
 }
 
 // ┌─ revert_ReserveRatioBipsTooHigh ─────
-/// @dev Equivalent to `revert ReserveRatioBipsTooHigh()`
+/// @dev equivalent to `revert ReserveRatioBipsTooHigh()`
 function revert_ReserveRatioBipsTooHigh() pure {
   assembly {
     mstore(0, 0x8ec83073)
@@ -227,7 +227,7 @@ function revert_RepaymentReserveRequired() pure {
 }
 
 // ┌─ revert_InsufficientReservesForOldLiquidityRatio ─────
-/// @dev Equivalent to `revert InsufficientReservesForOldLiquidityRatio()`
+/// @dev equivalent to `revert InsufficientReservesForOldLiquidityRatio()`
 function revert_InsufficientReservesForOldLiquidityRatio() pure {
   assembly {
     mstore(0, 0x0a68e5bf)
@@ -236,7 +236,7 @@ function revert_InsufficientReservesForOldLiquidityRatio() pure {
 }
 
 // ┌─ revert_InsufficientReservesForNewLiquidityRatio ─────
-/// @dev Equivalent to `revert InsufficientReservesForNewLiquidityRatio()`
+/// @dev equivalent to `revert InsufficientReservesForNewLiquidityRatio()`
 function revert_InsufficientReservesForNewLiquidityRatio() pure {
   assembly {
     mstore(0, 0x253ecbb9)
@@ -245,7 +245,7 @@ function revert_InsufficientReservesForNewLiquidityRatio() pure {
 }
 
 // ┌─ revert_ExecutePendingAprReductionNotEnabled ─────
-/// @dev Equivalent to `revert ExecutePendingAprReductionNotEnabled()`
+/// @dev equivalent to `revert ExecutePendingAprReductionNotEnabled()`
 function revert_ExecutePendingAprReductionNotEnabled() pure {
   assembly {
     mstore(0, 0x52025ce9)
@@ -254,7 +254,7 @@ function revert_ExecutePendingAprReductionNotEnabled() pure {
 }
 
 // ┌─ revert_AprReductionNotReduction ─────
-/// @dev Equivalent to `revert AprReductionNotReduction()`
+/// @dev equivalent to `revert AprReductionNotReduction()`
 function revert_AprReductionNotReduction() pure {
   assembly {
     mstore(0, 0x116a7bf1)
@@ -265,7 +265,7 @@ function revert_AprReductionNotReduction() pure {
 // ░░▒▒▓▓██ [ BORROWER AUTHORITY ] ─────────────────────────────────────────────
 
 // ┌─ revert_NotApprovedBorrower ─────
-/// @dev Equivalent to `revert NotApprovedBorrower()`
+/// @dev equivalent to `revert NotApprovedBorrower()`
 function revert_NotApprovedBorrower() pure {
   assembly {
     mstore(0, 0x02171e6a)
@@ -274,40 +274,34 @@ function revert_NotApprovedBorrower() pure {
 }
 
 // ┌─ revert_NoPendingBorrowerTransfer ─────
-/// @dev Equivalent to `revert NoPendingBorrowerTransfer()`
+/// @dev equivalent to `revert NoPendingBorrowerTransfer()`
 function revert_NoPendingBorrowerTransfer() pure {
   assembly {
-    // `mstore` always writes a full 32-byte word. This four-byte selector literal
-    // has 28 leading zero bytes, so starting at 0x1c skips that padding and
-    // returns exactly the selector Solidity expects.
+    // the selector word has 28 leading zero bytes. start at 0x1c to return just the four-byte error.
     mstore(0, 0x6b1ac6e2)
     revert(0x1c, 0x04)
   }
 }
 
 // ┌─ revert_NotPendingBorrower ─────
-/// @dev Equivalent to `revert NotPendingBorrower()`
+/// @dev equivalent to `revert NotPendingBorrower()`
 function revert_NotPendingBorrower() pure {
   assembly {
-    // This is the ABI encoding for a custom error with no arguments. Write the
-    // selector as one word, skip its 28 bytes of left padding, and revert with
-    // the remaining four bytes.
+    // no arguments: skip the word's 28 padding bytes and return only the selector.
     mstore(0, 0x3505fe80)
     revert(0x1c, 0x04)
   }
 }
 
 // ┌─ revert_BorrowerTransferWhileSanctioned ─────
-/// @dev Equivalent to `revert BorrowerTransferWhileSanctioned(account)`
+/// @dev equivalent to `revert BorrowerTransferWhileSanctioned(account)`
 function revert_BorrowerTransferWhileSanctioned(address account) pure {
   assembly {
-    // A custom error uses the same basic ABI layout as a function call: four
-    // selector bytes followed by one 32-byte word for each argument. The
-    // selector occupies the last four bytes of the first word, and the address
-    // occupies the next ABI word.
+    // custom-error ABI: four selector bytes, then one word per argument.
+    // the selector ends the first word; the address fills the next.
     mstore(0, 0xfe1f6916)
     mstore(0x20, account)
-    // Start at byte 28 of the selector word and return 4 + 32 bytes.
+    // return 4 + 32 bytes, starting at byte 28 of the selector word.
     revert(0x1c, 0x24)
   }
 }
@@ -315,7 +309,7 @@ function revert_BorrowerTransferWhileSanctioned(address account) pure {
 // ░░▒▒▓▓██ [ DEPOSITS AND TRANSFERS ] ─────────────────────────────────────────
 
 // ┌─ revert_NotApprovedLender ─────
-/// @dev Equivalent to `revert NotApprovedLender()`
+/// @dev equivalent to `revert NotApprovedLender()`
 function revert_NotApprovedLender() pure {
   assembly {
     mstore(0, 0xe50a45ce)
@@ -324,7 +318,7 @@ function revert_NotApprovedLender() pure {
 }
 
 // ┌─ revert_DepositToClosedMarket ─────
-/// @dev Equivalent to `revert DepositToClosedMarket()`
+/// @dev equivalent to `revert DepositToClosedMarket()`
 function revert_DepositToClosedMarket() pure {
   assembly {
     mstore(0, 0x22d7c043)
@@ -333,7 +327,7 @@ function revert_DepositToClosedMarket() pure {
 }
 
 // ┌─ revert_MaxSupplyExceeded ─────
-/// @dev Equivalent to `revert MaxSupplyExceeded()`
+/// @dev equivalent to `revert MaxSupplyExceeded()`
 function revert_MaxSupplyExceeded() pure {
   assembly {
     mstore(0, 0x8a164f63)
@@ -342,7 +336,7 @@ function revert_MaxSupplyExceeded() pure {
 }
 
 // ┌─ revert_NullMintAmount ─────
-/// @dev Equivalent to `revert NullMintAmount()`
+/// @dev equivalent to `revert NullMintAmount()`
 function revert_NullMintAmount() pure {
   assembly {
     mstore(0, 0xe4aa5055)
@@ -351,7 +345,7 @@ function revert_NullMintAmount() pure {
 }
 
 // ┌─ revert_NullTransferAmount ─────
-/// @dev Equivalent to `revert NullTransferAmount()`
+/// @dev equivalent to `revert NullTransferAmount()`
 function revert_NullTransferAmount() pure {
   assembly {
     mstore(0, 0xddee9b30)
@@ -371,7 +365,7 @@ function revert_MarketInRepayment() pure {
 }
 
 // ┌─ revert_BorrowWhileSanctioned ─────
-/// @dev Equivalent to `revert BorrowWhileSanctioned()`
+/// @dev equivalent to `revert BorrowWhileSanctioned()`
 function revert_BorrowWhileSanctioned() pure {
   assembly {
     mstore(0, 0x4a1c13a9)
@@ -380,7 +374,7 @@ function revert_BorrowWhileSanctioned() pure {
 }
 
 // ┌─ revert_BorrowFromClosedMarket ─────
-/// @dev Equivalent to `revert BorrowFromClosedMarket()`
+/// @dev equivalent to `revert BorrowFromClosedMarket()`
 function revert_BorrowFromClosedMarket() pure {
   assembly {
     mstore(0, 0xd0242b28)
@@ -389,7 +383,7 @@ function revert_BorrowFromClosedMarket() pure {
 }
 
 // ┌─ revert_BorrowAmountTooHigh ─────
-/// @dev Equivalent to `revert BorrowAmountTooHigh()`
+/// @dev equivalent to `revert BorrowAmountTooHigh()`
 function revert_BorrowAmountTooHigh() pure {
   assembly {
     mstore(0, 0x119fe6e3)
@@ -398,7 +392,7 @@ function revert_BorrowAmountTooHigh() pure {
 }
 
 // ┌─ revert_NullRepayAmount ─────
-/// @dev Equivalent to `revert NullRepayAmount()`
+/// @dev equivalent to `revert NullRepayAmount()`
 function revert_NullRepayAmount() pure {
   assembly {
     mstore(0, 0x7e082088)
@@ -407,7 +401,7 @@ function revert_NullRepayAmount() pure {
 }
 
 // ┌─ revert_RepayToClosedMarket ─────
-/// @dev Equivalent to `revert RepayToClosedMarket()`
+/// @dev equivalent to `revert RepayToClosedMarket()`
 function revert_RepayToClosedMarket() pure {
   assembly {
     mstore(0, 0x61d1bc8f)
@@ -418,7 +412,7 @@ function revert_RepayToClosedMarket() pure {
 // ░░▒▒▓▓██ [ PROTOCOL FEES ] ──────────────────────────────────────────────────
 
 // ┌─ revert_NullFeeAmount ─────
-/// @dev Equivalent to `revert NullFeeAmount()`
+/// @dev equivalent to `revert NullFeeAmount()`
 function revert_NullFeeAmount() pure {
   assembly {
     mstore(0, 0x45c835cb)
@@ -427,7 +421,7 @@ function revert_NullFeeAmount() pure {
 }
 
 // ┌─ revert_InsufficientReservesForFeeWithdrawal ─────
-/// @dev Equivalent to `revert InsufficientReservesForFeeWithdrawal()`
+/// @dev equivalent to `revert InsufficientReservesForFeeWithdrawal()`
 function revert_InsufficientReservesForFeeWithdrawal() pure {
   assembly {
     mstore(0, 0xf784cfa4)
@@ -436,7 +430,7 @@ function revert_InsufficientReservesForFeeWithdrawal() pure {
 }
 
 // ┌─ revert_ProtocolFeeTooHigh ─────
-/// @dev Equivalent to `revert ProtocolFeeTooHigh()`
+/// @dev equivalent to `revert ProtocolFeeTooHigh()`
 function revert_ProtocolFeeTooHigh() pure {
   assembly {
     mstore(0, 0x499fddb1)
@@ -445,7 +439,7 @@ function revert_ProtocolFeeTooHigh() pure {
 }
 
 // ┌─ revert_ProtocolFeeRecipientRequired ─────
-/// @dev Equivalent to `revert ProtocolFeeRecipientRequired()`
+/// @dev equivalent to `revert ProtocolFeeRecipientRequired()`
 function revert_ProtocolFeeRecipientRequired() pure {
   assembly {
     mstore(0, 0x84247ce2)
@@ -454,7 +448,7 @@ function revert_ProtocolFeeRecipientRequired() pure {
 }
 
 // ┌─ revert_ProtocolFeeChangeOnClosedMarket ─────
-/// @dev Equivalent to `revert ProtocolFeeChangeOnClosedMarket()`
+/// @dev equivalent to `revert ProtocolFeeChangeOnClosedMarket()`
 function revert_ProtocolFeeChangeOnClosedMarket() pure {
   assembly {
     mstore(0, 0x37f1a75f)
@@ -465,7 +459,7 @@ function revert_ProtocolFeeChangeOnClosedMarket() pure {
 // ░░▒▒▓▓██ [ WITHDRAWALS ] ────────────────────────────────────────────────────
 
 // ┌─ revert_NullBurnAmount ─────
-/// @dev Equivalent to `revert NullBurnAmount()`
+/// @dev equivalent to `revert NullBurnAmount()`
 function revert_NullBurnAmount() pure {
   assembly {
     mstore(0, 0xd61c50f8)
@@ -474,7 +468,7 @@ function revert_NullBurnAmount() pure {
 }
 
 // ┌─ revert_NullWithdrawalAmount ─────
-/// @dev Equivalent to `revert NullWithdrawalAmount()`
+/// @dev equivalent to `revert NullWithdrawalAmount()`
 function revert_NullWithdrawalAmount() pure {
   assembly {
     mstore(0, 0x186334fe)
@@ -483,7 +477,7 @@ function revert_NullWithdrawalAmount() pure {
 }
 
 // ┌─ revert_WithdrawalBatchKeyAlreadyExists ─────
-/// @dev Equivalent to `revert WithdrawalBatchKeyAlreadyExists()`
+/// @dev equivalent to `revert WithdrawalBatchKeyAlreadyExists()`
 function revert_WithdrawalBatchKeyAlreadyExists() pure {
   assembly {
     mstore(0, 0x7867bc7e)
@@ -492,7 +486,7 @@ function revert_WithdrawalBatchKeyAlreadyExists() pure {
 }
 
 // ┌─ revert_WithdrawalBatchNotExpired ─────
-/// @dev Equivalent to `revert WithdrawalBatchNotExpired()`
+/// @dev equivalent to `revert WithdrawalBatchNotExpired()`
 function revert_WithdrawalBatchNotExpired() pure {
   assembly {
     mstore(0, 0x2561b880)
@@ -501,7 +495,7 @@ function revert_WithdrawalBatchNotExpired() pure {
 }
 
 // ┌─ revert_InvalidArrayLength ─────
-/// @dev Equivalent to `revert InvalidArrayLength()`
+/// @dev equivalent to `revert InvalidArrayLength()`
 function revert_InvalidArrayLength() pure {
   assembly {
     mstore(0, 0x9d89020a)
@@ -512,7 +506,7 @@ function revert_InvalidArrayLength() pure {
 // ░░▒▒▓▓██ [ CLOSURE AND RECOVERY ] ───────────────────────────────────────────
 
 // ┌─ revert_MarketAlreadyClosed ─────
-/// @dev Equivalent to `revert MarketAlreadyClosed()`
+/// @dev equivalent to `revert MarketAlreadyClosed()`
 function revert_MarketAlreadyClosed() pure {
   assembly {
     mstore(0, 0x449e5f50)
@@ -521,7 +515,7 @@ function revert_MarketAlreadyClosed() pure {
 }
 
 // ┌─ revert_CloseMarketWithUnpaidWithdrawals ─────
-/// @dev Equivalent to `revert CloseMarketWithUnpaidWithdrawals()`
+/// @dev equivalent to `revert CloseMarketWithUnpaidWithdrawals()`
 function revert_CloseMarketWithUnpaidWithdrawals() pure {
   assembly {
     mstore(0, 0x4d790997)
@@ -530,7 +524,7 @@ function revert_CloseMarketWithUnpaidWithdrawals() pure {
 }
 
 // ┌─ revert_BadRescueAsset ─────
-/// @dev Equivalent to `revert BadRescueAsset()`
+/// @dev equivalent to `revert BadRescueAsset()`
 function revert_BadRescueAsset() pure {
   assembly {
     mstore(0, 0x11530cde)
@@ -541,7 +535,7 @@ function revert_BadRescueAsset() pure {
 // ░░▒▒▓▓██ [ WRAPPERS AND SANCTIONS ] ─────────────────────────────────────────
 
 // ┌─ revert_NotWrapperFactory ─────
-/// @dev Equivalent to `revert NotWrapperFactory()`
+/// @dev equivalent to `revert NotWrapperFactory()`
 function revert_NotWrapperFactory() pure {
   assembly {
     mstore(0, 0x3780ab27)
@@ -550,7 +544,7 @@ function revert_NotWrapperFactory() pure {
 }
 
 // ┌─ revert_WrapperAlreadyRegistered ─────
-/// @dev Equivalent to `revert WrapperAlreadyRegistered()`
+/// @dev equivalent to `revert WrapperAlreadyRegistered()`
 function revert_WrapperAlreadyRegistered() pure {
   assembly {
     mstore(0, 0xbcfd1f3a)
@@ -559,7 +553,7 @@ function revert_WrapperAlreadyRegistered() pure {
 }
 
 // ┌─ revert_CannotNukeWrapper ─────
-/// @dev Equivalent to `revert CannotNukeWrapper()`
+/// @dev equivalent to `revert CannotNukeWrapper()`
 function revert_CannotNukeWrapper() pure {
   assembly {
     mstore(0, 0x812ab045)
@@ -568,7 +562,7 @@ function revert_CannotNukeWrapper() pure {
 }
 
 // ┌─ revert_BadLaunchCode ─────
-/// @dev Equivalent to `revert BadLaunchCode()`
+/// @dev equivalent to `revert BadLaunchCode()`
 function revert_BadLaunchCode() pure {
   assembly {
     mstore(0, 0xa97ab167)
@@ -577,7 +571,7 @@ function revert_BadLaunchCode() pure {
 }
 
 // ┌─ revert_AccountBlocked ─────
-/// @dev Equivalent to `revert AccountBlocked()`
+/// @dev equivalent to `revert AccountBlocked()`
 function revert_AccountBlocked() pure {
   assembly {
     mstore(0, 0x6bc671fd)

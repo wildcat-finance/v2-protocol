@@ -29,21 +29,21 @@ pragma solidity 0.8.25;
 // ║  _latestTemplateMarket(...)
 // ╚═════
 
-// Direct-only fork/testnet canary. Deploys and closes one dust market through
+// direct-only fork/testnet canary. deploy and close one dust market through
 // each v2.5 hooks factory using the v2.5 OpenTermHooks template.
 //
-// Environment:
-// - Required: OWNER_MODE=direct, DEPLOYMENTS_NETWORK, BORROWER, and RPC_URL.
-// - Optional: RELEASE_TAG (default v2-5), CANARY_ASSET, and
-//   PVT_KEY_<NETWORK>. Without a private key, the RPC must expose BORROWER as
+// environment:
+// - required: OWNER_MODE=direct, DEPLOYMENTS_NETWORK, BORROWER, and RPC_URL.
+// - optional: RELEASE_TAG (default v2-5), CANARY_ASSET, and
+//   PVT_KEY_<NETWORK>. without a private key, the RPC must expose BORROWER as
 //   an unlocked account (anvil --auto-impersonate does this). CANARY_PHASE is
 //   set to prepare or finalize by 09-canary-market.sh.
 //
-// Register BORROWER on an anvil fork before running this script. ARCH_OWNER is
+// register BORROWER on an anvil fork before running this script. ARCH_OWNER is
 // the value returned by archController.owner():
 //   cast send "$ARCH_CONTROLLER" 'registerBorrower(address)' "$BORROWER" --from "$ARCH_OWNER" --unlocked --rpc-url "$RPC_URL"
 //
-// This script does not impersonate or register the borrower itself.
+// this script does not impersonate or register the borrower itself.
 
 import { console } from 'forge-std/console.sol';
 import { LibString } from 'solady/utils/LibString.sol';
@@ -273,10 +273,8 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
     _broadcastAsBorrower(deployments, borrower);
     market.queueFullWithdrawal();
 
-    // Close immediately so the borrower deterministically settles and clears
-    // the pending batch in both Foundry's same-timestamp broadcast simulation
-    // and on public testnets. The lender can then execute without waiting for
-    // a chain-specific time-advance RPC.
+    // close now to settle the batch in both same-timestamp broadcast simulation and on
+    // public testnets. the lender can claim without a chain-specific time-advance RPC.
     _broadcastAsBorrower(deployments, borrower);
     market.closeMarket();
     if (!market.isClosed()) revert('Canary market did not close');

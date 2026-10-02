@@ -24,7 +24,7 @@ import { IERC20BalanceOf } from './TokenInterfaces.sol';
 using SafeCastLib for uint256;
 
 // ┌─ ERC20RoleProvider ────────────────────────────────────────────────────────
-/// @notice grants credentials while an account holds at least `minBalance` of one ERC20.
+/// @notice grant credentials while an account holds at least `minBalance` of one ERC20.
 ///
 /// @dev the immutable threshold uses token base units. deployment only checks that `token` has
 ///      code; the provider trusts its `balanceOf` behavior and proves no holding duration.
@@ -54,7 +54,7 @@ contract ERC20RoleProvider is IERC20RoleProvider {
   }
 
   // ┌─ validateCredential ─────
-  /// @notice runs the live balance check for `account`; caller data is ignored.
+  /// @notice run the live balance check for `account`; caller data is ignored.
   function validateCredential(address account, bytes calldata) external view override returns (uint32 timestamp) {
     return _credentialTimestamp(account);
   }

@@ -147,16 +147,12 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   /// @notice registry that resolves borrower accounts to registered principals.
   address public immutable borrowerIdentityRegistry;
 
-  /// @dev Reserved slots for borrower transfer and wrapper state. These are
-  ///      the final five slots in the EVM storage range, from 2^256 - 1 through
-  ///      2^256 - 5. Solidity assigns ordinary market storage from zero upward,
-  ///      so ordinary state and future market types can keep extending that layout
-  ///      without reaching this range.
+  /// @dev borrower transfer and wrapper state use the final five EVM slots, 2^256 - 1 through
+  ///      2^256 - 5. ordinary Solidity storage grows from zero, leaving room for future market types.
   ///
-  ///      Mappings and dynamic arrays derive their element slots with keccak256.
-  ///      Their chance of landing on one of these slots is the same negligible
-  ///      256-bit collision risk as an ordinary namespaced storage slot. Other
-  ///      manual storage must not use this five-slot range.
+  ///      mapping and dynamic-array elements use keccak256-derived slots. collisions carry the
+  ///      same negligible 256-bit risk as other namespaced storage. don't reuse this range for
+  ///      other manual storage.
   bytes32 internal constant BORROWER_STORAGE_SLOT = bytes32(type(uint256).max);
   bytes32 internal constant BORROWER_PRINCIPAL_STORAGE_SLOT = bytes32(type(uint256).max - 1);
   bytes32 internal constant PENDING_BORROWER_STORAGE_SLOT = bytes32(type(uint256).max - 2);
@@ -215,9 +211,8 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   constructor() {
     factory = msg.sender;
 
-    // Cast the function signature of `_getMarketParameters` to get a valid reference to
-    // a `MarketParameters` object without creating a duplicate allocation or unnecessarily
-    // zeroing out the memory buffer.
+    // reuse `_getMarketParameters`' buffer as a MarketParameters reference. don't allocate
+    // and zero a second copy just to change the return type.
     MarketParameters memory parameters = _getMarketParameters.asReturnsMarketParameters()();
     if (parameters.borrower == address(0)) revert InvalidBorrower();
     uint256 date = parameters.repaymentDate;
@@ -231,7 +226,6 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
     if (parameters.hooks.useOnExecuteWithdrawal()) revert_UnsupportedExecuteWithdrawalHook();
     _repaymentTerms = uint64(date | (period << 32));
 
-    // Set asset metadata
     asset = parameters.asset;
     decimals = parameters.decimals;
 
@@ -241,9 +235,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
     PACKED_SYMBOL_WORD_1 = parameters.packedSymbolWord1;
 
     {
-      // Initialize the market state - all values in slots 1 and 2 of the struct are
-      // initialized to zero, so they are skipped.
-
+      // slots 1 and 2 start at zero. only initialize the nonzero state slots.
       uint256 maxTotalSupply = parameters.maxTotalSupply;
       uint256 reserveRatioBips = parameters.reserveRatioBips;
       uint256 annualInterestBips = parameters.annualInterestBips;
@@ -291,35 +283,28 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
     address archController_ = parameters.archController;
     _archController = archController_;
     assembly {
-      // `staticcall` takes raw memory offsets, not Solidity arguments. This
-      // four-byte selector literal has 28 leading zero bytes in the word written
-      // at 0x00. Starting the calldata at 0x1c skips that padding, leaving exactly
-      // `archController()` as the four-byte input.
+      // staticcall reads raw memory. start at 0x1c to skip the selector word's 28 zero bytes;
+      // the four-byte input is `archController()` with no arguments.
       mstore(0, 0x54635570) // archController()
 
-      // The last two arguments tell the EVM to copy up to one return word into
-      // memory at 0x00. `staticcall` itself returns 1 on success and 0 on failure.
+      // copy up to one return word to 0x00. staticcall returns 1 on success, 0 on failure.
       let validRegistry := staticcall(gas(), identityRegistry, 0x1c, 0x04, 0, 0x20)
 
-      // A valid address return is exactly one ABI word. Both operands below are
-      // already 0 or 1, so this bitwise `and` is also a logical AND.
+      // require exactly one ABI word. both operands are 0 or 1, so bitwise AND is logical AND here.
       validRegistry := and(validRegistry, eq(returndatasize(), 0x20))
       if validRegistry {
-        // The call copied its return word over the selector at 0x00. An address
-        // occupies the low 160 bits of that word. If any of the upper 96 bits are
-        // set, the registry returned malformed ABI data and we must not truncate it.
+        // the return word replaced the selector at 0x00. an address occupies its low 160 bits;
+        // reject dirty upper 96 bits rather than silently truncating malformed ABI data.
         let registryArchController := mload(0)
         if shr(160, registryArchController) {
           revert(0, 0)
         }
 
-        // At this point the word is a clean address. The registry is only valid
-        // for this market if it points at the same ArchController the factory supplied.
+        // a clean address isn't enough. the registry must use the factory's ArchController.
         validRegistry := eq(registryArchController, archController_)
       }
       if iszero(validRegistry) {
-        // This uses the same compact custom-error layout as MarketErrors.sol:
-        // selector in the last four bytes of a word, then return only those bytes.
+        // use MarketErrors.sol's compact error layout: return only the word's last four bytes.
         mstore(0, 0x41d9e607) // InvalidBorrowerIdentityRegistry()
         revert(0x1c, 0x04)
       }
@@ -342,13 +327,12 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
       marketParametersPointer := mload(0x40)
       mstore(0x40, add(marketParametersPointer, _MARKET_PARAMETERS_SIZE))
 
-      // Write the selector for IHooksFactory.getMarketParameters
+      // IHooksFactory.getMarketParameters()
       mstore(0x00, 0x04032dbb)
 
-      // Call `getMarketParameters` and copy the returned struct to the allocated memory
-      // buffer, reverting if the call fails or does not return the correct amount of bytes.
-      // This overrides all the ABI decoding safety checks, as the call is always made to
-      // the factory contract which will only ever return the prepared market parameters.
+      // the deploying factory supplies the prepared struct directly into this buffer.
+      // require a successful call and the exact byte count. field-level ABI checks are
+      // deliberately skipped: this path trusts the factory's prepared parameters.
       if iszero(
         and(
           eq(returndatasize(), _MARKET_PARAMETERS_SIZE),
@@ -363,16 +347,16 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   // ░░▒▒▓▓██ [ METADATA ] ─────────────────────────────────────────────────────
 
   // ┌─ version ─────
-  /// @notice returns the market implementation version, `2.5`.
+  /// @notice return the market implementation version, `2.5`.
   ///
   /// @dev bumped from "2" for the v2.5 release: transfer and deposit scaling
   ///      changed from half-up to floor rounding, so v2.5 markets must be
-  ///      distinguishable from earlier deployments. Consumers that only check
+  ///      distinguishable from earlier deployments. consumers that only check
   ///      the major version read the first byte, which remains '2'.
   function version() external pure returns (string memory) {
     assembly {
       mstore(0x40, 0)
-      // Length byte (3) at 0x5f followed by '2.5' at 0x60-0x62.
+      // length byte (3) at 0x5f, then '2.5' at 0x60-0x62.
       mstore(0x43, 0x03322e35)
       mstore(0x20, 0x20)
       return(0x20, 0x60)
@@ -380,31 +364,28 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ scaledTransferRounding ─────
-  /// @notice identifies floor rounding for normalized-to-scaled transfers and deposits.
+  /// @notice identify floor rounding for normalized-to-scaled transfers and deposits.
   ///
-  /// @dev Rounding convention for scaled amounts in transfers and deposits
-  ///      (`MarketState.scaleAmountDown`). Rounding-sensitive integrations,
-  ///      e.g. the 4626 wrapper factory, key on this rather than on version
-  ///      strings. Markets predating v2.5 lack this function and round
-  ///      half-up.
+  /// @dev transfers and deposits use `MarketState.scaleAmountDown`. rounding-sensitive integrations,
+  ///      including the ERC-4626 wrapper factory, check this instead of parsing version strings.
+  ///      pre-v2.5 markets lack this function and round half-up.
   function scaledTransferRounding() external pure returns (bytes32) {
     return keccak256('scaleAmountDown');
   }
 
   // ┌─ name ─────
-  /// @notice returns the market-token name set at deployment.
+  /// @notice return the market-token name set at deployment.
   function name() external view returns (string memory) {
     bytes32 nameWord0 = PACKED_NAME_WORD_0;
     bytes32 nameWord1 = PACKED_NAME_WORD_1;
 
     assembly {
-      // The layout here is:
+      // ABI string layout:
       // 0x00: Offset to the string
       // 0x20: Length of the string
       // 0x40: First word of the string
       // 0x60: Second word of the string
-      // The first word of the string that is kept in immutable storage also contains the
-      // length byte, meaning the total size limit of the string is 63 bytes.
+      // the first immutable word also holds the length byte. that leaves at most 63 string bytes.
       mstore(0, 0x20)
       mstore(0x20, 0)
       mstore(0x3f, nameWord0)
@@ -414,19 +395,18 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ symbol ─────
-  /// @notice returns the market-token symbol set at deployment.
+  /// @notice return the market-token symbol set at deployment.
   function symbol() external view returns (string memory) {
     bytes32 symbolWord0 = PACKED_SYMBOL_WORD_0;
     bytes32 symbolWord1 = PACKED_SYMBOL_WORD_1;
 
     assembly {
-      // The layout here is:
+      // ABI string layout:
       // 0x00: Offset to the string
       // 0x20: Length of the string
       // 0x40: First word of the string
       // 0x60: Second word of the string
-      // The first word of the string that is kept in immutable storage also contains the
-      // length byte, meaning the total size limit of the string is 63 bytes.
+      // the first immutable word also holds the length byte. that leaves at most 63 string bytes.
       mstore(0, 0x20)
       mstore(0x20, 0)
       mstore(0x3f, symbolWord0)
@@ -436,13 +416,13 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ archController ─────
-  /// @notice returns the protocol registry that authorized this market.
+  /// @notice return the protocol registry that authorized this market.
   function archController() external view returns (address) {
     return _archController;
   }
 
   // ┌─ registeredWrapper ─────
-  /// @notice Canonical ERC-4626 wrapper for this market, or zero if none has been deployed.
+  /// @notice canonical ERC-4626 wrapper for this market, or zero if none has been deployed.
   function registeredWrapper() public view returns (address) {
     return _getAddress(REGISTERED_WRAPPER_STORAGE_SLOT);
   }
@@ -453,7 +433,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   modifier onlyBorrower() {
     address _borrower = borrower();
     assembly {
-      // Equivalent to
+      // equivalent to
       // if (msg.sender != borrower) revert NotApprovedBorrower();
       if xor(caller(), _borrower) {
         mstore(0, 0x02171e6a)
@@ -464,19 +444,19 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ borrower ─────
-  /// @notice Current operational borrower.
+  /// @notice current operational borrower.
   function borrower() public view returns (address) {
     return _getAddress(BORROWER_STORAGE_SLOT);
   }
 
   // ┌─ borrowerPrincipal ─────
-  /// @notice Current registered principal for the market.
+  /// @notice current registered principal for the market.
   function borrowerPrincipal() public view returns (address) {
     return _getAddress(BORROWER_PRINCIPAL_STORAGE_SLOT);
   }
 
   // ┌─ requestBorrowerTransfer ─────
-  /// @notice requests transfer of borrower authority to `newBorrower`.
+  /// @notice request transfer of borrower authority to `newBorrower`.
   ///
   /// @dev only the current borrower can call. a new request replaces any pending target. the
   ///      identity registry pins the target's principal, and raw sanctions block either side.
@@ -499,7 +479,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ acceptBorrowerTransfer ─────
-  /// @notice accepts borrower authority for the pending operational address and pinned principal.
+  /// @notice accept borrower authority for the pending operational address and pinned principal.
   ///
   /// @dev only the pending borrower can call. the target is resolved and sanctions are checked
   ///      again; a principal change since request makes the caller request a fresh transfer.
@@ -521,7 +501,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ cancelBorrowerTransfer ─────
-  /// @notice clears the pending borrower transfer without changing current authority.
+  /// @notice clear the pending borrower transfer without changing current authority.
   function cancelBorrowerTransfer() external onlyBorrower nonReentrant sphereXGuardExternal {
     address cancelledPendingBorrower = pendingBorrower();
     if (cancelledPendingBorrower == address(0)) revert_NoPendingBorrowerTransfer();
@@ -550,39 +530,30 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
     bytes32 borrowerPrincipalSlot = BORROWER_PRINCIPAL_STORAGE_SLOT;
     address identityRegistry = borrowerIdentityRegistry;
     assembly {
-      // The borrower fields use reserved storage slots rather than ordinary
-      // Solidity state variables. `sload` reads the whole 32-byte slot; the
-      // stored address is the low 160 bits and is assigned cleanly to the
-      // Solidity address variable.
+      // borrower addresses live in reserved slots, not ordinary Solidity state variables.
+      // each slot holds a clean address in its low 160 bits.
       currentBorrower := sload(borrowerSlot)
       if iszero(newBorrower) {
-        // InvalidBorrowerTransferTarget() has no arguments, so its revert data
-        // is just the four-byte selector at the end of this scratch word.
+        // InvalidBorrowerTransferTarget() needs only the selector, not an argument word.
         mstore(0, 0x5176bd60)
         revert(0x1c, 0x04)
       }
 
-      // Build `resolveBorrower(newBorrower)` directly in scratch memory. The
-      // selector occupies the last four bytes of the word at 0x00 and the address
-      // occupies the word at 0x20. Reading from 0x1c for 0x24 bytes gives the call
-      // its four-byte selector followed by one complete ABI argument.
+      // resolveBorrower(newBorrower): selector at the end of 0x00, address at 0x20.
+      // reading 0x24 bytes from 0x1c gives the selector and one full ABI argument.
       mstore(0, 0xa111a9e8)
       mstore(0x20, newBorrower)
 
-      // Ask the registry to resolve the operational address without allowing it
-      // to change state. The first 32 bytes of a successful return are copied
-      // back to 0x00, replacing the selector because we no longer need it.
+      // resolve without allowing state changes. reuse 0x00 for the first return word;
+      // the selector is no longer needed.
       if iszero(staticcall(gas(), identityRegistry, 0x1c, 0x24, 0, 0x20)) {
-        // If the registry explains why it failed, preserve that exact error.
-        // `returndatacopy` moves every returned byte into scratch memory and the
-        // following revert sends the same bytes back to our caller.
+        // bubble the registry's exact revert data.
         returndatacopy(0, 0, returndatasize())
         revert(0, returndatasize())
       }
 
-      // Solidity needs at least one full word to decode an address. It also
-      // rejects dirty upper bits instead of silently truncating them, so perform
-      // both checks before treating the return word as a principal.
+      // match Solidity's address decoding: at least one full word, with clean upper bits.
+      // don't treat a short or silently truncated return as a principal.
       if lt(returndatasize(), 0x20) {
         revert(0, 0)
       }
@@ -593,16 +564,12 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
 
       currentBorrowerPrincipal := sload(borrowerPrincipalSlot)
 
-      // Requests pass zero here because there is no earlier resolution to bind.
-      // Acceptance passes the principal stored with the pending transfer. Yul
-      // treats any nonzero word as true, so this outer check is the readable way
-      // to distinguish those paths without confusing bitwise AND with boolean AND.
+      // requests pass zero; acceptance passes the pinned principal. Yul's `if` accepts
+      // any nonzero word. don't use bitwise AND as though a raw address were a boolean.
       if expectedPrincipal {
-        // `xor(a, b)` is zero only when every bit is identical. Any nonzero
-        // result means the account changed principals while acceptance was pending.
+        // nonzero XOR means the principal changed while acceptance was pending.
         if xor(newBorrowerPrincipal, expectedPrincipal) {
-          // PendingBorrowerPrincipalChanged(address,address) is the four-byte
-          // selector followed by the expected and current principal words.
+          // PendingBorrowerPrincipalChanged(address,address): selector, expected principal, current principal.
           mstore(0, 0xe1357b3c)
           mstore(0x20, expectedPrincipal)
           mstore(0x40, newBorrowerPrincipal)
@@ -610,10 +577,8 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
         }
       }
 
-      // Re-requesting the same operational borrower is valid when its principal
-      // changed, but an exact borrower/principal no-op is not. Unlike raw
-      // addresses, each `eq` returns exactly 0 or 1, so `and` is safe here as a
-      // logical AND.
+      // the same borrower can request a changed principal, but not an exact identity no-op.
+      // each `eq` returns 0 or 1, so bitwise AND is logical AND here.
       if and(eq(newBorrower, currentBorrower), eq(newBorrowerPrincipal, currentBorrowerPrincipal)) {
         mstore(0, 0x5176bd60)
         revert(0x1c, 0x04)
@@ -647,13 +612,13 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ pendingBorrower ─────
-  /// @notice Address that can accept the pending borrower transfer.
+  /// @notice address that can accept the pending borrower transfer.
   function pendingBorrower() public view returns (address) {
     return _getAddress(PENDING_BORROWER_STORAGE_SLOT);
   }
 
   // ┌─ pendingBorrowerPrincipal ─────
-  /// @notice Principal resolved for the pending borrower when the transfer was requested.
+  /// @notice principal resolved for the pending borrower when the transfer was requested.
   function pendingBorrowerPrincipal() public view returns (address) {
     return _getAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT);
   }
@@ -692,7 +657,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   // ░░▒▒▓▓██ [ STATE TRANSITIONS ] ────────────────────────────────────────────
 
   // ┌─ currentState ─────
-  /// @notice returns the state calculable through this block without writing storage.
+  /// @notice return the state calculable through this block without writing storage.
   ///
   /// @dev includes accrued interest and fees plus any current-batch expiry and payment.
   function currentState() external view nonReentrantView returns (MarketState memory state) {
@@ -703,7 +668,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ previousState ─────
-  /// @notice returns stored state without applying time or withdrawal-batch changes.
+  /// @notice return stored state without applying time or withdrawal-batch changes.
   function previousState() external view returns (MarketState memory) {
     MarketState memory state = _state;
 
@@ -735,15 +700,11 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ _getUpdatedState ─────
-  /// @dev Returns cached MarketState after accruing interest and delinquency / protocol fees
-  ///      and processing expired withdrawal batch, if any.
+  /// @dev return memory state after accruing interest, delinquency and protocol fees, and
+  ///      processing any expired current batch. callers can make further changes to that state.
+  ///      accrued changes aren't committed to `_state`: the caller must write them or revert.
   ///
-  ///      Used by functions that make additional changes to `state`.
-  ///
-  ///      NOTE: Returned `state` does not match `_state` if interest is accrued
-  ///            Calling function must update `_state` or revert.
-  ///
-  /// @return state Market state after interest is accrued.
+  /// @return state market state after accrual.
   function _getUpdatedState() internal returns (MarketState memory state) {
     // keep the view/write/repay callers on one transition body. constant flags clone it in viaIR.
     return _getUpdatedState(_runtimeConstant(1) != 0);
@@ -833,7 +794,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
         }
       }
 
-      // An expiry exactly at the inclusive deadline is processed after judging that deadline.
+      // judge the inclusive deadline before processing an expiry at that same timestamp.
       if (deadlinePending.and(target == deadline)) {
         deadlinePending = false;
         if (!state.isClosed && historicalAssets < state.totalDebts() && next.lifecycle.defaultedAt == 0) {
@@ -928,7 +889,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ _closeOrQueueWithdrawalBatch ─────
-  /// @dev Fully paid batches close; capped or underfunded batches remain reachable through FIFO.
+  /// @dev close fully paid batches. keep capped or underfunded batches reachable through FIFO.
   function _closeOrQueueWithdrawalBatch(uint32 expiry, WithdrawalBatch memory batch) internal {
     if (batch.scaledAmountBurned == batch.scaledTotalAmount) {
       emit_WithdrawalBatchClosed(expiry);
@@ -938,21 +899,14 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ _processExpiredWithdrawalBatch ─────
-  /// @dev Handles an expired withdrawal batch:
-  ///      - Retrieves the amount of underlying assets that can be used to pay for the batch.
-  ///      - If the amount is sufficient to pay the full amount owed to the batch, the batch
-  ///        is closed and the total withdrawal amount is reserved.
-  ///      - If the amount is insufficient to pay the full amount owed to the batch, the batch
-  ///        is recorded as an unpaid batch and the available assets are reserved.
-  ///      - The assets reserved for the batch are scaled by the current scale factor and that
-  ///        amount of scaled tokens is burned, ensuring borrowers do not continue paying interest
-  ///        on withdrawn assets.
+  /// @dev fund the expired batch with available liquidity. close it if fully funded;
+  ///      otherwise retain the unpaid portion in FIFO. reserve the paid assets and burn the
+  ///      corresponding shares at the current scale factor so they stop earning interest.
   function _processExpiredWithdrawalBatch(MarketState memory state, uint256 currentTotalAssets) internal {
     uint32 expiry = state.pendingWithdrawalExpiry;
     WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
 
     if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
-      // Burn as much of the withdrawal batch as possible with available liquidity.
       uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(state, currentTotalAssets);
       if (availableLiquidity > 0) {
         _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
@@ -981,8 +935,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ _applyWithdrawalBatchPayment ─────
-  /// @dev Process withdrawal payment, burning market tokens and reserving
-  ///      underlying assets so they are only available for withdrawals.
+  /// @dev fund a batch by burning market tokens and reserving the underlying assets for claims.
   function _applyWithdrawalBatchPayment(
     WithdrawalBatch memory batch,
     MarketState memory state,
@@ -995,7 +948,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
     (scaledAmountBurned, normalizedAmountPaid) = _applyWithdrawalBatchPaymentView(batch, state, availableLiquidity);
     if (scaledAmountBurned == 0) return (0, 0);
 
-    // Emit transfer for external trackers to indicate burn.
+    // expose the burn to external token trackers.
     emit_Transfer(address(this), _runtimeConstant(address(0)), normalizedAmountPaid);
     emit_WithdrawalBatchPayment(expiry, scaledAmountBurned, normalizedAmountPaid);
   }
@@ -1012,31 +965,30 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
     pure
     returns (uint104 scaledAmountBurned, uint128 normalizedAmountPaid)
   {
-    // Paid-but-unclaimed withdrawals share one uint128 counter across every batch.
-    // Leave any excess liquidity unallocated until older claims release capacity.
-    // The uint128 complement is exactly type(uint128).max minus the stored value.
+    // all paid-but-unclaimed withdrawals share one uint128 counter. leave excess liquidity
+    // unallocated until claims free capacity. the uint128 complement is exactly
+    // type(uint128).max minus the stored value.
     uint256 headroom = ~state.normalizedUnclaimedWithdrawals;
     if (availableLiquidity > headroom) availableLiquidity = headroom;
 
-    // Valid cumulative totals and their live difference are capped at uint104,
-    // although the packed batch fields retain their uint128 ABI types.
+    // cumulative totals and their live difference still fit uint104. the packed ABI fields stay uint128.
     uint256 burned = uint256(batch.scaledTotalAmount - batch.scaledAmountBurned).toUint104();
     uint256 paymentRay;
     unchecked {
       // uint104 owed * uint112 factor plus a sub-RAY remainder fits uint256.
       paymentRay = burned * state.scaleFactor + batch.paymentRemainder;
       if (paymentRay / RAY > availableLiquidity) {
-        // Solve floor((burned * factor + remainder) / RAY) <= available directly.
-        // This branch bounds available before multiplying by RAY, including huge donations.
+        // solve floor((burned * factor + remainder) / RAY) <= available directly.
+        // bound available before multiplying by RAY, including for huge donations.
         burned = ((availableLiquidity + 1) * RAY - 1 - batch.paymentRemainder) / state.scaleFactor;
         paymentRay = burned * state.scaleFactor + batch.paymentRemainder;
       }
     }
 
-    // Covers both an already paid batch and liquidity that cannot fund one share.
+    // covers an already paid batch and liquidity too small to fund one share.
     if (burned == 0) return (0, 0);
 
-    // The affordability inverse can only reduce the checked live amount.
+    // the affordability inverse can only reduce the checked live amount.
     scaledAmountBurned = uint104(burned);
     normalizedAmountPaid = (paymentRay / RAY).toUint128();
     uint128 nextRemainder = uint128(paymentRay % RAY);
@@ -1047,10 +999,10 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
     batch.normalizedAmountPaid += normalizedAmountPaid;
     state.scaledPendingWithdrawals -= scaledAmountBurned;
 
-    // Update normalizedUnclaimedWithdrawals so the tokens are only accessible for withdrawals.
+    // reserve these assets for claims; they aren't free liquidity anymore.
     state.normalizedUnclaimedWithdrawals += normalizedAmountPaid;
 
-    // Burn market tokens to stop interest accrual upon withdrawal payment.
+    // funded shares stop earning interest.
     state.scaledTotalSupply -= scaledAmountBurned;
   }
 
@@ -1108,24 +1060,22 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   // ░░▒▒▓▓██ [ STATE PERSISTENCE ] ────────────────────────────────────────────
 
   // ┌─ _writeState ─────
-  /// @dev Writes the cached MarketState to storage and emits an event.
-  ///      Used at the end of all functions which modify `state`.
+  /// @dev commit the caller's modified memory state and emit the state-update event.
   function _writeState(MarketState memory state) internal {
     _writeState(state, totalAssets());
   }
 
   // ┌─ _writeState ─────
-  /// @dev Writes state using a current asset balance already loaded after the last
-  ///      external state-changing call.
+  /// @dev commit state using an asset balance read after the last external state-changing call.
   function _writeState(MarketState memory state, uint256 currentTotalAssets) internal {
     _closeAfterCurrentAction(state, currentTotalAssets);
     bool isDelinquent = state.liquidityRequired() > currentTotalAssets;
     state.isDelinquent = isDelinquent;
     if ((!isDelinquent).or(state.isClosed)) _lifecycle.penaltyCutoff = 0;
 
-    // An arbitrary direct transfer can exceed uint152, so saturate rather than making every
-    // state write revert. The uint104/uint112/uint128 accounting fields bound every payable
-    // market liability below uint152, making the saturated value economically equivalent.
+    // a direct transfer can exceed uint152. saturate instead of bricking every state write.
+    // the uint104/uint112/uint128 accounting fields keep every payable liability below uint152,
+    // so saturation preserves the economically relevant balance.
     uint256 checkpointedTotalAssets;
     if ((state.pendingWithdrawalExpiry != 0).or(repaymentDate() != 0)) {
       checkpointedTotalAssets = MathUtils.min(currentTotalAssets, type(uint152).max);
@@ -1209,9 +1159,9 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ _checkpointedTotalAssets ─────
-  /// @dev Returns the last asset balance observed by a state write while a current withdrawal
-  ///      batch existed or repayment terms were enabled. The uint152 value occupies otherwise unused high bits in state slots
-  ///      zero and three, preserving the MarketState storage layout and hook ABI.
+  /// @dev last asset balance committed while a current batch existed or repayment terms were enabled.
+  ///      the uint152 value uses spare high bits in state slots zero and three; MarketState layout
+  ///      and the hook ABI stay unchanged.
   function _checkpointedTotalAssets() internal view returns (uint256 value) {
     assembly {
       value := or(shr(0x88, sload(_state.slot)), shl(0x78, shr(0xe0, sload(add(_state.slot, 3)))))
@@ -1251,7 +1201,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   // ░░▒▒▓▓██ [ ACCOUNTING QUERIES ] ───────────────────────────────────────────
 
   // ┌─ totalAssets ─────
-  /// @notice returns the market contract's raw underlying-asset balance.
+  /// @notice return the market contract's raw underlying-asset balance.
   ///
   /// @dev this includes reserves, protocol fees, and paid-but-unclaimed withdrawals.
   function totalAssets() public view returns (uint256) {
@@ -1259,50 +1209,50 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ totalDebts ─────
-  /// @notice returns normalized lender supply, unclaimed withdrawals, and protocol fees.
+  /// @notice return normalized lender supply, unclaimed withdrawals, and protocol fees.
   function totalDebts() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().totalDebts();
   }
 
   // ┌─ coverageLiquidity ─────
-  /// @notice returns the current collateral obligation in underlying-asset units.
+  /// @notice return the current collateral obligation in underlying-asset units.
   function coverageLiquidity() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().liquidityRequired();
   }
 
   // ┌─ borrowableAssets ─────
-  /// @notice returns underlying assets left after the market's full collateral obligation.
+  /// @notice return underlying assets left after the market's full collateral obligation.
   function borrowableAssets() external view nonReentrantView returns (uint256) {
     if (_state.isClosed.or(_isInRepayment())) return 0;
     return _calculateCurrentStatePointers.asReturnsMarketState()().borrowableAssets(totalAssets());
   }
 
   // ┌─ scaleFactor ─────
-  /// @notice returns the current ray-scaled ratio from scaled shares to normalized tokens.
+  /// @notice return the current ray-scaled ratio from scaled shares to normalized tokens.
   function scaleFactor() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().scaleFactor;
   }
 
   // ┌─ scaledTotalSupply ─────
-  /// @notice returns current scaled supply after any calculable withdrawal-batch payment.
+  /// @notice return current scaled supply after any calculable withdrawal-batch payment.
   function scaledTotalSupply() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().scaledTotalSupply;
   }
 
   // ┌─ scaledBalanceOf ─────
-  /// @notice returns `account`'s direct share-like balance without applying the scale factor.
+  /// @notice return `account`'s direct share-like balance without applying the scale factor.
   function scaledBalanceOf(address account) external view nonReentrantView returns (uint256) {
     return _accounts[account].scaledBalance;
   }
 
   // ┌─ accruedProtocolFees ─────
-  /// @notice returns all accrued protocol fees, including any not currently withdrawable.
+  /// @notice return all accrued protocol fees, including any not currently withdrawable.
   function accruedProtocolFees() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().accruedProtocolFees;
   }
 
   // ┌─ withdrawableProtocolFees ─────
-  /// @notice returns protocol fees withdrawable after reserving paid lender claims.
+  /// @notice return protocol fees withdrawable after reserving paid lender claims.
   function withdrawableProtocolFees() external view nonReentrantView returns (uint128) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().withdrawableProtocolFees(totalAssets());
   }
@@ -1318,7 +1268,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
 
   // ┌─ _isSanctioned ─────
   /// @dev checks whether `account` is sanctioned in this market's current principal namespace.
-  ///      If an account is flagged mistakenly, the principal can override their
+  ///      if an account is flagged mistakenly, the principal can override their
   ///      status on the sentinel and allow them to interact with the market.
   function _isSanctioned(address account) internal view returns (bool result) {
     address _borrowerPrincipal = borrowerPrincipal();
@@ -1328,8 +1278,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
       mstore(0, 0x06e74444)
       mstore(0x20, _borrowerPrincipal)
       mstore(0x40, account)
-      // Call `sentinel.isSanctioned(principal, account)` and revert if the call fails
-      // or does not return 32 bytes.
+      // sentinel.isSanctioned(principal, account) must succeed and return exactly 32 bytes.
       if iszero(and(eq(returndatasize(), 0x20), staticcall(gas(), _sentinel, 0x1c, 0x44, 0, 0x20))) {
         returndatacopy(0, 0, returndatasize())
         revert(0, returndatasize())
@@ -1384,13 +1333,10 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   // ░░▒▒▓▓██ [ RUNTIME CONSTANTS ] ────────────────────────────────────────────
 
   // ┌─ _runtimeConstant ─────
-  /// @dev Function to obfuscate the fact that a value is constant from solc's optimizer.
-  ///      This prevents function specialization for calls with a constant input parameter,
-  ///      which usually has very little benefit in terms of gas savings but can
-  ///      drastically increase contract size.
+  /// @dev hide constant arguments from solc so it doesn't clone specialized function bodies.
+  ///      those clones usually save little gas and can add substantial contract size.
   ///
-  ///      The value returned will always match the input value outside of the constructor,
-  ///      fallback and receive functions.
+  ///      the result equals the input outside constructors, fallback, and receive functions.
   function _runtimeConstant(uint256 actualConstant) internal pure returns (uint256 runtimeConstant) {
     assembly {
       mstore(0, actualConstant)

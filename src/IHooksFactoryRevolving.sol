@@ -98,7 +98,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   // ░░▒▒▓▓██ [ SETUP ] ────────────────────────────────────────────────────────
 
   // ┌─ registerWithArchController ─────
-  /// @notice registers this factory as an ArchController controller.
+  /// @notice register this factory as an ArchController controller.
   ///
   /// @dev permissionless to trigger once this contract is an approved controller factory.
   function registerWithArchController() external;
@@ -134,7 +134,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   // ░░▒▒▓▓██ [ HOOKS TEMPLATES ] ──────────────────────────────────────────────
 
   // ┌─ addHooksTemplate ─────
-  /// @notice registers a hooks template and its fee configuration.
+  /// @notice register a hooks template and its fee configuration.
   ///
   /// @dev only the ArchController owner can call this. initCodeHash must come from the compiled
   ///      artifact, before per-instance constructor arguments are appended.
@@ -150,7 +150,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     external;
 
   // ┌─ disableHooksTemplate ─────
-  /// @notice disables new instance deployments from `hooksTemplate`.
+  /// @notice disable new instance deployments from `hooksTemplate`.
   ///
   /// @dev only the ArchController owner can call this. existing instances may still deploy markets;
   ///      there is no re-enable path.
@@ -159,7 +159,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   // ░░▒▒▓▓██ [ TEMPLATE FEES ] ────────────────────────────────────────────────
 
   // ┌─ updateHooksTemplateFees ─────
-  /// @notice updates the fees used by future markets for `hooksTemplate`.
+  /// @notice update the fees used by future markets for `hooksTemplate`.
   ///
   /// @dev only the ArchController owner can call this. existing market protocol fees change only
   ///      after a fee-push call.
@@ -173,7 +173,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     external;
 
   // ┌─ pushProtocolFeeBipsUpdates ─────
-  /// @notice pushes a template's current protocol fee to markets in an index range.
+  /// @notice push a template's current protocol fee to markets in an index range.
   ///
   /// @dev permissionless. `marketEndIndex` is clamped to the market count; after that, equal bounds
   ///      are a no-op and `marketStartIndex > marketEndIndex` reverts. closed markets are skipped;
@@ -181,7 +181,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   function pushProtocolFeeBipsUpdates(address hooksTemplate, uint marketStartIndex, uint marketEndIndex) external;
 
   // ┌─ pushProtocolFeeBipsUpdates ─────
-  /// @notice pushes a template's current protocol fee to all of its markets.
+  /// @notice push a template's current protocol fee to all of its markets.
   ///
   /// @dev permissionless. closed markets are skipped; any other market failure reverts the call.
   function pushProtocolFeeBipsUpdates(address hooksTemplate) external;
@@ -189,7 +189,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   // ░░▒▒▓▓██ [ TEMPLATE QUERIES ] ─────────────────────────────────────────────
 
   // ┌─ getHooksTemplateDetails ─────
-  /// @notice returns the factory metadata for `hooksTemplate`.
+  /// @notice return the factory metadata for `hooksTemplate`.
   function getHooksTemplateDetails(address hooksTemplate) external view returns (HooksTemplate memory);
 
   // ┌─ getHooksTemplateInitCodeHash ─────
@@ -197,25 +197,25 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   function getHooksTemplateInitCodeHash(address hooksTemplate) external view returns (bytes32);
 
   // ┌─ isHooksTemplate ─────
-  /// @notice returns whether `hooksTemplate` was registered, including if it is disabled.
+  /// @notice return whether `hooksTemplate` was registered, including if it is disabled.
   function isHooksTemplate(address hooksTemplate) external view returns (bool);
 
   // ┌─ getHooksTemplates ─────
-  /// @notice returns all registered hooks templates in insertion order.
+  /// @notice return all registered hooks templates in insertion order.
   function getHooksTemplates() external view returns (address[] memory);
 
   // ┌─ getHooksTemplates ─────
-  /// @notice returns templates in `[start, min(end, count))`.
+  /// @notice return templates in `[start, min(end, count))`.
   function getHooksTemplates(uint256 start, uint256 end) external view returns (address[] memory arr);
 
   // ┌─ getHooksTemplatesCount ─────
-  /// @notice returns the number of registered hooks templates.
+  /// @notice return the number of registered hooks templates.
   function getHooksTemplatesCount() external view returns (uint256);
 
   // ░░▒▒▓▓██ [ HOOKS DEPLOYMENT ] ─────────────────────────────────────────────
 
   // ┌─ deployHooksInstance ─────
-  /// @notice deploys a hooks instance administered by the caller's resolved principal.
+  /// @notice deploy a hooks instance administered by the caller's resolved principal.
   ///
   /// @dev this does not charge an origination fee.
   function deployHooksInstance(
@@ -230,31 +230,31 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   function getHooksInstanceDeploymentNonce(address administrator) external view returns (uint256);
 
   // ┌─ isHooksInstance ─────
-  /// @notice returns whether `hooks` was deployed by this factory.
+  /// @notice return whether `hooks` was deployed by this factory.
   function isHooksInstance(address hooks) external view returns (bool);
 
   // ┌─ getHooksTemplateForInstance ─────
-  /// @notice returns the template used to deploy `hooks`, or zero if it is unknown.
+  /// @notice return the template used to deploy `hooks`, or zero if it is unknown.
   function getHooksTemplateForInstance(address hooks) external view returns (address);
 
   // ░░▒▒▓▓██ [ HOOKS ADMINISTRATION ] ─────────────────────────────────────────
 
   // ┌─ onHooksAdministratorTransferred ─────
-  /// @notice updates the factory index after a hooks instance accepts an administrator transfer.
+  /// @notice update the factory index after a hooks instance accepts an administrator transfer.
   ///
   /// @dev only the hooks instance itself can make a valid call.
   function onHooksAdministratorTransferred(address previousAdministrator, address newAdministrator) external;
 
   // ┌─ getHooksAdministrator ─────
-  /// @notice returns the administrator tracked by the factory for `hooks`.
+  /// @notice return the administrator tracked by the factory for `hooks`.
   function getHooksAdministrator(address hooks) external view returns (address);
 
   // ┌─ getHooksInstancesForAdministrator ─────
-  /// @notice returns every hooks instance currently indexed to `administrator`.
+  /// @notice return every hooks instance currently indexed to `administrator`.
   function getHooksInstancesForAdministrator(address administrator) external view returns (address[] memory);
 
   // ┌─ getHooksInstancesForAdministrator ─────
-  /// @notice returns administrator instances in `[start, min(end, count))`.
+  /// @notice return administrator instances in `[start, min(end, count))`.
   function getHooksInstancesForAdministrator(
     address administrator,
     uint256 start,
@@ -265,7 +265,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     returns (address[] memory);
 
   // ┌─ getHooksInstancesCountForAdministrator ─────
-  /// @notice returns the number of hooks instances indexed to `administrator`.
+  /// @notice return the number of hooks instances indexed to `administrator`.
   function getHooksInstancesCountForAdministrator(address administrator) external view returns (uint256);
 
   // ┌─ getHooksInstancesForBorrower ─────
@@ -279,7 +279,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   // ░░▒▒▓▓██ [ MARKET DEPLOYMENT ] ────────────────────────────────────────────
 
   // ┌─ deployMarket ─────
-  /// @notice deploys a revolving market using the existing instance in `parameters.hooks`.
+  /// @notice deploy a revolving market using the existing instance in `parameters.hooks`.
   ///
   /// @dev the caller becomes the operational borrower. its resolved principal is passed to the
   ///      hooks and market, fee arguments must match the template, and `salt` binds to the caller.
@@ -298,7 +298,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     returns (address market);
 
   // ┌─ deployMarketAndHooks ─────
-  /// @notice deploys a principal-administered hooks instance and a revolving market using it.
+  /// @notice deploy a principal-administered hooks instance and a revolving market using it.
   ///
   /// @dev both deployments are atomic. `marketData` uses the same encoding as `deployMarket`.
   function deployMarketAndHooks(
@@ -315,7 +315,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     returns (address market, address hooks);
 
   // ┌─ computeMarketAddress ─────
-  /// @notice returns the CREATE2 market address for `salt` and this factory's initcode.
+  /// @notice return the CREATE2 market address for `salt` and this factory's initcode.
   ///
   /// @dev the first 20 bytes must name the nonzero caller. borrower accounts use the account
   ///      address here, not the resolved principal.
@@ -324,7 +324,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   // ░░▒▒▓▓██ [ CONSTRUCTOR PARAMETERS ] ───────────────────────────────────────
 
   // ┌─ getMarketParameters ─────
-  /// @notice returns constructor parameters for the market currently being deployed.
+  /// @notice return constructor parameters for the market currently being deployed.
   ///
   /// @dev only valid during the market constructor call. outside deployment, decoding the empty
   ///      transient parameter array reverts.
@@ -339,11 +339,11 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   // ░░▒▒▓▓██ [ MARKET QUERIES ] ───────────────────────────────────────────────
 
   // ┌─ getMarketsForHooksTemplate ─────
-  /// @notice returns every market deployed from any instance of `hooksTemplate`.
+  /// @notice return every market deployed from any instance of `hooksTemplate`.
   function getMarketsForHooksTemplate(address hooksTemplate) external view returns (address[] memory);
 
   // ┌─ getMarketsForHooksTemplate ─────
-  /// @notice returns template markets in `[start, min(end, count))`.
+  /// @notice return template markets in `[start, min(end, count))`.
   function getMarketsForHooksTemplate(
     address hooksTemplate,
     uint256 start,
@@ -354,15 +354,15 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     returns (address[] memory arr);
 
   // ┌─ getMarketsForHooksTemplateCount ─────
-  /// @notice returns the number of markets deployed from `hooksTemplate`.
+  /// @notice return the number of markets deployed from `hooksTemplate`.
   function getMarketsForHooksTemplateCount(address hooksTemplate) external view returns (uint256);
 
   // ┌─ getMarketsForHooksInstance ─────
-  /// @notice returns every market attached to `hooksInstance`.
+  /// @notice return every market attached to `hooksInstance`.
   function getMarketsForHooksInstance(address hooksInstance) external view returns (address[] memory);
 
   // ┌─ getMarketsForHooksInstance ─────
-  /// @notice returns instance markets in `[start, min(end, count))`.
+  /// @notice return instance markets in `[start, min(end, count))`.
   function getMarketsForHooksInstance(
     address hooksInstance,
     uint256 start,
@@ -373,6 +373,6 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     returns (address[] memory arr);
 
   // ┌─ getMarketsForHooksInstanceCount ─────
-  /// @notice returns the number of markets attached to `hooksInstance`.
+  /// @notice return the number of markets attached to `hooksInstance`.
   function getMarketsForHooksInstanceCount(address hooksInstance) external view returns (uint256);
 }

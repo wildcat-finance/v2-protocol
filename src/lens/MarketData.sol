@@ -151,7 +151,7 @@ library MarketDataLib {
   // ░░▒▒▓▓██ [ MARKET DATA ] ──────────────────────────────────────────────────
 
   // ┌─ fillMarketsData ─────
-  /// @notice fills compatibility data for each market in input order.
+  /// @notice fill compatibility data for each market in input order.
   function fillMarketsData(address[] memory markets) internal view returns (MarketData[] memory data) {
     data = new MarketData[](markets.length);
     for (uint256 i; i < markets.length; i++) {
@@ -160,7 +160,7 @@ library MarketDataLib {
   }
 
   // ┌─ fillMarketsDataV2 ─────
-  /// @notice fills V2.5 data for each market in input order.
+  /// @notice fill V2.5 data for each market in input order.
   function fillMarketsDataV2(address[] memory markets) internal view returns (MarketDataV2_5[] memory data) {
     data = new MarketDataV2_5[](markets.length);
     for (uint256 i; i < markets.length; i++) {
@@ -169,7 +169,7 @@ library MarketDataLib {
   }
 
   // ┌─ fill ─────
-  /// @notice fills the complete compatibility tuple for a V2 market.
+  /// @notice fill the complete compatibility tuple for a V2 market.
   ///
   /// @dev token decimals, market and known-hooks reads remain strict; cosmetic
   ///      token names and symbols are best effort.
@@ -185,7 +185,7 @@ library MarketDataLib {
   }
 
   // ┌─ fill ─────
-  /// @notice fills V2.5 identity fields and optional revolving-market fields.
+  /// @notice fill V2.5 identity fields and optional revolving-market fields.
   function fill(MarketDataV2_5 memory data, WildcatMarket market) internal view {
     data.market.fill(market);
     data.borrowerPrincipal = market.borrowerPrincipal();
@@ -278,7 +278,7 @@ library MarketDataLib {
   }
 
   // ┌─ fillTemporaryExcessReserveRatio ─────
-  /// @notice probes optional temporary reserve-ratio state on the market's hooks instance.
+  /// @notice probe optional temporary reserve-ratio state on the market's hooks instance.
   ///
   /// @dev a missing, reverting, or short getter leaves the related fields empty.
   function fillTemporaryExcessReserveRatio(MarketData memory data) internal view {
@@ -321,7 +321,7 @@ library MarketDataLib {
   }
 
   // ┌─ fillState ─────
-  /// @notice fills accrued accounting state and unpaid withdrawal expiries.
+  /// @notice fill accrued accounting state and unpaid withdrawal expiries.
   function fillState(MarketData memory data) internal view {
     WildcatMarket market = WildcatMarket(data.marketToken.token);
     data.unpaidWithdrawalBatchExpiries = market.getUnpaidBatchExpiries();
@@ -372,7 +372,7 @@ library MarketDataLib {
   // ░░▒▒▓▓██ [ WITHDRAWAL BATCHES ] ───────────────────────────────────────────
 
   // ┌─ getUnpaidAndPendingWithdrawalBatches ─────
-  /// @notice expands the expiries already stored in `data` into withdrawal batch records.
+  /// @notice expand the expiries already stored in `data` into withdrawal batch records.
   function getUnpaidAndPendingWithdrawalBatches(MarketData memory data)
     internal
     view

@@ -47,7 +47,7 @@ abstract contract ManagedRoleProvider is IManagedRoleProvider {
   }
 
   // ┌─ requestAdministratorTransfer ─────
-  /// @notice starts or replaces a pending provider-administrator transfer.
+  /// @notice start or replace a pending provider-administrator transfer.
   ///
   /// @dev the target must be nonzero and different from the current administrator. pending status
   ///      grants no authority.
@@ -61,7 +61,7 @@ abstract contract ManagedRoleProvider is IManagedRoleProvider {
   }
 
   // ┌─ acceptAdministratorTransfer ─────
-  /// @notice completes the transfer when called by the pending administrator.
+  /// @notice complete the transfer when called by the pending administrator.
   ///
   /// @dev configuration, hook attachments, and provider address are unchanged.
   function acceptAdministratorTransfer() external override {
@@ -75,7 +75,7 @@ abstract contract ManagedRoleProvider is IManagedRoleProvider {
   }
 
   // ┌─ cancelAdministratorTransfer ─────
-  /// @notice cancels the pending transfer without changing provider authority.
+  /// @notice cancel the pending transfer without changing provider authority.
   function cancelAdministratorTransfer() external override onlyAdministrator {
     address cancelledPendingAdministrator = pendingAdministrator;
     if (cancelledPendingAdministrator == address(0)) {

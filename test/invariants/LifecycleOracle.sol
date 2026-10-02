@@ -188,7 +188,7 @@ library LifecycleOracle {
     uint256 prior = s.scaledPendingWithdrawals - owed;
     uint256 protected = (prior * s.scaleFactor + s.withdrawalRemainder - b.paymentRemainder + HALF_RAY) / RAY;
     uint256 available = cash.satSub(s.normalizedUnclaimedWithdrawals + protected + s.accruedProtocolFees);
-    // Solve the affordability inequality directly, independently of the production
+    // solve the affordability inequality directly, independently of the production
     // helper's floor-price capacity and one-share correction.
     uint256 burn = owed;
     if ((burn * s.scaleFactor + b.paymentRemainder) / RAY > available) {

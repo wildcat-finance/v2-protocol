@@ -207,7 +207,7 @@ contract HooksConfigTest is TestKernel {
 
   // ┌─ _assertHookCall ─────
   function _assertHookCall(bool enabled, bytes memory expectedCalldata, uint256 extraDataLength) internal view {
-    // LibHooksConfig sends the dynamic bytes without ABI tail padding. Trim the
+    // LibHooksConfig sends dynamic bytes without ABI tail padding. trim the
     // canonical encoding to the exact payload length before comparing it.
     uint256 trailingPadding = (32 - (extraDataLength % 32)) % 32;
     assembly {

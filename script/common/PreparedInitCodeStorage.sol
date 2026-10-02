@@ -16,7 +16,7 @@ pragma solidity 0.8.25;
 // ╚═════
 
 // ┌─ PreparedInitCodeStorage ──────────────────────────────────────────────────
-/// @dev installs the reviewed runtime image. all splitting happens during preparation.
+/// @dev install the reviewed runtime image. all splitting happens during preparation.
 contract PreparedInitCodeStorage {
   // ░░▒▒▓▓██ [ PREPARED STORAGE ] ─────────────────────────────────────────────
 
@@ -29,7 +29,7 @@ contract PreparedInitCodeStorage {
 }
 
 // ┌─ LinkedInitCodeStorage ────────────────────────────────────────────────────
-/// @dev binds the already-deployed secondary into the prepared primary's footer.
+/// @dev bind the already-deployed secondary into the prepared primary's footer.
 ///      the reader, payload and lengths are copied unchanged.
 contract LinkedInitCodeStorage {
   // ░░▒▒▓▓██ [ LINKED STORAGE ] ───────────────────────────────────────────────

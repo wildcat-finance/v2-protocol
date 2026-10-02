@@ -75,7 +75,7 @@ abstract contract IHooks {
   }
 
   // ┌─ onCreateMarket ─────
-  /// @notice validates a market deployment and returns the callbacks the market should store.
+  /// @notice validate a market deployment and return the callbacks the market should store.
   ///
   /// @dev only the creating factory can call this. the factory calls the hook before attempting
   ///      market deployment.
@@ -113,14 +113,14 @@ abstract contract IHooks {
   // ░░▒▒▓▓██ [ METADATA ] ─────────────────────────────────────────────────────
 
   // ┌─ version ─────
-  /// @notice returns the template's integration-facing version string.
+  /// @notice return the template's integration-facing version string.
   ///
   /// @dev this is metadata, not implementation identity. it also tells callers how to interpret
   ///      `extraData` for templates that give the string that meaning.
   function version() external view virtual returns (string memory);
 
   // ┌─ config ─────
-  /// @notice returns the optional and required callbacks supported by this template.
+  /// @notice return the optional and required callbacks supported by this template.
   function config() external view virtual returns (HooksDeploymentConfig);
 
   // ░░▒▒▓▓██ [ DEPOSITS ] ─────────────────────────────────────────────────────
@@ -254,7 +254,7 @@ abstract contract IHooks {
   // ░░▒▒▓▓██ [ INTEREST AND RESERVES ] ────────────────────────────────────────
 
   // ┌─ onSetAnnualInterestAndReserveRatioBips ─────
-  /// @notice constrains an APR and reserve-ratio update before the market applies it.
+  /// @notice constrain an APR and reserve-ratio update before the market applies it.
   ///
   /// @return updatedAnnualInterestBips APR the market should apply.
   /// @return updatedReserveRatioBips reserve ratio the market should apply.

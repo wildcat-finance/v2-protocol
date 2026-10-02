@@ -34,14 +34,13 @@ library MarketStateLibExternal {
   // ░░▒▒▓▓██ [ SUPPLY AND CAPACITY ] ──────────────────────────────────────────
 
   // ┌─ $totalSupply ─────
-  /// @dev Returns the normalized total supply of the market.
+  /// @dev return the normalized total supply of the market.
   function $totalSupply(MarketState memory state) external pure returns (uint256) {
     return MarketStateLib.totalSupply(state);
   }
 
   // ┌─ $maximumDeposit ─────
-  /// @dev Returns the maximum amount of tokens that can be deposited without
-  /// reaching the maximum total supply.
+  /// @dev return normalized deposit capacity up to the maximum supply.
   function $maximumDeposit(MarketState memory state) external pure returns (uint256) {
     return MarketStateLib.maximumDeposit(state);
   }
@@ -49,13 +48,13 @@ library MarketStateLibExternal {
   // ░░▒▒▓▓██ [ SHARE CONVERSION ] ─────────────────────────────────────────────
 
   // ┌─ $normalizeAmount ─────
-  /// @dev Normalize an amount of scaled tokens using the current scale factor.
+  /// @dev normalize an amount of scaled tokens using the current scale factor.
   function $normalizeAmount(MarketState memory state, uint256 amount) external pure returns (uint256) {
     return MarketStateLib.normalizeAmount(state, amount);
   }
 
   // ┌─ $scaleAmountDown ─────
-  /// @dev Scale an amount of normalized tokens using the current scale factor,
+  /// @dev scale an amount of normalized tokens using the current scale factor,
   /// rounding down.
   function $scaleAmountDown(MarketState memory state, uint256 amount) external pure returns (uint256) {
     return MarketStateLib.scaleAmountDown(state, amount);
@@ -74,8 +73,7 @@ library MarketStateLibExternal {
   }
 
   // ┌─ $liquidityRequired ─────
-  /// Collateralization requires all pending withdrawals be covered
-  /// and reserve ratio for remaining liquidity.
+  /// cover pending withdrawals and protocol fees, plus reserves on the remaining supply.
   function $liquidityRequired(MarketState memory state) external pure returns (uint256 _liquidityRequired) {
     return MarketStateLib.liquidityRequired(state);
   }

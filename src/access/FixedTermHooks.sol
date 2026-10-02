@@ -63,7 +63,7 @@ contract FixedTermHooks is FixedTermPolicy {
   // ░░▒▒▓▓██ [ MARKET QUERIES ] ───────────────────────────────────────────────
 
   // ┌─ getHookedMarket ─────
-  /// @notice returns the fixed-term configuration stored for `marketAddress`.
+  /// @notice return the fixed-term configuration stored for `marketAddress`.
   ///
   /// @dev an unattached market returns the zero-value struct.
   function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {

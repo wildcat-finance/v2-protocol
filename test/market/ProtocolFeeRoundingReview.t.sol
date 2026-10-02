@@ -25,7 +25,7 @@ import { FeeMathExternal } from '../libraries/wrappers/FeeMathExternal.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 
 // ┌─ ProtocolFeeRoundingReviewTest ────────────────────────────────────────────
-/// Characterization of the existing fee model, not a proposed production fix.
+/// characterization of the existing fee model, not a proposed production fix.
 contract ProtocolFeeRoundingReviewTest is MarketFixture {
   using FeeMathExternal for MarketState;
   address internal constant Lender = address(0x1EAD);
@@ -41,7 +41,7 @@ contract ProtocolFeeRoundingReviewTest is MarketFixture {
   function _fixture(uint256 kind, uint16 feeBips) private returns (Fixture memory f) {
     Options memory o = _defaultOptions(HooksKind(kind % 2));
     o.revolving = kind >= 2;
-    // Both model types have a 10% base rate. Revolving uses only commitment
+    // both model types have a 10% base rate. revolving uses only commitment
     // interest here, avoiding changes in utilization as its scale factor grows.
     o.annualInterestBips = o.revolving ? 0 : 1000;
     o.commitmentFeeBips = o.revolving ? 1000 : 0;
@@ -108,8 +108,8 @@ contract ProtocolFeeRoundingReviewTest is MarketFixture {
     uint256 start = vm.getBlockTimestamp();
     for (uint256 i = 1; i <= 365; ++i) {
       MarketState memory beforeState = f.market.previousState();
-      // Independent rational fee before the two intermediate ray roundings.
-      // These small fixtures keep this complete product far below uint256.
+      // independent rational fee before the two intermediate ray roundings.
+      // these small fixtures keep this complete product far below uint256.
       exactNumerator += uint256(amount) * beforeState.scaleFactor * DayBaseRay * 1000;
       vm.warp(start + i * 1 days);
       vm.prank(Checkpointer);

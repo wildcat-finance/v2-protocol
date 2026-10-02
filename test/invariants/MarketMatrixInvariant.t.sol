@@ -38,9 +38,8 @@ import { MarketMatrixFixture } from './MarketMatrixFixture.sol';
 import { MarketMatrixHandler } from './MarketMatrixHandler.sol';
 
 // ┌─ MarketMatrixInvariantTest ────────────────────────────────────────────────
-/// @dev One concrete invariant suite owns all six built-in hook × market cells.
-///      This keeps the action budget per cell while avoiding six copies of the
-///      fixture, handler, and invariant bytecode.
+/// @dev one invariant suite owns all six built-in hook × market cells. keep the action
+///      budget per cell without duplicating fixture, handler, and invariant bytecode.
 contract MarketMatrixInvariantTest is MarketMatrixFixture, StdInvariant {
   MarketMatrixHandler internal handler;
 

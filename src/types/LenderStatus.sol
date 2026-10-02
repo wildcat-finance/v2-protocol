@@ -40,16 +40,15 @@ library LibLenderStatus {
   // ░░▒▒▓▓██ [ CREDENTIAL UPDATES ] ───────────────────────────────────────────
 
   // ┌─ setCredential ─────
-  /// @dev replaces cached credential metadata and only enables refresh for a pull provider.
+  /// @dev replace credential metadata; only a pull provider enables refresh.
   function setCredential(LenderStatus memory status, RoleProvider provider, uint256 timestamp) internal pure {
-    // user is approved, update status with the new approval timestamp and provider
     status.lastApprovalTimestamp = uint32(timestamp);
     status.lastProvider = provider.providerAddress();
     status.canRefresh = provider.isPullProvider();
   }
 
   // ┌─ unsetCredential ─────
-  /// @dev clears the cached credential without changing the lender's deposit block.
+  /// @dev clear the cached credential without changing the lender's deposit block.
   function unsetCredential(LenderStatus memory status) internal pure {
     status.canRefresh = false;
     status.lastApprovalTimestamp = 0;
@@ -59,29 +58,25 @@ library LibLenderStatus {
   // ░░▒▒▓▓██ [ CREDENTIAL STATUS ] ────────────────────────────────────────────
 
   // ┌─ hasCredential ─────
-  /// @dev returns whether a credential grant timestamp is stored. it says nothing about expiry.
+  /// @dev return whether a credential grant timestamp is stored. it says nothing about expiry.
   function hasCredential(LenderStatus memory status) internal pure returns (bool) {
     return status.lastApprovalTimestamp > 0;
   }
 
   // ┌─ credentialNotExpired ─────
-  /// @dev returns whether the stored credential has not expired under `provider`'s current TTL.
+  /// @dev return whether the stored credential has not expired under `provider`'s current TTL.
   ///
-  ///      Note: Does not check if the lender has a credential - if the
-  ///      provider's TTL is greater than the current block timestamp,
-  ///      this function will always return true. Should always be used
-  ///      in conjunction with `hasCredential`.
+  ///      pair this with hasCredential. a TTL greater than the current timestamp returns true
+  ///      even when no credential exists.
   function credentialNotExpired(LenderStatus memory status, RoleProvider provider) internal view returns (bool) {
     return provider.calculateExpiry(status.lastApprovalTimestamp) >= block.timestamp;
   }
 
   // ┌─ credentialExpired ─────
-  /// @dev returns whether the stored credential has expired under `provider`'s current TTL.
+  /// @dev return whether the stored credential has expired under `provider`'s current TTL.
   ///
-  ///      Note: Does not check if the lender has a credential - if the
-  ///      provider's TTL is greater than the current block timestamp,
-  ///      this function will always return false. Should always be used
-  ///      in conjunction with `hasCredential`.
+  ///      pair this with hasCredential. a TTL greater than the current timestamp returns false
+  ///      even when no credential exists.
   function credentialExpired(LenderStatus memory status, RoleProvider provider) internal view returns (bool) {
     return provider.calculateExpiry(status.lastApprovalTimestamp) < block.timestamp;
   }

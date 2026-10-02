@@ -82,8 +82,7 @@ contract GasLimitedMetadataMock {
 }
 
 // ┌─ TokenMetadataReviewTest ──────────────────────────────────────────────────
-/// @dev Regression tests for the metadata candidate and the compatibility
-/// boundaries intentionally retained from the original review.
+/// @dev cover the metadata candidate and the compatibility boundaries retained from the review.
 contract TokenMetadataReviewTest is ProductionMatrixFixture {
   ProductionStack internal stack;
   MarketLensCore internal core;
