@@ -1,6 +1,6 @@
 {
   "Chainalysis": "0x1EeBC079aE1e7dCDe31C74A7EF48fA8737673A6a",
-  "FixedTermHooks_initCodeStorage": "0x3D5f0AAcFC976A88fC8CA2Adbe0453Fe876a84bb",
+  "FixedTermHooks_initCodeStorage": "0xa3FE06137cc893E19C2E4764a4A7b001E988ba2B",
   "HooksFactory": "0x0E12301A4F4b81A2B9965E4959e21faDf1754Ead",
   "HooksFactoryRevolving": "0x130E07D24e2aF6ea4554032d4F53fcBAe000d1b1",
   "MarketLens": "0xB77e7895A76283472209239f5161591D3bc1Eccb",
@@ -26,9 +26,9 @@
   "MockERC20:RescueToken": "0xCf6209b071DA3E8085eEb2beb0268F9e7d189769",
   "MockERC20:Token": "0x33B15be480DAee58e2594d9eb5280Bc306a861C5",
   "MockERC20Factory": "0x54A3103904977DCb3C2fB782059F5431db90C96e",
-  "OpenTermHooks_initCodeStorage": "0xdb2d6EeB5ac72252955783fEe44f6667b63b7a11",
+  "OpenTermHooks_initCodeStorage": "0xBcA425d384Da256040779DF532B6D2E8d3B3f1aD",
   "PeriodicTermHooks_MarketLens": "0xCb7839D03EBC1e628295b2FdE3b73Fc53412e87F",
-  "PeriodicTermHooks_initCodeStorage": "0x271EC1C852Bf7BF7E7eDdBf47B35E2ecdF3b328B",
+  "PeriodicTermHooks_initCodeStorage": "0x79DA352868305d37D0179f460Ded88886D4eE524",
   "UniversalProvider": "0x9aCdE253F7A51456c48604185C0ceA4Fc9e58E3a",
   "Wildcat4626WrapperFactory": "0x1986DF1c77d25670e8D55865B83C5fFeD00e0134",
   "WildcatArchController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
@@ -100,5 +100,8 @@
   "FixedTermHooks_initCodeStorage_v2.5.5": "0x510d7aBf9534CFf6D2f760f005c703bD6f0CB14a",
   "PeriodicTermHooks_initCodeStorage_v2.5.5": "0x9C83C59fB30816EFafDec25147f9C214Bf80688b",
   "WildcatMarket_initCodeStorage_v2.5.5_secondary": "0x32a536EAF2E76DaF0E776c3ef540548Fe0CC59B9",
-  "WildcatMarketRevolving_initCodeStorage_v2.5.5_secondary": "0xC8E03d10D9db98f1a7a8764EE3897fe30e1292e1"
+  "WildcatMarketRevolving_initCodeStorage_v2.5.5_secondary": "0xC8E03d10D9db98f1a7a8764EE3897fe30e1292e1",
+  "OpenTermHooks_initCodeStorage_v2.5.6": "0xBcA425d384Da256040779DF532B6D2E8d3B3f1aD",
+  "FixedTermHooks_initCodeStorage_v2.5.6": "0xa3FE06137cc893E19C2E4764a4A7b001E988ba2B",
+  "PeriodicTermHooks_initCodeStorage_v2.5.6": "0x79DA352868305d37D0179f460Ded88886D4eE524"
 }
