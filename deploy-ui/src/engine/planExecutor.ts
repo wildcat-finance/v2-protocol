@@ -19,8 +19,41 @@ import type {
   PlanTransaction,
 } from './types'
 
+// Completed steps are rechecked before every step through the wallet's RPC; a small cap keeps
+// that fast without flooding the provider.
+export const REVERIFY_CONCURRENCY = 4
+
+async function mapConcurrent<T, R>(
+  items: readonly T[],
+  limit: number,
+  task: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let next = 0
+  let failed = false
+  const worker = async (): Promise<void> => {
+    while (!failed && next < items.length) {
+      const index = next
+      next += 1
+      try {
+        results[index] = await task(items[index])
+      } catch (error) {
+        failed = true
+        throw error
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return results
+}
+
 export class CeremonyHaltError extends Error {
-  constructor(message: string, readonly transactionId?: string) {
+  constructor(
+    message: string,
+    readonly transactionId?: string,
+    // Run-state integrity failures stop the ceremony regardless of how the message reads.
+    readonly fatal = false,
+  ) {
     super(message)
     this.name = 'CeremonyHaltError'
   }
@@ -110,6 +143,7 @@ export class PlanExecutor {
           throw new CeremonyHaltError(
             `Deployment receipt lacks contractAddress: ${compensation.id}`,
             compensation.id,
+            true,
           )
         }
         const resolvedAddress = getAddress(receipt.contractAddress)
@@ -120,6 +154,7 @@ export class PlanExecutor {
           throw new CeremonyHaltError(
             `Stored deployment address for ${compensation.id} does not match its receipt.`,
             compensation.id,
+            true,
           )
         }
         existing.resolvedAddress = resolvedAddress
@@ -161,27 +196,36 @@ export class PlanExecutor {
         )
       }
     }
-    let foundIncomplete = false
+    // Completed predicates are independent reads against the same outputs: check them
+    // concurrently, then report the first failure in plan order.
+    const firstIncomplete = this.plan.transactions.findIndex(
+      (transaction) => state[transaction.id]?.status !== 'verified',
+    )
+    const completed = this.plan.transactions
+      .slice(0, firstIncomplete === -1 ? undefined : firstIncomplete)
+      .filter(
+        (transaction) =>
+          !(transaction.reverifyUntil && state[transaction.reverifyUntil]?.status === 'verified'),
+      )
+    const rechecks = await mapConcurrent(completed, REVERIFY_CONCURRENCY, (transaction) =>
+      evaluatePredicate(this.transport, transaction.predicate, outputs),
+    )
+    for (const [position, transaction] of completed.entries()) {
+      if (!rechecks[position].ok) {
+        throw new CeremonyHaltError(
+          `Resume halted: prior predicate failed for ${transaction.id}: ${rechecks[position].detail}`,
+          transaction.id,
+        )
+      }
+    }
 
+    let foundIncomplete = false
     for (const [index, transaction] of this.plan.transactions.entries()) {
       const existing = state[transaction.id]
       if (existing?.status === 'verified') {
         if (foundIncomplete) {
           throw new CeremonyHaltError(
             `Run state is non-contiguous: ${transaction.id} is verified after an incomplete entry.`,
-            transaction.id,
-          )
-        }
-        if (
-          transaction.reverifyUntil &&
-          state[transaction.reverifyUntil]?.status === 'verified'
-        ) {
-          continue
-        }
-        const predicate = await evaluatePredicate(this.transport, transaction.predicate, outputs)
-        if (!predicate.ok) {
-          throw new CeremonyHaltError(
-            `Resume halted: prior predicate failed for ${transaction.id}: ${predicate.detail}`,
             transaction.id,
           )
         }
@@ -211,6 +255,7 @@ export class PlanExecutor {
           throw new CeremonyHaltError(
             `Deployment receipt lacks contractAddress: ${transaction.id}`,
             transaction.id,
+            true,
           )
         }
         const resolvedAddress = getAddress(receipt.contractAddress)
@@ -221,6 +266,7 @@ export class PlanExecutor {
           throw new CeremonyHaltError(
             `Stored deployment address for ${transaction.id} does not match its receipt.`,
             transaction.id,
+            true,
           )
         }
         existing.resolvedAddress = resolvedAddress
@@ -275,7 +321,10 @@ export class PlanExecutor {
     }
   }
 
-  async execute(prepared: PreparedTransaction): Promise<ExecutionResult> {
+  async execute(
+    prepared: PreparedTransaction,
+    onSubmitted?: (txHash: Hex) => void,
+  ): Promise<ExecutionResult> {
     const account = await this.assertContext()
     const state = this.store.load()
     if (state[prepared.transaction.id]?.txHash) {
@@ -301,6 +350,7 @@ export class PlanExecutor {
     })
     state[prepared.transaction.id] = { txHash, status: 'submitted' }
     this.store.save(state)
+    onSubmitted?.(txHash)
 
     let receipt
     try {
@@ -331,6 +381,7 @@ export class PlanExecutor {
       throw new CeremonyHaltError(
         `Deployment receipt lacks contractAddress: ${prepared.transaction.id}`,
         prepared.transaction.id,
+        true,
       )
     }
 

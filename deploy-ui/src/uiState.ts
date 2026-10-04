@@ -27,6 +27,12 @@ export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+// viem errors carry a one-line shortMessage; their full message repeats the request, calldata included.
+export function shortErrorText(error: unknown): string {
+  const short = (error as { shortMessage?: unknown } | null)?.shortMessage
+  return typeof short === 'string' && short ? short : errorText(error)
+}
+
 export function isRpcUnavailableError(error: unknown): boolean {
   return /unexpected\s+end\s+of\s+json\s+input|connection\s+refused|econnrefused|failed\s+to\s+fetch|fetch\s+failed|network\s+error|socket\s+hang\s+up|http\s+request\s+failed|request\s+took\s+too\s+long|timed\s+out|rpc\s+(?:is\s+)?unavailable|rpc\s+outage|error\s+sending\s+request|could\s+not\s+connect/i.test(
     errorText(error),
@@ -35,7 +41,7 @@ export function isRpcUnavailableError(error: unknown): boolean {
 
 export function eoaCompletionGuidance(release: string, network: string): string {
   if (network !== 'anvil') {
-    return 'export the run state from the top bar unchanged, then continue with the reviewed network runbook.'
+    return 'export the run state unchanged, then continue with the reviewed network runbook.'
   }
   switch (release) {
     case 'authority-helper-phase-1':
@@ -47,6 +53,6 @@ export function eoaCompletionGuidance(release: string, network: string): string 
     case 'v2-5':
       return 'export run-state-v2-5.json into deployments/anvil, then run bash script/deploy/v2-5/rehearse-stage.sh finalize-activation.'
     default:
-      return 'export the run state from the top bar unchanged, then continue with the reviewed network runbook.'
+      return 'export the run state unchanged, then continue with the reviewed network runbook.'
   }
 }

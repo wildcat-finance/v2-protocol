@@ -5,7 +5,9 @@ This disposable static UI executes locked deployment plans. It supports:
 - Testnet execution with an EOA.
 - Proposing, signing, and executing prebuilt Safe bundles.
 
-It has no backend. It never accepts editable calldata.
+It has no backend. It never accepts editable calldata. Its fonts (IBM Plex Sans,
+Commit Mono, Martian Mono) are vendored OFL files under `src/fonts`, so the page
+loads nothing from other hosts.
 
 ## Run locally or on a fork
 

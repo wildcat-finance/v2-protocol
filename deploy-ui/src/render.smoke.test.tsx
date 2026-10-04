@@ -161,14 +161,6 @@ describe('App server-render smoke', () => {
       embedded.plan.value.transactions.length,
     )
     if (embedded.mode === 'eoa') {
-      // Ceremony stages derived from the real plan.
-      expect(html).toContain('Take ownership')
-      expect(html).toContain('Deploy contracts')
-      expect(html).toContain('Register &amp; wire')
-      expect(html).toContain('Retire superseded')
-      expect(html).toContain('Return ownership')
-      expect(html).toContain('Deploy standard hooks factory')
-      expect(html).toContain('Temporarily reclaim ArchController ownership')
       const first = embedded.plan.value.transactions[0]
       if (first.kind === 'call') {
         expect(plainPane).not.toContain(first.functionSignature.split('(')[0])

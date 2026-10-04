@@ -271,6 +271,10 @@ Do not infer lifecycle from a version string, address age, or source ancestry.
 
 1. Add a numbered release script. Give every step a unique plan ID, explicit
    dependencies, typed constructor or call inputs, and an onchain predicate.
+   Name IDs `verb-subject[-qualifier]` in lowercase kebab case, reusing the
+   existing verbs and subjects, for example `deploy-open-term-hooks-init-code-storage`
+   or `add-standard-open-term-template`. The ceremony UI builds its step labels
+   from the ID, so keep each description to one plain sentence.
 2. Add the generation or component to inventory validation without weakening
    append-only or canonical-count constraints.
 3. Define applicable hook templates and reviewed fees in
