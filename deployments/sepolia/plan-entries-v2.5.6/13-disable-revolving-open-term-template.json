@@ -1,0 +1,42 @@
+{
+  "id": "disable-revolving-open-term-template",
+  "kind": "call",
+  "to": "0x130E07D24e2aF6ea4554032d4F53fcBAe000d1b1",
+  "functionSignature": "disableHooksTemplate(address)",
+  "args": [
+    "0x4aC04D306F3D2352998Ce48E2e8D357213683415"
+  ],
+  "description": "Disable the v2.5.5 OpenTermHooks template on the revolving factory after registering all updated templates. Existing hook instances remain usable.",
+  "envelope": {
+    "chainId": 11155111,
+    "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "to": "0x130E07D24e2aF6ea4554032d4F53fcBAe000d1b1",
+    "value": "0",
+    "data": "functionSignature+args",
+    "gasLimitPolicy": "estimate*1.3",
+    "nonceCheck": "display-and-confirm"
+  },
+  "predicate": {
+    "type": "callEq",
+    "target": "0x130E07D24e2aF6ea4554032d4F53fcBAe000d1b1",
+    "call": {
+      "sig": "getHooksTemplateDetails(address) view returns ((address,uint80,uint16,bool,bool,uint24,address,string))",
+      "args": [
+        "0x4aC04D306F3D2352998Ce48E2e8D357213683415"
+      ]
+    },
+    "expect": [
+      "0x0000000000000000000000000000000000000000",
+      0,
+      500,
+      true,
+      false,
+      0,
+      "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+      "OpenTermHooks"
+    ]
+  },
+  "after": [
+    "disable-standard-periodic-term-template"
+  ]
+}

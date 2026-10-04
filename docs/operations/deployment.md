@@ -13,7 +13,7 @@ code, not a generic checklist. Read the scripts and generated plan for the exact
 contracts, authority path, and transaction order.
 
 The current Sepolia preparation is the
-[`v2.5.5 activation`](./sepolia-v2.5.5.md), using the existing
+[`v2.5.6 activation`](./sepolia-v2.5.6.md), using the existing
 [operator checklist](../../script/deploy/CEREMONY_CHECKLIST.md).
 The [`v2.5.3 fix-1 runbook`](./sepolia-v2-5-fix-1.md) is historical. Neither
 activation repeats the original V2.5 authority ceremony.

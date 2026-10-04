@@ -177,5 +177,11 @@ node scripts/sepolia-v2-5-fix-rotation.js verify-activation \
   --preflight "$preflight" \
   --out "$post_activation"
 
+if [[ "$(jq -r '.activationScope // "factories"' "$SEPOLIA_REPLACEMENT_CONFIG")" == 'templates' ]]; then
+  node scripts/sepolia-v2-5-fix-rotation.js finalize-template-update \
+    --rpc-url "$RPC" --run-state "$run_state" --preflight "$preflight" \
+    --out "$post_activation" --output-dir "$evidence_dir/finalized"
+fi
+
 echo "Pinned Sepolia fork rehearsal GREEN at block ${FORK_BLOCK_NUMBER}"
 echo "Evidence retained in ${evidence_dir}"

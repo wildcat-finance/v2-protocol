@@ -541,6 +541,15 @@ finalize_inventory() {
       echo 'Live activation has not passed the expected postconditions.' >&2
       exit 1
     }
+  if [[ "$(jq -r '.activationScope // "factories"' "$CONFIG")" == 'templates' ]]; then
+    node "$ROTATION_SCRIPT" finalize-template-update \
+      --run-state "$run_state" --preflight "$evidence_dir/preflight.json" --rpc-url "$RPC_URL"
+    node scripts/factory-inventory.js reconcile --network sepolia \
+      --rpc-url "$RPC_URL" \
+      --handoff "deployments/sepolia/handoff-$(jq -er '.baseRelease' "$CONFIG").json"
+    echo "Template update finalized; factory inventory and indexing policy unchanged."
+    return
+  fi
   node scripts/factory-inventory.js apply-run \
     --network sepolia \
     --run-state "$run_state" \

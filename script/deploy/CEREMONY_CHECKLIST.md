@@ -1,6 +1,6 @@
-# V2.5.5 Sepolia activation ceremony
+# V2.5.6 Sepolia activation ceremony
 
-Run the fixed-authority v2.5.5 activation twice:
+Run the fixed-authority v2.5.6 activation twice:
 
 1. Through the real-wallet locked UI on a pinned Sepolia fork.
 2. Through the same stage interface on live Sepolia.
@@ -9,23 +9,25 @@ The stage script derives, validates, prints, and retains the run identity. Do
 not create a manual run sheet.
 
 Scope and preparation status live in the
-[v2.5.5 runbook](../../docs/operations/sepolia-v2.5.5.md). This ceremony has 25 cards:
+[v2.5.6 runbook](../../docs/operations/sepolia-v2.5.6.md). This ceremony has 15 cards:
 
-- 15 contract deployments.
-- 10 activation calls.
+- 3 hook-template storage deployments.
+- 6 template registrations and 6 old-template disables.
 
-AccessList is the only role-provider factory in this release. Merkle, ERC20,
-ERC721, ERC1155, and ERC4626Assets are not part of this ceremony.
+This ceremony reuses the existing factories, market stores, lenses, wrapper,
+identity registry, and AccessList role-provider factory.
 
-It does not rotate authority, disable templates, or retire predecessor factories.
-Market behavior tests and legacy cleanup happen separately afterward.
+It disables only the three v2.5.5 templates on each current factory, after all
+new templates are registered. Disabling cannot be undone and stops new hook
+instances; existing instances remain usable on-chain. Authority rotation and
+factory deregistration are separate ceremonies.
 
 ## Fixed inputs
 
 - Live network: Sepolia `11155111`.
 - Rehearsal network: Anvil `31337`, pinned from Sepolia.
 - Executor: `0xCa7007a75296b532Ce1606d9e130eAa849800Ca7`.
-- Activation: 25 cards, consisting of 15 deployments and 10 calls.
+- Activation: 15 cards, consisting of 3 deployments and 12 calls.
 - Authority: Existing helper and SphereX roles remain fixed.
 
 Before connecting the wallet, match the locked UI against the stage output:
@@ -45,7 +47,7 @@ Stop if any of these occur:
 - A transaction fails or a predicate turns red.
 
 Untracked notes and machine-local files outside build/ceremony input paths do
-not block the source gate. The [runbook](../../docs/operations/sepolia-v2.5.5.md#prepare-the-packet)
+not block the source gate. The [runbook](../../docs/operations/sepolia-v2.5.6.md#prepare-the-packet)
 lists the protected paths.
 
 Export the run-state and preserve the session directory before diagnosing. Do
@@ -67,12 +69,12 @@ export DEPLOYMENTS_NETWORK=anvil
 unset RPC_URL
 
 stage() {
-  bash script/deploy/v2-5/sepolia-v2.5.5-stage.sh "$@"
+  bash script/deploy/v2-5/sepolia-v2.5.6-stage.sh "$@"
 }
 
 rehearse() {
   FORK_RPC_URL="$FORK_RPC_URL" \
-    bash script/deploy/v2-5/rehearse-sepolia-v2.5.5.sh "$@"
+    bash script/deploy/v2-5/rehearse-sepolia-v2.5.6.sh "$@"
 }
 ```
 
@@ -126,8 +128,8 @@ label, and transaction-envelope chain IDs differ from the live plan.
 - [ ] Connect the expected executor to the printed Anvil RPC URL, chain `31337`.
       The defaults are UI `http://127.0.0.1:4173` and RPC `http://127.0.0.1:8548`;
       LAN mode uses `CEREMONY_HOST` in both URLs.
-- [ ] Confirm the digest, fingerprint, executor, and 25-card count.
-- [ ] Execute all 25 cards in order. Wait for every receipt and green predicate,
+- [ ] Confirm the digest, fingerprint, executor, and 15-card count.
+- [ ] Execute all 15 cards in order. Wait for every receipt and green predicate,
       then click **Export run state**.
 - [ ] If the browser is on another machine, copy the exported JSON unchanged
       from its Downloads folder to the build machine, outside tracked source
@@ -185,9 +187,9 @@ The stage reruns live preflight immediately before building the UI.
 
 - [ ] Start the preview command printed by the live `stage activation`.
 - [ ] Open its UI URL and connect the expected executor to Sepolia.
-- [ ] Confirm chain `11155111`, digest, fingerprint, executor, and 25-card
+- [ ] Confirm chain `11155111`, digest, fingerprint, executor, and 15-card
       count.
-- [ ] Execute all 25 cards in order. Wait for every receipt and green predicate,
+- [ ] Execute all 15 cards in order. Wait for every receipt and green predicate,
       then click **Export run state**.
 - [ ] Verify the export and print final status:
 
@@ -196,7 +198,7 @@ stage finalize-activation
 stage status
 ```
 
-- [ ] Finalize the append-only inventory and generate the downstream handoff:
+- [ ] Finalize the template aliases and generate the downstream update handoff:
 
 ```sh
 stage finalize-inventory
@@ -210,15 +212,15 @@ The ignored `deployments/sepolia/ceremony-evidence/` session directory retains:
 - Operator evidence.
 
 The stage also copies the verified run-state to
-`deployments/sepolia/run-state-v2.5.5.json` for inventory and
+`deployments/sepolia/run-state-v2.5.6.json` for inventory and
 downstream handoff work.
 
 `finalize-inventory` sends no transactions. It:
 
-- Appends the v2.5.5 factory generations.
-- Updates canonical deployment aliases, including the AccessList role-provider factory.
-- Writes the release handoff.
-- Reconciles those records against Sepolia.
+- Verifies all 15 receipts and the final template state again.
+- Records the three versioned template addresses and updates their template aliases.
+- Writes `template-update-v2.5.6.json`, referencing the retained v2.5.5 handoff.
+- Reconciles the unchanged factory inventory against Sepolia.
 
 The predecessor factories retain their registrations and existing indexing policy.
 
