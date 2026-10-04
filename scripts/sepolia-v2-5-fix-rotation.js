@@ -4,16 +4,18 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync, spawnSync } = require("child_process");
 const { Contract, JsonRpcProvider, getAddress, keccak256 } = require("ethers");
-const { validatePlan } = require("./plan");
 
 process.env.FOUNDRY_PROFILE = "deploy";
 
+const { validatePlan } = require("./plan");
+const { ROLE_PROVIDER_FACTORIES } = require("./role-provider-factories");
+const ACCESS_LIST_FACTORY = ROLE_PROVIDER_FACTORIES.find(
+  ({ providerKind }) => providerKind === "ACCESS_LIST"
+);
+
 const REPO_ROOT = path.resolve(__dirname, "..");
 const PACKAGE_PATH = path.join(REPO_ROOT, "package.json");
-const CONFIG_PATH = path.join(
-  REPO_ROOT,
-  "deployments/sepolia/v2-5-sepolia-fix-1.json"
-);
+const DEFAULT_CONFIG = "deployments/sepolia/v2-5-sepolia-fix-1.json";
 const PREVIOUS_PLAN_PATH = path.join(
   REPO_ROOT,
   "deployments/sepolia/plan-v2-5.json"
@@ -24,6 +26,12 @@ const REHEARSAL_SUFFIX = "-rehearsal";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const AUTHORITY_HELPER_FORWARD_SIGNATURE =
   "executeProtocolAction(address,bytes)";
+const PREPARED_STORAGE =
+  "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage";
+const LINKED_STORAGE =
+  "script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage";
+const OPTIMIZER_STEPS =
+  "dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul";
 
 const ARTIFACTS = {
   wrapperFactory: {
@@ -194,6 +202,7 @@ function usage() {
     --run-state <path> [--rehearsal] [--plan <path>]
     [--preflight <path>] [--rpc-url <url>] [--out <path>]
 
+All commands accept --config <path> or SEPOLIA_REPLACEMENT_CONFIG.
 All commands are read-only with respect to Sepolia. generate writes local plan
 artifacts and never signs or broadcasts a transaction.`);
 }
@@ -226,14 +235,19 @@ function writeJson(filePath, value) {
 }
 
 function config() {
-  const value = readJson(CONFIG_PATH);
-  const protocolVersion = readJson(PACKAGE_PATH).version;
+  const configPath = path.resolve(
+    REPO_ROOT,
+    process.env.SEPOLIA_REPLACEMENT_CONFIG || DEFAULT_CONFIG
+  );
+  const value = readJson(configPath);
+  const protocolVersion =
+    value.protocolVersion || readJson(PACKAGE_PATH).version;
   if (
-    value.schemaVersion !== "1.0.0" ||
+    !["1.0.0", "1.1.0"].includes(value.schemaVersion) ||
     value.network !== "sepolia" ||
     value.chainId !== 11155111 ||
     typeof value.release !== "string" ||
-    !/^[A-Za-z0-9_-]+$/.test(value.release) ||
+    !/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(value.release) ||
     !/^[0-9a-f]{40}$/.test(value.contractSourceCommit) ||
     typeof protocolVersion !== "string" ||
     !/^\d+\.\d+\.\d+$/.test(protocolVersion) ||
@@ -242,7 +256,7 @@ function config() {
     throw new Error(
       `Invalid factory-replacement config: ${path.relative(
         REPO_ROOT,
-        CONFIG_PATH
+        configPath
       )}`
     );
   }
@@ -263,13 +277,27 @@ function config() {
   }
   assertEqual(
     value.retirementTargets,
-    [
-      value.superseded.standardHooksFactory,
-      value.superseded.revolvingHooksFactory,
-    ],
+    isCurrentCeremony(value)
+      ? []
+      : [
+          value.superseded.standardHooksFactory,
+          value.superseded.revolvingHooksFactory,
+        ],
     "Retirement targets"
   );
+  if (isCurrentCeremony(value)) {
+    assertEqual(
+      protocolVersion,
+      readJson(PACKAGE_PATH).version,
+      "Protocol version"
+    );
+    assertEqual(value.release, `v${protocolVersion}`, "Release label");
+  }
   return { ...value, protocolVersion };
+}
+
+function isCurrentCeremony(rotation) {
+  return rotation.schemaVersion === "1.1.0";
 }
 
 function git(...args) {
@@ -325,7 +353,7 @@ function artifactPath(source, contract) {
   );
 }
 
-function loadDeployArtifact(source, contract) {
+function loadDeployArtifact(source, contract, rotation) {
   const filePath = artifactPath(source, contract);
   if (!fs.existsSync(filePath)) {
     throw new Error(
@@ -334,6 +362,7 @@ function loadDeployArtifact(source, contract) {
   }
   const artifact = readJson(filePath);
   if (
+    !isCurrentCeremony(rotation) &&
     artifact.abi.some(
       (entry) =>
         entry.type === "function" &&
@@ -349,10 +378,19 @@ function loadDeployArtifact(source, contract) {
       ? JSON.parse(artifact.metadata)
       : artifact.metadata;
   const target = metadata.settings?.compilationTarget || {};
+  const optimizer = metadata.settings?.optimizer;
+  const optimizerMatches = isCurrentCeremony(rotation)
+    ? optimizer?.runs === 1 &&
+      optimizer?.details?.yul === true &&
+      optimizer?.details?.yulDetails?.stackAllocation === true &&
+      optimizer?.details?.yulDetails?.optimizerSteps ===
+        `${OPTIMIZER_STEPS}:fDnTOcmu` &&
+      metadata.settings?.metadata?.bytecodeHash === "none" &&
+      metadata.settings?.metadata?.appendCBOR === false
+    : optimizer?.enabled === true && optimizer?.runs === 44;
   if (
     metadata.compiler?.version !== "0.8.25+commit.b61c2a91" ||
-    metadata.settings?.optimizer?.enabled !== true ||
-    metadata.settings?.optimizer?.runs !== 44 ||
+    !optimizerMatches ||
     metadata.settings?.viaIR !== true ||
     metadata.settings?.evmVersion !== "cancun" ||
     target[source] !== contract
@@ -385,13 +423,26 @@ function loadDeployArtifact(source, contract) {
   return { artifact, bytecode };
 }
 
-function loadArtifacts() {
+function loadArtifacts(rotation) {
+  const definitions = { ...ARTIFACTS };
+  if (isCurrentCeremony(rotation)) {
+    delete definitions.accessListFactory;
+    definitions[ACCESS_LIST_FACTORY.contract] = ACCESS_LIST_FACTORY;
+    for (const artifactName of [PREPARED_STORAGE, LINKED_STORAGE]) {
+      const [source, contract] = artifactName.split(":");
+      definitions[contract] = { source, contract, artifactName };
+    }
+    definitions.splitReader = {
+      source: "src/libraries/LibSplitInitCode.sol",
+      contract: "SplitInitCodeReader",
+    };
+  }
   return Object.fromEntries(
-    Object.entries(ARTIFACTS).map(([key, definition]) => [
+    Object.entries(definitions).map(([key, definition]) => [
       key,
       {
         ...definition,
-        ...loadDeployArtifact(definition.source, definition.contract),
+        ...loadDeployArtifact(definition.source, definition.contract, rotation),
       },
     ])
   );
@@ -456,6 +507,16 @@ function buildEntries(rotation, artifacts) {
   const revolvingMarketHash = keccak256(artifacts.revolvingMarket.bytecode);
   const fees = rotation.templateFees;
   const versionLabel = `v${rotation.protocolVersion}`;
+  const releaseLabel = `Sepolia ${versionLabel}`;
+  const codeLabel = isCurrentCeremony(rotation)
+    ? releaseLabel
+    : `corrected ${releaseLabel}`;
+  const factoryLabel = isCurrentCeremony(rotation)
+    ? releaseLabel
+    : `replacement ${releaseLabel}`;
+  const registrationLabel = isCurrentCeremony(rotation)
+    ? versionLabel
+    : "replacement";
   const entries = [];
 
   entries.push(
@@ -467,7 +528,7 @@ function buildEntries(rotation, artifacts) {
         rotation.reused.v1WrapperFactory,
       ],
       output: "wildcat-4626-wrapper-factory",
-      description: `Deploy the corrected Sepolia ${versionLabel} ERC-4626 wrapper factory.`,
+      description: `Deploy the ${codeLabel} ERC-4626 wrapper factory.`,
       predicate: callEq(
         ref("wildcat-4626-wrapper-factory"),
         "v1Factory() view returns (address)",
@@ -482,7 +543,7 @@ function buildEntries(rotation, artifacts) {
       artifactName: initCodeStorage,
       args: [artifacts.standardMarket.bytecode],
       output: "wildcat-market-init-code-storage",
-      description: `Deploy the corrected Sepolia ${versionLabel} WildcatMarket init-code store.`,
+      description: `Deploy the ${codeLabel} WildcatMarket init-code store.`,
       predicate: codePresent("wildcat-market-init-code-storage"),
       after: EXPECTED_IDS[0],
     })
@@ -500,7 +561,7 @@ function buildEntries(rotation, artifacts) {
         rotation.reused.borrowerIdentityRegistry,
       ],
       output: "hooks-factory-standard",
-      description: `Deploy the replacement Sepolia ${versionLabel} standard hooks factory.`,
+      description: `Deploy the ${factoryLabel} standard hooks factory.`,
       predicate: callEq(
         ref("hooks-factory-standard"),
         "marketInitCodeStorage() view returns (address)",
@@ -516,7 +577,7 @@ function buildEntries(rotation, artifacts) {
       artifactName: initCodeStorage,
       args: [artifacts.revolvingMarket.bytecode],
       output: "wildcat-market-revolving-init-code-storage",
-      description: `Deploy the corrected Sepolia ${versionLabel} WildcatMarketRevolving init-code store.`,
+      description: `Deploy the ${codeLabel} WildcatMarketRevolving init-code store.`,
       predicate: codePresent("wildcat-market-revolving-init-code-storage"),
       after: EXPECTED_IDS[2],
     })
@@ -534,7 +595,7 @@ function buildEntries(rotation, artifacts) {
         rotation.reused.borrowerIdentityRegistry,
       ],
       output: "hooks-factory-revolving",
-      description: `Deploy the replacement Sepolia ${versionLabel} revolving hooks factory.`,
+      description: `Deploy the ${factoryLabel} revolving hooks factory.`,
       predicate: callEq(
         ref("hooks-factory-revolving"),
         "marketInitCodeStorage() view returns (address)",
@@ -575,7 +636,7 @@ function buildEntries(rotation, artifacts) {
           ref("hooks-factory-standard"),
         ],
         output,
-        description: `Deploy the replacement Sepolia ${versionLabel} market-lens ${label}.`,
+        description: `Deploy the ${factoryLabel} market-lens ${label}.`,
         predicate: callEq(
           ref(output),
           "hooksFactory() view returns (address)",
@@ -598,7 +659,7 @@ function buildEntries(rotation, artifacts) {
         ref("market-lens-live"),
       ],
       output: "market-lens",
-      description: `Deploy the replacement Sepolia ${versionLabel} market-lens facade.`,
+      description: `Deploy the ${factoryLabel} market-lens facade.`,
       predicate: callEq(
         ref("market-lens"),
         "aggregationHelper() view returns (address)",
@@ -633,7 +694,7 @@ function buildEntries(rotation, artifacts) {
         artifactName: initCodeStorage,
         args: [artifact.bytecode],
         output,
-        description: `Deploy the corrected Sepolia ${versionLabel} ${artifact.contract} init-code store.`,
+        description: `Deploy the ${codeLabel} ${artifact.contract} init-code store.`,
         predicate: codePresent(output),
         after: entries.at(-1).id,
       })
@@ -646,8 +707,7 @@ function buildEntries(rotation, artifacts) {
       to: rotation.authority.archController,
       signature: "registerControllerFactory(address)",
       args: [ref("hooks-factory-standard")],
-      description:
-        "Register the replacement standard factory for market deployment.",
+      description: `Register the ${registrationLabel} standard factory for market deployment.`,
       predicate: callEq(
         rotation.authority.archController,
         "isRegisteredControllerFactory(address) view returns (bool)",
@@ -663,8 +723,7 @@ function buildEntries(rotation, artifacts) {
       to: rotation.authority.archController,
       signature: "registerControllerFactory(address)",
       args: [ref("hooks-factory-revolving")],
-      description:
-        "Register the replacement revolving factory for market deployment.",
+      description: `Register the ${registrationLabel} revolving factory for market deployment.`,
       predicate: callEq(
         rotation.authority.archController,
         "isRegisteredControllerFactory(address) view returns (bool)",
@@ -730,7 +789,9 @@ function buildEntries(rotation, artifacts) {
           fees.originationFeeAmount,
           fees.protocolFeeBips,
         ],
-        description: `Add corrected ${name} to the replacement ${marketType} factory.`,
+        description: isCurrentCeremony(rotation)
+          ? `Add ${name} to the ${versionLabel} ${marketType} factory.`
+          : `Add corrected ${name} to the replacement ${marketType} factory.`,
         predicate: callEq(
           ref(factory),
           "isHooksTemplate(address) view returns (bool)",
@@ -748,7 +809,7 @@ function buildEntries(rotation, artifacts) {
       to: ref("hooks-factory-standard"),
       signature: "registerWithArchController()",
       args: [],
-      description: "Register the replacement standard factory as a controller.",
+      description: `Register the ${registrationLabel} standard factory as a controller.`,
       predicate: callEq(
         rotation.authority.archController,
         "isRegisteredController(address) view returns (bool)",
@@ -764,8 +825,7 @@ function buildEntries(rotation, artifacts) {
       to: ref("hooks-factory-revolving"),
       signature: "registerWithArchController()",
       args: [],
-      description:
-        "Register the replacement revolving factory as a controller.",
+      description: `Register the ${registrationLabel} revolving factory as a controller.`,
       predicate: callEq(
         rotation.authority.archController,
         "isRegisteredController(address) view returns (bool)",
@@ -779,7 +839,122 @@ function buildEntries(rotation, artifacts) {
   if (entries.map(({ id }) => id).join("\n") !== EXPECTED_IDS.join("\n")) {
     throw new Error("Internal rotation entry order mismatch");
   }
+  if (isCurrentCeremony(rotation)) {
+    return currentEntries(rotation, artifacts, entries);
+  }
   return entries;
+}
+
+function prepareStorage(bytecode, readerRuntime) {
+  const initCode = Buffer.from(bytecode.slice(2), "hex");
+  const initCodeHash = keccak256(bytecode);
+  if (initCode.length <= 24575) {
+    return { primary: `0x00${initCode.toString("hex")}`, initCodeHash };
+  }
+  const reader = Buffer.from(readerRuntime.slice(2), "hex");
+  const firstLength = 24576 - reader.length - 24;
+  const secondLength = initCode.length - firstLength;
+  if (reader.length === 0 || firstLength <= 0 || secondLength > 24575) {
+    throw new Error("Init code exceeds the split-storage capacity");
+  }
+  const footer = Buffer.alloc(24);
+  footer.writeUInt16BE(firstLength, 20);
+  footer.writeUInt16BE(secondLength, 22);
+  return {
+    primary: `0x${Buffer.concat([
+      reader,
+      initCode.subarray(0, firstLength),
+      footer,
+    ]).toString("hex")}`,
+    secondary: `0x00${initCode.subarray(firstLength).toString("hex")}`,
+    initCodeHash,
+  };
+}
+
+function currentEntries(rotation, artifacts, entries) {
+  const readerRuntime = artifacts.splitReader.artifact.deployedBytecode.object;
+  const current = entries.flatMap((entry) => {
+    if (
+      entry.artifactName !==
+      "script/common/DeployScriptBase.sol:InitCodeStorage"
+    ) {
+      return [entry];
+    }
+    const images = prepareStorage(
+      entry.constructorArgs.decoded[0],
+      readerRuntime
+    );
+    const primary = {
+      ...entry,
+      artifactName: images.secondary ? LINKED_STORAGE : PREPARED_STORAGE,
+      constructorArgs: { decoded: [images.primary] },
+      predicate: {
+        type: images.secondary ? "splitCodeHash" : "codeHash",
+        target: ref(entry.output),
+        expect: keccak256(images.primary),
+        initCodeHash: images.initCodeHash,
+      },
+    };
+    if (!images.secondary) return [primary];
+    const secondaryOutput = `${entry.output}-secondary`;
+    primary.constructorArgs.decoded.push(ref(secondaryOutput));
+    primary.predicate.secondary = ref(secondaryOutput);
+    primary.predicate.secondaryCodeHash = keccak256(images.secondary);
+    return [
+      deploy(rotation, {
+        id: `${entry.id}-secondary`,
+        artifactName: PREPARED_STORAGE,
+        args: [images.secondary],
+        output: secondaryOutput,
+        description: `Deploy the secondary chunk for ${entry.output}.`,
+        predicate: {
+          type: "codeHash",
+          target: ref(secondaryOutput),
+          expect: keccak256(images.secondary),
+        },
+      }),
+      primary,
+    ];
+  });
+  current.splice(
+    1,
+    0,
+    deploy(rotation, {
+      id: `deploy-${ACCESS_LIST_FACTORY.output}`,
+      artifactName: ACCESS_LIST_FACTORY.artifactName,
+      args: [],
+      output: ACCESS_LIST_FACTORY.output,
+      description: `Deploy the ${rotation.release} ${ACCESS_LIST_FACTORY.contract}.`,
+      predicate: {
+        type: "codeHash",
+        target: ref(ACCESS_LIST_FACTORY.output),
+        expect: keccak256(
+          artifacts[ACCESS_LIST_FACTORY.contract].artifact.deployedBytecode
+            .object
+        ),
+      },
+    })
+  );
+  for (const entry of current) {
+    if (!entry.functionSignature?.startsWith("addHooksTemplate(")) continue;
+    const artifact = Object.values(artifacts).find(
+      ({ contract }) => contract === entry.args[1]
+    );
+    const initCodeHash = keccak256(artifact.bytecode);
+    entry.functionSignature =
+      "addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)";
+    entry.args.push(initCodeHash);
+    entry.predicate = callEq(
+      entry.to,
+      "getHooksTemplateInitCodeHash(address) view returns (bytes32)",
+      [entry.args[0]],
+      initCodeHash
+    );
+  }
+  return current.map((entry, index) => ({
+    ...entry,
+    after: index === 0 ? [] : [current[index - 1].id],
+  }));
 }
 
 function logicalCall(transaction) {
@@ -814,24 +989,19 @@ function assertRotationPlan(plan, rotation, artifacts) {
   ) {
     throw new Error("Plan identity differs from the rotation config");
   }
+  const expectedEntries = buildEntries(rotation, artifacts);
   assertEqual(
     plan.transactions.map(({ id }) => id),
-    EXPECTED_IDS,
+    expectedEntries.map(({ id }) => id),
     "Activation transaction order"
   );
-  if (
-    plan.transactions.filter(({ kind }) => kind === "deploy").length !== 12 ||
-    plan.transactions.filter(({ kind }) => kind === "call").length !== 10
-  ) {
-    throw new Error(
-      "Rotation must contain exactly 12 deployments and 10 calls"
-    );
-  }
   if (
     plan.transactions.some((transaction) =>
       [
         ARTIFACTS.identityRegistry.artifactName,
-        ARTIFACTS.accessListFactory.artifactName,
+        ...(!isCurrentCeremony(rotation)
+          ? [ARTIFACTS.accessListFactory.artifactName]
+          : []),
       ].includes(transaction.artifactName)
     )
   ) {
@@ -840,7 +1010,6 @@ function assertRotationPlan(plan, rotation, artifacts) {
     );
   }
 
-  const expectedEntries = buildEntries(rotation, artifacts);
   for (let index = 0; index < plan.transactions.length; index += 1) {
     const transaction = plan.transactions[index];
     const expected = expectedEntries[index];
@@ -888,6 +1057,7 @@ function assertRotationPlan(plan, rotation, artifacts) {
       const mustForward = [
         "registerControllerFactory(address)",
         "addHooksTemplate(address,string,address,address,uint80,uint16)",
+        "addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)",
       ].includes(expected.functionSignature);
       if (mustForward) {
         if (
@@ -924,7 +1094,11 @@ function assertRotationPlan(plan, rotation, artifacts) {
   for (const transaction of plan.transactions.filter(
     ({ kind }) => kind === "deploy"
   )) {
-    if (transaction.artifactName.includes("InitCodeStorage")) continue;
+    if (
+      !isCurrentCeremony(rotation) &&
+      transaction.artifactName.includes("InitCodeStorage")
+    )
+      continue;
     if (
       transaction.initCode.toLowerCase() !==
       currentBytecode.get(transaction.artifactName)
@@ -947,6 +1121,38 @@ function stripMetadata(bytecode) {
 }
 
 function writeImpactReport(rotation, artifacts) {
+  if (isCurrentCeremony(rotation)) {
+    const entries = buildEntries(rotation, artifacts);
+    writeJson(
+      path.join(
+        REPO_ROOT,
+        `deployments/sepolia/impact-${rotation.release}.json`
+      ),
+      {
+        schemaVersion: "1.1.0",
+        release: rotation.release,
+        protocolVersion: rotation.protocolVersion,
+        contractSourceCommit: rotation.contractSourceCommit,
+        status: "prepared-not-deployed",
+        reused: rotation.reused,
+        authority: rotation.authority,
+        authorityChanges: [],
+        retirementTargets: [],
+        deployments: entries
+          .filter(({ kind }) => kind === "deploy")
+          .map((entry) => ({
+            id: entry.id,
+            artifactName: entry.artifactName,
+            output: entry.output,
+            predicate: entry.predicate,
+          })),
+        activationCalls: entries
+          .filter(({ kind }) => kind === "call")
+          .map(({ id }) => id),
+      }
+    );
+    return;
+  }
   const previousPlan = readJson(PREVIOUS_PLAN_PATH);
   const previousById = new Map(
     previousPlan.transactions.map((transaction) => [
@@ -1007,7 +1213,14 @@ function writeSourcePin(rotation) {
     "deployment_profile=deploy",
     "solc=0.8.25",
     "evm_version=cancun",
-    "optimizer_runs=44",
+    `optimizer_runs=${isCurrentCeremony(rotation) ? 1 : 44}`,
+    ...(isCurrentCeremony(rotation)
+      ? [
+          `optimizer_steps=${OPTIMIZER_STEPS}`,
+          "bytecode_hash=none",
+          "cbor_metadata=false",
+        ]
+      : []),
     "via_ir=true",
     "submodules:",
     submodules,
@@ -1054,7 +1267,7 @@ function buildInventoryPendingRecords(rotation, artifacts) {
     address: ref(output),
   });
 
-  return [
+  const records = [
     {
       fileName: "01-wildcat-borrower-identity-registry.json",
       value: {
@@ -1182,6 +1395,40 @@ function buildInventoryPendingRecords(rotation, artifacts) {
       ),
     },
   ];
+  if (!isCurrentCeremony(rotation)) return records;
+  records[1].value = {
+    ...deployment(
+      ACCESS_LIST_FACTORY.contract,
+      ACCESS_LIST_FACTORY.output,
+      "roleProviderFactory"
+    ),
+    providerKind: ACCESS_LIST_FACTORY.providerKind,
+  };
+  const storageEntries = buildEntries(rotation, artifacts).filter(
+    ({ predicate }) => predicate.type === "splitCodeHash"
+  );
+  for (const entry of storageEntries) {
+    const primary = records.find(
+      ({ value }) => value.address?.$ref === entry.output
+    ).value;
+    primary.secondary = entry.predicate.secondary;
+    primary.secondaryCodeHash = entry.predicate.secondaryCodeHash;
+    records.push({
+      fileName: `${String(records.length + 1).padStart(2, "0")}-${
+        entry.output
+      }-secondary.json`,
+      value: {
+        recordType: "deployment",
+        role: "initCodeStorageSecondary",
+        ...common,
+        deploymentKey: `${primary.deploymentKey}_secondary`,
+        address: entry.predicate.secondary,
+        primary: primary.address,
+        runtimeCodeHash: entry.predicate.secondaryCodeHash,
+      },
+    });
+  }
+  return records;
 }
 
 function writeInventoryPending(rotation, artifacts) {
@@ -1201,7 +1448,7 @@ function writeInventoryPending(rotation, artifacts) {
 function generateInventoryPending() {
   const rotation = config();
   assertContractSourceBoundary(rotation);
-  const artifacts = loadArtifacts();
+  const artifacts = loadArtifacts(rotation);
   const planPath = path.join(
     REPO_ROOT,
     `deployments/sepolia/plan-${rotation.release}.json`
@@ -1218,12 +1465,15 @@ function generateInventoryPending() {
 function generate() {
   const rotation = config();
   assertContractSourceBoundary(rotation);
-  execFileSync("forge", ["build"], {
+  const buildArgs = isCurrentCeremony(rotation)
+    ? ["build", "src", "script/common/PreparedInitCodeStorage.sol"]
+    : ["build"];
+  execFileSync("forge", buildArgs, {
     cwd: REPO_ROOT,
     env: { ...process.env, FOUNDRY_PROFILE: "deploy" },
     stdio: "inherit",
   });
-  const artifacts = loadArtifacts();
+  const artifacts = loadArtifacts(rotation);
   const entries = buildEntries(rotation, artifacts);
   const entriesName = `plan-entries-${rotation.release}`;
   const entriesDirectory = path.join(
@@ -1291,18 +1541,25 @@ function generate() {
   process.stdout.write(packageOutput);
   fs.writeFileSync(
     packagePath.replace(/\.json$/, ".digest.txt"),
-    packageOutput,
+    isCurrentCeremony(rotation)
+      ? packageOutput
+          .split("\n")
+          .filter((line) => !line.startsWith("Ceremony package written:"))
+          .join("\n")
+      : packageOutput,
     "utf8"
   );
   console.log(
-    `Sepolia v${rotation.protocolVersion} factory replacement generated: 12 deploys, 10 activation calls, 0 authority changes`
+    `Sepolia v${rotation.protocolVersion} activation generated: ${
+      entries.filter(({ kind }) => kind === "deploy").length
+    } deploys, 10 activation calls, 0 authority changes, 0 retirement calls`
   );
 }
 
 function validate() {
   const rotation = config();
   assertContractSourceBoundary(rotation);
-  const artifacts = loadArtifacts();
+  const artifacts = loadArtifacts(rotation);
   const planPath = path.join(
     REPO_ROOT,
     `deployments/sepolia/plan-${rotation.release}.json`
@@ -1348,7 +1605,7 @@ function assertRehearsalPlan(plan, canonicalPlan) {
 function generateRehearsal(args) {
   const rotation = config();
   assertContractSourceBoundary(rotation);
-  const artifacts = loadArtifacts();
+  const artifacts = loadArtifacts(rotation);
   const canonicalPlanPath = path.join(
     REPO_ROOT,
     `deployments/sepolia/plan-${rotation.release}.json`
@@ -1790,6 +2047,7 @@ async function verifyReplacementFactory({
       "function borrowerIdentityRegistry() view returns (address)",
       "function marketInitCodeStorage() view returns (address)",
       "function marketInitCodeHash() view returns (uint256)",
+      "function getHooksTemplateInitCodeHash(address) view returns (bytes32)",
       "function getHooksTemplates() view returns (address[])",
       "function getHooksTemplateDetails(address) view returns ((address,uint80,uint16,bool,bool,uint24,address,string))",
     ],
@@ -1865,7 +2123,20 @@ async function verifyReplacementFactory({
     ) {
       throw new Error(`${marketType} ${expectedName} template state differs`);
     }
-    verifiedTemplates.push({ address, name: expectedName });
+    const commitment = {};
+    if (isCurrentCeremony(rotation)) {
+      const artifact = Object.values(artifacts).find(
+        ({ contract }) => contract === expectedName
+      );
+      const initCodeHash = keccak256(artifact.bytecode);
+      assertEqual(
+        (await factory.getHooksTemplateInitCodeHash(address)).toLowerCase(),
+        initCodeHash,
+        `${marketType} ${expectedName} init-code commitment`
+      );
+      commitment.initCodeHash = initCodeHash;
+    }
+    verifiedTemplates.push({ address, name: expectedName, ...commitment });
   }
 
   return {
@@ -1884,7 +2155,7 @@ async function verifyReplacementFactory({
 async function verifyActivation(args) {
   const rotation = config();
   assertContractSourceBoundary(rotation);
-  const artifacts = loadArtifacts();
+  const artifacts = loadArtifacts(rotation);
   const canonicalPlanPath = path.join(
     REPO_ROOT,
     `deployments/sepolia/plan-${rotation.release}.json`
@@ -2143,6 +2414,11 @@ async function main() {
     return;
   }
   const args = parseArgs(argv);
+  if (args.config !== undefined) {
+    if (typeof args.config !== "string")
+      throw new Error("--config requires a path");
+    process.env.SEPOLIA_REPLACEMENT_CONFIG = args.config;
+  }
   if (command === "generate") return generate();
   if (command === "generate-inventory-pending")
     return generateInventoryPending();
@@ -2167,5 +2443,9 @@ module.exports = {
   assertRehearsalPlan,
   buildRehearsalPlan,
   buildEntries,
+  buildInventoryPendingRecords,
+  config,
+  loadArtifacts,
+  prepareStorage,
   stripMetadata,
 };

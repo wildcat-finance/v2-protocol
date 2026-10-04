@@ -14,6 +14,32 @@ existing design and security constraints.
 Report suspected vulnerabilities privately as described in
 [`SECURITY.md`](./SECURITY.md), not through a public issue or pull request.
 
+## JavaScript toolchain
+
+Use Node `24.21.0`, Yarn Classic `1.22.22` for the protocol root, and npm
+`11.19.0` for `deploy-ui`. [`.node-version`](./.node-version) selects Node for
+compatible version managers. Each package manifest declares its Node and package
+manager versions; the UI also rejects incompatible engines during installation.
+
+Use Corepack to select the root Yarn pin without a global Yarn installation.
+Verify the installed tools, then install from the existing lockfiles:
+
+```sh
+node --version
+corepack yarn --version
+(cd deploy-ui && npm --version)
+corepack yarn install --frozen-lockfile --ignore-scripts
+(cd deploy-ui && npm ci --ignore-scripts)
+```
+
+Keep `yarn.lock` at the root and `package-lock.json` in `deploy-ui`. Do not swap
+package managers or regenerate a lockfile as part of routine setup.
+The `yarn` commands elsewhere in these docs can also be run as `corepack yarn`.
+
+The root `.yarnrc` and UI `.npmrc` disable automatic lifecycle scripts by default.
+Explicit test and build commands still run. Do not enable dependency scripts to
+work around an install failure without reviewing the package and its scripts.
+
 ## Source style
 
 Follow [`STYLE_GUIDE.md`](./STYLE_GUIDE.md) for Solidity formatting, function
@@ -22,9 +48,13 @@ ordering, file headers, and comment layout. Follow
 The guides include the reference file and the checks needed to preserve
 behavior and documentation coverage.
 
-Use Forge for Solidity formatting. The older package lint scripts use Prettier
-and Solhint settings that are not fully aligned with the source style; do not
-use `yarn lint:fix` as a substitute.
+Use Forge for Solidity formatting. `yarn lint:check` checks formatting with Forge,
+then runs Solhint. `yarn lint:fix` formats with Forge, then runs Solhint. Prettier
+shares the basic settings but cannot reproduce Forge's function-header layout;
+if your editor uses it, finish with Forge before committing Solidity changes.
+
+Solhint is pinned separately from the formatters. The lint commands disable its
+network update check and promotional output; they do not apply Solhint autofixes.
 
 ## Things to check before changing contracts
 

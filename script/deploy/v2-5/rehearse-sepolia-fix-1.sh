@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rehearse the Sepolia v2.5 fix-1 factory replacement against one pinned fork.
+# Rehearse a fixed-authority Sepolia activation against one pinned fork.
 # With no argument, execute the engine check headlessly. --ui leaves a chain
 # 31337 fork running for the real-wallet locked-UI ceremony. --stop stops only
 # the recorded --ui Anvil process.
@@ -7,9 +7,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../../.."
 
-readonly RELEASE='v2-5-sepolia-fix-1'
+export SEPOLIA_REPLACEMENT_CONFIG="${SEPOLIA_REPLACEMENT_CONFIG:-deployments/sepolia/v2-5-sepolia-fix-1.json}"
+RELEASE="$(jq -er '.release' "$SEPOLIA_REPLACEMENT_CONFIG")"
+readonly RELEASE
 readonly PLAN="deployments/sepolia/plan-${RELEASE}.json"
-readonly EXECUTOR='0xCa7007a75296b532Ce1606d9e130eAa849800Ca7'
+EXECUTOR="$(jq -er '.expectedExecutor' "$SEPOLIA_REPLACEMENT_CONFIG")"
+readonly EXECUTOR
 readonly EXPECTED_CHAIN_ID='11155111'
 readonly ANVIL_CHAIN_ID='31337'
 readonly ACTIVE_SESSION_FILE="deployments/anvil/${RELEASE}-active-session"
@@ -22,7 +25,7 @@ esac
 
 if [[ "$mode" == '--stop' ]]; then
   if [[ ! -f "$ACTIVE_SESSION_FILE" ]]; then
-    echo 'No recorded v2.5 fix-1 UI rehearsal is running.'
+    echo "No recorded $RELEASE UI rehearsal is running."
     exit 0
   fi
   evidence_dir="$(<"$ACTIVE_SESSION_FILE")"
@@ -56,12 +59,13 @@ if [[ "$mode" == '--ui' && -f "$ACTIVE_SESSION_FILE" ]]; then
   exit 1
 fi
 
+readonly CEREMONY_HOST="${CEREMONY_HOST:-127.0.0.1}"
 ANVIL_PORT="${ANVIL_PORT:-8548}"
 if [[ ! "$ANVIL_PORT" =~ ^[1-9][0-9]*$ ]] || (( ANVIL_PORT > 65535 )); then
   echo 'ANVIL_PORT must be an integer from 1 through 65535' >&2
   exit 1
 fi
-readonly RPC="http://127.0.0.1:${ANVIL_PORT}"
+readonly RPC="http://${CEREMONY_HOST}:${ANVIL_PORT}"
 local_chain_id="$EXPECTED_CHAIN_ID"
 if [[ "$mode" == '--ui' ]]; then
   local_chain_id="$ANVIL_CHAIN_ID"
@@ -112,7 +116,7 @@ anvil_command=(anvil
   --fork-url "$FORK_RPC_URL" \
   --fork-block-number "$FORK_BLOCK_NUMBER" \
   --chain-id "$local_chain_id" \
-  --host 127.0.0.1 \
+  --host "$CEREMONY_HOST" \
   --port "$ANVIL_PORT" \
   --silent)
 if [[ "$mode" == '--ui' ]]; then
@@ -152,7 +156,7 @@ if [[ "$mode" == '--ui' ]]; then
   echo "Pinned Sepolia fork ready for the locked UI at block ${FORK_BLOCK_NUMBER}"
   echo "RPC: ${RPC} (chain ${ANVIL_CHAIN_ID})"
   echo "Evidence: ${evidence_dir}"
-  echo 'Next: DEPLOYMENTS_NETWORK=anvil bash script/deploy/v2-5/sepolia-fix-1-stage.sh activation'
+  echo "Next: SEPOLIA_REPLACEMENT_CONFIG=$SEPOLIA_REPLACEMENT_CONFIG DEPLOYMENTS_NETWORK=anvil bash script/deploy/v2-5/sepolia-fix-1-stage.sh activation"
   exit 0
 fi
 

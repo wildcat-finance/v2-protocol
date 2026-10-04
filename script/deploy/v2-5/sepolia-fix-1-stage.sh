@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Human-driven stages for the v2.5.3 Sepolia factory replacement.
+# Human-driven stages for a fixed-authority Sepolia activation.
 #
 # This script derives ceremony identity from the reviewed config and generated
 # plan. It never signs or broadcasts. The operator signs every transaction in
@@ -8,10 +8,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../../.."
 
-readonly RELEASE='v2-5-sepolia-fix-1'
+export SEPOLIA_REPLACEMENT_CONFIG="${SEPOLIA_REPLACEMENT_CONFIG:-deployments/sepolia/v2-5-sepolia-fix-1.json}"
+readonly CONFIG="$SEPOLIA_REPLACEMENT_CONFIG"
+RELEASE="$(jq -er '.release' "$CONFIG")"
+readonly RELEASE
 readonly REHEARSAL_RELEASE="${RELEASE}-rehearsal"
 readonly ROTATION_SCRIPT='scripts/sepolia-v2-5-fix-rotation.js'
-readonly CONFIG='deployments/sepolia/v2-5-sepolia-fix-1.json'
 readonly LIVE_PLAN="deployments/sepolia/plan-${RELEASE}.json"
 readonly LIVE_PACKAGE="deployments/sepolia/ceremony-${RELEASE}-eoa.json"
 readonly REHEARSAL_PLAN="deployments/anvil/plan-${REHEARSAL_RELEASE}.json"
@@ -22,6 +24,7 @@ readonly ANVIL_SESSION_FILE="deployments/anvil/${RELEASE}-active-session"
 readonly LIVE_SESSION_FILE="deployments/sepolia/ceremony-evidence/${RELEASE}-active-session"
 readonly PENDING_INVENTORY="deployments/sepolia/inventory-pending-${RELEASE}"
 readonly DEFAULT_SEPOLIA_RPC='https://eth-sep.hinterlight.net'
+readonly CEREMONY_HOST="${CEREMONY_HOST:-127.0.0.1}"
 
 stage="${1:-}"
 case "$stage" in
@@ -35,7 +38,7 @@ esac
 DEPLOYMENTS_NETWORK="${DEPLOYMENTS_NETWORK:-anvil}"
 case "$DEPLOYMENTS_NETWORK" in
   anvil)
-    RPC_URL="${RPC_URL:-http://127.0.0.1:${ANVIL_PORT:-8548}}"
+    RPC_URL="${RPC_URL:-http://${CEREMONY_HOST}:${ANVIL_PORT:-8548}}"
     EXPECTED_CHAIN_ID='31337'
     PLAN="$REHEARSAL_PLAN"
     PACKAGE="$REHEARSAL_PACKAGE"
@@ -68,17 +71,25 @@ package_fingerprint() {
 }
 
 assert_clean_pushed_source() {
-  local upstream_head status
+  local upstream_head status untracked
   git rev-parse '@{upstream}' >/dev/null
   upstream_head="$(git rev-parse '@{upstream}')"
   if [[ "$(git rev-parse HEAD)" != "$upstream_head" ]]; then
     echo "HEAD is not pushed to the configured upstream ($upstream_head)" >&2
     exit 1
   fi
-  status="$(git status --porcelain --untracked-files=all)"
+  status="$(git status --porcelain --untracked-files=no --ignore-submodules=none)"
   if [[ -n "$status" ]]; then
-    echo 'Working tree is not clean:' >&2
+    echo 'Tracked files or submodules differ from the reviewed commit:' >&2
     printf '%s\n' "$status" >&2
+    exit 1
+  fi
+  untracked="$(git ls-files --others --exclude-standard -- \
+    src lib script scripts test deploy-ui deployments \
+    .npmrc npm-shrinkwrap.json package-lock.json)"
+  if [[ -n "$untracked" ]]; then
+    echo 'Untracked build or ceremony inputs must be reviewed and committed:' >&2
+    printf '%s\n' "$untracked" >&2
     exit 1
   fi
 }
@@ -94,7 +105,7 @@ assert_rpc() {
 
 assert_anvil_session() {
   if [[ ! -f "$ANVIL_SESSION_FILE" ]]; then
-    echo 'No recorded UI rehearsal. Start one with rehearse-sepolia-fix-1.sh --ui.' >&2
+    echo 'No recorded UI rehearsal. Start the release rehearsal with --ui.' >&2
     exit 1
   fi
   local evidence_dir pid_file anvil_pid command_line
@@ -223,8 +234,7 @@ generate_artifacts() {
   node scripts/plan.js ceremony-package \
     --plan "$LIVE_PLAN" \
     --mode eoa \
-    --out "$LIVE_PACKAGE" |
-    tee "${LIVE_PACKAGE%.json}.digest.txt"
+    --out "$LIVE_PACKAGE"
   if [[ "$DEPLOYMENTS_NETWORK" == 'anvil' ]]; then
     node "$ROTATION_SCRIPT" generate-rehearsal
   fi
@@ -331,13 +341,16 @@ Wallet network:
   chain: $EXPECTED_CHAIN_ID
 EOF
   fi
-  cat <<'EOF'
+  cat <<EOF
 
 In a second terminal:
-  (cd deploy-ui && npm exec -- vite preview --host 127.0.0.1 --port 4173 --strictPort)
+  (cd deploy-ui && npm exec -- vite preview --host "$CEREMONY_HOST" --port 4173 --strictPort)
 
-Then open http://127.0.0.1:4173, connect the displayed executor, confirm the
+Then open http://$CEREMONY_HOST:4173, connect the displayed executor, confirm the
 identity above, execute every card, and click Export run state.
+
+If the browser is on another machine, copy its exported run-state here and
+set RUN_STATE to that file when finalizing.
 EOF
 }
 
@@ -364,22 +377,28 @@ find_exported_run_state() {
 
 run_check() {
   assert_clean_pushed_source
+  corepack yarn install --frozen-lockfile --ignore-scripts --non-interactive
   local fork_rpc_url
   fork_rpc_url="${FORK_RPC_URL:-$DEFAULT_SEPOLIA_RPC}"
   if [[ "$(cast chain-id --rpc-url "$fork_rpc_url")" != '11155111' ]]; then
     echo 'FORK_RPC_URL is not Sepolia.' >&2
     exit 1
   fi
-  forge test
-  yarn test:fixed
-  FOUNDRY_PROFILE=deploy forge test
-  FOUNDRY_PROFILE=deploy forge build --sizes
+  if [[ "$(jq -er '.schemaVersion' "$CONFIG")" == '1.0.0' ]]; then
+    FOUNDRY_PROFILE=default forge test
+    FOUNDRY_PROFILE=default yarn test:fixed
+    FOUNDRY_PROFILE=deploy forge test
+  fi
+  FOUNDRY_PROFILE=deploy forge build src script/common/PreparedInitCodeStorage.sol
+  FOUNDRY_PROFILE=deploy forge build --sizes src
+  node --test scripts/__tests__/*.test.js
+  generate_artifacts
   (
     cd deploy-ui
-    npm ci
+    npm ci --ignore-scripts
     npm audit
     npm test
-    npm run build
+    CEREMONY_PACKAGE="../$LIVE_PACKAGE" npm run build
     SEPOLIA_RPC_URL="$fork_rpc_url" npm run test:fork
   )
   assert_clean_pushed_source
@@ -500,12 +519,13 @@ finalize_inventory() {
   jq -e \
     --arg plan_sha256 "$(sha256_file "$LIVE_PLAN")" \
     --arg package_digest "$(jq -er '.digest' "$LIVE_PACKAGE")" \
+    --argjson transaction_count "$(jq -er '.transactions | length' "$LIVE_PLAN")" \
     '.status == "ready" and
      .network == "sepolia" and
      .chainId == 11155111 and
      .planSha256 == $plan_sha256 and
      .packageDigest == $package_digest and
-     .transactionCount == 22' \
+     .transactionCount == $transaction_count' \
     "$evidence_dir/identity.json" >/dev/null || {
       echo 'Live evidence does not match the reviewed plan and package.' >&2
       exit 1

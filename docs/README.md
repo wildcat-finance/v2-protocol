@@ -67,6 +67,8 @@ review coverage, or remediation status from source ancestry alone.
   for the earlier source candidate
 - [Deployment](./operations/deployment.md): inventory, plans, ceremonies,
   verification, and handoffs
+- [Sepolia v2.5.5](./operations/sepolia-v2.5.5.md): activation scope,
+  preparation status, and downstream handoff
 
 Machine-readable state in [`deployments/`](../deployments/) is authoritative for
 deployment facts.
