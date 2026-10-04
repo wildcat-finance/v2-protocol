@@ -50,6 +50,7 @@ contract PeriodicTermHooks is PeriodicTermPolicy {
       encodeHooksDeploymentConfig(
         EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer),
         EmptyHooksConfig.setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
+          .setFlag(Bit_Enabled_SetMaxTotalSupply)
           .setFlag(Bit_Enabled_CloseMarket)
           .setFlag(Bit_Enabled_QueueWithdrawal)
           .setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction)

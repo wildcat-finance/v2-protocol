@@ -15,6 +15,13 @@ pragma solidity 0.8.25;
 //  test_ProductionArtifactsFitActualCodeStorageAndRuntimeLimits()
 //  test_AllSixFactoryCombinationsAcceptDisabledAndZeroPeriodTerms()
 //
+//  PARAMETER FREEZE
+//  test_ParameterFreezeStartsAtRepaymentAcrossProductionMatrix()
+//  test_ParametersRemainMutableWithoutRepaymentAcrossProductionMatrix()
+//  _parameterFreezeMatrix(...)
+//  _checkParameterChanges(...)
+//  _hookParametersHash(...)
+//
 //  REPAYMENT TIMELINE
 //  test_AllFourAccrualIntervalsPreserveViewsAndEventChronology()
 //  test_ZeroPeriodCureAfterEarlierUpdateInSameBlock()
@@ -45,9 +52,13 @@ import { Vm } from 'forge-std/Vm.sol';
 import { WildcatMarketBase } from 'src/market/WildcatMarketBase.sol';
 import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
 import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
+import { BaseHooks } from 'src/access/BaseHooks.sol';
+import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
+import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 import { PeriodicTermPolicy } from 'src/access/PeriodicTermPolicy.sol';
 import { PendingAprChange } from 'src/access/types/PeriodicTermHookTypes.sol';
+import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 
 // ┌─ RepaymentPrototypeTest ───────────────────────────────────────────────────
 /// @dev R2-02 prototype evidence. uses the actual stored-initcode path and both factories.
@@ -124,6 +135,94 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
         }
       }
     }
+  }
+
+  // ░░▒▒▓▓██ [ PARAMETER FREEZE ] ─────────────────────────────────────────────
+
+  // ┌─ test_ParameterFreezeStartsAtRepaymentAcrossProductionMatrix ─────
+  function test_ParameterFreezeStartsAtRepaymentAcrossProductionMatrix() public {
+    _parameterFreezeMatrix(true);
+  }
+
+  // ┌─ test_ParametersRemainMutableWithoutRepaymentAcrossProductionMatrix ─────
+  function test_ParametersRemainMutableWithoutRepaymentAcrossProductionMatrix() public {
+    _parameterFreezeMatrix(false);
+  }
+
+  // ┌─ _parameterFreezeMatrix ─────
+  function _parameterFreezeMatrix(bool enabled) private {
+    for (uint256 model; model < 2; model++) {
+      for (uint256 policy; policy < 3; policy++) {
+        MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind(policy), MatrixMarketKind(model));
+        // outside the periodic windows, after fixed maturity, and before the penalty default cutoff.
+        uint32 date = uint32(vm.getBlockTimestamp() + 70 days);
+        options.repaymentDate = enabled ? date : 0;
+        options.minimumDeposit = 1;
+        vm.prank(MatrixBorrower);
+        address hooks = _factoryFor(stack, options.marketKind).deployHooksInstance(stack.hooksTemplates[policy], '');
+        MatrixCell memory cell = _deployMatrixCell(
+          stack,
+          options,
+          MatrixBorrower,
+          MatrixBorrower,
+          uint96(20 + model * 3 + policy),
+          EmptyHooksConfig.setHooksAddress(hooks)
+        );
+        _fundAndDraw(cell);
+        vm.warp(date - 1);
+        _checkParameterChanges(cell, false);
+        vm.warp(date);
+        _checkParameterChanges(cell, enabled);
+        vm.warp(uint256(date) + 1);
+        _checkParameterChanges(cell, enabled);
+        assertTrue(cell.market.hooks().useOnSetMaxTotalSupply(), 'capacity callback forced despite omitted flag');
+      }
+    }
+  }
+
+  // ┌─ _checkParameterChanges ─────
+  function _checkParameterChanges(MatrixCell memory cell, bool frozen) private {
+    address market = address(cell.market);
+    bytes32 previousHookParameters = _hookParametersHash(cell);
+    uint256 previousCapacity = cell.market.maxTotalSupply();
+    assertFalse(cell.market.isClosed(), 'underfunded market remains open');
+    vm.startPrank(MatrixBorrower);
+    for (uint256 direction; direction < 2; direction++) {
+      uint256 capacity = direction == 0 ? cell.options.maxTotalSupply * 2 : cell.options.maxTotalSupply / 2;
+      if (frozen) vm.expectRevert(WildcatMarketBase.MarketInRepayment.selector);
+      cell.market.setMaxTotalSupply(capacity);
+      assertEq(cell.market.maxTotalSupply(), frozen ? previousCapacity : capacity, 'capacity');
+    }
+    if (frozen) vm.expectRevert(WildcatMarketBase.MarketInRepayment.selector);
+    BaseHooks(address(cell.hooks)).setMinimumDeposit(market, uint128(vm.getBlockTimestamp()));
+    if (cell.options.hooksKind == MatrixHooksKind.FixedTerm) {
+      FixedTermHooks hooks = FixedTermHooks(address(cell.hooks));
+      uint32 earlierMaturity = hooks.getHookedMarket(market).fixedTermEndTime - 1;
+      if (frozen) vm.expectRevert(WildcatMarketBase.MarketInRepayment.selector);
+      hooks.setFixedTermEndTime(market, earlierMaturity);
+    } else if (cell.options.hooksKind == MatrixHooksKind.PeriodicTerm) {
+      if (frozen) vm.expectRevert(WildcatMarketBase.MarketInRepayment.selector);
+      PeriodicTermHooks(address(cell.hooks)).proposeAnnualInterestBips(market, 900);
+    }
+    vm.stopPrank();
+    if (frozen) {
+      assertEq(_hookParametersHash(cell), previousHookParameters, 'hook parameters and pending proposal unchanged');
+    } else {
+      assertTrue(_hookParametersHash(cell) != previousHookParameters, 'hook parameters updated');
+    }
+  }
+
+  // ┌─ _hookParametersHash ─────
+  function _hookParametersHash(MatrixCell memory cell) private view returns (bytes32) {
+    if (cell.options.hooksKind == MatrixHooksKind.OpenTerm) {
+      return keccak256(abi.encode(OpenTermHooks(address(cell.hooks)).getHookedMarket(address(cell.market))));
+    }
+    if (cell.options.hooksKind == MatrixHooksKind.FixedTerm) {
+      return keccak256(abi.encode(FixedTermHooks(address(cell.hooks)).getHookedMarket(address(cell.market))));
+    }
+    PeriodicTermHooks hooks = PeriodicTermHooks(address(cell.hooks));
+    (PendingAprChange memory pending, uint32 start, uint32 end) = hooks.getPendingAprChange(address(cell.market));
+    return keccak256(abi.encode(hooks.getHookedMarket(address(cell.market)), pending, start, end));
   }
 
   // ░░▒▒▓▓██ [ REPAYMENT TIMELINE ] ───────────────────────────────────────────

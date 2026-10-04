@@ -352,12 +352,14 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   ///
   /// @dev only the hooks administrator may propose. the market must be hooked, open, and outside a
   ///      withdrawal window. a new valid proposal replaces the old one and emits its cancellation.
+  ///      new proposals are blocked from an enabled repayment date.
   ///
   /// @param annualInterestBips proposed APR in basis points, below the market's current APR.
   function proposeAnnualInterestBips(address market, uint16 annualInterestBips) external onlyAdministrator {
     HookedMarket memory hookedMarket = _effectiveHookedMarket(market);
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (hookedMarket.isClosed) revert AprReductionProposalOnClosedMarket();
+    if (_isMarketInRepayment(market)) revert MarketInRepayment();
     if (_isWithdrawalWindowOpen(hookedMarket, block.timestamp)) {
       revert AprReductionProposalDuringWithdrawalWindow();
     }

@@ -55,6 +55,7 @@ import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_Deposit } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_Transfer } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
+import { Bit_Enabled_SetMaxTotalSupply } from 'src/types/HooksConfig.sol';
 import { LenderStatus } from 'src/types/LenderStatus.sol';
 import { RecipientRestrictionPolicy } from '../mocks/TransferFeaturePolicies.sol';
 import { TransferAmountPolicy } from '../mocks/TransferFeaturePolicies.sol';
@@ -134,8 +135,11 @@ contract HookExtensionsTest is HookTemplateFixture {
       );
       assertEq(
         HooksConfig.unwrap(target.config().requiredFlags()),
-        HooksConfig.unwrap(original.config().requiredFlags().setFlag(Bit_Enabled_Transfer))
+        HooksConfig.unwrap(
+          original.config().requiredFlags().clearFlag(Bit_Enabled_SetMaxTotalSupply).setFlag(Bit_Enabled_Transfer)
+        )
       );
+      assertFalse(effective.useOnSetMaxTotalSupply(), 'custom composition does not select capacity dispatch');
       assertTrue(effective.useOnTransfer(), 'required dispatch');
       assertTrue(effective.useOnDeposit(), 'minimum forces deposit dispatch');
       assertFalse(effective.useOnBorrow(), 'fourth feature not installed yet');

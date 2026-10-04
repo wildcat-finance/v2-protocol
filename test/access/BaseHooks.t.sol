@@ -75,6 +75,7 @@ import { Bit_Enabled_Transfer } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_CloseMarket } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_SetAnnualInterestAndReserveRatioBips } from 'src/types/HooksConfig.sol';
+import { Bit_Enabled_SetMaxTotalSupply } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_ExecutePendingAnnualInterestBipsReduction } from 'src/types/HooksConfig.sol';
 import { RoleProvider, NullProviderIndex } from 'src/types/RoleProvider.sol';
 import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
@@ -105,7 +106,8 @@ contract BaseHooksTest is HookTemplateFixture {
 
   // ┌─ _requiredFlags ─────
   function _requiredFlags(HookKind kind) internal pure returns (HooksConfig flags) {
-    flags = EmptyHooksConfig.setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips);
+    flags =
+      EmptyHooksConfig.setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips).setFlag(Bit_Enabled_SetMaxTotalSupply);
     if (kind != HookKind.Open) {
       flags = flags.setFlag(Bit_Enabled_CloseMarket).setFlag(Bit_Enabled_QueueWithdrawal);
     }

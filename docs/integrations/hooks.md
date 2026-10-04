@@ -116,6 +116,9 @@ enabled bit. A feature must declare the callbacks it requires at construction.
 ### Parameter changes
 
 - `setMaxTotalSupply` calls `onSetMaxTotalSupply` before applying the cap.
+  All three supplied templates require this callback and reject changes from
+  an enabled repayment date. Custom templates must enable the callback to
+  enforce the same capacity freeze.
 - `setAnnualInterestAndReserveRatioBips` calls
   `onSetAnnualInterestAndReserveRatioBips`. The hook returns the APR and reserve
   ratio the market will validate and apply.

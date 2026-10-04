@@ -134,6 +134,9 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   /// @dev this hooks instance hasn't registered the supplied market.
   error NotHookedMarket();
 
+  /// @dev financial settings are frozen from the market's repayment date.
+  error MarketInRepayment();
+
   /// @dev the scaled deposit is below the market's configured minimum.
   error DepositBelowMinimum();
 
@@ -267,11 +270,13 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   /// @notice update a hooked market's minimum deposit.
   ///
   /// @dev callback flags can't change. a positive minimum needs `onDeposit` already enabled.
+  ///      the minimum is frozen from an enabled repayment date.
   ///      leave the width check to the adapter, after the caller, market and dispatch checks.
   ///
   /// @param newMinimumDeposit normalized underlying-asset units required per deposit.
   function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyAdministrator {
     AccessConfig memory access = _requireHookedMarket(market);
+    if (_isMarketInRepayment(market)) revert MarketInRepayment();
     if (newMinimumDeposit > 0 && !_isDepositHookEnabled(market)) revert DepositHookNotEnabled();
     uint128 previousMinimumDeposit = access.minimumDeposit;
     _writeMinimumDeposit(market, newMinimumDeposit);
@@ -600,6 +605,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ░░▒▒▓▓██ [ SUPPLY CAPACITY ] ──────────────────────────────────────────────
 
   // ┌─ onSetMaxTotalSupply ─────
+  /// @notice reject capacity changes from an enabled repayment date, then run feature checks.
   function onSetMaxTotalSupply(
     uint256 maxTotalSupply,
     MarketState calldata state,
@@ -608,6 +614,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     external
     override
   {
+    if (_isMarketInRepayment(msg.sender)) revert MarketInRepayment();
     _checkMaxTotalSupply(maxTotalSupply, state, hooksData);
   }
 
