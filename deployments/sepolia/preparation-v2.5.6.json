@@ -42,7 +42,7 @@
     "Confirm indexed enabled-template selection before opening market creation"
   ],
   "evidenceArchive": {
-    "path": "deployments/sepolia/v2.5.6-preparation-evidence-20261004.zip",
+    "path": "deployments/sepolia/ceremony-evidence/v2.5.6-preparation-evidence-20261004.zip",
     "sha256": "b5e778ccfd7cabc26640f63009df1ed338b66120ffbdb612bf1b44549a3ba7e1",
     "files": 20
   },

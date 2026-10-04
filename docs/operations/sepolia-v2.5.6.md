@@ -55,7 +55,7 @@ source commit carries the reviewed freeze commit
 `test/`, `lib/`, and `foundry.toml` match that tested revision exactly.
 
 The baseline includes the receipt-backed [v2.5.5 handoff](../../deployments/sepolia/handoff-v2.5.5.json)
-and original [deployment evidence](../../deployments/sepolia/wildcat-v2.5.5-evidence-20261002T202805Z.zip).
+and original [deployment evidence](../../deployments/sepolia/ceremony-evidence/wildcat-v2.5.5-evidence-20261002T202805Z.zip).
 The `existing` addresses in the new configuration are that generation's
 canonical factories and wrapper. Validation compares every reused deployment's
 creation bytecode with its pinned plan and checks its address against the
@@ -85,7 +85,9 @@ tracked files and submodules, with `HEAD` matching its upstream. Untracked files
 under `src/`, `lib/`, `script/`, `scripts/`, `test/`, `deploy-ui/`, or
 `deployments/`, and root `.npmrc`, `npm-shrinkwrap.json`, or `package-lock.json`
 also block the gate unless ignored as generated/operator artifacts. Other
-untracked notes do not block it. Stop generating packets once execution starts.
+untracked notes and new files under `deployments/*/ceremony-evidence/` do not
+block it. Session evidence can be committed; only active-session pointers stay
+ignored there. Stop generating packets once execution starts.
 
 The release wrappers are:
 
@@ -108,6 +110,14 @@ registration and disable receipts for both factories, creation-code commitments,
 and ABI paths. It references the byte-for-byte v2.5.5 handoff by SHA-256 for the
 reused deployments. It neither adds factory generations nor changes factory
 aliases, inventory records, or indexing flags.
+
+After reconciliation, the stage packages the retained evidence and finalized
+records into a ZIP with a SHA-256 checksum and per-file manifest. Python 3.9+
+is required; no additional packages are needed. `stage archive-evidence`
+can package an already-finalized live session offline, including after a
+tooling-only update. It records the source commit from the original session.
+See the [checklist](../../script/deploy/CEREMONY_CHECKLIST.md) for handoff and
+archive recovery commands.
 
 SDK and application creation routes must target the v2.5.5 factory addresses in
 the configuration's `existing` bindings and use the new enabled templates.
@@ -155,8 +165,16 @@ aliases. A later read-only live preflight passed at block `11840339`.
 
 The [preparation record](../../deployments/sepolia/preparation-v2.5.6.json)
 identifies the package digest, source pins, observation scope, and checksum of
-the [evidence archive](../../deployments/sepolia/v2.5.6-preparation-evidence-20261004.zip).
-The archive retains original protocol-test logs, deployment checks, both locked
-packages, and explicitly labelled local-fork receipts. No live transactions have
-been sent. The cold gate must match the final pushed commit; the real-wallet
-rehearsal and live ceremony remain operator steps.
+the [evidence archive](../../deployments/sepolia/ceremony-evidence/v2.5.6-preparation-evidence-20261004.zip).
+That preparation archive retains original protocol-test logs, deployment checks,
+both locked packages, and explicitly labelled local-fork receipts; it predates
+live execution.
+
+The [live evidence archive](../../deployments/sepolia/ceremony-evidence/wildcat-v2.5.6-evidence-20261004T081346Z.zip)
+was received on 2026-10-04 in commit `71a65ff`. Its SHA-256 is
+`72bbd797a6739c59e8af86ab069cb11ab86e053752c8a36b0107016009f1a0a8`.
+The retained records identify ceremony source `26c5209`, the accepted real-wallet
+rehearsal, all 15 verified live transactions, and green finalization at block
+`11841012`. The committed template update and deployment records match the
+archive bytes. This archive inspection did not repeat live RPC verification;
+downstream adoption and market behavior testing remain separate work.

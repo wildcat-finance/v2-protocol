@@ -27,7 +27,7 @@ deployments/*/HooksFactoryRevolving-0x*/
 deployments/*/pending-admin-actions/
 deployments/*/rcf-template-sync-*.json
 deployments/*/rcf-v2-handoff*.json
-deployments/*/ceremony-evidence/
+deployments/*/ceremony-evidence/*-active-session
 deployments/*/ceremony-v2-5-*.json
 deployments/*/ceremony-v2.*.json
 deployments/*/bundles-v2-5*/

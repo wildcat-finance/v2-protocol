@@ -58,6 +58,8 @@ not edit evidence, skip a card, or repair a live package in place.
 - [ ] Use the pinned [JavaScript toolchain](../../CONTRIBUTING.md#javascript-toolchain).
       The cold gate installs both dependency trees from their lockfiles with
       lifecycle scripts disabled.
+- [ ] Have Python 3.9 or newer available as `python3` for the final evidence ZIP.
+      No Python packages need to be installed.
 
 - [ ] From the `v2-protocol` root, define the helpers used below:
 
@@ -204,7 +206,7 @@ stage status
 stage finalize-inventory
 ```
 
-The ignored `deployments/sepolia/ceremony-evidence/` session directory retains:
+The `deployments/sepolia/ceremony-evidence/` session directory retains:
 
 - Verified run-state.
 - Preflight and post-activation reports.
@@ -221,6 +223,29 @@ downstream handoff work.
 - Records the three versioned template addresses and updates their template aliases.
 - Writes `template-update-v2.5.6.json`, referencing the retained v2.5.5 handoff.
 - Reconciles the unchanged factory inventory against Sepolia.
+- Creates `deployments/sepolia/ceremony-evidence/wildcat-v2.5.6-evidence-<timestamp>.zip` and its
+  `.sha256` checksum. The ZIP preserves the session, reviewed plan and package,
+  gate records, finalized deployment records and handoff, with a manifest of
+  file hashes and the original ceremony source commit.
+
+- [ ] Commit the ZIP, checksum and finalized deployment records for handoff.
+      Session evidence can also be committed. The active-session pointer remains
+      ignored. New session evidence does not block the source gate; changes to
+      already tracked evidence still do.
+
+If finalization succeeded but archiving did not, create the ZIP without
+rerunning finalization or contacting an RPC:
+
+```sh
+DEPLOYMENTS_NETWORK=sepolia stage archive-evidence
+```
+
+This uses the recorded live session. Set `CEREMONY_EVIDENCE_DIR` to its
+repository-relative session directory if the pointer is unavailable. Run the
+command on the machine holding the evidence. It accepts the finalized working
+files without requiring a clean or pushed checkout. New checksum files use the
+ZIP's basename. To check one after moving it together with its checksum, run
+`shasum -a 256 -c <zip>.sha256` from their directory.
 
 The predecessor factories retain their registrations and existing indexing policy.
 

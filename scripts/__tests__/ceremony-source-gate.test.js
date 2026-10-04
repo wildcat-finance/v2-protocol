@@ -81,6 +81,21 @@ test("source gate permits unrelated local files and ignored build output", (cont
   assert.equal(result.status, 0, result.stderr);
 });
 
+test("source gate permits new ceremony evidence but preserves tracked evidence checks", (context) => {
+  const directory = repository(context);
+  const filename = "deployments/sepolia/ceremony-evidence/v2.5.6.session/run-state.json";
+  writeFile(directory, filename, "{}\n");
+  const result = runGate(directory);
+  assert.equal(result.status, 0, result.stderr);
+  git(directory, "add", filename);
+  git(directory, "commit", "--quiet", "-m", "Preserved evidence");
+  git(directory, "update-ref", "refs/remotes/origin/ceremony", "HEAD");
+  writeFile(directory, filename, '{"changed":true}\n');
+  const changed = runGate(directory);
+  assert.equal(changed.status, 1);
+  assert.match(changed.stderr, /Tracked files or submodules differ/);
+});
+
 for (const state of ["unstaged", "staged", "deleted"]) {
   test(`source gate rejects ${state} tracked changes`, (context) => {
     const directory = repository(context);
