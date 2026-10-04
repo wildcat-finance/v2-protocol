@@ -224,6 +224,12 @@ downstream handoff work.
 
 The predecessor factories retain their registrations and existing indexing policy.
 
+- [ ] Before reopening market creation, verify SDK, subgraph, and app routing
+      against the retained v2.5.5 handoff. Wait for all six new registrations and
+      six disables to be indexed, then confirm the app selects the new templates
+      on both configured factories. The local SDK review found older addresses;
+      see the [handoff notes](../../docs/operations/sepolia-v2.5.6.md#handoff-and-remaining-work).
+
 Stop the preview after verification. Do not retire either predecessor factory
 in this ceremony.
 

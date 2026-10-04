@@ -45,5 +45,12 @@
     "path": "deployments/sepolia/v2.5.6-preparation-evidence-20261004.zip",
     "sha256": "b5e778ccfd7cabc26640f63009df1ed338b66120ffbdb612bf1b44549a3ba7e1",
     "files": 20
+  },
+  "downstreamObservation": {
+    "observedAt": "2026-10-04",
+    "sdkRevision": "e64e766",
+    "applicationRevision": "bde1e83b",
+    "scope": "local source; deployed application configuration not established",
+    "finding": "SDK Sepolia deployment addresses still select v2.5.4. Adopt the retained v2.5.5 handoff in SDK/subgraph/app configuration and confirm indexed selection of the new enabled templates before opening market creation."
   }
 }

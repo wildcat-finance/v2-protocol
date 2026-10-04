@@ -109,10 +109,17 @@ and ABI paths. It references the byte-for-byte v2.5.5 handoff by SHA-256 for the
 reused deployments. It neither adds factory generations nor changes factory
 aliases, inventory records, or indexing flags.
 
-SDK and application creation routes retain their current factory addresses and
-must use the new enabled templates. Confirm indexing has processed the six
-registrations and six disables before opening creation flows. Capacity,
-minimum-deposit, and maturity controls
+SDK and application creation routes must target the v2.5.5 factory addresses in
+the configuration's `existing` bindings and use the new enabled templates.
+The local SDK checkout at `e64e766` still selects v2.5.4 Sepolia factories,
+wrapper, lens, and AccessList factory in `src/config/deployments.ts` (observed
+2026-10-04). Adopt the retained v2.5.5 handoff in the SDK, subgraph configuration,
+and application before opening creation flows. The deployed application's
+current configuration was not established by this source review.
+
+Confirm indexing has processed the six registrations and six disables and that
+the application's selection resolves to the new templates on both factories.
+Capacity, minimum-deposit, and maturity controls
 also need repayment-date gating for the new hooks. The review at SDK `e64e766`
 and application `bde1e83b` found those controls gated on closure instead; the
 updated contracts reject changes at the repayment date. Those downstream edits
