@@ -14,10 +14,6 @@ exact Yul sequence pinned in [`foundry.toml`](../foundry.toml). The suite
 includes the market and hook artifact limits and the real factory deployment
 matrix. Keep those checks enabled when changing compiler settings.
 
-This suite replaced a frozen, inheritance-heavy oracle after a
-property-by-property review. The migration evidence remains in Git history.
-Parity tooling is not ongoing infrastructure.
-
 ## Commands
 
 ```sh
@@ -33,9 +29,6 @@ FOUNDRY_PROFILE=deploy forge test
 # Focused coverage (see Coverage boundary for limits)
 FOUNDRY_TEST=test/sanctions yarn coverage --match-contract SanctionsTest
 ```
-
-At the V2.5 cutover, the canonical run contained 682 tests across 46 suites.
-Those counts are a historical baseline, not a growth limit.
 
 ## Structure
 
@@ -53,7 +46,7 @@ Those counts are a historical baseline, not a growth limit.
 - `mocks/` and `shared/`: Capability-sized fixtures and test-only
   infrastructure. No test entry points.
 
-## Maintenance rules
+## Adding and changing tests
 
 - Put `test*` and `invariant*` entry points only on concrete domain suites.
   Shared behavior belongs in internal scenario or assertion helpers. Do not
@@ -72,11 +65,11 @@ Those counts are a historical baseline, not a growth limit.
 
 ## Lifecycle and deployment coverage
 
-The original market matrix retains its ordinary-market properties. Separate
-repayment and penalty campaigns check inclusive cutoffs, observed-funding
-history, cure/reset behavior, closure and final withdrawal allocation against
-independent models. Keep the original assertions and the configured run/depth
-budgets when changing lifecycle code.
+The market matrix checks ordinary-market properties. Separate repayment and
+penalty campaigns check inclusive cutoffs, observed-funding history, cure/reset
+behavior, closure and final withdrawal allocation against independent models.
+Preserve the assertions and configured run/depth budgets when changing lifecycle
+code.
 
 `LifecycleFixture` deploys the complete `LifecycleHandler` through `_deployCode`.
 This runs its real constructor without embedding the handler's creation code in
@@ -128,63 +121,37 @@ Whole-suite accurate coverage is not supported. The 2026-10-05 check found:
 - A whole-suite `--ir-minimum` attempt also failed with a Yul stack error. That
   mode additionally warns about inaccurate source maps.
 
-The refreshed SphereX patch passed application and restoration checks on
-successful and failed runs. Coverage for `SphereXProtectedRegisteredBase`
-refers to its temporarily patched source and bytecode, not a deployment build.
+Coverage for `SphereXProtectedRegisteredBase` uses its temporarily patched
+source and bytecode. The patch is only for coverage; deployment builds use the
+original source.
 
 This does not affect the default via-IR build, canonical tests, invariants, or
 deployment-profile tests. Foundry may still print a non-fatal
 `unresolved symbol locals` diagnostic for the SphereX modifier during normal
 compilation.
 
-## Review checkpoint: 2026-10-05
+## Static analysis
 
-The [test review receipt](../docs/releases/test-review-2026-10-05.json) pins
-source `8ae329c5519aede7aeabd7a51082e79cb227396e`, tool versions, commands,
-coverage inputs and results. It records a local test baseline, not a deployment
-or audit attestation.
+Use the qualified
+[Slither function-library-resolution fork](https://github.com/wildcat-finance/slither/tree/fix/function-library-resolution)
+and its qualification instructions. Pin the runtime revision: the qualified
+fork and an unpatched installation can both report version `0.11.6`.
 
-- A forced fixed-seed run passed 958 reported tests across 87 suites. Compilation
-  took 288.33 seconds; total wall time was 442.89 seconds. The three stateful
-  campaigns each completed 2,000 runs and 60,000 calls without handler reverts.
-  Forge groups the market matrix's nine invariant properties into one campaign;
-  the source contains 955 test functions and 11 invariant properties.
-- No inherited test entry points or entry points in shared fixtures were found.
-  Test-side creation bytecode totals 2,539,755 bytes. The deepest fixture chain
-  has five ancestors; it composes lifecycle capabilities rather than inheriting
-  test functions. Direct creation of the large lifecycle handler in four suites
-  was identified as a compile-cost candidate.
-- Fourteen tests combined warps with direct `block.timestamp` reads. They passed
-  this run, but did not follow the time-read rule above.
-- Six complete test families and 31 additional individual-file runs produced
-  usable coverage. Their union is partial: missing factory and lifecycle
-  instrumentation must not be presented as a whole-protocol percentage or as
-  proof those behaviors have no tests.
-- The qualified Slither fork is distinct from an unpatched global installation,
-  even though both report version 0.11.6. Use the
-  [function-library-resolution fork](https://github.com/wildcat-finance/slither/tree/fix/function-library-resolution)
-  and its qualification instructions; pin the runtime revision, not only the
-  version string. The parser, SlithIR and SSA check passed with partial analysis
-  disabled and assembly included. Security detectors were not run or triaged.
+## Recorded results
 
-The earlier three-to-four-minute baseline used a smaller suite, different
-compiler settings and a different CPU. These measurements do not establish a
-like-for-like performance regression.
+The [2026-10-05 test review](../docs/releases/test-review-2026-10-05.json)
+records source identities, tool versions, commands, coverage inputs, and
+results. Its `maintenanceFollowUp` section records the timestamp-read cleanup
+and artifact-based lifecycle fixture deployment, including their verification.
 
-### Maintenance follow-up
+That follow-up passed 958 reported tests across 87 suites. Each of the three
+stateful campaigns completed 2,000 runs and 60,000 calls without handler
+reverts. Forge groups the market matrix's nine invariant properties into one
+campaign; the source contained 955 test functions and 11 invariant properties.
+Compilation took 261.27 seconds and the full run took 414.02 seconds on the
+recorded machine.
 
-The receipt's `maintenanceFollowUp` section pins the subsequent test changes by
-file hash and records their checks. All 14 flagged tests now use
-`vm.getBlockTimestamp()`, as do two additional setup/helper cases found by
-extending the scan beyond test entry points. No function body in that scan
-still combines a direct timestamp read with a time-warp call.
-
-Artifact deployment removed 228,451 bytes of repeated creation code across the
-four lifecycle suites. The handler, reference model and all 129 production
-artifacts kept identical creation/runtime bytecode and ABI. The full run again
-passed 958 reported tests across 87 suites, with unchanged invariant budgets
-and per-action call counts. Compilation took 261.27 seconds; total wall time was
-414.02 seconds. The 15 affected test entry points also passed with Foundry's
-default initial timestamp of 1, including the setup branch that advances an
-early clock. The baseline coverage figures above were not refreshed by this
-maintenance run.
+The receipt's coverage results cover six test families and 31 individual-file
+runs. They are partial and predate the maintenance follow-up. The Slither
+result covers parser, SlithIR, and SSA compatibility; security detectors were
+not run or triaged. Use each result with its recorded source and toolchain.

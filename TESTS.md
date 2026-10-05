@@ -21,6 +21,11 @@ FOUNDRY_PROFILE=deploy forge test
 - `FOUNDRY_PROFILE=deploy forge test` runs the same suite with the deployment
   artifact settings.
 
+[`foundry.toml`](./foundry.toml) pins Solidity `0.8.25`, Cancun, via-IR,
+optimizer runs `1`, and the exact Yul optimizer sequence. Normal builds, tests,
+and the `deploy` profile share these settings. The market runtime-size tests
+enforce the deployment limit under that configuration.
+
 The configuration explicitly enables call isolation and dynamic test linking,
 the defaults adopted with Foundry 1.8.3. Isolation gives top-level test calls
 separate transaction contexts, so gas comparisons must preserve that setting
@@ -39,8 +44,8 @@ split storage.
 Install the locked root and deployment-UI JavaScript dependencies, then run:
 
 ```sh
-yarn install --frozen-lockfile
-npm --prefix deploy-ui ci
+yarn install --frozen-lockfile --ignore-scripts
+npm --prefix deploy-ui ci --ignore-scripts
 node --test scripts/__tests__/*.test.js
 npm --prefix deploy-ui test
 npm --prefix deploy-ui run build
