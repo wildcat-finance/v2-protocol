@@ -1,0 +1,118 @@
+{
+  "deploy-wildcat-4626-wrapper-factory": {
+    "txHash": "0x434d7cd3f69409ac5dc84b671c040b5aa095ab11be1c6d277ae8d9d20197b66e",
+    "blockNumber": 11845719,
+    "status": "verified",
+    "resolvedAddress": "0xCf2338947eeE38b7D82E187698339B3E67E67CBf"
+  },
+  "deploy-wildcat-market-init-code-storage-secondary": {
+    "txHash": "0x07f39064b6e4242acb14b94aff6bdff56be417d91d0dbb58c6a815aa7ba3f6c2",
+    "blockNumber": 11845721,
+    "status": "verified",
+    "resolvedAddress": "0x40b1dBB804f168deDC287a0CDeeD0ecd847Bf622"
+  },
+  "deploy-wildcat-market-init-code-storage": {
+    "txHash": "0x6cf6f6985e7af640b9ff95167c9ea66a244cd6f54267ce344a4e07cf3fccf87d",
+    "blockNumber": 11845722,
+    "status": "verified",
+    "resolvedAddress": "0xd29800D2C11ffe2B63Ac87eBa5A349857f9F3f5d"
+  },
+  "deploy-hooks-factory-standard": {
+    "txHash": "0x9a19807d6ca8ebb2be1a5f476889fe6333f640ecdc2d3ea4040da76d3e4414ae",
+    "blockNumber": 11845725,
+    "status": "verified",
+    "resolvedAddress": "0xae525051d16912D13b63eCa01f52ADF576FC4380"
+  },
+  "deploy-wildcat-market-revolving-init-code-storage-secondary": {
+    "txHash": "0x201476d87995c5caa155dc9e1294772e6cd8b6af226e1a66c08eabf434091c75",
+    "blockNumber": 11845728,
+    "status": "verified",
+    "resolvedAddress": "0xbf9b49b78aC2C7607452a0Bca63e3152d20C897e"
+  },
+  "deploy-wildcat-market-revolving-init-code-storage": {
+    "txHash": "0x82278e55e7550fbd07f9e5f75206cabb42e6fdccc2e401ad9dfaa951ea807c4e",
+    "blockNumber": 11845731,
+    "status": "verified",
+    "resolvedAddress": "0x0354625e8A6e954B0125B874bF54AE72a49b6785"
+  },
+  "deploy-hooks-factory-revolving": {
+    "txHash": "0xa29ef24aa94c7dd1d06acd8fda728266fef3da80db4a47b4ac84dcefb5556ba8",
+    "blockNumber": 11845732,
+    "status": "verified",
+    "resolvedAddress": "0x2f0E18ae9134cD16b7Ec0C63cC4B11B38eAdB2aF"
+  },
+  "deploy-market-lens-core": {
+    "txHash": "0xf31bf0578e7944734b0f0dc618d1c42c5b4ac33c654c6397b5b51d71cf6800ef",
+    "blockNumber": 11845734,
+    "status": "verified",
+    "resolvedAddress": "0x0e2Ade5A31c496a2f2CDbC71671e2c702b0b86B9"
+  },
+  "deploy-market-lens-aggregator": {
+    "txHash": "0x3dc78fb474c30c3d42cfcaa10cedc53292405fa34b8cd32ce40d3e2d11fda79d",
+    "blockNumber": 11845737,
+    "status": "verified",
+    "resolvedAddress": "0x69Dd2dBC5DC8305b91d2C2Ee6B739D3A3ddaBD82"
+  },
+  "deploy-market-lens-live": {
+    "txHash": "0x5ed980a1a4ee815b0d5e399d388ef115195e7b7ca95f36da37955cf322d67279",
+    "blockNumber": 11845739,
+    "status": "verified",
+    "resolvedAddress": "0xDb5fEB994a480873aC9d48BA4fEC0F1684591960"
+  },
+  "deploy-market-lens": {
+    "txHash": "0x8d5747d2f60c8834c498e29241a5b0d6d4287fa4806d76829ef2a6643ffa8e80",
+    "blockNumber": 11845740,
+    "status": "verified",
+    "resolvedAddress": "0x947bB3F6D12eB6225595836D831908F10700B11b"
+  },
+  "register-controller-factory-standard": {
+    "txHash": "0x30458a7f9216b1a28aacd9163f2afe83eb3e9291ebc36f18f4b61d5291df4557",
+    "blockNumber": 11845741,
+    "status": "verified"
+  },
+  "register-controller-factory-revolving": {
+    "txHash": "0xbaeab5e12cff4a35b770202da824ab9e0135517f6b8c63673f52a58c3260a6af",
+    "blockNumber": 11845742,
+    "status": "verified"
+  },
+  "add-standard-open-term-template": {
+    "txHash": "0x650b3079e91ff92162015ee22cb7b9d4bd5ed82187b934a7c19de79b51d44023",
+    "blockNumber": 11845743,
+    "status": "verified"
+  },
+  "add-standard-fixed-term-template": {
+    "txHash": "0x273e5921113862d73350de1867200aae1025c43733eff88dc2c6ef717ded0b13",
+    "blockNumber": 11845746,
+    "status": "verified"
+  },
+  "add-standard-periodic-term-template": {
+    "txHash": "0xfc66504047019da7585ef4f38ef181918e223d482b984d3147aff4414f84d67a",
+    "blockNumber": 11845747,
+    "status": "verified"
+  },
+  "add-revolving-open-term-template": {
+    "txHash": "0xed3fdbe79ef992b567c61e101e41f013538477e115b406b2005fb9c8a1740ba0",
+    "blockNumber": 11845749,
+    "status": "verified"
+  },
+  "add-revolving-fixed-term-template": {
+    "txHash": "0x159d158cba21fdf920f5ddb1f37f36d0b3b5fd43b984a991f34374c94c7ed6ba",
+    "blockNumber": 11845752,
+    "status": "verified"
+  },
+  "add-revolving-periodic-term-template": {
+    "txHash": "0x1f123e67cb33cc6aa1bb759fea5ede0bb8a7c2ddd88a9cdb55c095d29793f88a",
+    "blockNumber": 11845753,
+    "status": "verified"
+  },
+  "register-hooks-factory-standard": {
+    "txHash": "0x3731b3285a0b28f4f17cd1c05361ff80ef54a7105fd939d7ba609751e0143f48",
+    "blockNumber": 11845755,
+    "status": "verified"
+  },
+  "register-hooks-factory-revolving": {
+    "txHash": "0x5d593a1c6f302c9c77191b3d68ff85127516cec2e49ca83d48ad24c7e2037df4",
+    "blockNumber": 11845756,
+    "status": "verified"
+  }
+}

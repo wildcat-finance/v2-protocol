@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "1.0.0",
+  "release": "v2.5.7",
+  "protocolVersion": "2.5.7",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "targetRelease": "v2.5.7",
+  "targetNetwork": "sepolia",
+  "targetChainId": 11155111,
+  "rehearsal": false,
+  "verifiedAt": "2026-10-05T01:28:24.000Z",
+  "blockNumber": 11845761,
+  "blockHash": "0xe6f1ce5a6bbe2630a288bb0f25b5d700db6fdd48e7623690d15db963adf533a2",
+  "status": "green",
+  "activationScope": "factories",
+  "authority": {
+    "policy": "fixed",
+    "archController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+    "owner": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "helper": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "helperVersion": "2",
+    "helperArchController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+    "authorizedAccounts": [
+      "0xca732651410E915090d7A7D889A1E44eF4575fcE",
+      "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7"
+    ],
+    "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "executorAuthorized": true,
+    "sphereXEngine": "0xCc65C2Ad8ab5b5c63489cfC77F782175E0c6A36e",
+    "sphereXAdmin": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "sphereXOperator": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "pendingSphereXAdmin": "0x0000000000000000000000000000000000000000",
+    "engineDefaultAdmin": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "pendingEngineDefaultAdmin": "0x0000000000000000000000000000000000000000",
+    "pendingEngineDefaultAdminAt": 0
+  },
+  "authorityChanged": false,
+  "wrapperFactory": "0xCf2338947eeE38b7D82E187698339B3E67E67CBf",
+  "factories": [
+    {
+      "marketType": "standard",
+      "address": "0xae525051d16912D13b63eCa01f52ADF576FC4380",
+      "controllerFactoryRegistered": true,
+      "controllerRegistered": true,
+      "wrapperFactory": "0xCf2338947eeE38b7D82E187698339B3E67E67CBf",
+      "marketInitCodeStorage": "0xd29800D2C11ffe2B63Ac87eBa5A349857f9F3f5d",
+      "marketInitCodeHash": "0x862def20c98541e87c21991c007c4dc715d4f571b10e3c22144569f9574e69d2",
+      "borrowerIdentityRegistry": "0xc2cF90781595203D1e75c28246b306C95d4b8b21",
+      "templates": [
+        {
+          "address": "0xBcA425d384Da256040779DF532B6D2E8d3B3f1aD",
+          "name": "OpenTermHooks",
+          "initCodeHash": "0x7aa5821f066c7b214a897bf924f075bcdf2cf1c8f448738693fa6eb7196d47e7"
+        },
+        {
+          "address": "0xa3FE06137cc893E19C2E4764a4A7b001E988ba2B",
+          "name": "FixedTermHooks",
+          "initCodeHash": "0xc84345608dc62e011e09889635a2d216df92a6d3eec3af80228f6cf7325ad2cf"
+        },
+        {
+          "address": "0x79DA352868305d37D0179f460Ded88886D4eE524",
+          "name": "PeriodicTermHooks",
+          "initCodeHash": "0x6a32d584a2424d69b1a9640922947f8c8a5eac1ca29c1a6c0ef0d34f54a55b65"
+        }
+      ]
+    },
+    {
+      "marketType": "revolving",
+      "address": "0x2f0E18ae9134cD16b7Ec0C63cC4B11B38eAdB2aF",
+      "controllerFactoryRegistered": true,
+      "controllerRegistered": true,
+      "wrapperFactory": "0xCf2338947eeE38b7D82E187698339B3E67E67CBf",
+      "marketInitCodeStorage": "0x0354625e8A6e954B0125B874bF54AE72a49b6785",
+      "marketInitCodeHash": "0xa36b90ff2e454d04c13a4c4aed577a7218f9500613b1b51533847df84f7b74de",
+      "borrowerIdentityRegistry": "0xc2cF90781595203D1e75c28246b306C95d4b8b21",
+      "templates": [
+        {
+          "address": "0xBcA425d384Da256040779DF532B6D2E8d3B3f1aD",
+          "name": "OpenTermHooks",
+          "initCodeHash": "0x7aa5821f066c7b214a897bf924f075bcdf2cf1c8f448738693fa6eb7196d47e7"
+        },
+        {
+          "address": "0xa3FE06137cc893E19C2E4764a4A7b001E988ba2B",
+          "name": "FixedTermHooks",
+          "initCodeHash": "0xc84345608dc62e011e09889635a2d216df92a6d3eec3af80228f6cf7325ad2cf"
+        },
+        {
+          "address": "0x79DA352868305d37D0179f460Ded88886D4eE524",
+          "name": "PeriodicTermHooks",
+          "initCodeHash": "0x6a32d584a2424d69b1a9640922947f8c8a5eac1ca29c1a6c0ef0d34f54a55b65"
+        }
+      ]
+    }
+  ],
+  "lenses": [
+    {
+      "name": "market-lens-core",
+      "address": "0x0e2Ade5A31c496a2f2CDbC71671e2c702b0b86B9",
+      "hooksFactory": "0xae525051d16912D13b63eCa01f52ADF576FC4380"
+    },
+    {
+      "name": "market-lens-aggregator",
+      "address": "0x69Dd2dBC5DC8305b91d2C2Ee6B739D3A3ddaBD82",
+      "hooksFactory": "0xae525051d16912D13b63eCa01f52ADF576FC4380"
+    },
+    {
+      "name": "market-lens-live",
+      "address": "0xDb5fEB994a480873aC9d48BA4fEC0F1684591960",
+      "hooksFactory": "0xae525051d16912D13b63eCa01f52ADF576FC4380"
+    },
+    {
+      "name": "market-lens",
+      "address": "0x947bB3F6D12eB6225595836D831908F10700B11b",
+      "hooksFactory": "0xae525051d16912D13b63eCa01f52ADF576FC4380",
+      "coreHelper": "0x0e2Ade5A31c496a2f2CDbC71671e2c702b0b86B9",
+      "aggregationHelper": "0x69Dd2dBC5DC8305b91d2C2Ee6B739D3A3ddaBD82",
+      "liveHelper": "0xDb5fEB994a480873aC9d48BA4fEC0F1684591960"
+    }
+  ],
+  "predecessorsRemainRegistered": true,
+  "retirementExecuted": false
+}
