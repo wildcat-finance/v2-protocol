@@ -52,7 +52,7 @@ function requireArtifactHash(hash, label) {
   return hash.toLowerCase();
 }
 
-function assertActivationTemplateCommitments(plan) {
+function assertActivationTemplateCommitments(plan, reusedDeployments = new Map()) {
   const transactions = plan.transactions;
   const logicalCall = (transaction) =>
     transaction.forwardedCall || {
@@ -79,10 +79,13 @@ function assertActivationTemplateCommitments(plan) {
       const call = logicalCall(transaction);
       const storeOutput = `${term}-hooks-init-code-storage`;
       const factoryOutput = `hooks-factory-${factory}`;
+      const reused = reusedDeployments.get(storeOutput);
+      const matchesStore = (value) => reused
+        ? value === reused.address : value?.$ref === storeOutput;
       if (
         call.target?.$ref !== factoryOutput ||
         call.args?.length !== 7 ||
-        call.args[0]?.$ref !== storeOutput ||
+        !matchesStore(call.args[0]) ||
         call.args[1] !== name
       ) {
         throw new Error(
@@ -91,11 +94,14 @@ function assertActivationTemplateCommitments(plan) {
       }
       const expectedHash = requireArtifactHash(call.args[6], id);
       const store = transactions.find((entry) => entry.output === storeOutput);
+      if (reused && (store || requireArtifactHash(reused.initCodeHash, storeOutput) !== expectedHash)) {
+        throw new Error(`${id}: reused storage address or artifact hash does not match`);
+      }
       if (
-        !["codeHash", "splitCodeHash"].includes(store?.predicate?.type) ||
+        !reused && (!["codeHash", "splitCodeHash"].includes(store?.predicate?.type) ||
         store.predicate.target?.$ref !== storeOutput ||
         requireArtifactHash(store.predicate.initCodeHash, storeOutput) !==
-          expectedHash
+          expectedHash)
       ) {
         throw new Error(
           `${id}: registration and storage artifact hashes do not match`
@@ -107,7 +113,7 @@ function assertActivationTemplateCommitments(plan) {
         predicate.target?.$ref !== factoryOutput ||
         predicate.call?.sig !== HASH_GETTER ||
         predicate.call.args?.length !== 1 ||
-        predicate.call.args[0]?.$ref !== storeOutput ||
+        !matchesStore(predicate.call.args[0]) ||
         requireArtifactHash(predicate.expect, `${id} predicate`) !==
           expectedHash
       ) {

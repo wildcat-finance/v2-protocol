@@ -454,7 +454,7 @@ contract PeriodicTermHooksTest is TestKernel {
     _createMarket(hooks, MarketA, _requestedConfig(hooks, true, true, true), _hooksData());
     _addPullProvider(hooks);
     vm.prank(address(provider1));
-    hooks.grantRole(Lender, uint32(block.timestamp));
+    hooks.grantRole(Lender, uint32(vm.getBlockTimestamp()));
     MarketState memory state;
     vm.prank(MarketA);
     hooks.onDeposit(Lender, 1, state, '');

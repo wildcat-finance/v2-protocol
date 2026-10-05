@@ -68,6 +68,12 @@ underfunded, its funding check prevents APR updates; once fully funded,
 automatic closure prevents them. Scheduled repayment does not restart an
 existing penalty run or give an already defaulted market another grace period.
 
+The supplied hook templates also freeze maximum supply, minimum deposit,
+fixed-term maturity changes, and new periodic APR-reduction proposals from an
+enabled repayment date. These checks use the date directly and need no prior
+market state update. Markets without repayment terms retain their existing
+parameter-change rules.
+
 ## Funding and the inclusive deadline
 
 Full funding means underlying assets cover `totalDebts()`. That getter combines

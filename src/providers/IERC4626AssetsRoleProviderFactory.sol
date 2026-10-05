@@ -15,7 +15,7 @@ pragma solidity 0.8.25;
 
 import '../access/IRoleProviderFactory.sol';
 
-/// @notice function Object() { [native code] } and CREATE2 inputs for an ERC4626 asset-value provider.
+/// @notice constructor and CREATE2 inputs for an ERC4626 asset-value provider.
 ///
 /// @param vault     contract queried for share balances and asset conversion.
 /// @param minAssets nonzero threshold in underlying-asset base units.

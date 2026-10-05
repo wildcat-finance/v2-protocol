@@ -13,7 +13,7 @@ import {
 import miniPlanJson from '../../../../scripts/__fixtures__/plan/mini-plan.json'
 import { buildPlanPayload } from '../planEncoding'
 import { evaluatePredicate, resolveReferences } from '../predicates'
-import { PlanExecutor } from '../planExecutor'
+import { PlanExecutor, REVERIFY_CONCURRENCY } from '../planExecutor'
 import {
   MemoryProgressStore,
   outputsFromRunState,
@@ -570,5 +570,46 @@ describe('fixture-driven engine semantics', () => {
     }
     const engine = new PlanExecutor(plan, transport, new MemoryProgressStore(state))
     await expect(engine.resume()).rejects.toThrow('Run state is non-contiguous')
+  })
+
+  it('rechecks completed steps concurrently and halts on the earliest failure in plan order', async () => {
+    const targets = Array.from({ length: 8 }, (_, index) =>
+      getAddress(`0x${(index + 1).toString(16).padStart(40, '0')}`),
+    )
+    const candidate = structuredClone(plan)
+    candidate.transactions = targets.map((target, index) => ({
+      ...structuredClone(plan.transactions[0]),
+      id: `check-${index}`,
+      predicate: { type: 'codePresent', target },
+    }))
+    const state: RunState = Object.fromEntries(
+      candidate.transactions.map((transaction) => [
+        transaction.id,
+        { txHash: `0x${'ab'.repeat(32)}` as Hex, status: 'verified' as const },
+      ]),
+    )
+    class SlowTransport extends FakeTransport {
+      inFlight = 0
+      peak = 0
+      async getCode(address: Address) {
+        this.inFlight += 1
+        this.peak = Math.max(this.peak, this.inFlight)
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        this.inFlight -= 1
+        return super.getCode(address)
+      }
+    }
+    const transport = new SlowTransport()
+    for (const target of targets) transport.code.set(target.toLowerCase(), '0x6000')
+
+    const resumed = new PlanExecutor(candidate, transport, new MemoryProgressStore(state))
+    expect(await resumed.resume()).toBe(targets.length)
+    expect(transport.peak).toBeGreaterThan(1)
+    expect(transport.peak).toBeLessThanOrEqual(REVERIFY_CONCURRENCY)
+
+    transport.code.delete(targets[5].toLowerCase())
+    transport.code.delete(targets[2].toLowerCase())
+    const halted = new PlanExecutor(candidate, transport, new MemoryProgressStore(state))
+    await expect(halted.resume()).rejects.toThrow('prior predicate failed for check-2')
   })
 })

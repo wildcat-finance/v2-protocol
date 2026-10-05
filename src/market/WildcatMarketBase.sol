@@ -1052,7 +1052,8 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ _onCloseMarket ─────
-  /// @dev derived-market accounting hook after closure fully funds debt and queued withdrawals.
+  /// @dev derived-market accounting hook after closure with all debt backed. automatic closure
+  ///      can leave older withdrawal batches to be funded in later bounded calls.
   function _onCloseMarket() internal virtual { }
 
   // ░░▒▒▓▓██ [ STATE PERSISTENCE ] ────────────────────────────────────────────

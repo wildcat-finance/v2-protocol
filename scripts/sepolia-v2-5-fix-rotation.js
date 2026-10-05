@@ -2,12 +2,14 @@
 
 const fs = require("fs");
 const path = require("path");
+const { createHash } = require("crypto");
 const { execFileSync, spawnSync } = require("child_process");
 const { Contract, JsonRpcProvider, getAddress, keccak256 } = require("ethers");
 
 process.env.FOUNDRY_PROFILE = "deploy";
 
 const { validatePlan } = require("./plan");
+const { loadReusedDeployments } = require("./reused-deployments");
 const { ROLE_PROVIDER_FACTORIES } = require("./role-provider-factories");
 const ACCESS_LIST_FACTORY = ROLE_PROVIDER_FACTORIES.find(
   ({ providerKind }) => providerKind === "ACCESS_LIST"
@@ -201,6 +203,8 @@ function usage() {
   node scripts/sepolia-v2-5-fix-rotation.js verify-activation
     --run-state <path> [--rehearsal] [--plan <path>]
     [--preflight <path>] [--rpc-url <url>] [--out <path>]
+  node scripts/sepolia-v2-5-fix-rotation.js finalize-template-update
+    --run-state <path> --preflight <path> [--rpc-url <url>] [--output-dir <path>]
 
 All commands accept --config <path> or SEPOLIA_REPLACEMENT_CONFIG.
 All commands are read-only with respect to Sepolia. generate writes local plan
@@ -264,7 +268,8 @@ function config() {
     value.expectedExecutor,
     ...Object.values(value.authority),
     ...Object.values(value.reused),
-    ...Object.values(value.superseded),
+    ...Object.values(existingBindings(value)),
+    ...Object.values(value.previousTemplates || {}),
     value.templateFees.feeRecipient,
     value.templateFees.originationFeeAsset,
     ...value.retirementTargets,
@@ -293,7 +298,117 @@ function config() {
     );
     assertEqual(value.release, `v${protocolVersion}`, "Release label");
   }
+  if (value.activationScope !== undefined && !isTemplateUpdate(value)) {
+    throw new Error("Unknown activation scope");
+  }
+  if (isTemplateUpdate(value)) {
+    if (!isCurrentCeremony(value) || !/^v\d+\.\d+\.\d+$/.test(value.baseRelease) ||
+        !/^[0-9a-f]{40}$/.test(value.inventoryBaselineCommit)) {
+      throw new Error("Template update requires a pinned base release");
+    }
+    assertEqual(Object.keys(value.previousTemplates),
+      ["OpenTermHooks", "FixedTermHooks", "PeriodicTermHooks"], "Previous templates");
+  }
+  if (value.reusedDeployments && (!isCurrentCeremony(value) || isTemplateUpdate(value))) {
+    throw new Error("Deployment reuse requires a current factory activation");
+  }
+  loadReusedDeployments(value);
   return { ...value, protocolVersion };
+}
+
+function isTemplateUpdate(rotation) {
+  return rotation.activationScope === "templates";
+}
+
+function existingBindings(rotation) {
+  return rotation.existing || rotation.superseded;
+}
+
+function baselineJson(rotation, name) {
+  return JSON.parse(git("show", `${rotation.inventoryBaselineCommit}:deployments/sepolia/${name}`));
+}
+
+function templateReuseOutputs(rotation) {
+  return new Map([
+    ["hooks-factory-standard", rotation.existing.standardHooksFactory],
+    ["hooks-factory-revolving", rotation.existing.revolvingHooksFactory],
+    ["wildcat-4626-wrapper-factory", rotation.existing.wrapperFactory],
+    ["wildcat-market-init-code-storage", rotation.reused.standardMarketInitCodeStorage],
+    ["wildcat-market-revolving-init-code-storage", rotation.reused.revolvingMarketInitCodeStorage],
+    ["market-lens", rotation.reused.marketLens],
+    ["market-lens-core", rotation.reused.marketLensCore],
+    ["market-lens-aggregator", rotation.reused.marketLensAggregator],
+    ["market-lens-live", rotation.reused.marketLensLive],
+    ["access-list-role-provider-factory", rotation.reused.accessListRoleProviderFactory],
+  ]);
+}
+
+function assertTemplateBaseline(rotation, artifacts) {
+  const baseline = baselineJson(rotation, `handoff-${rotation.baseRelease}.json`);
+  const oldPlan = baselineJson(rotation, `plan-${rotation.baseRelease}.json`);
+  const deployed = baselineJson(rotation, "deployments.json");
+  const current = readJson(path.join(REPO_ROOT, "deployments/sepolia/deployments.json"));
+  assertEqual(readJson(path.join(REPO_ROOT, "deployments/sepolia/factory-inventory.json")),
+    baselineJson(rotation, "factory-inventory.json"), "Unchanged factory inventory");
+  for (const [output, address] of templateReuseOutputs(rotation)) {
+    const entry = oldPlan.transactions.find((entry) => entry.output === output);
+    const artifact = Object.values(artifacts).find((artifact) =>
+      artifact.previousId === entry?.id || artifact.output === output);
+    if (!artifact) throw new Error(`Missing reused artifact for ${output}`);
+    const key = artifact.storedInitCode ? `${artifact.contract}_initCodeStorage` : artifact.contract;
+    const record = baseline.releaseContracts.find((record) =>
+      record.deploymentKey === `${key}_${rotation.baseRelease}`);
+    if (!entry || !record || record.address !== address || !record.deployTxHash) {
+      throw new Error(`Reused ${output} is absent from the receipt-backed baseline`);
+    }
+    assertEqual(artifact.storedInitCode ? keccak256(artifact.bytecode) : artifact.bytecode,
+      artifact.storedInitCode ? entry.predicate.initCodeHash : entry.initCode,
+      `${output} bytecode differs from baseline`);
+  }
+  assertEqual(rotation.reused.borrowerIdentityRegistry, deployed.WildcatBorrowerIdentityRegistry,
+    "Reused borrower identity registry");
+  assertEqual(rotation.reused.v1WrapperFactory, baseline.routing.wrapper4626.v1Factory,
+    "Reused V1 wrapper factory");
+  for (const key of ["HooksFactory", "HooksFactoryRevolving", "Wildcat4626WrapperFactory",
+    "WildcatBorrowerIdentityRegistry", "AccessListRoleProviderFactory", "MarketLens"]) {
+    assertEqual(current[key], deployed[key], `${key} baseline alias`);
+  }
+  for (const [name, address] of Object.entries(rotation.previousTemplates)) {
+    assertEqual(address, deployed[`${name}_initCodeStorage_${rotation.baseRelease}`], `${name} baseline template`);
+  }
+}
+
+function assertReusedArtifacts(rotation, artifacts) {
+  const reused = loadReusedDeployments(rotation);
+  if (reused.size) {
+    const baseline = baselineJson(rotation, "deployments.json");
+    const current = readJson(path.join(REPO_ROOT, "deployments/sepolia/deployments.json"));
+    assertEqual(readJson(path.join(REPO_ROOT, "deployments/sepolia/factory-inventory.json")),
+      baselineJson(rotation, "factory-inventory.json"), "Unchanged baseline factory inventory");
+    for (const [name, key] of [["standardHooksFactory", "HooksFactory"],
+      ["revolvingHooksFactory", "HooksFactoryRevolving"], ["wrapperFactory", "Wildcat4626WrapperFactory"]]) {
+      assertEqual(existingBindings(rotation)[name], baseline[key], `${name} predecessor baseline`);
+      assertEqual(current[key], baseline[key], `${key} baseline alias`);
+    }
+    assertEqual(rotation.reused.borrowerIdentityRegistry, baseline.WildcatBorrowerIdentityRegistry,
+      "Reused borrower identity registry baseline");
+    for (const record of reused.values()) {
+      const key = record.provenance.deploymentKey.replace(/_v\d+\.\d+\.\d+$/, "");
+      assertEqual(record.address, baseline[key], `${key} reused baseline alias`);
+      assertEqual(current[key], baseline[key], `${key} baseline alias`);
+    }
+  }
+  for (const [output, record] of reused) {
+    const artifact = Object.values(artifacts).find((value) =>
+      value.output === output || value.previousId === `deploy-${output}`);
+    if (!artifact) throw new Error(`Missing reused artifact for ${output}`);
+    assertEqual(artifact.bytecode, record.bytecode, `${output} bytecode differs from baseline`);
+    if (!record.initCodeHash) {
+      assertEqual(keccak256(artifact.artifact.deployedBytecode.object), record.runtimeCodeHash,
+        `${output} runtime differs from baseline`);
+    }
+  }
+  return reused;
 }
 
 function isCurrentCeremony(rotation) {
@@ -840,7 +955,18 @@ function buildEntries(rotation, artifacts) {
     throw new Error("Internal rotation entry order mismatch");
   }
   if (isCurrentCeremony(rotation)) {
-    return currentEntries(rotation, artifacts, entries);
+    const current = currentEntries(rotation, artifacts, entries);
+    if (isTemplateUpdate(rotation)) return templateUpdateEntries(rotation, current);
+    const reused = loadReusedDeployments(rotation);
+    const replaceReferences = (value) => {
+      if (value?.$ref && reused.has(value.$ref)) return reused.get(value.$ref).address;
+      if (Array.isArray(value)) return value.map(replaceReferences);
+      if (value && typeof value === "object") return Object.fromEntries(
+        Object.entries(value).map(([key, child]) => [key, replaceReferences(child)]));
+      return value;
+    };
+    const selected = current.filter((entry) => !reused.has(entry.output)).map(replaceReferences);
+    return selected.map((entry, index) => ({ ...entry, after: index ? [selected[index - 1].id] : [] }));
   }
   return entries;
 }
@@ -967,6 +1093,42 @@ function logicalCall(transaction) {
   );
 }
 
+function templateUpdateEntries(rotation, entries) {
+  const current = entries.filter((entry) =>
+    /^deploy-(open|fixed|periodic)-term-hooks-init-code-storage$/.test(entry.id) ||
+    entry.functionSignature?.startsWith("addHooksTemplate(")
+  );
+  for (const entry of current.filter(({ kind }) => kind === "call")) {
+    const marketType = entry.id.startsWith("add-standard-") ? "standard" : "revolving";
+    const factory = existingBindings(rotation)[`${marketType}HooksFactory`];
+    entry.to = factory;
+    entry.envelope.to = factory;
+    entry.predicate.target = factory;
+    entry.description = `Add ${rotation.release} ${entry.args[1]} to the existing ${marketType} factory.`;
+  }
+  for (const marketType of ["standard", "revolving"]) {
+    const factory = existingBindings(rotation)[`${marketType}HooksFactory`];
+    for (const [index, [name, address]] of Object.entries(rotation.previousTemplates).entries()) {
+      const term = ["open-term", "fixed-term", "periodic-term"][index];
+      const fees = rotation.templateFees;
+      current.push(call(rotation, {
+        id: `disable-${marketType}-${term}-template`,
+        to: factory,
+        signature: "disableHooksTemplate(address)",
+        args: [address],
+        description: `Disable the ${rotation.baseRelease} ${name} template on the ${marketType} factory after registering all updated templates. Existing hook instances remain usable.`,
+        predicate: callEq(factory,
+          "getHooksTemplateDetails(address) view returns ((address,uint80,uint16,bool,bool,uint24,address,string))",
+          [address], [fees.originationFeeAsset, fees.originationFeeAmount,
+            fees.protocolFeeBips, true, false, index, fees.feeRecipient, name]),
+      }));
+    }
+  }
+  return current.map((entry, index) => ({
+    ...entry, after: index ? [current[index - 1].id] : [],
+  }));
+}
+
 function assertEqual(actual, expected, context) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw new Error(`${context} mismatch`);
@@ -974,6 +1136,8 @@ function assertEqual(actual, expected, context) {
 }
 
 function assertRotationPlan(plan, rotation, artifacts) {
+  if (isTemplateUpdate(rotation)) assertTemplateBaseline(rotation, artifacts);
+  assertReusedArtifacts(rotation, artifacts);
   const generic = validatePlan(plan);
   if (!generic.ok) {
     throw new Error(
@@ -1058,6 +1222,7 @@ function assertRotationPlan(plan, rotation, artifacts) {
         "registerControllerFactory(address)",
         "addHooksTemplate(address,string,address,address,uint80,uint16)",
         "addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)",
+        "disableHooksTemplate(address)",
       ].includes(expected.functionSignature);
       if (mustForward) {
         if (
@@ -1134,7 +1299,13 @@ function writeImpactReport(rotation, artifacts) {
         protocolVersion: rotation.protocolVersion,
         contractSourceCommit: rotation.contractSourceCommit,
         status: "prepared-not-deployed",
+        ...(isTemplateUpdate(rotation) ? {
+          activationScope: "templates", baseRelease: rotation.baseRelease,
+          existing: rotation.existing, disabledTemplates: rotation.previousTemplates,
+        } : {}),
         reused: rotation.reused,
+        ...(rotation.reusedDeployments ? { reusedDeployments: Array.from(loadReusedDeployments(rotation).values(),
+          ({ bytecode, ...record }) => record) } : {}),
         authority: rotation.authority,
         authorityChanges: [],
         retirementTargets: [],
@@ -1395,6 +1566,11 @@ function buildInventoryPendingRecords(rotation, artifacts) {
       ),
     },
   ];
+  if (isTemplateUpdate(rotation)) {
+    return records.filter(({ value }) =>
+      Object.keys(rotation.previousTemplates).some((name) =>
+        value.deploymentKey === `${name}_initCodeStorage_${rotation.release}`));
+  }
   if (!isCurrentCeremony(rotation)) return records;
   records[1].value = {
     ...deployment(
@@ -1404,6 +1580,11 @@ function buildInventoryPendingRecords(rotation, artifacts) {
     ),
     providerKind: ACCESS_LIST_FACTORY.providerKind,
   };
+  for (const [output, reused] of loadReusedDeployments(rotation)) {
+    const record = records.find(({ value }) => value.address?.$ref === output);
+    if (!record) throw new Error(`Missing pending record for reused ${output}`);
+    Object.assign(record.value, { address: reused.address, reused: true, provenance: reused.provenance });
+  }
   const storageEntries = buildEntries(rotation, artifacts).filter(
     ({ predicate }) => predicate.type === "splitCodeHash"
   );
@@ -1552,7 +1733,7 @@ function generate() {
   console.log(
     `Sepolia v${rotation.protocolVersion} activation generated: ${
       entries.filter(({ kind }) => kind === "deploy").length
-    } deploys, 10 activation calls, 0 authority changes, 0 retirement calls`
+    } deploys, ${entries.filter(({ kind }) => kind === "call").length} calls, 0 authority changes, 0 factory retirements`
   );
 }
 
@@ -1784,6 +1965,8 @@ async function authoritySnapshot(provider, rotation) {
 async function preflight(args) {
   const rotation = config();
   assertContractSourceBoundary(rotation);
+  if (isTemplateUpdate(rotation)) assertTemplateBaseline(rotation, loadArtifacts(rotation));
+  const reusedDeployments = assertReusedArtifacts(rotation, loadArtifacts(rotation));
   const rehearsal = args.rehearsal === true;
   if (args.rehearsal !== undefined && !rehearsal) {
     throw new Error("--rehearsal does not take a value");
@@ -1818,12 +2001,16 @@ async function preflight(args) {
   const codeTargets = {
     ...rotation.authority,
     ...rotation.reused,
-    ...rotation.superseded,
+    ...existingBindings(rotation),
   };
   for (const [label, address] of Object.entries(codeTargets)) {
     if ((await provider.getCode(address)) === "0x") {
       throw new Error(`${label} has no code at ${address}`);
     }
+  }
+  for (const [output, record] of reusedDeployments) {
+    assertEqual(keccak256(await provider.getCode(record.address)), record.runtimeCodeHash,
+      `${output} deployed runtime differs from its pinned receipt-backed source`);
   }
 
   const factoryAbi = [
@@ -1833,10 +2020,13 @@ async function preflight(args) {
     "function borrowerIdentityRegistry() view returns (address)",
     "function getHooksTemplates() view returns (address[])",
     "function getHooksTemplateDetails(address) view returns ((address,uint80,uint16,bool,bool,uint24,address,string))",
+    "function getHooksTemplateInitCodeHash(address) view returns (bytes32)",
+    "function marketInitCodeHash() view returns (uint256)",
+    "function marketInitCodeStorage() view returns (address)",
   ];
   const factories = [
-    ["standard", rotation.superseded.standardHooksFactory],
-    ["revolving", rotation.superseded.revolvingHooksFactory],
+    ["standard", existingBindings(rotation).standardHooksFactory],
+    ["revolving", existingBindings(rotation).revolvingHooksFactory],
   ];
   const factoryState = [];
   for (const [marketType, address] of factories) {
@@ -1863,7 +2053,7 @@ async function preflight(args) {
     );
     sameAddress(
       await factory.wrapperFactory(),
-      rotation.superseded.wrapperFactory,
+      existingBindings(rotation).wrapperFactory,
       `${marketType} factory wrapper factory`
     );
     sameAddress(
@@ -1872,7 +2062,32 @@ async function preflight(args) {
       `${marketType} factory identity registry`
     );
     const templates = await factory.getHooksTemplates();
-    if (templates.length !== 3) {
+    if (isTemplateUpdate(rotation)) {
+      assertEqual(Array.from(templates, getAddress), Object.values(rotation.previousTemplates), `${marketType} baseline templates`);
+      const oldPlan = baselineJson(rotation, `plan-${rotation.baseRelease}.json`);
+      const marketEntry = oldPlan.transactions.find(({ output }) => output ===
+        `wildcat-market${marketType === "revolving" ? "-revolving" : ""}-init-code-storage`);
+      assertEqual((await factory.marketInitCodeHash()).toString(),
+        BigInt(marketEntry.predicate.initCodeHash).toString(), `${marketType} market commitment`);
+      sameAddress(await factory.marketInitCodeStorage(),
+        rotation.reused[`${marketType}MarketInitCodeStorage`], `${marketType} existing market store`);
+      for (const [index, template] of templates.entries()) {
+        const oldEntry = oldPlan.transactions.find(({ output }) => output ===
+          `${["open-term", "fixed-term", "periodic-term"][index]}-hooks-init-code-storage`);
+        assertEqual(await factory.getHooksTemplateInitCodeHash(template), oldEntry.predicate.initCodeHash,
+          `${marketType} baseline template commitment`);
+      }
+    }
+    const templateSource = rotation.reusedDeployments?.find((entry) =>
+      entry.output === "open-term-hooks-init-code-storage");
+    const baselineTemplates = templateSource
+      ? baselineJson(rotation, path.basename(templateSource.handoff)) : null;
+    if (baselineTemplates) {
+      assertEqual(Array.from(templates, getAddress), [
+        ...baselineTemplates.templates.map((entry) => entry.previousAddress),
+        ...baselineTemplates.templates.map((entry) => entry.address),
+      ], `${marketType} predecessor template history`);
+    } else if (templates.length !== 3) {
       throw new Error(
         `${marketType} predecessor has ${templates.length} templates`
       );
@@ -1894,7 +2109,8 @@ async function preflight(args) {
         Number(details[1]) !== rotation.templateFees.originationFeeAmount ||
         Number(details[2]) !== rotation.templateFees.protocolFeeBips ||
         details[3] !== true ||
-        details[4] !== true
+        details[4] !== (baselineTemplates ? baselineTemplates.templates.some((entry) =>
+          entry.address.toLowerCase() === template.toLowerCase()) : true)
       ) {
         throw new Error(
           `${marketType} ${template} fee or enabled state differs`
@@ -1905,7 +2121,11 @@ async function preflight(args) {
         name: details[7],
         feeRecipient: getAddress(details[6]),
         protocolFeeBips: Number(details[2]),
+        enabled: details[4],
       });
+      const reused = Array.from(reusedDeployments.values()).find((entry) => entry.address === getAddress(template));
+      if (reused?.initCodeHash) assertEqual(await factory.getHooksTemplateInitCodeHash(template),
+        reused.initCodeHash, `${marketType} reused template commitment`);
     }
     factoryState.push({
       marketType,
@@ -1917,7 +2137,7 @@ async function preflight(args) {
   }
 
   const wrapper = new Contract(
-    rotation.superseded.wrapperFactory,
+    existingBindings(rotation).wrapperFactory,
     [
       "function archController() view returns (address)",
       "function v1Factory() view returns (address)",
@@ -1954,6 +2174,7 @@ async function preflight(args) {
     blockNumber: block.number,
     blockHash: block.hash,
     status: "green",
+    activationScope: rotation.activationScope || "factories",
     authority: fixedAuthority,
     executor: {
       nonce: await provider.getTransactionCount(
@@ -1965,6 +2186,8 @@ async function preflight(args) {
       ).toString(),
     },
     factories: factoryState,
+    ...(reusedDeployments.size ? { reusedDeployments: Array.from(reusedDeployments.values(),
+      ({ bytecode, ...record }) => record) } : {}),
     authorityPolicy: rotation.authorityPolicy,
     noAuthorityRotation: true,
   };
@@ -2090,12 +2313,13 @@ async function verifyReplacementFactory({
   }
 
   const templates = Array.from(await factory.getHooksTemplates(), getAddress);
+  const previousTemplates = isTemplateUpdate(rotation) ? Object.values(rotation.previousTemplates) : [];
   const expectedTemplates = templateSpecs.map(([name]) =>
     outputAddress(outputs, name)
   );
   assertEqual(
     templates,
-    expectedTemplates,
+    [...previousTemplates, ...expectedTemplates],
     `${marketType} replacement templates`
   );
   const verifiedTemplates = [];
@@ -2118,7 +2342,7 @@ async function verifyReplacementFactory({
       Number(details[2]) !== rotation.templateFees.protocolFeeBips ||
       details[3] !== true ||
       details[4] !== true ||
-      Number(details[5]) !== index ||
+      Number(details[5]) !== index + previousTemplates.length ||
       details[7] !== expectedName
     ) {
       throw new Error(`${marketType} ${expectedName} template state differs`);
@@ -2206,6 +2430,7 @@ async function verifyActivation(args) {
     preflightReport.targetChainId !== rotation.chainId ||
     preflightReport.rehearsal !== rehearsal ||
     preflightReport.status !== "green" ||
+    (isTemplateUpdate(rotation) && preflightReport.activationScope !== "templates") ||
     preflightReport.authority?.policy !== "fixed"
   ) {
     throw new Error("Preflight is not a green fixed-authority baseline");
@@ -2250,6 +2475,14 @@ async function verifyActivation(args) {
   );
 
   const outputs = deploymentOutputs(plan, runState);
+  for (const [name, record] of loadReusedDeployments(rotation)) {
+    assertEqual(keccak256(await provider.getCode(record.address)), record.runtimeCodeHash,
+      `${name} reused runtime`);
+    outputs.set(name, record.address);
+  }
+  if (isTemplateUpdate(rotation)) {
+    for (const [name, address] of templateReuseOutputs(rotation)) outputs.set(name, address);
+  }
   for (const [name, address] of outputs) {
     if ((await provider.getCode(address)) === "0x") {
       throw new Error(`Replacement output ${name} has no code at ${address}`);
@@ -2272,8 +2505,8 @@ async function verifyActivation(args) {
     provider
   );
   for (const [marketType, predecessor] of [
-    ["standard", rotation.superseded.standardHooksFactory],
-    ["revolving", rotation.superseded.revolvingHooksFactory],
+    ["standard", existingBindings(rotation).standardHooksFactory],
+    ["revolving", existingBindings(rotation).revolvingHooksFactory],
   ]) {
     if (
       !(await arch.isRegisteredControllerFactory(predecessor)) ||
@@ -2385,6 +2618,8 @@ async function verifyActivation(args) {
     blockNumber: block.number,
     blockHash: block.hash,
     status: "green",
+    activationScope: rotation.activationScope || "factories",
+    ...(isTemplateUpdate(rotation) ? { disabledTemplates: rotation.previousTemplates } : {}),
     authority: currentAuthority,
     authorityChanged: false,
     wrapperFactory: wrapperAddress,
@@ -2405,6 +2640,96 @@ async function verifyActivation(args) {
       block.number
     }: ${path.relative(REPO_ROOT, outputPath)}`
   );
+  return report;
+}
+
+function buildTemplateUpdateHandoff(rotation, plan, runState, deployments, baselineSha256) {
+  if (!isTemplateUpdate(rotation)) throw new Error("Not a template update");
+  const records = [];
+  const updatedDeployments = { ...deployments };
+  const registration = (id, factory) => {
+    const state = runState[id];
+    if (state?.status !== "verified" || !/^0x[0-9a-fA-F]{64}$/.test(state.txHash) ||
+        !Number.isSafeInteger(state.blockNumber) || state.blockNumber <= 0) {
+      throw new Error(`Missing verified template transaction ${id}`);
+    }
+    return { factory, transactionId: id, txHash: state.txHash, blockNumber: state.blockNumber };
+  };
+  for (const [index, [name, previousAddress]] of Object.entries(rotation.previousTemplates).entries()) {
+    const term = ["open-term", "fixed-term", "periodic-term"][index];
+    const id = `deploy-${term}-hooks-init-code-storage`;
+    const entry = plan.transactions.find((entry) => entry.id === id);
+    const state = runState[id];
+    registration(id, null);
+    const address = getAddress(state.resolvedAddress);
+    const key = `${name}_initCodeStorage_${rotation.release}`;
+    if (updatedDeployments[key] && updatedDeployments[key] !== address) {
+      throw new Error(`Conflicting receipt-backed deployment ${key}`);
+    }
+    updatedDeployments[key] = address;
+    updatedDeployments[`${name}_initCodeStorage`] = address;
+    records.push({
+      name, deploymentKey: key, address, previousAddress,
+      startBlock: state.blockNumber, deployTxHash: state.txHash,
+      initCodeHash: entry.predicate.initCodeHash,
+      forgeArtifactName: entry.artifactName,
+      abiArtifactName: `src/access/${name}.sol:${name}`,
+      registrations: ["standard", "revolving"].map((kind) => ({
+        marketType: kind,
+        ...registration(`add-${kind}-${term}-template`, rotation.existing[`${kind}HooksFactory`]),
+        previousTemplateDisabled: registration(`disable-${kind}-${term}-template`, rotation.existing[`${kind}HooksFactory`]),
+      })),
+    });
+  }
+  return {
+    deployments: updatedDeployments,
+    handoff: {
+      schemaVersion: "1.0.0",
+      kind: "hook-template-update",
+      release: rotation.release,
+      chain: { network: rotation.network, chainId: rotation.chainId },
+      contractSourceCommit: rotation.contractSourceCommit,
+      baseHandoff: {
+        path: `deployments/sepolia/handoff-${rotation.baseRelease}.json`,
+        sha256: baselineSha256,
+        inventoryBaselineCommit: rotation.inventoryBaselineCommit,
+      },
+      sources: {
+        plan: `deployments/sepolia/plan-${rotation.release}.json`,
+        runState: `deployments/sepolia/run-state-${rotation.release}.json`,
+      },
+      factoryInventoryChanged: false,
+      factories: rotation.existing,
+      templates: records,
+      routing: "Use these three enabled templates on the existing factories. The base handoff retains authority for all other deployments and indexing policy. Disabled templates cannot create new hook instances; existing instances remain usable on-chain.",
+    },
+  };
+}
+
+async function finalizeTemplateUpdate(args) {
+  const rotation = config();
+  if (!isTemplateUpdate(rotation) || args.rehearsal) {
+    throw new Error("Template finalization requires the Sepolia template-update plan");
+  }
+  const verification = await verifyActivation(args);
+  const baselinePath = `deployments/sepolia/handoff-${rotation.baseRelease}.json`;
+  const baselineBytes = fs.readFileSync(path.join(REPO_ROOT, baselinePath));
+  assertEqual(JSON.parse(baselineBytes), baselineJson(rotation, `handoff-${rotation.baseRelease}.json`),
+    "Receipt-backed base handoff");
+  const plan = readJson(path.join(REPO_ROOT, `deployments/sepolia/plan-${rotation.release}.json`));
+  const result = buildTemplateUpdateHandoff(rotation, plan,
+    readJson(requiredPathArg(args, "run-state")),
+    readJson(path.join(REPO_ROOT, "deployments/sepolia/deployments.json")),
+    createHash("sha256").update(baselineBytes).digest("hex"));
+  const directory = resolveOutputPath(args["output-dir"], "deployments/sepolia");
+  Object.assign(result.handoff, {
+    verifiedAt: verification.verifiedAt,
+    verifiedBlockNumber: verification.blockNumber,
+    verifiedBlockHash: verification.blockHash,
+  });
+  writeJson(path.join(directory, "deployments.json"), result.deployments);
+  writeJson(path.join(directory, `template-update-${rotation.release}.json`), result.handoff);
+  console.log(`Template aliases and receipt-backed update handoff written to ${path.relative(REPO_ROOT, directory)}; factory inventory unchanged.`);
 }
 
 async function main() {
@@ -2426,6 +2751,7 @@ async function main() {
   if (command === "validate") return validate();
   if (command === "preflight") return preflight(args);
   if (command === "verify-activation") return verifyActivation(args);
+  if (command === "finalize-template-update") return finalizeTemplateUpdate(args);
   throw new Error(`Unknown command: ${command}`);
 }
 
@@ -2446,6 +2772,8 @@ module.exports = {
   buildInventoryPendingRecords,
   config,
   loadArtifacts,
+  assertReusedArtifacts,
   prepareStorage,
   stripMetadata,
+  buildTemplateUpdateHandoff,
 };

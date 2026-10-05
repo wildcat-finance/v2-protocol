@@ -213,9 +213,11 @@ abstract contract FixedTermPolicy is BaseHooks {
   /// @notice move a hooked market's maturity earlier when term reduction was enabled at creation.
   ///
   /// @dev the new time may be now or in the past. maturity can never be extended.
+  ///      term changes are frozen from an enabled repayment date.
   function setFixedTermEndTime(address market, uint32 newFixedTermEndTime) external onlyAdministrator {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
+    if (_isMarketInRepayment(market)) revert MarketInRepayment();
     if (!hookedMarket.allowTermReduction && newFixedTermEndTime <= hookedMarket.fixedTermEndTime) {
       revert TermReductionDisabled();
     }

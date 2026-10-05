@@ -105,7 +105,7 @@ interface IWildcatSanctionsSentinel {
   function WildcatSanctionsEscrowInitcodeHash() external pure returns (bytes32);
 
   // ┌─ tmpEscrowParams ─────
-  /// @notice function Object() { [native code] } parameters exposed only while an escrow is being deployed.
+  /// @notice return constructor parameters for the escrow currently being deployed.
   ///
   /// @dev returns nonzero placeholders outside a sentinel-managed deployment.
   function tmpEscrowParams() external view returns (address borrower, address account, address asset);

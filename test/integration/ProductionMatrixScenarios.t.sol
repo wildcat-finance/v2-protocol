@@ -1350,6 +1350,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
       expected.flags.useOnQueueWithdrawal = gated || options.hooksKind != MatrixHooksKind.OpenTerm;
       expected.flags.useOnCloseMarket = options.hooksKind != MatrixHooksKind.OpenTerm;
       expected.flags.useOnSetAnnualInterestAndReserveRatioBips = true;
+      expected.flags.useOnSetMaxTotalSupply = true;
       expected.flags.useOnExecutePendingAnnualInterestBipsReduction = options.hooksKind == MatrixHooksKind.PeriodicTerm;
       expected.depositRequiresAccess = gated;
       expected.transferRequiresAccess = gated;
@@ -1449,6 +1450,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     expected.deploymentFlags.required.useOnQueueWithdrawal = cell.options.hooksKind != MatrixHooksKind.OpenTerm;
     expected.deploymentFlags.required.useOnCloseMarket = cell.options.hooksKind != MatrixHooksKind.OpenTerm;
     expected.deploymentFlags.required.useOnSetAnnualInterestAndReserveRatioBips = true;
+    expected.deploymentFlags.required.useOnSetMaxTotalSupply = true;
     expected.deploymentFlags.required.useOnExecutePendingAnnualInterestBipsReduction =
       cell.options.hooksKind == MatrixHooksKind.PeriodicTerm;
     expected.pushProviders = new RoleProviderData[](1);

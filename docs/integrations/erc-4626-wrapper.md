@@ -225,6 +225,9 @@ stores the market and sentinel addresses, but does not cache borrower identity.
   hook.
 - Ordinary ERC-20 share transfers reject a sanctioned sender or receiver.
   Sanctions escrows have the narrow exceptions described below.
+- As of V2.5.7, `transferFrom` also rejects a sanctioned caller, even with an
+  existing finite or unlimited approval. Rejection preserves balances and
+  allowance; principal-scoped sanctions overrides still apply.
 - `maxDeposit`, `maxMint`, `maxWithdraw`, and `maxRedeem` return zero when the
   relevant account or the wrapper itself is sanctioned.
 

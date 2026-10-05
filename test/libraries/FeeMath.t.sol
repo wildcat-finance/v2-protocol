@@ -51,9 +51,9 @@ contract FeeMathTest is TestKernel {
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
     (state, baseInterestRay, delinquencyFeeRay, protocolFee) =
-      state.$updateScaleFactorAndFees(0, delinquencyGracePeriod, block.timestamp);
+      state.$updateScaleFactorAndFees(0, delinquencyGracePeriod, vm.getBlockTimestamp());
 
-    assertEq(state.lastInterestAccruedTimestamp, block.timestamp);
+    assertEq(state.lastInterestAccruedTimestamp, vm.getBlockTimestamp());
     assertEq(protocolFee, 1e16, 'incorrect protocolFee');
     assertEq(state.scaleFactor, 1.1e27, 'incorrect scaleFactor');
     assertEq(baseInterestRay, 1e26, 'incorrect baseInterestRay');
@@ -74,9 +74,9 @@ contract FeeMathTest is TestKernel {
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
     (state, baseInterestRay, delinquencyFeeRay, protocolFee) =
-      state.$updateScaleFactorAndFees(1000, delinquencyGracePeriod, block.timestamp);
+      state.$updateScaleFactorAndFees(1000, delinquencyGracePeriod, vm.getBlockTimestamp());
 
-    assertEq(state.lastInterestAccruedTimestamp, block.timestamp);
+    assertEq(state.lastInterestAccruedTimestamp, vm.getBlockTimestamp());
     assertEq(protocolFee, 0, 'incorrect protocolFee');
     assertEq(state.scaleFactor, 1.2e27, 'incorrect scaleFactor');
     assertEq(baseInterestRay, 1e26, 'incorrect baseInterestRay');
@@ -98,8 +98,8 @@ contract FeeMathTest is TestKernel {
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
     (state, baseInterestRay, delinquencyFeeRay, protocolFee) =
-      state.$updateScaleFactorAndFees(1000, delinquencyGracePeriod, block.timestamp);
-    assertEq(state.lastInterestAccruedTimestamp, block.timestamp);
+      state.$updateScaleFactorAndFees(1000, delinquencyGracePeriod, vm.getBlockTimestamp());
+    assertEq(state.lastInterestAccruedTimestamp, vm.getBlockTimestamp());
 
     assertEq(protocolFee, 1e16, 'incorrect feesAccrued');
     assertEq(state.scaleFactor, 1.2e27, 'incorrect scaleFactor');
@@ -121,9 +121,9 @@ contract FeeMathTest is TestKernel {
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
     (state, baseInterestRay, delinquencyFeeRay, protocolFee) =
-      state.$updateScaleFactorAndFees(0, delinquencyGracePeriod, block.timestamp);
+      state.$updateScaleFactorAndFees(0, delinquencyGracePeriod, vm.getBlockTimestamp());
 
-    assertEq(state.lastInterestAccruedTimestamp, block.timestamp);
+    assertEq(state.lastInterestAccruedTimestamp, vm.getBlockTimestamp());
     assertEq(protocolFee, 0, 'incorrect protocolFee');
     assertEq(state.scaleFactor, 1.1e27, 'incorrect scaleFactor');
     assertEq(baseInterestRay, 1e26, 'incorrect baseInterestRay');

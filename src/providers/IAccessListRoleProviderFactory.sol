@@ -15,7 +15,7 @@ pragma solidity 0.8.25;
 
 import '../access/IRoleProviderFactory.sol';
 
-/// @notice function Object() { [native code] } and CREATE2 inputs for an access-list provider.
+/// @notice constructor and CREATE2 inputs for an access-list provider.
 ///
 /// @param administrator  initial authority over membership and provider administration.
 /// @param initialMembers initial nonzero members; duplicates revert deployment.

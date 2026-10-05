@@ -1,0 +1,19 @@
+{
+  "recordType": "deployment",
+  "role": "roleProviderFactory",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentKey": "AccessListRoleProviderFactory_v2.5.7",
+  "address": "0xE6D5bDd5011568C46fAf257cf426Ea822bC4255F",
+  "providerKind": "ACCESS_LIST",
+  "reused": true,
+  "provenance": {
+    "output": "access-list-role-provider-factory",
+    "deploymentKey": "AccessListRoleProviderFactory_v2.5.5",
+    "handoff": "deployments/sepolia/handoff-v2.5.5.json",
+    "handoffSha256": "393e02e2cdf2711163e8e731ad2e161935e06028243a1d6cd633688dcbd8a0b2",
+    "plan": "deployments/sepolia/plan-v2.5.5.json",
+    "planSha256": "16665ab5c521064c7b50e3111a075dc95d5b966e0c5f75f5b523f4d337b3dec4",
+    "inventoryBaselineCommit": "1fbbacb318046c53822a70c2808fbc55372d5a3a"
+  }
+}

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Human-driven stages for a fixed-authority Sepolia activation.
+# human-driven stages for a fixed-authority Sepolia activation.
 #
-# This script derives ceremony identity from the reviewed config and generated
-# plan. It never signs or broadcasts. The operator signs every transaction in
+# this script derives ceremony identity from the reviewed config and generated
+# plan. it never signs or broadcasts. the operator signs every transaction in
 # the locked deployment UI.
 set -euo pipefail
 
@@ -28,9 +28,9 @@ readonly CEREMONY_HOST="${CEREMONY_HOST:-127.0.0.1}"
 
 stage="${1:-}"
 case "$stage" in
-  check|activation|finalize-activation|finalize-inventory|status) ;;
+  check|activation|finalize-activation|finalize-inventory|archive-evidence|status) ;;
   *)
-    echo 'usage: sepolia-fix-1-stage.sh <check|activation|finalize-activation|finalize-inventory|status>' >&2
+    echo 'usage: sepolia-fix-1-stage.sh <check|activation|finalize-activation|finalize-inventory|archive-evidence|status>' >&2
     exit 1
     ;;
 esac
@@ -86,7 +86,8 @@ assert_clean_pushed_source() {
   fi
   untracked="$(git ls-files --others --exclude-standard -- \
     src lib script scripts test deploy-ui deployments \
-    .npmrc npm-shrinkwrap.json package-lock.json)"
+    .npmrc npm-shrinkwrap.json package-lock.json \
+    ':(exclude)deployments/*/ceremony-evidence/**')"
   if [[ -n "$untracked" ]]; then
     echo 'Untracked build or ceremony inputs must be reviewed and committed:' >&2
     printf '%s\n' "$untracked" >&2
@@ -375,8 +376,16 @@ find_exported_run_state() {
   printf '%s\n' "$candidates"
 }
 
+assert_archive_tool() {
+  python3 -c 'import sys, zipfile; sys.exit(sys.version_info < (3, 9))' 2>/dev/null || {
+    echo 'Python 3.9+ is required to archive ceremony evidence.' >&2
+    exit 1
+  }
+}
+
 run_check() {
   assert_clean_pushed_source
+  assert_archive_tool
   corepack yarn install --frozen-lockfile --ignore-scripts --non-interactive
   local fork_rpc_url
   fork_rpc_url="${FORK_RPC_URL:-$DEFAULT_SEPOLIA_RPC}"
@@ -496,6 +505,7 @@ finalize_inventory() {
     exit 1
   fi
   assert_clean_pushed_source
+  assert_archive_tool
   assert_rpc
   local evidence_dir evidence_run_state run_state post_activation handoff
   evidence_dir="$(current_session)"
@@ -541,6 +551,16 @@ finalize_inventory() {
       echo 'Live activation has not passed the expected postconditions.' >&2
       exit 1
     }
+  if [[ "$(jq -r '.activationScope // "factories"' "$CONFIG")" == 'templates' ]]; then
+    node "$ROTATION_SCRIPT" finalize-template-update \
+      --run-state "$run_state" --preflight "$evidence_dir/preflight.json" --rpc-url "$RPC_URL"
+    node scripts/factory-inventory.js reconcile --network sepolia \
+      --rpc-url "$RPC_URL" \
+      --handoff "deployments/sepolia/handoff-$(jq -er '.baseRelease' "$CONFIG").json"
+    archive_evidence
+    echo "Template update finalized; factory inventory and indexing policy unchanged."
+    return
+  fi
   node scripts/factory-inventory.js apply-run \
     --network sepolia \
     --run-state "$run_state" \
@@ -562,7 +582,21 @@ finalize_inventory() {
     --network sepolia \
     --rpc-url "$RPC_URL" \
     --handoff "$handoff"
+  archive_evidence
   echo "Sepolia inventory and handoff finalized from block $(jq -er '.blockNumber' "$post_activation")."
+}
+
+archive_evidence() {
+  if [[ "$DEPLOYMENTS_NETWORK" != 'sepolia' ]]; then
+    echo 'Evidence archiving is only valid for a finalized live Sepolia ceremony.' >&2
+    exit 1
+  fi
+  assert_archive_tool
+  local evidence_dir
+  evidence_dir="${CEREMONY_EVIDENCE_DIR:-$(current_session)}"
+  # finalization changes tracked records. archiving must also work after a later
+  # tooling commit, without replaying finalization or replacing the source identity.
+  python3 scripts/archive-ceremony-evidence.py --config "$CONFIG" --session "$evidence_dir"
 }
 
 print_status() {
@@ -584,5 +618,6 @@ case "$stage" in
   activation) prepare_activation ;;
   finalize-activation) finalize_activation ;;
   finalize-inventory) finalize_inventory ;;
+  archive-evidence) archive_evidence ;;
   status) print_status ;;
 esac

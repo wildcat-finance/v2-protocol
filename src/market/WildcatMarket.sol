@@ -334,8 +334,9 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
 
       // caf-03 tried bypassing `onQueueWithdrawal` to remove the sanctions-withdrawal veto.
       // that also bypasses fixed-term end times and periodic withdrawal windows.
-      // keep `nukeFromOrbit` on the ordinary queue path: term restrictions can defer
-      // quarantine until withdrawals open. accepted behavior; see Known Issues.
+      // keep `nukeFromOrbit` on the ordinary queue path: before an enabled repayment date,
+      // term restrictions can defer quarantine until withdrawals open. from that date,
+      // the queue path bypasses the hook. accepted pre-repayment behavior; see Known Issues.
       uint32 expiry = _queueWithdrawal(state, account, accountAddress, scaledAmount, normalizedAmount, msg.data.length);
 
       emit_SanctionedAccountAssetsQueuedForWithdrawal(accountAddress, expiry, scaledAmount, normalizedAmount);

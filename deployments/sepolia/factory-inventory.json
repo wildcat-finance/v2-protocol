@@ -6,7 +6,7 @@
     "legacy",
     "revolving"
   ],
-  "recordCount": 22,
+  "recordCount": 25,
   "hooksFactories": [
     {
       "label": "legacy-v2",
@@ -231,8 +231,8 @@
       "marketType": "legacy",
       "address": "0x0E12301A4F4b81A2B9965E4959e21faDf1754Ead",
       "startBlock": 11831246,
-      "canonical": true,
-      "lifecycle": "canonical",
+      "canonical": false,
+      "lifecycle": "live",
       "indexed": true,
       "registered": true,
       "deploymentKey": "HooksFactory_v2.5.5",
@@ -247,8 +247,8 @@
       "marketType": "revolving",
       "address": "0x130E07D24e2aF6ea4554032d4F53fcBAe000d1b1",
       "startBlock": 11831251,
-      "canonical": true,
-      "lifecycle": "canonical",
+      "canonical": false,
+      "lifecycle": "live",
       "indexed": true,
       "registered": true,
       "deploymentKey": "HooksFactoryRevolving_v2.5.5",
@@ -257,6 +257,38 @@
       "wrapperFactory": "0x1986DF1c77d25670e8D55865B83C5fFeD00e0134",
       "initCodeStorage": "0xe3940d96Faac0D89766B003Dd0fEBF6c7D7a8D5D",
       "initCodeHash": "0x09beec678715dbd9010a24ea80ea278c23c47ac16e0fd24f26e3cff7f80d1af2"
+    },
+    {
+      "label": "HooksFactory_v2.5.7",
+      "marketType": "legacy",
+      "address": "0xae525051d16912D13b63eCa01f52ADF576FC4380",
+      "startBlock": 11845725,
+      "canonical": true,
+      "lifecycle": "canonical",
+      "indexed": true,
+      "registered": true,
+      "deploymentKey": "HooksFactory_v2.5.7",
+      "deployTxHash": "0x9a19807d6ca8ebb2be1a5f476889fe6333f640ecdc2d3ea4040da76d3e4414ae",
+      "registerTxHash": "0x3731b3285a0b28f4f17cd1c05361ff80ef54a7105fd939d7ba609751e0143f48",
+      "wrapperFactory": "0xCf2338947eeE38b7D82E187698339B3E67E67CBf",
+      "initCodeStorage": "0xd29800D2C11ffe2B63Ac87eBa5A349857f9F3f5d",
+      "initCodeHash": "0x862def20c98541e87c21991c007c4dc715d4f571b10e3c22144569f9574e69d2"
+    },
+    {
+      "label": "HooksFactoryRevolving_v2.5.7",
+      "marketType": "revolving",
+      "address": "0x2f0E18ae9134cD16b7Ec0C63cC4B11B38eAdB2aF",
+      "startBlock": 11845732,
+      "canonical": true,
+      "lifecycle": "canonical",
+      "indexed": true,
+      "registered": true,
+      "deploymentKey": "HooksFactoryRevolving_v2.5.7",
+      "deployTxHash": "0xa29ef24aa94c7dd1d06acd8fda728266fef3da80db4a47b4ac84dcefb5556ba8",
+      "registerTxHash": "0x5d593a1c6f302c9c77191b3d68ff85127516cec2e49ca83d48ad24c7e2037df4",
+      "wrapperFactory": "0xCf2338947eeE38b7D82E187698339B3E67E67CBf",
+      "initCodeStorage": "0x0354625e8A6e954B0125B874bF54AE72a49b6785",
+      "initCodeHash": "0xa36b90ff2e454d04c13a4c4aed577a7218f9500613b1b51533847df84f7b74de"
     }
   ],
   "wrapperFactories": [
@@ -301,9 +333,18 @@
       "label": "Wildcat4626WrapperFactory_v2.5.5",
       "address": "0x1986DF1c77d25670e8D55865B83C5fFeD00e0134",
       "startBlock": 11831239,
-      "lifecycle": "canonical",
+      "lifecycle": "live",
       "indexed": true,
       "deployTxHash": "0x68f1630424aa07113ce70af1683ce7e4546c07644071845879bc834838c2604c",
+      "v1Factory": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843"
+    },
+    {
+      "label": "Wildcat4626WrapperFactory_v2.5.7",
+      "address": "0xCf2338947eeE38b7D82E187698339B3E67E67CBf",
+      "startBlock": 11845719,
+      "lifecycle": "canonical",
+      "indexed": true,
+      "deployTxHash": "0x434d7cd3f69409ac5dc84b671c040b5aa095ab11be1c6d277ae8d9d20197b66e",
       "v1Factory": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843"
     }
   ]

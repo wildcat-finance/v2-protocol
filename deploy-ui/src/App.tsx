@@ -8,8 +8,6 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
-import Safe from '@safe-global/protocol-kit'
-import SafeApiKit from '@safe-global/api-kit'
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
 import { formatEther, keccak256 } from 'viem'
 import type { Address, Hex } from 'viem'
@@ -43,6 +41,7 @@ import {
   eoaCompletionGuidance,
   errorText,
   isRpcUnavailableError,
+  shortErrorText,
   MAX_RAIL_WIDTH,
   MIN_RAIL_WIDTH,
   needsAnvilResumeDecision,
@@ -50,6 +49,13 @@ import {
 } from './uiState'
 
 export type Mode = 'eoa' | 'safe'
+
+interface StatusMessage {
+  tone: 'ok' | 'info' | 'warn'
+  text: string
+  code?: string
+  detail?: string
+}
 
 const embeddedRelease: { value: LoadedCeremonyPackage | null; error: string } = (() => {
   if (__CEREMONY_PACKAGE__ === null) return { value: null, error: '' }
@@ -77,6 +83,11 @@ function retirementAddress(description: string): string | null {
   return description.match(/0x[0-9a-fA-F]{40}/)?.[0] ?? null
 }
 
+function firstSentence(text: string): string {
+  const end = text.indexOf('. ')
+  return (end === -1 ? text : text.slice(0, end)).replace(/\.$/, '')
+}
+
 export function friendlyLabel(description: string, planId?: string): string {
   const address = retirementAddress(description)
   if (address && planId?.startsWith('remove-superseded-controller-factory-')) {
@@ -85,10 +96,9 @@ export function friendlyLabel(description: string, planId?: string): string {
   if (address && planId?.startsWith('remove-superseded-controller-')) {
     return `Block new markets ${short(address)}`
   }
-  return description
+  return firstSentence(description)
     .replace(' the v2.5 ', ' ')
     .replace(' for this deployment', '')
-    .replace(/\.$/, '')
 }
 
 function plainDescription(description: string, planId: string): string {
@@ -99,6 +109,39 @@ function plainDescription(description: string, planId: string): string {
     return 'Prevent this superseded hooks factory from registering new markets'
   }
   return description.replace(' the v2.5 ', ' ').replace(/\.$/, '')
+}
+
+// plan IDs follow `verb-subject[-qualifier]` and stay stable across ceremonies, while
+// descriptions are rewritten by every new generator, so step labels come from the ID.
+export function stepLabel(planId: string, description: string): string {
+  if (planId.startsWith('remove-superseded-controller')) return friendlyLabel(description, planId)
+  const [verb, ...words] = planId.split('-')
+  if (words.length === 0) return friendlyLabel(description, planId)
+  const qualifiers = words.filter((word) => word === 'standard' || word === 'revolving')
+  const subject = words
+    .filter((word) => word !== 'standard' && word !== 'revolving')
+    .join(' ')
+    .replace(/\binit code storage secondary\b/, 'code (secondary)')
+    .replace(/\binit code storage\b/, 'code')
+    .replace(
+      /\b(open|fixed|periodic) term(?: hooks)?\b/,
+      (_, kind: string) => `${kind[0].toUpperCase()}${kind.slice(1)}TermHooks`,
+    )
+    .replace(/\bwildcat 4626\b/, 'ERC-4626')
+    .replace(/\bwildcat market\b/, 'WildcatMarket')
+    .replace(/\bmarket lens\b/, 'MarketLens')
+    .replace(/\barch controller\b/, 'ArchController')
+    .replace(/\bspherex\b/g, 'SphereX')
+    .replace(/\berc(\d+)\b/, 'ERC-$1')
+    .replace(/(.) template$/, '$1')
+  const qualifier = qualifiers.length > 0 ? ` · ${qualifiers.join(' ')}` : ''
+  return `${verb === 'add' ? 'register' : verb}: ${subject}${qualifier}`
+}
+
+function descriptionParts(description: string, planId: string): [string, string] {
+  const plain = plainDescription(description, planId)
+  const end = plain.indexOf('. ')
+  return end === -1 ? [plain, ''] : [plain.slice(0, end), `${plain.slice(end + 2)}.`]
 }
 
 function functionName(signature: string): string {
@@ -150,6 +193,12 @@ function plainPredicateResult(predicate: Predicate): string {
       ? 'The hooks factory must be authorized to register markets.'
       : 'The superseded factory must no longer be authorized to register markets.'
   }
+  if (call === 'getHooksTemplateInitCodeHash') {
+    return 'The factory must record the reviewed creation-code hash for this template.'
+  }
+  if (call === 'getHooksTemplateDetails') {
+    return 'The template’s recorded factory settings must match the reviewed values exactly.'
+  }
   return 'The resulting on-chain state must match the reviewed release plan.'
 }
 
@@ -195,7 +244,9 @@ function groupPlan(plan: DeploymentPlan): RailGroup[] {
     if (transaction.id.startsWith('reclaim-')) return 'Take ownership'
     if (transaction.id.startsWith('restore-')) return 'Return ownership'
     if (transaction.kind === 'deploy') return 'Deploy contracts'
-    if (transaction.id.startsWith('remove-')) return 'Retire superseded'
+    if (transaction.id.startsWith('remove-') || transaction.id.startsWith('disable-')) {
+      return 'Retire superseded'
+    }
     if (transaction.id.startsWith('register-') || transaction.id.startsWith('add-')) {
       return 'Register & wire'
     }
@@ -274,16 +325,18 @@ export function ExecutionIdentity({
   return (
     <span
       className={`chip execution ${mode}`}
-      title={`${authority}: ${expectedExecutor}`}
+      title={`${summary} · ${authority}: ${expectedExecutor}`}
       role="group"
       aria-label={`${mode === 'eoa' ? 'EOA' : 'Safe'} execution: ${summary}; ${authority} ${expectedExecutor}`}
     >
       <strong>{mode === 'eoa' ? 'EOA' : 'SAFE'}</strong>
-      <span className="lt">· {summary}</span>
-      <code>
-        · {mode === 'safe' && safeVersion ? `v${safeVersion} · ` : ''}
-        {short(expectedExecutor)}
-      </code>
+      <span className="lt">· {mode === 'eoa' ? `${actionCount} tx` : summary}</span>
+      {mode === 'safe' ? (
+        <code>
+          · {safeVersion ? `v${safeVersion} · ` : ''}
+          {short(expectedExecutor)}
+        </code>
+      ) : null}
     </span>
   )
 }
@@ -320,7 +373,6 @@ export function CeremonyProgress({
       : Math.min(completedBundles + 1, bundleCount)
   const complete = mode === 'eoa' ? verifiedActions === actionCount : completedBundles === bundleCount
   const unitCount = mode === 'eoa' ? actionCount : bundleCount
-  const completedUnits = mode === 'eoa' ? verifiedActions : completedBundles
   const threshold = signatureProgress?.threshold ?? safeThreshold
   const signatureLabel = complete
     ? `executed${threshold ? ` · threshold ${threshold}` : ''}`
@@ -345,11 +397,146 @@ export function CeremonyProgress({
           {verifiedActions}/{actionCount} checks
         </span>
       </span>
-      <span className="track" aria-hidden="true">
-        <i style={{ width: `${unitCount ? (completedUnits / unitCount) * 100 : 0}%` }}></i>
-      </span>
     </span>
   )
+}
+
+function ProgressSegments({
+  groups,
+  activeGroup,
+  complete,
+}: {
+  groups: RailGroupModel[]
+  activeGroup: number
+  complete: boolean
+}) {
+  return (
+    <div className={`segments${complete ? ' complete' : ''}`} aria-hidden="true">
+      {groups.map((group, groupIndex) => (
+        <span className="seg-group" key={groupIndex} style={{ flexGrow: group.rows.length }}>
+          {group.rows.map((row) => (
+            <i
+              key={row.key}
+              className={row.status === 'todo' && groupIndex === activeGroup ? 'now' : row.status}
+            />
+          ))}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function FingerprintBand({ digest }: { digest: string }) {
+  // twelve well-separated hues from the digest bytes after the spoken fingerprint.
+  const bytes = digest.slice(14, 30).match(/.{2}/g) ?? []
+  return (
+    <span className="fp-band" aria-hidden="true">
+      {bytes.map((byte, index) => (
+        <i key={index} style={{ background: `hsl(${(parseInt(byte, 16) % 12) * 30} 62% 56%)` }} />
+      ))}
+    </span>
+  )
+}
+
+function BlockHeartbeat({ block }: { block: { number: bigint; ok: boolean } }) {
+  return (
+    <span
+      className={`block${block.ok ? '' : ' stale'}`}
+      title={block.ok ? 'Latest block from the wallet’s RPC' : 'The wallet’s RPC is not answering'}
+    >
+      <i key={block.number.toString()} />
+      {block.ok ? 'block' : 'RPC?'} <b>{numberFormat.format(block.number)}</b>
+    </span>
+  )
+}
+
+function CompletionReceipt({ plan, runState }: { plan: DeploymentPlan; runState: RunState }) {
+  const steps = plan.transactions.map((transaction, index) => ({
+    transaction,
+    index,
+    entry: runState[transaction.id],
+  }))
+  const deployed = steps.filter(({ entry }) => entry?.resolvedAddress).length
+  const blocks = steps
+    .map(({ entry }) => Number(entry?.blockNumber))
+    .filter((block) => Number.isFinite(block))
+  return (
+    <details className="tech receipt">
+      <summary>
+        {deployed} deployed · {steps.length} transactions
+        {blocks.length > 0
+          ? ` · blocks ${numberFormat.format(Math.min(...blocks))}–${numberFormat.format(Math.max(...blocks))}`
+          : ''}
+      </summary>
+      <div className="tech-in">
+        <table className="argt">
+          <tbody>
+            {steps.map(({ transaction, index, entry }) => (
+              <tr key={transaction.id}>
+                <td className="an">{String(index + 1).padStart(2, '0')}</td>
+                <td>{stepLabel(transaction.id, transaction.description)}</td>
+                <td>
+                  {entry ? (
+                    <>
+                      <code title={entry.txHash}>{short(entry.txHash)}</code>
+                      <CopyButton value={entry.txHash} />
+                    </>
+                  ) : null}
+                </td>
+                <td>{entry?.resolvedAddress ? <AddressValue value={entry.resolvedAddress} /> : null}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  )
+}
+
+function haltGuidance(message: string): { heading: string; summary: string } {
+  if (/has no receipt yet/i.test(message)) {
+    return {
+      heading: 'Do not resend.',
+      summary:
+        'A transaction from this ceremony was sent but has not been mined. Wait until it is mined, then reload this page to resume.',
+    }
+  }
+  if (/prior predicate failed|fails its predicate/i.test(message)) {
+    return {
+      heading: 'Do not continue.',
+      summary:
+        'A step that already passed no longer matches the chain. Check the wallet’s network and RPC; if they are right, stop and investigate.',
+    }
+  }
+  if (/predicate failed/i.test(message)) {
+    return {
+      heading: 'Do not continue.',
+      summary: 'The transaction mined, but its on-chain check does not match the reviewed plan.',
+    }
+  }
+  if (/reverted/i.test(message)) {
+    return {
+      heading: 'Do not continue.',
+      summary: 'The transaction was mined and reverted, so none of its changes took effect.',
+    }
+  }
+  if (/non-contiguous|unknown transaction id|does not match its receipt|lacks contractAddress|stored run state/i.test(message)) {
+    return {
+      heading: 'Do not continue.',
+      summary:
+        'The progress saved in this browser does not match this package or the chain. Export it for review; do not edit it by hand.',
+    }
+  }
+  if (/embedded (?:release|ceremony) package|digest mismatch/i.test(message)) {
+    return {
+      heading: 'Do not use this build.',
+      summary: 'The embedded ceremony package failed verification. Rebuild it from the reviewed package.',
+    }
+  }
+  return {
+    heading: 'Do not continue.',
+    summary: 'The ceremony stopped at a check it cannot pass safely.',
+  }
 }
 
 export function CeremonyHaltScreen({
@@ -359,6 +546,9 @@ export function CeremonyHaltScreen({
   callFingerprint,
   runState,
   compensationId,
+  haltedId,
+  digest,
+  at,
 }: {
   message: string
   plan: DeploymentPlan | null
@@ -366,8 +556,32 @@ export function CeremonyHaltScreen({
   callFingerprint: string | null
   runState: RunState
   compensationId?: string
+  haltedId?: string
+  digest?: string
+  at?: Date
 }) {
+  const [copied, setCopied] = useState<'copied' | 'failed' | null>(null)
   const canExport = plan !== null && Object.keys(runState).length > 0
+  const guidance = haltGuidance(message)
+  const total = plan?.transactions.length ?? 0
+  const haltedIndex = plan && haltedId ? plan.transactions.findIndex((step) => step.id === haltedId) : -1
+  const halted = plan && haltedIndex >= 0 ? plan.transactions[haltedIndex] : undefined
+  const verified = plan
+    ? plan.transactions.filter((step) => runState[step.id]?.status === 'verified')
+    : []
+  const lastVerified = verified.length > 0 ? runState[verified[verified.length - 1].id] : undefined
+  const report = [
+    'Wildcat deploy ceremony halted',
+    plan ? `release: ${plan.release} · ${plan.network} (${plan.chainId}) · ${mode.toUpperCase()}` : '',
+    callFingerprint ? `fingerprint: ${callFingerprint}` : '',
+    digest ? `digest: ${digest}` : '',
+    at ? `time: ${at.toISOString()}` : '',
+    halted ? `stopped at: transaction ${haltedIndex + 1} of ${total} (${halted.id})` : '',
+    plan ? `progress: ${verified.length} of ${total} verified` : '',
+    `error: ${message}`,
+  ]
+    .filter(Boolean)
+    .join('\n')
   return (
     <main className="fatal-screen">
       <p className="eyebrow">CEREMONY HALTED</p>
@@ -377,7 +591,40 @@ export function CeremonyHaltScreen({
           {callFingerprint ? ` · FP ${callFingerprint}` : ''}
         </p>
       ) : null}
-      <h1>Do not continue.</h1>
+      <h1>{guidance.heading}</h1>
+      <p className="fatal-summary">{guidance.summary}</p>
+      {plan ? (
+        <dl className="fatal-facts">
+          {halted ? (
+            <>
+              <dt>stopped at</dt>
+              <dd>
+                Transaction {haltedIndex + 1} of {total} — {stepLabel(halted.id, halted.description)}
+                <span> · </span>
+                <code>{halted.id}</code>
+              </dd>
+            </>
+          ) : null}
+          <dt>progress</dt>
+          <dd>
+            {verified.length} of {total} verified
+            {lastVerified ? (
+              <>
+                {' · last tx '}
+                <code>{lastVerified.txHash}</code>
+              </>
+            ) : null}
+          </dd>
+          {at ? (
+            <>
+              <dt>time</dt>
+              <dd>
+                {at.toLocaleString()} <span>({at.toISOString()})</span>
+              </dd>
+            </>
+          ) : null}
+        </dl>
+      ) : null}
       <pre>{message}</pre>
       <p>Preserve the loaded package, this error, and the run state. There is no skip button.</p>
       <div className="fatal-actions">
@@ -387,6 +634,17 @@ export function CeremonyHaltScreen({
           disabled={!canExport}
         >
           Export run state
+        </button>
+        <button
+          className="fatal-copy"
+          onClick={() => {
+            void copyText(report).then((ok) => {
+              setCopied(ok ? 'copied' : 'failed')
+              window.setTimeout(() => setCopied(null), 1500)
+            })
+          }}
+        >
+          {copied === 'copied' ? 'Copied' : copied === 'failed' ? 'Copy failed' : 'Copy error report'}
         </button>
         {!canExport ? <span>No completed transaction state is available yet.</span> : null}
       </div>
@@ -401,21 +659,55 @@ export function CeremonyHaltScreen({
   )
 }
 
+function copyText(value: string): Promise<boolean> {
+  // navigator.clipboard exists only in secure contexts; a CEREMONY_HOST LAN origin is plain HTTP.
+  const fallback = (): boolean => {
+    const area = document.createElement('textarea')
+    area.value = value
+    area.setAttribute('readonly', '')
+    area.style.position = 'fixed'
+    area.style.opacity = '0'
+    document.body.append(area)
+    area.select()
+    try {
+      return document.execCommand('copy')
+    } catch {
+      return false
+    } finally {
+      area.remove()
+    }
+  }
+  if (!navigator.clipboard) return Promise.resolve(fallback())
+  return navigator.clipboard.writeText(value).then(() => true, fallback)
+}
+
 function CopyButton({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false)
+  const [result, setResult] = useState<'copied' | 'failed' | null>(null)
   return (
     <button
       type="button"
-      className="copy"
-      title="Copy full value"
+      className={`copy${result ? ` ${result}` : ''}`}
+      title={result === 'failed' ? 'Copy failed — select the value instead' : 'Copy full value'}
       aria-label="Copy full value"
       onClick={() => {
-        void navigator.clipboard?.writeText(value)
-        setCopied(true)
-        window.setTimeout(() => setCopied(false), 900)
+        void copyText(value).then((copied) => {
+          setResult(copied ? 'copied' : 'failed')
+          window.setTimeout(() => setResult(null), 1200)
+        })
       }}
     >
-      {copied ? '✓' : '⧉'}
+      <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+        {result === 'copied' ? (
+          <path d="M3 8.5l3.2 3L13 4.5" />
+        ) : result === 'failed' ? (
+          <path d="M4 4l8 8M12 4l-8 8" />
+        ) : (
+          <>
+            <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+            <path d="M10.5 3.5V3A1.5 1.5 0 0 0 9 1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5" />
+          </>
+        )}
+      </svg>
     </button>
   )
 }
@@ -426,6 +718,18 @@ function AddressValue({ value }: { value: string }) {
       <code title={value}>{short(value)}</code>
       <CopyButton value={value} />
     </span>
+  )
+}
+
+function HexChunks({ value }: { value: string }) {
+  return (
+    <code className="hexchunks" title={value}>
+      <span>0x</span>
+      {value
+        .slice(2)
+        .match(/.{1,4}/g)
+        ?.map((chunk, index) => <span key={index}>{chunk}</span>)}
+    </code>
   )
 }
 
@@ -576,6 +880,54 @@ function inlineValue(value: PlanValue, outputs: Map<string, Address>): string {
   return String(value)
 }
 
+function returnTypes(signature: string): string[] {
+  const returns = signature.match(/returns\s*\((.*)\)\s*$/)?.[1]?.trim()
+  if (!returns) return []
+  const inner = returns.startsWith('(') && returns.endsWith(')') ? returns.slice(1, -1) : returns
+  const types: string[] = []
+  let depth = 0
+  let current = ''
+  for (const char of inner) {
+    if (char === ',' && depth === 0) {
+      types.push(current.trim())
+      current = ''
+      continue
+    }
+    if (char === '(') depth += 1
+    if (char === ')') depth -= 1
+    current += char
+  }
+  if (current.trim()) types.push(current.trim())
+  return types
+}
+
+function ExpectedValue({
+  value,
+  outputs,
+  types = [],
+}: {
+  value: PlanValue
+  outputs: Map<string, Address>
+  types?: string[]
+}) {
+  if (isReference(value)) return <RefValue reference={value.$ref} outputs={outputs} />
+  if (typeof value === 'string' && isAddressString(value)) return <AddressValue value={value} />
+  if (typeof value === 'string' && isHashString(value)) return <HexChunks value={value} />
+  if (Array.isArray(value)) {
+    return (
+      <ol className="tuple">
+        {value.map((item, index) => (
+          <li key={index}>
+            <span className="ty">{types.length === value.length ? types[index] : `[${index}]`}</span>
+            <ExpectedValue value={item} outputs={outputs} />
+          </li>
+        ))}
+      </ol>
+    )
+  }
+  return <code>{JSON.stringify(value)}</code>
+}
+
 function CheckAssertion({
   predicate,
   outputs,
@@ -586,48 +938,72 @@ function CheckAssertion({
   verified: boolean
 }) {
   const mark = verified ? <span className="okmark"> ✓</span> : null
-  if (predicate.type === 'codeHash' || predicate.type === 'splitCodeHash') {
-    return (
-      <span className="assert">
-        {predicate.type === 'splitCodeHash' ? 'unlinked primary code hash at ' : 'code hash at '}
-        <TargetValue target={predicate.target} outputs={outputs} />
-        <span className="eq">==</span><code>{predicate.expect}</code>
-        {predicate.type === 'splitCodeHash' && <>
-          {'; secondary link '}<TargetValue target={predicate.secondary} outputs={outputs} />
-          {'; secondary code hash'}<span className="eq">==</span>
-          <code>{predicate.secondaryCodeHash}</code>
-        </>}
-        {predicate.initCodeHash && <>
-          {'; decoded creation code hash'}<span className="eq">==</span>
-          <code>{predicate.initCodeHash}</code>
-        </>}
-        {mark}
-      </span>
-    )
-  }
   if (predicate.type === 'codePresent') {
     return (
-      <span className="assert">
-        code present at <TargetValue target={predicate.target} outputs={outputs} />
-        {mark}
-      </span>
+      <div className="assert">
+        <div className="assert-head">
+          code present at <TargetValue target={predicate.target} outputs={outputs} />
+          {mark}
+        </div>
+      </div>
+    )
+  }
+  if (predicate.type === 'codeHash' || predicate.type === 'splitCodeHash') {
+    return (
+      <div className="assert">
+        <div className="assert-head">
+          {predicate.type === 'splitCodeHash' ? 'unlinked primary code hash at ' : 'code hash at '}
+          <TargetValue target={predicate.target} outputs={outputs} />
+          {mark}
+        </div>
+        <dl className="assert-rows">
+          <dt>expected</dt>
+          <dd>
+            <HexChunks value={predicate.expect} />
+          </dd>
+          {predicate.type === 'splitCodeHash' ? (
+            <>
+              <dt>secondary link</dt>
+              <dd>
+                <TargetValue target={predicate.secondary} outputs={outputs} />
+              </dd>
+              <dt>secondary code</dt>
+              <dd>
+                <HexChunks value={predicate.secondaryCodeHash} />
+              </dd>
+            </>
+          ) : null}
+          {predicate.initCodeHash ? (
+            <>
+              <dt>creation code</dt>
+              <dd>
+                <HexChunks value={predicate.initCodeHash} />
+              </dd>
+            </>
+          ) : null}
+        </dl>
+      </div>
     )
   }
   const args = predicate.call.args.map((value) => inlineValue(value, outputs)).join(', ')
   return (
-    <span className="assert">
-      <TargetValue target={predicate.target} outputs={outputs} /> . {functionName(predicate.call.sig)}
-      ({args}){predicate.type === 'callResultEq' ? `[${predicate.resultIndex}]` : null}
-      <span className="eq">==</span>
-      {isReference(predicate.expect) ? (
-        <RefValue reference={predicate.expect.$ref} outputs={outputs} />
-      ) : typeof predicate.expect === 'string' && isAddressString(predicate.expect) ? (
-        <AddressValue value={predicate.expect} />
-      ) : (
-        <code>{JSON.stringify(predicate.expect)}</code>
-      )}
-      {mark}
-    </span>
+    <div className="assert">
+      <div className="assert-head">
+        <TargetValue target={predicate.target} outputs={outputs} /> . {functionName(predicate.call.sig)}
+        ({args}){predicate.type === 'callResultEq' ? `[${predicate.resultIndex}]` : null}
+        {mark}
+      </div>
+      <dl className="assert-rows">
+        <dt>expected</dt>
+        <dd>
+          <ExpectedValue
+            value={predicate.expect}
+            outputs={outputs}
+            types={predicate.type === 'callEq' ? returnTypes(predicate.call.sig) : []}
+          />
+        </dd>
+      </dl>
+    </div>
   )
 }
 
@@ -654,15 +1030,28 @@ function Rail({
   groups,
   selectedIndex,
   onSelect,
+  head,
   footer,
 }: {
   groups: RailGroupModel[]
   selectedIndex: number
   onSelect: (index: number) => void
+  head: ReactNode
   footer: ReactNode
 }) {
+  const railRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    const rail = railRef.current
+    const row = rail?.querySelector<HTMLElement>('.row.sel')
+    if (!rail || !row) return
+    const railBox = rail.getBoundingClientRect()
+    const rowBox = row.getBoundingClientRect()
+    if (rowBox.top < railBox.top) rail.scrollTop -= railBox.top - rowBox.top + 12
+    else if (rowBox.bottom > railBox.bottom) rail.scrollTop += rowBox.bottom - railBox.bottom + 12
+  }, [selectedIndex])
   return (
-    <nav className="rail" aria-label="Ceremony steps">
+    <nav className="rail" aria-label="Ceremony steps" ref={railRef}>
+      {head ? <div className="rail-head">{head}</div> : null}
       {groups.map((group, groupIndex) => (
         <div className="grp" key={groupIndex}>
           <div className="grp-h">
@@ -696,6 +1085,10 @@ function Rail({
         <span>
           <i className="l-todo"></i>queued
         </span>
+        <span className="keys">
+          <kbd>j</kbd>
+          <kbd>k</kbd> browse · <kbd>Enter</kbd> current step
+        </span>
       </div>
       <div className="fineprint">{footer}</div>
     </nav>
@@ -705,14 +1098,14 @@ function Rail({
 function StateStrip({
   entry,
   isActive,
-  isConnected,
-  ready,
+  activeNote,
+  blocked,
   queuedBehind,
 }: {
   entry: RunStateEntry | undefined
   isActive: boolean
-  isConnected: boolean
-  ready: boolean
+  activeNote: string
+  blocked: string | null
   queuedBehind: number | null
 }) {
   if (entry?.status === 'verified') {
@@ -742,17 +1135,17 @@ function StateStrip({
       </div>
     )
   }
+  if (isActive && blocked) {
+    return (
+      <div className="state-strip blocked">
+        ■ BLOCKED <span className="sans">{blocked}</span>
+      </div>
+    )
+  }
   if (isActive) {
     return (
       <div className="state-strip now">
-        ▶ UP NEXT{' '}
-        <span className="sans">
-          {ready
-            ? 'this is the transaction your wallet will sign — review before sending.'
-            : isConnected
-              ? 'preparing the transaction…'
-              : 'connect a wallet to prepare this transaction.'}
-        </span>
+        ▶ UP NEXT <span className="sans">{activeNote}</span>
       </div>
     )
   }
@@ -782,8 +1175,11 @@ export default function App() {
   const [expectedArtifact, setExpectedArtifact] = useState<HashedArtifact<ExpectedAddresses> | null>(
     embeddedRelease.value?.expectedAddresses ?? null,
   )
-  const [message, setMessage] = useState<string>('')
+  const [message, setMessage] = useState<StatusMessage | null>(null)
   const [fatal, setFatal] = useState<string>(embeddedRelease.error)
+  const [fatalContext, setFatalContext] = useState<{ transactionId?: string; at: Date } | null>(
+    embeddedRelease.error ? { at: new Date() } : null,
+  )
   const [busy, setBusy] = useState(false)
   const [runState, setRunState] = useState<RunState>({})
   const [prepared, setPrepared] = useState<PreparedTransaction | null>(null)
@@ -797,8 +1193,13 @@ export default function App() {
   const [progressVerified, setProgressVerified] = useState(false)
   const [anvilDecisionPending, setAnvilDecisionPending] = useState(false)
   const [rpcUnavailable, setRpcUnavailable] = useState('')
-  const [rpcRetry, setRpcRetry] = useState(0)
+  const [reverifyRun, setReverifyRun] = useState(0)
+  const [preparing, setPreparing] = useState(false)
+  const [sendPhase, setSendPhase] = useState<'wallet' | 'receipt' | null>(null)
+  const [submittedHash, setSubmittedHash] = useState<Hex | null>(null)
   const [railWidth, setRailWidth] = useState(DEFAULT_RAIL_WIDTH)
+  const paneRef = useRef<HTMLElement | null>(null)
+  const [block, setBlock] = useState<{ number: bigint; ok: boolean } | null>(null)
   const railResize = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null)
   const embeddedPackage = embeddedRelease.value
 
@@ -811,7 +1212,7 @@ export default function App() {
     [manifestArtifacts],
   )
 
-  function handleError(error: unknown): void {
+  function handleError(error: unknown): 'fatal' | 'rpc' | 'notice' {
     const text = errorText(error)
     let storedActionCount = Object.keys(runState).length
     if (planArtifact) {
@@ -826,7 +1227,7 @@ export default function App() {
         setRunState(stored)
         storedActionCount = Object.keys(stored).length
       } catch {
-        // Keep the last React snapshot if the stored evidence itself cannot be decoded.
+        // keep the last React snapshot if the stored evidence itself cannot be decoded.
       }
     }
     if (isRpcUnavailableError(error)) {
@@ -835,19 +1236,23 @@ export default function App() {
       setSafeEngine(null)
       setProgressVerified(false)
       setAnvilDecisionPending(needsAnvilResumeDecision(isAnvilPlan, storedActionCount))
-      setMessage('')
+      setMessage(null)
       setRpcUnavailable(text)
-      return
+      return 'rpc'
     }
     if (
       error instanceof CeremonyHaltError &&
-      (/predicate/i.test(text) ||
+      (error.fatal ||
+        /predicate/i.test(text) ||
         /resume halted|reverted|non-contiguous|nonce mismatch|Safe (?:hash|version) mismatch|transaction service .*?(?:does not match|malformed|unexpected|executed without)|threshold .*does not match|confirmation from non-owner|unexpected Safe/i.test(text))
     ) {
       setFatal(text)
-    } else {
-      setMessage(text)
+      setFatalContext({ transactionId: error.transactionId, at: new Date() })
+      return 'fatal'
     }
+    const short = shortErrorText(error)
+    setMessage({ tone: 'warn', text: short, detail: short === text ? undefined : text })
+    return 'notice'
   }
 
   useEffect(() => {
@@ -887,7 +1292,7 @@ export default function App() {
         setRailWidth(clampRailWidth(saved, window.innerWidth))
       }
     } catch {
-      // Resizing still works for this page view when browser storage is unavailable.
+      // resizing still works for this page view when browser storage is unavailable.
     }
   }, [])
 
@@ -917,6 +1322,7 @@ export default function App() {
       )
     } catch (error) {
       setFatal(`Stored run state is invalid: ${errorText(error)}`)
+      setFatalContext({ at: new Date() })
     } finally {
       setStorageReady(true)
     }
@@ -933,6 +1339,7 @@ export default function App() {
 
   useEffect(() => {
     setPrepared(null)
+    setPreparing(false)
     setPlanEngine(null)
     setSafeEngine(null)
     setProgress(null)
@@ -950,23 +1357,38 @@ export default function App() {
 
     if (mode === 'eoa') {
       const engine = new PlanExecutor(planArtifact.value, transport, store)
+      let cancelled = false
       setPlanEngine(engine)
+      setPreparing(true)
       void engine
         .prepareNext()
         .then((next) => {
-          const current = engine.getRunState()
-          setRunState(current)
+          if (cancelled) return
+          setRunState(engine.getRunState())
           setPrepared(next)
           setProgressVerified(true)
           setRpcUnavailable('')
+          setMessage((current) => (current?.tone === 'info' ? null : current))
         })
-        .catch(handleError)
-      return
+        .catch((error: unknown) => {
+          if (!cancelled) handleError(error)
+        })
+        .finally(() => {
+          if (!cancelled) setPreparing(false)
+        })
+      return () => {
+        cancelled = true
+      }
     }
 
     if (!expectedArtifact || manifests.length === 0) return
     void (async () => {
       try {
+        // EOA ceremonies never touch the Safe SDKs, so they load only on this path.
+        const [{ default: Safe }, { default: SafeApiKit }] = await Promise.all([
+          import('@safe-global/protocol-kit'),
+          import('@safe-global/api-kit'),
+        ])
         const protocolKit = await Safe.init({
           provider: injectedProvider() as never,
           signer: address,
@@ -1020,7 +1442,7 @@ export default function App() {
     manifests,
     mode,
     planArtifact,
-    rpcRetry,
+    reverifyRun,
     storageReady,
     anvilDecisionPending,
   ])
@@ -1055,6 +1477,32 @@ export default function App() {
   }, [mode, planArtifact])
 
   useEffect(() => {
+    setBlock(null)
+    if (!isConnected) return
+    let provider: ReturnType<typeof injectedProvider>
+    try {
+      provider = injectedProvider()
+    } catch {
+      return
+    }
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const latest = BigInt((await provider.request({ method: 'eth_blockNumber' })) as string)
+        if (!cancelled) setBlock({ number: latest, ok: true })
+      } catch {
+        if (!cancelled) setBlock((current) => (current ? { ...current, ok: false } : null))
+      }
+    }
+    void poll()
+    const timer = window.setInterval(() => void poll(), 4_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [chainId, isConnected])
+
+  useEffect(() => {
     if (progress) setSafeThreshold(progress.threshold)
   }, [progress])
 
@@ -1063,7 +1511,7 @@ export default function App() {
       const artifact = await readFile<unknown>(file)
       setPlanArtifact({ ...artifact, value: assertPlan(artifact.value) })
       setFatal('')
-      setMessage('')
+      setMessage(null)
     } catch (error) {
       handleError(error)
     }
@@ -1087,10 +1535,14 @@ export default function App() {
       setManifestArtifacts(loaded)
       setExpectedArtifact({ ...expected, value: assertExpectedAddresses(expected.value) })
       setMode('safe')
-      setMessage('')
+      setMessage(null)
     } catch (error) {
       handleError(error)
     }
+  }
+
+  function connectWallet(): void {
+    if (connectors[0]) connect({ connector: connectors[0] })
   }
 
   function startNewAnvilRehearsal(): void {
@@ -1105,26 +1557,27 @@ export default function App() {
 
   function resumeAnvilRehearsal(): void {
     setRpcUnavailable('')
-    setMessage(
-      isConnected
+    setMessage({
+      tone: 'info',
+      text: isConnected
         ? 'Re-verifying stored progress against this Anvil fork…'
         : 'Resume selected. Connect the wallet to re-verify this Anvil fork.',
-    )
+    })
     setAnvilDecisionPending(false)
-    setRpcRetry((value) => value + 1)
+    setReverifyRun((value) => value + 1)
   }
 
   function retryRpcConnection(): void {
     setRpcUnavailable('')
-    setMessage('Reconnecting and re-verifying on-chain state…')
-    setRpcRetry((value) => value + 1)
+    setMessage({ tone: 'info', text: 'Reconnecting and re-verifying on-chain state…' })
+    setReverifyRun((value) => value + 1)
   }
 
   function persistRailWidth(width: number): void {
     try {
       window.localStorage.setItem('wildcat-deploy:rail-width', String(width))
     } catch {
-      // The current page still keeps the selected width.
+      // the current page still keeps the selected width.
     }
   }
 
@@ -1187,28 +1640,47 @@ export default function App() {
   async function executeEoa(): Promise<void> {
     if (!planEngine || !prepared) return
     setBusy(true)
-    setMessage('')
+    setMessage(null)
+    setSendPhase('wallet')
     try {
-      const result = await planEngine.execute(prepared)
+      const result = await planEngine.execute(prepared, (hash) => {
+        setSubmittedHash(hash)
+        setSendPhase('receipt')
+      })
       setRunState(result.runState)
-      setMessage(`${prepared.transaction.id}: ${result.predicateDetail}`)
+      setMessage({
+        tone: 'ok',
+        text: `Transaction ${prepared.index + 1} verified`,
+        code: prepared.transaction.id,
+        detail: result.predicateDetail,
+      })
       setSelected(null)
+      setSendPhase(null)
+      setPrepared(null)
+      setPreparing(true)
       setPrepared(await planEngine.prepareNext())
     } catch (error) {
-      handleError(error)
+      if (handleError(error) === 'notice') {
+        // never re-arm a transaction that failed; re-verify and prepare it again.
+        setPrepared(null)
+        setReverifyRun((value) => value + 1)
+      }
     } finally {
       setBusy(false)
+      setPreparing(false)
+      setSendPhase(null)
+      setSubmittedHash(null)
     }
   }
 
   async function safeAction(action: 'propose' | 'sign' | 'execute'): Promise<void> {
     if (!safeEngine) return
     setBusy(true)
-    setMessage('')
+    setMessage(null)
     try {
       if (action === 'sign') {
         setProgress(await safeEngine.sign(safeIndex))
-        setMessage(`Bundle ${safeIndex + 1} signed.`)
+        setMessage({ tone: 'ok', text: `Bundle ${safeIndex + 1} signed.` })
         return
       }
       const result = action === 'propose'
@@ -1216,13 +1688,14 @@ export default function App() {
         : await safeEngine.execute(safeIndex)
       setProgress(result.progress)
       setRunState(result.runState)
-      setMessage(
-        result.direct
+      setMessage({
+        tone: 'ok',
+        text: result.direct
           ? `Bundle ${safeIndex + 1} executed directly and all predicates passed.`
           : action === 'propose'
             ? `Bundle ${safeIndex + 1} proposed with the connected owner's signature.`
             : `Bundle ${safeIndex + 1} executed and all predicates passed.`,
-      )
+      })
       if (result.progress.executed) {
         setSelected(null)
         const next = await safeEngine.resume()
@@ -1237,6 +1710,10 @@ export default function App() {
   }
 
   const displayedRunState = runStateForDisplay(runState, progressVerified)
+
+  function exportRunState(): void {
+    if (plan) saveJson(`run-state-${plan.release}.json`, runState)
+  }
 
   const outputs = useMemo(() => {
     if (!plan) return new Map<string, Address>()
@@ -1276,6 +1753,9 @@ export default function App() {
         (transaction) => displayedRunState[transaction.id]?.status !== 'verified',
       )
     : -1
+  const storedVerifiedCount = Object.values(runState).filter(
+    (entry) => entry.status === 'verified',
+  ).length
   const eoaActiveIndex = prepared?.index ?? (firstUnverified === -1 ? totalSteps : firstUnverified)
   const eoaComplete =
     progressVerified &&
@@ -1298,9 +1778,28 @@ export default function App() {
   const activeSelection = mode === 'eoa' ? Math.min(eoaActiveIndex, totalSteps - 1) : Math.min(safeIndex, manifests.length - 1)
   const displayIndex = selected ?? Math.max(activeSelection, 0)
   const storedProgressCount = Object.keys(runState).length
+  const ceremonyComplete = mode === 'eoa' ? eoaComplete : safeComplete
   const reviewingSelection =
-    selected !== null && activeSelection >= 0 && selected !== activeSelection
+    selected !== null &&
+    (ceremonyComplete || (activeSelection >= 0 && selected !== activeSelection))
+  const executorMatches =
+    plan !== null &&
+    address !== undefined &&
+    address.toLowerCase() === plan.expectedExecutor.toLowerCase()
   const frameStyle = { '--rail-width': `${railWidth}px` } as CSSProperties
+  const blockedReason = !plan
+    ? null
+    : anvilDecisionPending
+      ? 'choose “Resume same Anvil fork” or “Start new rehearsal” in the banner above.'
+      : !isConnected
+        ? null
+        : chainMismatch
+          ? `the wallet is on chain ${chainId}; switch it to chain ${plan.chainId}.`
+          : rpcUnavailable
+            ? 'the RPC is unavailable — restore it, then retry from the banner above.'
+            : message?.tone === 'warn' && !prepared && !preparing && !busy
+              ? 'preparation stopped — see the message above.'
+              : null
 
   useEffect(() => {
     function onKey(event: KeyboardEvent): void {
@@ -1315,6 +1814,10 @@ export default function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [displayIndex, selectionLimit])
+
+  useEffect(() => {
+    paneRef.current?.scrollTo({ top: 0 })
+  }, [displayIndex, ceremonyComplete])
 
   if (fatal) {
     const opener = plan?.transactions.find((transaction) => transaction.reverifyUntil)
@@ -1335,6 +1838,9 @@ export default function App() {
         callFingerprint={callFingerprint}
         runState={runState}
         compensationId={compensationPending ? compensation?.id : undefined}
+        haltedId={fatalContext?.transactionId}
+        digest={embeddedPackage?.digest ?? planArtifact?.hash}
+        at={fatalContext?.at}
       />
     )
   }
@@ -1378,7 +1884,7 @@ export default function App() {
                 return {
                   key: transaction.id,
                   number: index + 1,
-                  label: friendlyLabel(transaction.description, transaction.id),
+                  label: stepLabel(transaction.id, transaction.description),
                   title: transaction.id,
                   status:
                     status === 'verified'
@@ -1400,7 +1906,7 @@ export default function App() {
               return {
                 key: entry.planId,
                 number: entry.planIndex + 1,
-                label: friendlyLabel(entry.description, entry.planId),
+                label: stepLabel(entry.planId, entry.description),
                 title: entry.planId,
                 status: status === 'verified' ? 'done' : 'todo',
                 selectIndex: bundleIndex,
@@ -1416,9 +1922,8 @@ export default function App() {
         </span>
         {plan ? (
           <>
-            <span className="chip">{plan.release}</span>
             <span className="chip">
-              {plan.network} <span className="lt">· {plan.chainId}</span>
+              {plan.release} <span className="lt">· {plan.network} {plan.chainId}</span>
             </span>
             <ExecutionIdentity
               mode={mode}
@@ -1432,9 +1937,12 @@ export default function App() {
         {callFingerprint ? (
           <span
             className="chip fp"
-            title="Everyone on the call reads this aloud before signing — it must match on every screen"
+            title="Everyone on the call reads this aloud before signing — it must match on every screen. The colors come from the same digest."
           >
             FP {callFingerprint}
+            {embeddedPackage?.digest ?? planArtifact?.hash ? (
+              <FingerprintBand digest={embeddedPackage?.digest ?? planArtifact?.hash ?? ''} />
+            ) : null}
           </span>
         ) : null}
         <span className="spacer"></span>
@@ -1448,68 +1956,55 @@ export default function App() {
             </button>
           </span>
         ) : null}
-        {plan ? (
-          <CeremonyProgress
-            mode={mode}
-            activeEoaIndex={eoaActiveIndex}
-            actionCount={totalSteps}
-            verifiedActions={verifiedCount}
-            bundleCount={manifests.length}
-            completedBundles={completedBundles}
-            signatureProgress={progress}
-            safeThreshold={safeThreshold}
-          />
-        ) : null}
-        {isConnected && address ? (
-          <span
-            className="wallet"
-            title={
-              mode === 'eoa' && plan
-                ? address.toLowerCase() === plan.expectedExecutor.toLowerCase()
-                  ? 'Connected wallet matches the plan’s expected executor'
-                  : 'Connected wallet is NOT the plan’s expected executor'
-                : safeEngine
-                  ? 'Connected signer is a verified owner of the expected Safe'
-                  : 'Connected signer ownership has not been verified'
-            }
-          >
+        <div className="bar-session">
+          {isConnected && address ? (
             <span
-              className={`dot${
-                (mode === 'eoa' &&
-                  plan &&
-                  address.toLowerCase() !== plan.expectedExecutor.toLowerCase()) ||
-                (mode === 'safe' && !safeEngine)
-                  ? ' off'
-                  : ''
-              }`}
-            ></span>
-            {mode === 'safe' ? (safeEngine ? 'owner ' : 'signer ') : 'executor '}
-            {short(address)}
-            {mode === 'eoa' && plan && address.toLowerCase() === plan.expectedExecutor.toLowerCase()
-              ? ' ✓'
-              : mode === 'safe'
-                ? safeEngine
-                  ? ' ✓'
-                  : ' · owner unverified'
-                : ''}
-            <button onClick={() => disconnect()}>disconnect</button>
-          </span>
-        ) : (
+              className="wallet"
+              title={
+                mode === 'eoa' && plan
+                  ? executorMatches
+                    ? 'Connected wallet matches the plan’s expected executor'
+                    : 'Connected wallet is NOT the plan’s expected executor'
+                  : safeEngine
+                    ? 'Connected signer is a verified owner of the expected Safe'
+                    : 'Connected signer ownership has not been verified'
+              }
+            >
+              <span
+                className={`dot${
+                  (mode === 'eoa' && plan && !executorMatches) || (mode === 'safe' && !safeEngine)
+                    ? ' off'
+                    : ''
+                }`}
+              ></span>
+              {mode === 'safe' ? (safeEngine ? 'owner ' : 'signer ') : 'executor '}
+              {short(address)}
+              {mode === 'eoa' && executorMatches
+                ? ' ✓'
+                : mode === 'safe'
+                  ? safeEngine
+                    ? ' ✓'
+                    : ' · owner unverified'
+                  : ''}
+              <button onClick={() => disconnect()}>disconnect</button>
+            </span>
+          ) : (
+            <button
+              className="ghost"
+              onClick={connectWallet}
+              disabled={connecting || connectors.length === 0}
+            >
+              {connecting ? 'Connecting…' : 'Connect wallet'}
+            </button>
+          )}
           <button
             className="ghost"
-            onClick={() => connectors[0] && connect({ connector: connectors[0] })}
-            disabled={connecting || connectors.length === 0}
+            onClick={exportRunState}
+            disabled={!plan || Object.keys(runState).length === 0}
           >
-            {connecting ? 'Connecting…' : 'Connect wallet'}
+            Export run state
           </button>
-        )}
-        <button
-          className="ghost"
-          onClick={() => plan && saveJson(`run-state-${plan.release}.json`, runState)}
-          disabled={!plan || Object.keys(runState).length === 0}
-        >
-          Export run state
-        </button>
+        </div>
       </header>
 
       {plan ? (
@@ -1530,7 +2025,7 @@ export default function App() {
             {storedProgressCount === 1 ? '' : 's'} for this exact package.
             {isAnvilPlan
               ? anvilDecisionPending
-                ? ' Choose whether this is the same Anvil process or a fresh fork before connecting.'
+                ? ' Choose whether this is the same Anvil process or a fresh fork before continuing.'
                 : ' Resume is selected; connect the wallet and wait for every saved receipt and predicate to be checked.'
               : ' Connect the expected signer and wait for receipt and predicate verification before continuing.'}
           </div>
@@ -1576,7 +2071,7 @@ export default function App() {
               bundle output directory (<code>bundle-N.manifest.json</code> +{' '}
               <code>expected-addresses.json</code>).
             </p>
-            {message ? <p role="status">{message}</p> : null}
+            {message ? <p role="status">{message.text}</p> : null}
             <div>
               <label htmlFor="plan-file">Deployment plan</label>
               <input
@@ -1603,8 +2098,32 @@ export default function App() {
         <div className="frame" style={frameStyle}>
           <Rail
             groups={railGroups}
-            selectedIndex={displayIndex}
+            selectedIndex={ceremonyComplete && selected === null ? -1 : displayIndex}
             onSelect={(index) => setSelected(index)}
+            head={
+              plan ? (
+                <>
+                  <div className="rail-head-line">
+                    <CeremonyProgress
+                      mode={mode}
+                      activeEoaIndex={eoaActiveIndex}
+                      actionCount={totalSteps}
+                      verifiedActions={verifiedCount}
+                      bundleCount={manifests.length}
+                      completedBundles={completedBundles}
+                      signatureProgress={progress}
+                      safeThreshold={safeThreshold}
+                    />
+                    {block ? <BlockHeartbeat block={block} /> : null}
+                  </div>
+                  <ProgressSegments
+                    groups={railGroups}
+                    activeGroup={mode === 'safe' && !safeComplete ? safeIndex : -1}
+                    complete={ceremonyComplete}
+                  />
+                </>
+              ) : null
+            }
             footer={railFooter}
           />
           <div
@@ -1624,22 +2143,41 @@ export default function App() {
             onKeyDown={resizeRailWithKeyboard}
             onDoubleClick={resetRailWidth}
           />
-          <section className="pane">
+          <section className="pane" ref={paneRef}>
             {reviewingSelection ? (
               <div className="review-notice" role="status">
-                Reviewing {mode === 'eoa' ? 'transaction' : 'bundle'} {displayIndex + 1}; the
-                ceremony is waiting at {mode === 'eoa' ? 'transaction' : 'bundle'}{' '}
-                {activeSelection + 1}.
+                Reviewing {mode === 'eoa' ? 'transaction' : 'bundle'} {displayIndex + 1};{' '}
+                {ceremonyComplete
+                  ? 'the ceremony is complete.'
+                  : `the ceremony is waiting at ${mode === 'eoa' ? 'transaction' : 'bundle'} ${activeSelection + 1}.`}
                 <button className="mini" onClick={() => setSelected(null)}>
-                  Return to current
+                  {ceremonyComplete ? 'Back to summary' : 'Return to current'}
                 </button>
               </div>
             ) : null}
-            {message && (
-              <div className="notice" role="status">
-                {message}
+            {message && !(message.tone === 'ok' && reviewingSelection) ? (
+              <div
+                className={`notice ${message.tone}`}
+                role="status"
+                key={`${message.tone}:${message.text}:${message.code ?? ''}`}
+              >
+                {message.tone === 'ok' ? <strong>✓ {message.text}</strong> : message.text}
+                {message.code ? (
+                  <>
+                    {' '}
+                    <code>{message.code}</code>
+                  </>
+                ) : null}
+                {message.detail && message.tone === 'warn' ? (
+                  <details>
+                    <summary>details</summary>
+                    <pre>{message.detail}</pre>
+                  </details>
+                ) : message.detail ? (
+                  <span className="notice-detail">{message.detail}</span>
+                ) : null}
               </div>
-            )}
+            ) : null}
             {chainMismatch && plan && (
               <div className="chain-error" role="alert">
                 Wrong network. This plan requires chain {plan.chainId}; the wallet is on chain{' '}
@@ -1657,6 +2195,12 @@ export default function App() {
                       {eoaCompletionGuidance(plan.release, plan.network)}
                     </span>
                   </div>
+                  <div className="complete-actions">
+                    <button className="primary" onClick={exportRunState}>
+                      Export run-state-{plan.release}.json
+                    </button>
+                  </div>
+                  <CompletionReceipt plan={plan} runState={displayedRunState} />
                 </div>
               ) : (
                 <EoaStepPane
@@ -1672,6 +2216,12 @@ export default function App() {
                   isConnected={isConnected}
                   busy={busy}
                   chainMismatch={chainMismatch}
+                  blocked={blockedReason}
+                  sendPhase={sendPhase}
+                  submittedHash={submittedHash}
+                  connecting={connecting}
+                  reverifyCount={storedVerifiedCount}
+                  onConnect={connectWallet}
                   onExecute={() => void executeEoa()}
                 />
               ))
@@ -1692,9 +2242,19 @@ export default function App() {
                 <div className="state-strip done">
                   ✓ COMPLETE{' '}
                   <span className="sans">
-                    export the run state from the top bar and hand it unchanged to step 08.
+                    export the run state and hand it unchanged to step 08.
                   </span>
                 </div>
+                {plan ? (
+                  <>
+                    <div className="complete-actions">
+                      <button className="primary" onClick={exportRunState}>
+                        Export run-state-{plan.release}.json
+                      </button>
+                    </div>
+                    <CompletionReceipt plan={plan} runState={displayedRunState} />
+                  </>
+                ) : null}
               </div>
             ) : (
               <SafeBundlePane
@@ -1709,6 +2269,9 @@ export default function App() {
                 busy={busy}
                 chainMismatch={chainMismatch}
                 engineReady={safeEngine !== null}
+                isConnected={isConnected}
+                connecting={connecting}
+                onConnect={connectWallet}
                 onAction={(action) => void safeAction(action)}
               />
             )}
@@ -1732,6 +2295,12 @@ function EoaStepPane({
   isConnected,
   busy,
   chainMismatch,
+  blocked,
+  sendPhase,
+  submittedHash,
+  connecting,
+  reverifyCount,
+  onConnect,
   onExecute,
 }: {
   plan: DeploymentPlan
@@ -1746,9 +2315,16 @@ function EoaStepPane({
   isConnected: boolean
   busy: boolean
   chainMismatch: boolean
+  blocked: string | null
+  sendPhase: 'wallet' | 'receipt' | null
+  submittedHash: Hex | null
+  connecting: boolean
+  reverifyCount: number
+  onConnect: () => void
   onExecute: () => void
 }) {
   const transaction = plan.transactions[index]
+  const [title, subtitle] = descriptionParts(transaction.description, transaction.id)
   const entry = runState[transaction.id]
   const verified = entry?.status === 'verified'
   const isActive = index === activeIndex
@@ -1758,6 +2334,18 @@ function EoaStepPane({
     ? plan.transactions.findIndex((candidate) => candidate.id === transaction.reverifyUntil)
     : -1
   const closesIndex = reverifyClosers.get(transaction.id)
+  const activeNote =
+    sendPhase === 'wallet'
+      ? 'waiting for approval in your wallet — nothing has been sent yet.'
+      : sendPhase === 'receipt'
+        ? `submitted ${submittedHash ? short(submittedHash) : ''} — waiting for the receipt and the on-chain check.`
+        : prepared && !busy
+          ? 'this is the transaction your wallet will sign — review before sending.'
+          : isConnected
+            ? reverifyCount > 0
+              ? `re-verifying ${reverifyCount} completed check${reverifyCount === 1 ? '' : 's'} and preparing this transaction…`
+              : 'preparing this transaction…'
+            : 'connect a wallet to prepare this transaction.'
 
   return (
     <>
@@ -1771,12 +2359,13 @@ function EoaStepPane({
             </>
           ) : null}
         </div>
-        <h2 className="ptitle">{plainDescription(transaction.description, transaction.id)}</h2>
+        <h2 className="ptitle">{title}</h2>
+        {subtitle ? <p className="psub">{subtitle}</p> : null}
         <StateStrip
           entry={entry}
           isActive={isActive}
-          isConnected={isConnected}
-          ready={prepared !== null}
+          activeNote={activeNote}
+          blocked={isActive ? blocked : null}
           queuedBehind={index > activeIndex ? index - activeIndex : null}
         />
         {reverifyTargetIndex >= 0 ? (
@@ -1930,15 +2519,39 @@ function EoaStepPane({
           </div>
         </details>
       </div>
-      {isActive && prepared ? (
+      {isActive && !verified ? (
         <div className="actionbar">
-          <button className="primary" onClick={onExecute} disabled={busy || chainMismatch}>
-            {busy ? 'Waiting for receipt…' : `Send transaction ${index + 1} of ${total}`}
-          </button>
+          {!isConnected && !blocked ? (
+            <button className="primary" onClick={onConnect} disabled={connecting}>
+              {connecting ? 'Connecting…' : 'Connect wallet'}
+            </button>
+          ) : (
+            <button
+              className="primary"
+              onClick={onExecute}
+              disabled={busy || chainMismatch || blocked !== null || !prepared}
+            >
+              {sendPhase === 'wallet'
+                ? 'Confirm in wallet…'
+                : sendPhase === 'receipt'
+                  ? 'Waiting for receipt…'
+                  : blocked || (prepared && !busy)
+                    ? `Send transaction ${index + 1} of ${total}`
+                    : 'Preparing…'}
+            </button>
+          )}
           <span className="sub">
-            {busy
-              ? 'transaction submitted — waiting for the receipt and the on-chain check'
-              : `your wallet will open — it should show ${transactionValueLabel(transaction.envelope.value)} being sent`}
+            {blocked
+              ? 'blocked — see the status above'
+              : !isConnected
+                ? `connect the expected executor ${short(plan.expectedExecutor)}`
+                : sendPhase === 'wallet'
+                  ? 'nothing has been sent yet'
+                  : sendPhase === 'receipt'
+                    ? 'submitted — keep this page open until the check passes'
+                    : prepared && !busy
+                      ? `your wallet will open — it should show ${transactionValueLabel(transaction.envelope.value)} being sent`
+                      : ''}
           </span>
         </div>
       ) : null}
@@ -1958,6 +2571,9 @@ function SafeBundlePane({
   busy,
   chainMismatch,
   engineReady,
+  isConnected,
+  connecting,
+  onConnect,
   onAction,
 }: {
   manifest: BundleManifest
@@ -1971,6 +2587,9 @@ function SafeBundlePane({
   busy: boolean
   chainMismatch: boolean
   engineReady: boolean
+  isConnected: boolean
+  connecting: boolean
+  onConnect: () => void
   onAction: (action: 'propose' | 'sign' | 'execute') => void
 }) {
   const complete = manifest.innerTransactions.every(
@@ -1984,7 +2603,7 @@ function SafeBundlePane({
     <>
       <div className="pane-in">
         <div className="crumb">
-          bundle {bundleIndex + 1} / {bundleCount} · <b>Safe {short(manifest.safe.address)}</b>
+          bundle {bundleIndex + 1} / {bundleCount} · <b>Safe <code>{short(manifest.safe.address)}</code></b>
         </div>
         <h2 className="ptitle">
           Bundle {manifest.bundle.number}: {manifest.innerTransactions.length} reviewed
@@ -2033,8 +2652,10 @@ function SafeBundlePane({
           </p>
           <div className="safehash">
             <span className="sh-label">compare before you approve</span>
-            <code>{manifest.safeTransaction.safeTxHash}</code>
-            <CopyButton value={manifest.safeTransaction.safeTxHash} />
+            <div className="sh-value">
+              <HexChunks value={manifest.safeTransaction.safeTxHash} />
+              <CopyButton value={manifest.safeTransaction.safeTxHash} />
+            </div>
             <div className="checknote">
               Your wallet (or the Safe app) must show exactly this Safe transaction hash. If it
               shows anything else, do not sign.
@@ -2094,9 +2715,7 @@ function SafeBundlePane({
                 </span>
                 <span className="k">safeTxHash</span>
                 <span className="v">
-                  <code title={manifest.safeTransaction.safeTxHash}>
-                    {manifest.safeTransaction.safeTxHash}
-                  </code>
+                  <HexChunks value={manifest.safeTransaction.safeTxHash} />
                   <CopyButton value={manifest.safeTransaction.safeTxHash} />
                 </span>
                 <span className="k">gas</span>
@@ -2153,7 +2772,14 @@ function SafeBundlePane({
           </div>
         </details>
       </div>
-      {isActive && !complete ? (
+      {isActive && !complete && !isConnected ? (
+        <div className="actionbar">
+          <button className="primary" onClick={onConnect} disabled={connecting}>
+            {connecting ? 'Connecting…' : 'Connect wallet'}
+          </button>
+          <span className="sub">connect a Safe owner wallet</span>
+        </div>
+      ) : isActive && !complete ? (
         <div className="actionbar">
           <button
             className="primary"

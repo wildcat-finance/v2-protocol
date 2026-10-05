@@ -184,6 +184,8 @@ abstract contract IHooks {
   // ┌─ onQueueWithdrawal ─────
   /// @notice called before the market adds a lender's shares to a withdrawal batch.
   ///
+  /// @dev the market bypasses this callback from an enabled repayment date.
+  ///
   /// @param expiry            exact batch expiry selected by the market.
   /// @param scaledAmount      amount of shares that would be queued.
   /// @param intermediateState state before the new request is added to batch totals.
@@ -200,9 +202,10 @@ abstract contract IHooks {
   // ░░▒▒▓▓██ [ CLAIM COLLECTION ] ─────────────────────────────────────────────
 
   // ┌─ onExecuteWithdrawal ─────
-  /// @notice called before the market pays a lender from the batch keyed by `expiry`.
+  /// @notice compatibility callback for collecting a claim from the batch keyed by `expiry`.
   ///
-  /// @dev `expiry` is the batch being claimed. don't infer it from the current pending batch in
+  /// @dev v2.5 markets reject the execute-withdrawal flag and never call this callback.
+  ///      `expiry` is the batch being claimed. don't infer it from the current pending batch in
   ///      `intermediateState`.
   function onExecuteWithdrawal(
     address lender,
@@ -217,9 +220,10 @@ abstract contract IHooks {
   // ░░▒▒▓▓██ [ CLOSURE ] ──────────────────────────────────────────────────────
 
   // ┌─ onCloseMarket ─────
-  /// @notice called before the market is closed.
+  /// @notice called before the borrower explicitly closes the market.
   ///
   /// @dev if closure needs a final repayment, the market calls `onRepay` first.
+  ///      automatic closure from an enabled repayment date bypasses this callback.
   function onCloseMarket(MarketState calldata intermediateState, bytes calldata extraData) external virtual;
 
   // ░░▒▒▓▓██ [ SANCTIONS ] ────────────────────────────────────────────────────
@@ -227,8 +231,8 @@ abstract contract IHooks {
   // ┌─ onNukeFromOrbit ─────
   /// @notice called before a sanctioned lender's full balance is queued for withdrawal.
   ///
-  /// @dev the market calls `onQueueWithdrawal` after this, so term policy can still block the
-  ///      queue.
+  /// @dev queueing then uses `onQueueWithdrawal`, so term policy can still block it before an
+  ///      enabled repayment date. from that date, the market bypasses the queue callback.
   function onNukeFromOrbit(
     address lender,
     MarketState calldata intermediateState,

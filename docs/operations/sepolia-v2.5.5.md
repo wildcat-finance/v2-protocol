@@ -115,7 +115,8 @@ The operator cancelled the 30-card packet on 2026-10-02 after reviewing the UI:
 only AccessList is ready for v2.5.5. No transactions were executed on Anvil or
 Sepolia. That packet is retained in Git at
 `2a1e6b1d58e4653a3010b88c733a53fe472fe985`; local generated packages were also
-preserved under the ignored `deployments/sepolia/ceremony-evidence/` directory.
+preserved under `deployments/sepolia/ceremony-evidence/` (ignored at the time of
+this ceremony).
 The 25-card packet removes the five unready provider factories and uses neutral
 v2.5.5 release wording instead of inherited fix-1 descriptions. It requires a
 new package review, cold gates, and real-wallet rehearsal. Do not resume the

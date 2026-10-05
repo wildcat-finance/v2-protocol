@@ -471,7 +471,7 @@ contract FixedTermHooksTest is TestKernel {
     _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), abi.encode(term));
     _addPullProvider(hooks);
     vm.prank(address(provider1));
-    hooks.grantRole(Lender, uint32(block.timestamp));
+    hooks.grantRole(Lender, uint32(vm.getBlockTimestamp()));
     MarketState memory state;
     vm.prank(MarketA);
     hooks.onDeposit(Lender, 1, state, '');
@@ -530,17 +530,17 @@ contract FixedTermHooksTest is TestKernel {
       hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(term, uint128(0), false, true, false)
     );
     vm.expectEmit(address(hooks));
-    emit FixedTermPolicy.FixedTermUpdated(MarketA, MarketA, term, uint32(block.timestamp));
+    emit FixedTermPolicy.FixedTermUpdated(MarketA, MarketA, term, uint32(vm.getBlockTimestamp()));
     vm.prank(MarketA);
     hooks.onCloseMarket(state, '');
-    assertEq(hooks.getHookedMarket(MarketA).fixedTermEndTime, block.timestamp, 'closure term');
+    assertEq(hooks.getHookedMarket(MarketA).fixedTermEndTime, vm.getBlockTimestamp(), 'closure term');
 
     _createMarket(
       hooks, MarketB, _requestedConfig(hooks, false, false, false), abi.encode(term, uint128(0), false, false, true)
     );
     vm.prank(MarketB);
     hooks.onCloseMarket(state, '');
-    assertEq(hooks.getHookedMarket(MarketB).fixedTermEndTime, block.timestamp, 'reduction closure');
+    assertEq(hooks.getHookedMarket(MarketB).fixedTermEndTime, vm.getBlockTimestamp(), 'reduction closure');
 
     _createMarket(hooks, MarketC, _requestedConfig(hooks, false, false, false), abi.encode(term));
     vm.prank(MarketC);

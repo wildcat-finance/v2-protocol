@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Prepared images, real transactions, identical market artifacts and factory interfaces.
+// prepared images, real transactions, identical market artifacts and factory interfaces.
 const fs = require("node:fs");
 const path = require("node:path");
 const net = require("node:net");
@@ -186,7 +186,7 @@ async function main() {
   async function image(label, runtime) {
     if ((runtime.length - 2) / 2 > 24576)
       throw new Error(`${label}: oversized image`);
-    // This existing artifact is a generic prepared-runtime constructor despite its name.
+    // this existing artifact is a generic prepared-runtime constructor despite its name.
     const deployed = await deploy(
       "script/common/DeployScriptBase.sol",
       "CompressedInitCodeStorage",
@@ -220,7 +220,7 @@ async function main() {
     }
     if (!overCapRejected) throw new Error("transaction cap not enforced");
     record.overCapRejected = true;
-    // Code consisting only of STOP is valid; rejection must be the runtime-size cap.
+    // code consisting only of STOP is valid; rejection must be the runtime-size cap.
     let oversizedRejected = false;
     try {
       await rpc("eth_estimateGas", [

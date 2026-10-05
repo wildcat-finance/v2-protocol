@@ -47,6 +47,7 @@ contract OpenTermHooks is OpenTermPolicy {
           .setFlag(Bit_Enabled_Transfer)
           .setFlag(Bit_Enabled_QueueWithdrawal),
         EmptyHooksConfig.setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
+          .setFlag(Bit_Enabled_SetMaxTotalSupply)
       )
     )
   { }

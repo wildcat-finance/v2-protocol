@@ -76,6 +76,14 @@ both implementations.
 V2.5 uses explicit rounding directions for every scaled and normalized
 conversion. See [Rounding](./scaling-and-rounding.md#rounding).
 
+## Token transfers and sanctions
+
+Market-token transfers check the sender and recipient against the sanctions
+sentinel in the current borrower principal's namespace. As of V2.5.7,
+`transferFrom` also checks the caller, including callers with an existing finite
+or unlimited approval. A rejected transfer preserves balances and allowance.
+The principal's sanctions overrides still apply.
+
 ## Closure
 
 `closeMarket()`:

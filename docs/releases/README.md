@@ -1,28 +1,18 @@
 # Releases
 
-These pages define source boundaries and compatibility changes between releases.
-They do not attest to deployments. Current addresses, factory lifecycle, and
-receipt provenance live in
-[`deployments/`](../../deployments/).
+These pages describe contract changes and integration compatibility between
+versions. Addresses, factory lifecycle, and transaction receipts are recorded
+in [`deployments/`](../../deployments/).
 
 Generated [contract inventories](./inventory/README.md) pin each first-party
 source unit and ABI-bearing declaration to a release commit.
 
 ## V2.5
 
-[V2.5](./v2.5.md) is the active release line.
-
-- The final tag and source commit will be recorded after source freeze.
-- The retained [contract inventory](./inventory/v2.5.json) pins the earlier
-  audit source, not the current branch.
-- The [audit scope](./v2.5-audit-scope.md) identifies the prior freeze and the
-  changes that require a new review boundary.
-- The [pre-freeze receipt](./v2.5-verification.md) is dated evidence for an
-  earlier candidate. It must not be used as current verification.
-- Final source, compiler settings, inventory and the deployment ceremony need
-  a new freeze and receipt before release.
-- The release page describes changes from V2.1.
-- Current technical docs define the detailed behavior.
+[V2.5](./v2.5.md) adds revolving markets, repayment scheduling and default
+tracking, periodic-term hooks, borrower transfers, and expanded wrapper and
+lens interfaces. The release notes describe changes from V2.1 and the ABI
+updates required by integrators.
 
 ## V2.1
 
@@ -41,3 +31,19 @@ It does not change the V2.0 core market or hook source.
 
 Completed external reviews are indexed in [`audits/`](../../audits/README.md).
 A later tag does not extend an earlier review's source scope.
+
+## V2.5 review material
+
+Each record applies to its named source revision:
+
+- [Audit scope](./v2.5-audit-scope.md): the prior source freeze, subsequent
+  review delta, and requirements for a new audit packet.
+- [Contract inventory](./inventory/v2.5.json): the prior `7fad3de` audit source.
+- [Pre-freeze verification](./v2.5-verification.md): results for an earlier
+  candidate, using that candidate's compiler settings.
+- [2026-10-05 test review](./test-review-2026-10-05.json): canonical test results,
+  compilation timing, partial coverage, Slither compatibility, and the
+  subsequent test-maintenance checks.
+
+The prior inventory and pre-freeze receipt do not cover the later V2.5 changes.
+The audit-scope document records the remaining freeze and verification work.

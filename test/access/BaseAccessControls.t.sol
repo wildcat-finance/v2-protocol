@@ -177,7 +177,7 @@ contract BaseAccessControlsTest is TestKernel {
   // ┌─ setUp ─────
   function setUp() external {
     // expired-credential cases need two valid timestamps before the current block
-    if (block.timestamp < 3) vm.warp(3);
+    if (vm.getBlockTimestamp() < 3) vm.warp(3);
 
     mockProvider1 = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
     mockProvider2 = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
@@ -1122,7 +1122,7 @@ contract BaseAccessControlsTest is TestKernel {
     address bob = address(0xb0b);
     mockProvider1.setIsPullProvider(false);
     mockProvider2.setIsPullProvider(true);
-    mockProvider2.setCredential(bob, uint32(block.timestamp));
+    mockProvider2.setCredential(bob, uint32(vm.getBlockTimestamp()));
     baseHooks.addRoleProvider(address(mockProvider1), type(uint32).max);
     baseHooks.addRoleProvider(address(mockProvider2), 1);
     fastForward(2);
@@ -1141,7 +1141,7 @@ contract BaseAccessControlsTest is TestKernel {
     mockProvider1.setIsPullProvider(true);
     baseHooks.addRoleProvider(address(mockProvider1), 1);
     vm.prank(address(mockProvider1));
-    baseHooks.grantRole(bob, uint32(block.timestamp));
+    baseHooks.grantRole(bob, uint32(vm.getBlockTimestamp()));
 
     fastForward(2);
     uint32 newTimestamp = uint32(getTimestamp());
@@ -1389,7 +1389,7 @@ contract BaseAccessControlsTest is TestKernel {
     mockProvider1.setIsPullProvider(true);
     baseHooks.addRoleProvider(address(mockProvider1), 1);
     vm.prank(address(mockProvider1));
-    baseHooks.grantRole(account, uint32(block.timestamp));
+    baseHooks.grantRole(account, uint32(vm.getBlockTimestamp()));
 
     fastForward(2);
     uint32 newTimestamp = uint32(getTimestamp());

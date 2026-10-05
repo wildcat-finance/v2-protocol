@@ -562,7 +562,11 @@ function releaseDefinitions(
 function releaseDeployment(definition, release, deployments, runMetadata) {
   const deploymentKey = definition.deploymentKey || `${definition.key}_${release}`;
   const fromDeployments = deployments[deploymentKey];
-  const fromRun = runMetadata.byOutput.get(definition.planOutput);
+  const reused = runMetadata.reusedByOutput?.get(definition.planOutput);
+  if (reused && runMetadata.byOutput.has(definition.planOutput)) {
+    throw new Error(`Reused deployment is also present in the new run: ${deploymentKey}`);
+  }
+  const fromRun = runMetadata.byOutput.get(definition.planOutput) || reused;
   const address = fromDeployments || fromRun?.address;
   if (!address) return null;
   if (!isAddress(address))
@@ -598,6 +602,8 @@ function releaseDeployment(definition, release, deployments, runMetadata) {
     deployTxHash: fromRun?.txHash ?? null,
     forgeArtifactName: fromRun?.forgeArtifactName || definition.forgeArtifactName,
     abiArtifactName: definition.abiArtifactName,
+    ...(reused ? { reused: true, provenance: reused.provenance,
+      ...(reused.initCodeHash ? { initCodeHash: reused.initCodeHash } : {}) } : {}),
   };
 }
 
@@ -658,6 +664,7 @@ function buildHandoff({
   const inventory = assertInventory(readJson(inventoryPath), network);
   const deployments = assertDeployments(readJson(deploymentsPath));
   const runMetadata = loadRunMetadata(planPath, runStatePath, network, release);
+  runMetadata.reusedByOutput = require("./reused-deployments").loadReleaseReuse(network, release);
   const standard = canonicalRecord(
     inventory.hooksFactories.filter((record) => record.marketType === "legacy"),
     "legacy hooks factory"

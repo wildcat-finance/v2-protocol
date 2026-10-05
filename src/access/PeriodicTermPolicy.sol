@@ -310,8 +310,8 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   // ┌─ isWithdrawalWindowOpen ─────
   /// @notice report whether withdrawals may be queued at the current timestamp.
   ///
-  /// @dev closed markets always return true. for open markets, window start is inclusive and end is
-  ///      exclusive. reverts for a market not bound to this hooks instance.
+  /// @dev closed markets and markets in scheduled repayment return true. otherwise, window start
+  ///      is inclusive and end is exclusive. reverts for a market not bound to this hooks instance.
   function isWithdrawalWindowOpen(address marketAddress) external view returns (bool) {
     HookedMarket memory market = _hookedMarkets[marketAddress];
     if (!market.isHooked) revert NotHookedMarket();
@@ -352,12 +352,14 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   ///
   /// @dev only the hooks administrator may propose. the market must be hooked, open, and outside a
   ///      withdrawal window. a new valid proposal replaces the old one and emits its cancellation.
+  ///      new proposals are blocked from an enabled repayment date.
   ///
   /// @param annualInterestBips proposed APR in basis points, below the market's current APR.
   function proposeAnnualInterestBips(address market, uint16 annualInterestBips) external onlyAdministrator {
     HookedMarket memory hookedMarket = _effectiveHookedMarket(market);
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (hookedMarket.isClosed) revert AprReductionProposalOnClosedMarket();
+    if (_isMarketInRepayment(market)) revert MarketInRepayment();
     if (_isWithdrawalWindowOpen(hookedMarket, block.timestamp)) {
       revert AprReductionProposalDuringWithdrawalWindow();
     }
@@ -412,8 +414,9 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   // ┌─ getPendingAprChange ─────
   /// @notice return a proposal and the response-window bounds fixed when it was created.
   ///
-  /// @dev an expired proposal remains readable until it is replaced, cancelled by an APR increase
-  ///      or closure, or executed.
+  /// @dev an expired proposal remains readable until replaced, cancelled, executed, or the market
+  ///      closes. explicit closure and APR increases cancel it; scheduled closure returns zeros
+  ///      without clearing the stored proposal or emitting its cancellation.
   function getPendingAprChange(address marketAddress)
     external
     view

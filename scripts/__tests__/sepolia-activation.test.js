@@ -9,13 +9,10 @@ const {
   EXPECTED_IDS,
   buildEntries,
   buildInventoryPendingRecords,
-  buildRehearsalPlan,
-  assertRehearsalPlan,
   prepareStorage,
 } = require("../sepolia-v2-5-fix-rotation");
 const { ROLE_PROVIDER_FACTORIES } = require("../role-provider-factories");
 const { assertActivationPlan } = require("../factory-inventory");
-const { validatePlan } = require("../plan");
 const {
   assertSplitStorageCommitments,
   assertActivationTemplateCommitments,
@@ -151,25 +148,18 @@ test("historical entry layout stays unchanged", () => {
   );
 });
 
-test("reviewed plan is accepted by inventory finalization and rehearsal transform", () => {
+test("historical plan retains its inventory shape", () => {
   const plan = JSON.parse(
     fs.readFileSync(
       path.join(root, "deployments/sepolia/plan-v2.5.5.json"),
       "utf8"
     )
   );
-  assert.equal(validatePlan(plan).ok, true);
+  // current-artifact validation belongs to the current release test. the
+  // historical wrapper init code intentionally differs after v2.5.7.
   assertActivationPlan(plan, "sepolia", {
     reuseIdentityRegistry: true,
   });
-  const rehearsal = buildRehearsalPlan(plan);
-  assert.equal(rehearsal.release, "v2.5.5-rehearsal");
-  assertRehearsalPlan(rehearsal, plan);
-  rehearsal.transactions[0].constructorArgs.decoded.reverse();
-  assert.throws(
-    () => assertRehearsalPlan(rehearsal, plan),
-    /mismatch|does not match/
-  );
 });
 
 test("inventory finalization rejects extra role-provider deployments", () => {

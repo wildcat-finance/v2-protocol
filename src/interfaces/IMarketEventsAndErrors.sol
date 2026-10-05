@@ -245,9 +245,9 @@ interface IMarketEventsAndErrors {
   /// @param assetAmount underlying assets repaid.
   event DebtRepaid(address indexed from, uint256 assetAmount);
 
-  /// @notice emitted after final market settlement and closure.
+  /// @notice emitted when the market closes with all debt backed.
   ///
-  /// @param borrower  operational borrower that closed the market.
+  /// @param borrower  operational borrower at closure.
   /// @param timestamp closure timestamp.
   event MarketClosed(address indexed borrower, uint256 timestamp);
 

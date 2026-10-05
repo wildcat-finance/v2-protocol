@@ -245,10 +245,10 @@ interface IHooksFactoryEventsAndErrors {
 
   // ░░▒▒▓▓██ [ EVENTS ] ───────────────────────────────────────────────────────
 
-  /// @notice emitted after a hooks instance is deployed and indexed.
   /// @notice immutable repayment terms; a zero date disables scheduled repayment.
   event MarketRepaymentTerms(address indexed market, uint256 repaymentDate, uint256 repaymentPeriod);
 
+  /// @notice emitted after a hooks instance is deployed and indexed.
   event HooksInstanceDeployed(
     address indexed hooksInstance,
     address indexed hooksTemplate,

@@ -1,20 +1,19 @@
 # Technical documentation
 
-These docs describe the contract source in this checkout. They are written for
-auditors, integrators, and contributors, not as a deployment or release approval.
+Contract behavior, integration guides, and deployment tooling for developers
+and security reviewers.
 
-The docs on a release branch apply to the source on that branch. Previous
-releases and their documentation live in Git tags.
+Use the documentation from the same tag or commit as the contracts you are
+working with. [Release notes](./releases/README.md) describe compatibility
+between versions; [deployment records](../deployments/) identify contracts by
+network, address, and release.
 
-## What is authoritative
+## Build and contribute
 
-- [`src/`](../src/) and [`test/`](../test/) provide implementation evidence.
-- [`TESTS.md`](../TESTS.md) defines the canonical test commands and suite policy.
-- [`deployments/`](../deployments/) owns machine-readable deployment facts.
-- [`audits/`](../audits/README.md) indexes completed external security reviews.
-
-If the docs and source disagree, report it. Don't infer deployment status,
-review coverage, or remediation status from source ancestry alone.
+- [Build setup](../README.md#build-and-test)
+- [Testing](../TESTS.md): canonical commands, reproducible runs, and tooling tests
+- [Test suite guide](../test/README.md): fixtures, invariants, and coverage limits
+- [Contributing](../CONTRIBUTING.md): toolchain setup and source conventions
 
 ## Protocol
 
@@ -61,17 +60,7 @@ review coverage, or remediation status from source ancestry alone.
 
 - [Release notes](./releases/README.md): V2.0, V2.1, and V2.5 source boundaries
   and compatibility changes
-- [V2.5 audit scope](./releases/v2.5-audit-scope.md): prior freeze provenance,
-  required review delta, properties, and release gates
-- [V2.5 verification receipt](./releases/v2.5-verification.md): dated evidence
-  for the earlier source candidate
+- [V2.5 review material](./releases/README.md#v25-review-material): source
+  inventories, review scope, and dated verification results
 - [Deployment](./operations/deployment.md): inventory, plans, ceremonies,
-  verification, and handoffs
-- [Sepolia v2.5.5](./operations/sepolia-v2.5.5.md): activation scope,
-  preparation status, and downstream handoff
-
-Machine-readable state in [`deployments/`](../deployments/) is authoritative for
-deployment facts.
-
-Historical checklists, completed ceremony records, generated tool output, and
-internal audit-preparation papers are not protocol specifications.
+  verification, and release-specific runbooks

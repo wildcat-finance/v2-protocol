@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Local transaction qualification with actual code-size and per-transaction gas limits.
+// local transaction qualification with actual code-size and per-transaction gas limits.
 const fs = require("node:fs");
 const path = require("node:path");
 const net = require("node:net");
@@ -36,7 +36,7 @@ function artifact(file, name) {
   if (artifacts.has(key)) return artifacts.get(key);
   let artifactPath = path.join(file + ".sol", name + ".json");
   if (file.endsWith(".sol")) {
-    // Foundry moves colliding basenames between builds. Resolve an explicit source
+    // Foundry moves colliding basenames between builds. resolve an explicit source
     // through the build cache, then check that the artifact belongs to that source.
     const cache = JSON.parse(
       fs.readFileSync(path.join(ROOT, "deploy-cache/solidity-files-cache.json"))
@@ -71,7 +71,7 @@ function storageCreation(runtime) {
   ]);
 }
 
-// Constructors patch immutable slots. Compare the rest of the runtime byte for byte;
+// constructors patch immutable slots. compare the rest of the runtime byte for byte;
 // constructor context and configured terms are checked through the deployed interfaces.
 function runtimeMatches(compiled, code) {
   const expected = Buffer.from(
@@ -294,7 +294,7 @@ async function main() {
       "PeriodicTermHooks",
     ]) {
       const compiled = artifact(name, name);
-      // These templates fit raw storage. The Forge matrix separately compresses all templates.
+      // these templates fit raw storage. the Forge matrix separately compresses all templates.
       const runtime = concat(["0x00", compiled.bytecode.object]);
       const { mined } = await send(`${name} raw store`, {
         data: storageCreation(runtime),

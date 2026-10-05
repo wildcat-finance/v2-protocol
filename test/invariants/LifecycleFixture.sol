@@ -39,16 +39,23 @@ abstract contract LifecycleFixture is MarketMatrixFixture {
     vm.warp(1_800_000_000);
     address[] memory actors = _actors();
     MatrixDeployment memory m = _deployMatrix(actors);
-    lifecycle = new LifecycleHandler(
-      m.markets,
-      m.assets,
-      m.sentinels,
-      m.periodicHooks,
-      m.hooksKinds,
-      m.revolving,
-      m.fixedTermEnds,
-      m.commitmentFeeBips,
-      actors
+
+    // run the full constructor without embedding the handler's creation code in every suite.
+    lifecycle = LifecycleHandler(
+      _deployCode(
+        'test/invariants/LifecycleHandler.sol:LifecycleHandler',
+        abi.encode(
+          m.markets,
+          m.assets,
+          m.sentinels,
+          m.periodicHooks,
+          m.hooksKinds,
+          m.revolving,
+          m.fixedTermEnds,
+          m.commitmentFeeBips,
+          actors
+        )
+      )
     );
     lifecycle.seedAccountingCoverage();
     lifecycle.drawAvailable();

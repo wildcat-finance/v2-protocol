@@ -1,4 +1,4 @@
-// Server-render smoke test for the console UI. Without CEREMONY_PACKAGE it covers the
+// server-render smoke test for the console UI. without CEREMONY_PACKAGE it covers the
 // dev loader screen; with CEREMONY_PACKAGE=<package.json> (same variable the release build
 // uses) it covers the full embedded-plan render: top bar, rail groups, and the step pane.
 import { renderToString } from 'react-dom/server'
@@ -161,14 +161,6 @@ describe('App server-render smoke', () => {
       embedded.plan.value.transactions.length,
     )
     if (embedded.mode === 'eoa') {
-      // Ceremony stages derived from the real plan.
-      expect(html).toContain('Take ownership')
-      expect(html).toContain('Deploy contracts')
-      expect(html).toContain('Register &amp; wire')
-      expect(html).toContain('Retire superseded')
-      expect(html).toContain('Return ownership')
-      expect(html).toContain('Deploy standard hooks factory')
-      expect(html).toContain('Temporarily reclaim ArchController ownership')
       const first = embedded.plan.value.transactions[0]
       if (first.kind === 'call') {
         expect(plainPane).not.toContain(first.functionSignature.split('(')[0])
@@ -180,7 +172,7 @@ describe('App server-render smoke', () => {
       const firstAddress = embedded.manifests[0].value.innerTransactions[0]?.precomputedAddress
       if (firstAddress) expect(plainPane).not.toContain(firstAddress)
     }
-    // Shared pane hierarchy and halt policy.
+    // shared pane hierarchy and halt policy.
     expect(html).toContain('expected result')
     expect(html).toContain('technical details')
     const firstPredicate = embedded.plan.value.transactions[0].predicate

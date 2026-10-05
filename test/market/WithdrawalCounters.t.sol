@@ -237,7 +237,7 @@ contract WithdrawalCountersTest is MarketFixture {
   function _checkDirectDonationDoesNotBlockPriorClaim(bool revolving, HooksKind kind) private {
     CapacityScenario memory scenario = _globalCapacityFixture(revolving, kind, 0);
     uint32 currentExpiry = _openUnfundedBatch(scenario.fixture, scenario.amount);
-    assertTrue(block.timestamp < currentExpiry, 'batch is still current');
+    assertTrue(vm.getBlockTimestamp() < currentExpiry, 'batch is still current');
 
     uint256 reservedBefore = scenario.fixture.market.previousState().normalizedUnclaimedWithdrawals;
     uint256 headroom = type(uint128).max - reservedBefore;

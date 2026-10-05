@@ -72,6 +72,7 @@ contract WildcatMarketToken is WildcatMarketBase {
   /// @notice transfer up to `amount` normalized market tokens using the caller's allowance.
   ///
   /// @dev the moved scaled amount is rounded down. infinite allowances aren't decremented.
+  ///      the caller must not be sanctioned in the current borrower principal's namespace.
   ///
   /// @param from   owner of the scaled shares and allowance.
   /// @param to     recipient of the scaled shares.
@@ -89,6 +90,8 @@ contract WildcatMarketToken is WildcatMarketBase {
     sphereXGuardExternal
     returns (bool)
   {
+    if (_isSanctioned(msg.sender)) revert_AccountBlocked();
+
     uint256 allowed = allowance[from][msg.sender];
 
     // an unlimited approval stays unlimited; don't spend a storage write decrementing it.

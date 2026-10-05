@@ -77,9 +77,9 @@ library LibStoredInitCode {
   }
 
   // ┌─ getInitCode ─────
-  /// @dev raw stores start with STOP. executable stores return the original creation bytes
-  ///      on STATICCALL, so compression stays inside that one storage contract. CREATE2 still
-  ///      hashes the original init code, and old raw stores keep their existing format.
+  /// @dev raw stores start with STOP. executable stores reconstruct compressed or split creation
+  ///      bytes on STATICCALL. CREATE2 still hashes the original init code, and old raw stores
+  ///      keep their existing format.
   ///      registration tooling must authenticate the stored runtime against the artifact;
   ///      a successful STATICCALL alone does not establish what code the reader will return.
   function getInitCode(address initCodeStorage) internal view returns (bytes memory initCode) {

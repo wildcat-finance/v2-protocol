@@ -276,8 +276,9 @@ contract WildcatMarketConfig is WildcatMarketBase {
   // ┌─ nukeFromOrbit ─────
   /// @notice quarantine a sanctioned lender by queueing its full direct balance for withdrawal.
   ///
-  /// @dev permissionless. the target must still pass the normal queue-withdrawal hook, so a term
-  ///      policy can defer quarantine until withdrawals open. the canonical wrapper is excluded.
+  /// @dev permissionless. before an enabled repayment date, the target must pass the normal
+  ///      queue-withdrawal hook, so term policy can defer quarantine until withdrawals open.
+  ///      from that date, queueing bypasses the hook. the canonical wrapper is excluded.
   ///
   /// @param accountAddress sanctioned lender to quarantine.
   function nukeFromOrbit(address accountAddress) external nonReentrant sphereXGuardExternal {

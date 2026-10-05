@@ -134,6 +134,9 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   /// @dev this hooks instance hasn't registered the supplied market.
   error NotHookedMarket();
 
+  /// @dev financial settings are frozen from the market's repayment date.
+  error MarketInRepayment();
+
   /// @dev the scaled deposit is below the market's configured minimum.
   error DepositBelowMinimum();
 
@@ -267,11 +270,13 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   /// @notice update a hooked market's minimum deposit.
   ///
   /// @dev callback flags can't change. a positive minimum needs `onDeposit` already enabled.
+  ///      the minimum is frozen from an enabled repayment date.
   ///      leave the width check to the adapter, after the caller, market and dispatch checks.
   ///
   /// @param newMinimumDeposit normalized underlying-asset units required per deposit.
   function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyAdministrator {
     AccessConfig memory access = _requireHookedMarket(market);
+    if (_isMarketInRepayment(market)) revert MarketInRepayment();
     if (newMinimumDeposit > 0 && !_isDepositHookEnabled(market)) revert DepositHookNotEnabled();
     uint128 previousMinimumDeposit = access.minimumDeposit;
     _writeMinimumDeposit(market, newMinimumDeposit);
@@ -541,7 +546,8 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ░░▒▒▓▓██ [ CLAIM COLLECTION ] ─────────────────────────────────────────────
 
   // ┌─ onExecuteWithdrawal ─────
-  /// @dev queued claims stay ungated by default. don't reuse the queue's credential/window checks.
+  /// @dev compatibility callback; v2.5 markets never dispatch it. the default adds no claim restrictions.
+  ///      don't reuse the queue's credential/window checks.
   function onExecuteWithdrawal(
     address lender,
     uint32 expiry,
@@ -569,10 +575,11 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ░░▒▒▓▓██ [ CLOSURE ] ──────────────────────────────────────────────────────
 
   // ┌─ onCloseMarket ─────
-  /// @notice validate closure before applying the hook's closure effects.
+  /// @notice validate explicit closure before applying the hook's closure effects.
   ///
   /// @dev the term policy owns caller checks. open-term closure stays an unguarded no-op.
   ///      the market resets APR/reserves after this; don't invent an APR callback here.
+  ///      automatic closure from an enabled repayment date bypasses this callback and its effects.
   function onCloseMarket(MarketState calldata state, bytes calldata hooksData) external override {
     _validateCloseMarket(state, hooksData);
     _applyCloseMarket(state, hooksData);
@@ -587,7 +594,8 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ░░▒▒▓▓██ [ SANCTIONS ] ────────────────────────────────────────────────────
 
   // ┌─ onNukeFromOrbit ─────
-  /// @dev quarantine reaches the ordinary queue callback next, including its schedule checks.
+  /// @dev quarantine uses the ordinary queue path. its callback and schedule checks run only
+  ///      before an enabled repayment date.
   function onNukeFromOrbit(address lender, MarketState calldata state, bytes calldata hooksData) external override {
     _checkNukeFromOrbit(lender, state, hooksData);
   }
@@ -600,6 +608,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ░░▒▒▓▓██ [ SUPPLY CAPACITY ] ──────────────────────────────────────────────
 
   // ┌─ onSetMaxTotalSupply ─────
+  /// @notice reject capacity changes from an enabled repayment date, then run feature checks.
   function onSetMaxTotalSupply(
     uint256 maxTotalSupply,
     MarketState calldata state,
@@ -608,6 +617,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     external
     override
   {
+    if (_isMarketInRepayment(msg.sender)) revert MarketInRepayment();
     _checkMaxTotalSupply(maxTotalSupply, state, hooksData);
   }
 

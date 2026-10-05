@@ -12,11 +12,14 @@ The current release implementation lives in
 code, not a generic checklist. Read the scripts and generated plan for the exact
 contracts, authority path, and transaction order.
 
-The current Sepolia preparation is the
-[`v2.5.5 activation`](./sepolia-v2.5.5.md), using the existing
-[operator checklist](../../script/deploy/CEREMONY_CHECKLIST.md).
-The [`v2.5.3 fix-1 runbook`](./sepolia-v2-5-fix-1.md) is historical. Neither
-activation repeats the original V2.5 authority ceremony.
+Use the [operator checklist](../../script/deploy/CEREMONY_CHECKLIST.md) with the
+runbook and frozen plan for the release being executed. Sepolia runbooks cover:
+
+- [v2.5.7](./sepolia-v2.5.7.md): delegated-transfer sanctions patch and
+  replacement factories.
+- [v2.5.6](./sepolia-v2.5.6.md): hook-template update.
+- [v2.5.5](./sepolia-v2.5.5.md): factory-replacement activation.
+- [v2.5.3 fix-1](./sepolia-v2-5-fix-1.md): historical factory activation.
 
 ## Machine-readable authority
 
@@ -271,6 +274,10 @@ Do not infer lifecycle from a version string, address age, or source ancestry.
 
 1. Add a numbered release script. Give every step a unique plan ID, explicit
    dependencies, typed constructor or call inputs, and an onchain predicate.
+   Name IDs `verb-subject[-qualifier]` in lowercase kebab case, reusing the
+   existing verbs and subjects, for example `deploy-open-term-hooks-init-code-storage`
+   or `add-standard-open-term-template`. The ceremony UI builds its step labels
+   from the ID, so keep each description to one plain sentence.
 2. Add the generation or component to inventory validation without weakening
    append-only or canonical-count constraints.
 3. Define applicable hook templates and reviewed fees in

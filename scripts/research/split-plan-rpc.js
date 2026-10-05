@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Execute and resume the actual storage plan emitted by the Solidity planner.
+// execute and resume the actual storage plan emitted by the Solidity planner.
 const fs = require("node:fs");
 const path = require("node:path");
 const net = require("node:net");
@@ -240,7 +240,7 @@ async function main() {
       node.kill("SIGTERM");
       await new Promise((resolve) => node.once("exit", resolve));
     }
-    // This directory was created exclusively by this run; the full plan is archived above.
+    // this directory was created exclusively by this run; the full plan is archived above.
     fs.rmSync(working, { recursive: true });
   }
 }

@@ -27,11 +27,11 @@ import './StringQuery.sol';
 ///
 /// @author d1ll0n
 ///
-/// @notice Changes from solady:
-///   - Removed Permit2 and ETH functions
-///   - `balanceOf(address)` reverts if the call fails or does not return >=32 bytes
-///   - Added queries for `name`, `symbol`, `decimals`
-///   - Set name to LibERC20 as it has queries unrelated to transfers and ETH functions were removed
+/// @notice changes from Solady:
+///   - removed Permit2 and ETH functions.
+///   - `balanceOf(address)` reverts if the call fails or returns fewer than 32 bytes.
+///   - added queries for `name`, `symbol`, `decimals`.
+///   - renamed to LibERC20 to reflect metadata queries and the removal of ETH functions.
 ///
 /// @author Modified from Solady (https://github.com/vectorized/solady/blob/main/src/utils/LibERC20.sol)
 /// @author Previously modified from Solmate (https://github.com/transmissions11/solmate/blob/main/src/utils/LibERC20.sol)
