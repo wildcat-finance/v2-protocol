@@ -753,6 +753,9 @@ function assertActivationPlan(plan, network, options = {}) {
   if (options.reuseAccessListRoleProviderFactory === true) {
     omittedDeploymentIds.add("deploy-access-list-role-provider-factory");
   }
+  for (const [output, record] of options.reusedDeployments || []) {
+    if (record.initCodeHash) omittedDeploymentIds.add(`deploy-${output}`);
+  }
   const expectedTransactions = allExpectedTransactions.filter(
     ({ id }) => !omittedDeploymentIds.has(id)
   ).flatMap((expected) => {
@@ -791,7 +794,7 @@ function assertActivationPlan(plan, network, options = {}) {
   }
   assertAuthorizedHelperBoundary(plan, authorityHelper);
   assertSplitStorageCommitments(plan);
-  assertActivationTemplateCommitments(plan);
+  assertActivationTemplateCommitments(plan, options.reusedDeployments);
 
   const requiredDeployments = [
     {
@@ -2438,14 +2441,16 @@ function deploymentOutputsFromRunState(plan, runState) {
   return outputs;
 }
 
-function deploymentStateForPendingRecord(plan, runState, rawRecord, filePath) {
+function deploymentStateForPendingRecord(plan, runState, rawRecord, filePath, reusedDeployments = new Map()) {
   if (!isRunStateReference(rawRecord.address)) {
-    const isSupportedReuse =
-      rawRecord.reused === true &&
-      rawRecord.recordType === "deployment" &&
+    const isReusedTemplate = rawRecord.recordType === "initCodeStorage" &&
+      Array.from(reusedDeployments.values()).some((record) =>
+        record.initCodeHash && record.address === rawRecord.address && record.initCodeHash === rawRecord.initCodeHash);
+    const isReusedDeployment = rawRecord.recordType === "deployment" &&
       (rawRecord.role === "identityRegistry" ||
         (rawRecord.role === "roleProviderFactory" &&
           rawRecord.providerKind === "ACCESS_LIST"));
+    const isSupportedReuse = rawRecord.reused === true && (isReusedTemplate || isReusedDeployment);
     if (isSupportedReuse && isAddress(rawRecord.address)) return null;
     throw new Error(`${filePath}: pending address must be a plan $ref`);
   }
@@ -2552,6 +2557,17 @@ async function runApplyRun(args) {
     network,
   });
   const deployments = readJson(deploymentsPath);
+  const reusedDeployments = require("./reused-deployments").loadReleaseReuse(network, plan.release);
+  for (const record of reusedDeployments.values()) {
+    const key = record.provenance.deploymentKey.replace(/_v\d+\.\d+\.\d+$/, "");
+    const matches = pendingRecords.filter(({ rawRecord }) => rawRecord.deploymentKey === `${key}_${plan.release}`);
+    const raw = matches[0]?.rawRecord;
+    if (matches.length !== 1 || raw.reused !== true || raw.address !== record.address ||
+        JSON.stringify(raw.provenance) !== JSON.stringify(record.provenance) ||
+        deployments[key] !== record.address || (record.initCodeHash && raw.initCodeHash !== record.initCodeHash)) {
+      throw new Error(`Reused ${key} does not match its pinned provenance and deployment alias`);
+    }
+  }
   for (const [records, deploymentKey] of [
     [reusedIdentityRecords, "WildcatBorrowerIdentityRegistry"],
     [reusedAccessListRecords, "AccessListRoleProviderFactory"],
@@ -2571,6 +2587,7 @@ async function runApplyRun(args) {
   assertActivationPlan(plan, network, {
     reuseIdentityRegistry: reusedIdentityRecords.length === 1,
     reuseAccessListRoleProviderFactory: reusedAccessListRecords.length === 1,
+    reusedDeployments,
     deployAllRoleProviderFactories: pendingRecords.some(
       ({ rawRecord }) =>
         rawRecord.role === "roleProviderFactory" &&
@@ -2598,7 +2615,8 @@ async function runApplyRun(args) {
       plan,
       runState,
       rawRecord,
-      filePath
+      filePath,
+      reusedDeployments
     );
     const record = resolveRunStateReferences(rawRecord, outputs);
     if (!isAddress(record.address)) {

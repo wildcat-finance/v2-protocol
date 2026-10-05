@@ -1,6 +1,6 @@
 # V2.5.6 Sepolia activation ceremony
 
-Run the fixed-authority v2.5.7 activation twice:
+Run the fixed-authority v2.5.6 activation twice:
 
 1. Through the real-wallet locked UI on a pinned Sepolia fork.
 2. Through the same stage interface on live Sepolia.
@@ -9,24 +9,25 @@ The stage script derives, validates, prints, and retains the run identity. Do
 not create a manual run sheet.
 
 Scope and preparation status live in the
-[v2.5.7 runbook](../../docs/operations/sepolia-v2.5.7.md). This ceremony has 21 cards:
+[v2.5.6 runbook](../../docs/operations/sepolia-v2.5.6.md). This ceremony has 15 cards:
 
-- 11 deployments: wrapper factory, four market-storage chunks, two hooks
-  factories, and the lens facade with its three helpers.
-- 10 activation calls: two controller-factory registrations, six template
-  registrations, and two controller registrations.
+- 3 hook-template storage deployments.
+- 6 template registrations and 6 old-template disables.
 
-The three v2.5.6 hook-template stores, v2.5.5 AccessList factory, borrower
-identity registry and V1 wrapper fallback are reused. The package validates
-reused code against pinned receipt-backed records and live bytecode.
-Authority rotation and factory deregistration remain separate ceremonies.
+This ceremony reuses the existing factories, market stores, lenses, wrapper,
+identity registry, and AccessList role-provider factory.
+
+It disables only the three v2.5.5 templates on each current factory, after all
+new templates are registered. Disabling cannot be undone and stops new hook
+instances; existing instances remain usable on-chain. Authority rotation and
+factory deregistration are separate ceremonies.
 
 ## Fixed inputs
 
 - Live network: Sepolia `11155111`.
 - Rehearsal network: Anvil `31337`, pinned from Sepolia.
 - Executor: `0xCa7007a75296b532Ce1606d9e130eAa849800Ca7`.
-- Activation: 21 cards, consisting of 11 deployments and 10 calls.
+- Activation: 15 cards, consisting of 3 deployments and 12 calls.
 - Authority: Existing helper and SphereX roles remain fixed.
 
 Before connecting the wallet, match the locked UI against the stage output:
@@ -46,7 +47,7 @@ Stop if any of these occur:
 - A transaction fails or a predicate turns red.
 
 Untracked notes and machine-local files outside build/ceremony input paths do
-not block the source gate. The [runbook](../../docs/operations/sepolia-v2.5.7.md#prepare-and-review)
+not block the source gate. The [runbook](../../docs/operations/sepolia-v2.5.6.md#prepare-the-packet)
 lists the protected paths.
 
 Export the run-state and preserve the session directory before diagnosing. Do
@@ -70,12 +71,12 @@ export DEPLOYMENTS_NETWORK=anvil
 unset RPC_URL
 
 stage() {
-  bash script/deploy/v2-5/sepolia-v2.5.7-stage.sh "$@"
+  bash script/deploy/v2-5/sepolia-v2.5.6-stage.sh "$@"
 }
 
 rehearse() {
   FORK_RPC_URL="$FORK_RPC_URL" \
-    bash script/deploy/v2-5/rehearse-sepolia-v2.5.7.sh "$@"
+    bash script/deploy/v2-5/rehearse-sepolia-v2.5.6.sh "$@"
 }
 ```
 
@@ -129,8 +130,8 @@ label, and transaction-envelope chain IDs differ from the live plan.
 - [ ] Connect the expected executor to the printed Anvil RPC URL, chain `31337`.
       The defaults are UI `http://127.0.0.1:4173` and RPC `http://127.0.0.1:8548`;
       LAN mode uses `CEREMONY_HOST` in both URLs.
-- [ ] Confirm the digest, fingerprint, executor, and 21-card count.
-- [ ] Execute all 21 cards in order. Wait for every receipt and green predicate,
+- [ ] Confirm the digest, fingerprint, executor, and 15-card count.
+- [ ] Execute all 15 cards in order. Wait for every receipt and green predicate,
       then click **Export run state**.
 - [ ] If the browser is on another machine, copy the exported JSON unchanged
       from its Downloads folder to the build machine, outside tracked source
@@ -156,7 +157,7 @@ rehearse --stop
 `finalize-activation`:
 
 1. Finds the new browser export in `~/Downloads`.
-2. Copies it unchanged into the rehearsal evidence directory.
+2. Copies it unchanged into the ignored rehearsal evidence directory.
 3. Verifies every receipt and postcondition.
 4. Writes the acceptance record required by the live stage.
 
@@ -188,9 +189,9 @@ The stage reruns live preflight immediately before building the UI.
 
 - [ ] Start the preview command printed by the live `stage activation`.
 - [ ] Open its UI URL and connect the expected executor to Sepolia.
-- [ ] Confirm chain `11155111`, digest, fingerprint, executor, and 21-card
+- [ ] Confirm chain `11155111`, digest, fingerprint, executor, and 15-card
       count.
-- [ ] Execute all 21 cards in order. Wait for every receipt and green predicate,
+- [ ] Execute all 15 cards in order. Wait for every receipt and green predicate,
       then click **Export run state**.
 - [ ] Verify the export and print final status:
 
@@ -199,7 +200,7 @@ stage finalize-activation
 stage status
 ```
 
-- [ ] Finalize the factory inventory and generate the downstream handoff:
+- [ ] Finalize the template aliases and generate the downstream update handoff:
 
 ```sh
 stage finalize-inventory
@@ -213,17 +214,16 @@ The `deployments/sepolia/ceremony-evidence/` session directory retains:
 - Operator evidence.
 
 The stage also copies the verified run-state to
-`deployments/sepolia/run-state-v2.5.7.json` for inventory and
+`deployments/sepolia/run-state-v2.5.6.json` for inventory and
 downstream handoff work.
 
 `finalize-inventory` sends no transactions. It:
 
-- Applies the verified run-state to the append-only factory inventory.
-- Updates the canonical factory, wrapper and lens aliases.
-- Writes `handoff-v2.5.7.json` and its Markdown companion, preserving the original
-  deployment receipts and source references for reused contracts.
-- Reconciles the resulting inventory and handoff against Sepolia.
-- Creates `deployments/sepolia/ceremony-evidence/wildcat-v2.5.7-evidence-<timestamp>.zip` and its
+- Verifies all 15 receipts and the final template state again.
+- Records the three versioned template addresses and updates their template aliases.
+- Writes `template-update-v2.5.6.json`, referencing the retained v2.5.5 handoff.
+- Reconciles the unchanged factory inventory against Sepolia.
+- Creates `deployments/sepolia/ceremony-evidence/wildcat-v2.5.6-evidence-<timestamp>.zip` and its
   `.sha256` checksum. The ZIP preserves the session, reviewed plan and package,
   gate records, finalized deployment records and handoff, with a manifest of
   file hashes and the original ceremony source commit.
@@ -250,10 +250,10 @@ ZIP's basename. To check one after moving it together with its checksum, run
 The predecessor factories retain their registrations and existing indexing policy.
 
 - [ ] Before reopening market creation, verify SDK, subgraph, and app routing
-      against the v2.5.7 handoff. Wait for the new factories and their six
-      template registrations to be indexed, update the SDK addresses and app
-      dependency, then confirm creation selects the new factories. See the
-      [handoff notes](../../docs/operations/sepolia-v2.5.7.md#finalization-and-downstream-work).
+      against the retained v2.5.5 handoff. Wait for all six new registrations and
+      six disables to be indexed, then confirm the app selects the new templates
+      on both configured factories. The local SDK review found older addresses;
+      see the [handoff notes](../../docs/operations/sepolia-v2.5.6.md#handoff-and-remaining-work).
 
 Stop the preview after verification. Do not retire either predecessor factory
 in this ceremony.

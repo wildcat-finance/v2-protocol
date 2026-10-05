@@ -1,0 +1,222 @@
+{
+  "schemaVersion": "1.0.0",
+  "release": "v2.5.7",
+  "protocolVersion": "2.5.7",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "targetRelease": "v2.5.7",
+  "targetNetwork": "sepolia",
+  "targetChainId": 11155111,
+  "rehearsal": false,
+  "checkedAt": "2026-10-05T01:00:24.000Z",
+  "blockNumber": 11845634,
+  "blockHash": "0x906c7149954c045ca1be1d6ecb06a45f2c8fa0a367769fcc274d98a91dc17b6d",
+  "status": "green",
+  "activationScope": "factories",
+  "authority": {
+    "policy": "fixed",
+    "archController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+    "owner": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "helper": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "helperVersion": "2",
+    "helperArchController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+    "authorizedAccounts": [
+      "0xca732651410E915090d7A7D889A1E44eF4575fcE",
+      "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7"
+    ],
+    "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "executorAuthorized": true,
+    "sphereXEngine": "0xCc65C2Ad8ab5b5c63489cfC77F782175E0c6A36e",
+    "sphereXAdmin": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "sphereXOperator": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "pendingSphereXAdmin": "0x0000000000000000000000000000000000000000",
+    "engineDefaultAdmin": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "pendingEngineDefaultAdmin": "0x0000000000000000000000000000000000000000",
+    "pendingEngineDefaultAdminAt": 0
+  },
+  "executor": {
+    "nonce": 120,
+    "balanceWei": "780821894198597693"
+  },
+  "factories": [
+    {
+      "marketType": "standard",
+      "address": "0x0E12301A4F4b81A2B9965E4959e21faDf1754Ead",
+      "controllerFactoryRegistered": true,
+      "controllerRegistered": true,
+      "templates": [
+        {
+          "address": "0x4aC04D306F3D2352998Ce48E2e8D357213683415",
+          "name": "OpenTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500,
+          "enabled": false
+        },
+        {
+          "address": "0x510d7aBf9534CFf6D2f760f005c703bD6f0CB14a",
+          "name": "FixedTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500,
+          "enabled": false
+        },
+        {
+          "address": "0x9C83C59fB30816EFafDec25147f9C214Bf80688b",
+          "name": "PeriodicTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500,
+          "enabled": false
+        },
+        {
+          "address": "0xBcA425d384Da256040779DF532B6D2E8d3B3f1aD",
+          "name": "OpenTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500,
+          "enabled": true
+        },
+        {
+          "address": "0xa3FE06137cc893E19C2E4764a4A7b001E988ba2B",
+          "name": "FixedTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500,
+          "enabled": true
+        },
+        {
+          "address": "0x79DA352868305d37D0179f460Ded88886D4eE524",
+          "name": "PeriodicTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500,
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "marketType": "revolving",
+      "address": "0x130E07D24e2aF6ea4554032d4F53fcBAe000d1b1",
+      "controllerFactoryRegistered": true,
+      "controllerRegistered": true,
+      "templates": [
+        {
+          "address": "0x4aC04D306F3D2352998Ce48E2e8D357213683415",
+          "name": "OpenTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500,
+          "enabled": false
+        },
+        {
+          "address": "0x510d7aBf9534CFf6D2f760f005c703bD6f0CB14a",
+          "name": "FixedTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500,
+          "enabled": false
+        },
+        {
+          "address": "0x9C83C59fB30816EFafDec25147f9C214Bf80688b",
+          "name": "PeriodicTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500,
+          "enabled": false
+        },
+        {
+          "address": "0xBcA425d384Da256040779DF532B6D2E8d3B3f1aD",
+          "name": "OpenTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500,
+          "enabled": true
+        },
+        {
+          "address": "0xa3FE06137cc893E19C2E4764a4A7b001E988ba2B",
+          "name": "FixedTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500,
+          "enabled": true
+        },
+        {
+          "address": "0x79DA352868305d37D0179f460Ded88886D4eE524",
+          "name": "PeriodicTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500,
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "reusedDeployments": [
+    {
+      "output": "access-list-role-provider-factory",
+      "address": "0xE6D5bDd5011568C46fAf257cf426Ea822bC4255F",
+      "startBlock": 11831240,
+      "txHash": "0x53f762a2b8823332ab7d2bd97b26087e0eb29502d398c137b84e037911842f01",
+      "forgeArtifactName": "src/providers/AccessListRoleProviderFactory.sol:AccessListRoleProviderFactory",
+      "abiArtifactName": "src/providers/IAccessListRoleProviderFactory.sol:IAccessListRoleProviderFactory",
+      "runtimeCodeHash": "0xe8d1bb37b7664a52343d2b39e42193e77134bdcfdf301fc801d8b0508239539f",
+      "provenance": {
+        "output": "access-list-role-provider-factory",
+        "deploymentKey": "AccessListRoleProviderFactory_v2.5.5",
+        "handoff": "deployments/sepolia/handoff-v2.5.5.json",
+        "handoffSha256": "393e02e2cdf2711163e8e731ad2e161935e06028243a1d6cd633688dcbd8a0b2",
+        "plan": "deployments/sepolia/plan-v2.5.5.json",
+        "planSha256": "16665ab5c521064c7b50e3111a075dc95d5b966e0c5f75f5b523f4d337b3dec4",
+        "inventoryBaselineCommit": "1fbbacb318046c53822a70c2808fbc55372d5a3a"
+      }
+    },
+    {
+      "output": "open-term-hooks-init-code-storage",
+      "address": "0xBcA425d384Da256040779DF532B6D2E8d3B3f1aD",
+      "startBlock": 11840977,
+      "txHash": "0x065fd0f731d4d320f84375747b98b428cfee20d4e53fdb18840c77e160aa456c",
+      "forgeArtifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "abiArtifactName": "src/access/OpenTermHooks.sol:OpenTermHooks",
+      "initCodeHash": "0x7aa5821f066c7b214a897bf924f075bcdf2cf1c8f448738693fa6eb7196d47e7",
+      "runtimeCodeHash": "0x95b185bfdc9794225fbc613f14cf723b8ddef2abdee8d118ac413f7b1b430d4b",
+      "provenance": {
+        "output": "open-term-hooks-init-code-storage",
+        "deploymentKey": "OpenTermHooks_initCodeStorage_v2.5.6",
+        "handoff": "deployments/sepolia/template-update-v2.5.6.json",
+        "handoffSha256": "e102f1ccc2a620d4881991fbc4ca886bc844d482a197c6db10028c5dc4bb3b24",
+        "plan": "deployments/sepolia/plan-v2.5.6.json",
+        "planSha256": "591b777081b5b6e1d8a3e93ae9733f6089b9ff7f3fef0e2cba5b77c88c7e307d",
+        "inventoryBaselineCommit": "1fbbacb318046c53822a70c2808fbc55372d5a3a"
+      }
+    },
+    {
+      "output": "fixed-term-hooks-init-code-storage",
+      "address": "0xa3FE06137cc893E19C2E4764a4A7b001E988ba2B",
+      "startBlock": 11840980,
+      "txHash": "0x1ff3b339c77ca2c54fc65513e984faff1b65c6b56822d1da5a42e179a740e4d0",
+      "forgeArtifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "abiArtifactName": "src/access/FixedTermHooks.sol:FixedTermHooks",
+      "initCodeHash": "0xc84345608dc62e011e09889635a2d216df92a6d3eec3af80228f6cf7325ad2cf",
+      "runtimeCodeHash": "0x5815d3dadb936ad0c6cbc648b2b5206a0b47859178b7754f2daefa99d7a8582d",
+      "provenance": {
+        "output": "fixed-term-hooks-init-code-storage",
+        "deploymentKey": "FixedTermHooks_initCodeStorage_v2.5.6",
+        "handoff": "deployments/sepolia/template-update-v2.5.6.json",
+        "handoffSha256": "e102f1ccc2a620d4881991fbc4ca886bc844d482a197c6db10028c5dc4bb3b24",
+        "plan": "deployments/sepolia/plan-v2.5.6.json",
+        "planSha256": "591b777081b5b6e1d8a3e93ae9733f6089b9ff7f3fef0e2cba5b77c88c7e307d",
+        "inventoryBaselineCommit": "1fbbacb318046c53822a70c2808fbc55372d5a3a"
+      }
+    },
+    {
+      "output": "periodic-term-hooks-init-code-storage",
+      "address": "0x79DA352868305d37D0179f460Ded88886D4eE524",
+      "startBlock": 11840983,
+      "txHash": "0x782b955cd76d9e4b1031c9ce000f3b0390e7e13632b1ed928873509587223335",
+      "forgeArtifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "abiArtifactName": "src/access/PeriodicTermHooks.sol:PeriodicTermHooks",
+      "initCodeHash": "0x6a32d584a2424d69b1a9640922947f8c8a5eac1ca29c1a6c0ef0d34f54a55b65",
+      "runtimeCodeHash": "0x91f395170cccfe0fe2552116b8ea0a4c48bf69ee9e8116078fc8c1f5515d33d2",
+      "provenance": {
+        "output": "periodic-term-hooks-init-code-storage",
+        "deploymentKey": "PeriodicTermHooks_initCodeStorage_v2.5.6",
+        "handoff": "deployments/sepolia/template-update-v2.5.6.json",
+        "handoffSha256": "e102f1ccc2a620d4881991fbc4ca886bc844d482a197c6db10028c5dc4bb3b24",
+        "plan": "deployments/sepolia/plan-v2.5.6.json",
+        "planSha256": "591b777081b5b6e1d8a3e93ae9733f6089b9ff7f3fef0e2cba5b77c88c7e307d",
+        "inventoryBaselineCommit": "1fbbacb318046c53822a70c2808fbc55372d5a3a"
+      }
+    }
+  ],
+  "authorityPolicy": "fixed",
+  "noAuthorityRotation": true
+}

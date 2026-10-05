@@ -112,6 +112,29 @@ def archive_evidence(config_path, session):
                     "Template deployment records differ from the handoff")
     else:
         handoff = read(base / f"handoff-{release}.json")
+        for spec in config.get("reusedDeployments", []):
+            original = read(spec["handoff"])
+            old_plan = base / f"plan-{original['release']}.json"
+            candidates = [record for record in handoff["releaseContracts"]
+                          if record.get("reused") and
+                          record.get("provenance", {}).get("handoff") == spec["handoff"] and
+                          record["provenance"].get("output") == spec["output"]]
+            require(len(candidates) == 1, "Reused deployment is missing from the finalized handoff")
+            entry = next(transaction for transaction in read(old_plan)["transactions"]
+                         if transaction.get("output") == spec["output"])
+            source_records = original.get("releaseContracts", original.get("templates", []))
+            record = candidates[0]
+            require(any(
+                source["deploymentKey"] == record["provenance"]["deploymentKey"] and
+                source["forgeArtifactName"] == entry["artifactName"] and
+                source["address"] == record["address"] and
+                source["deployTxHash"] == record["deployTxHash"] and
+                source["startBlock"] == record["startBlock"] for source in source_records),
+                "Reused deployment receipt differs from its original handoff")
+            require(record["provenance"]["handoffSha256"] == sha256(retain(spec["handoff"]))
+                    and record["provenance"]["planSha256"] == sha256(retain(old_plan))
+                    and record["provenance"]["inventoryBaselineCommit"] == config["inventoryBaselineCommit"],
+                    "Reused deployment provenance differs from its source")
     require(handoff.get("release") == release and handoff.get("chain") == {
         "network": "sepolia", "chainId": 11155111,
     }, "Finalized release handoff is missing or belongs to another ceremony")

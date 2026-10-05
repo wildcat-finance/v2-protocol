@@ -9,6 +9,7 @@ const { Contract, JsonRpcProvider, getAddress, keccak256 } = require("ethers");
 process.env.FOUNDRY_PROFILE = "deploy";
 
 const { validatePlan } = require("./plan");
+const { loadReusedDeployments } = require("./reused-deployments");
 const { ROLE_PROVIDER_FACTORIES } = require("./role-provider-factories");
 const ACCESS_LIST_FACTORY = ROLE_PROVIDER_FACTORIES.find(
   ({ providerKind }) => providerKind === "ACCESS_LIST"
@@ -308,6 +309,10 @@ function config() {
     assertEqual(Object.keys(value.previousTemplates),
       ["OpenTermHooks", "FixedTermHooks", "PeriodicTermHooks"], "Previous templates");
   }
+  if (value.reusedDeployments && (!isCurrentCeremony(value) || isTemplateUpdate(value))) {
+    throw new Error("Deployment reuse requires a current factory activation");
+  }
+  loadReusedDeployments(value);
   return { ...value, protocolVersion };
 }
 
@@ -371,6 +376,39 @@ function assertTemplateBaseline(rotation, artifacts) {
   for (const [name, address] of Object.entries(rotation.previousTemplates)) {
     assertEqual(address, deployed[`${name}_initCodeStorage_${rotation.baseRelease}`], `${name} baseline template`);
   }
+}
+
+function assertReusedArtifacts(rotation, artifacts) {
+  const reused = loadReusedDeployments(rotation);
+  if (reused.size) {
+    const baseline = baselineJson(rotation, "deployments.json");
+    const current = readJson(path.join(REPO_ROOT, "deployments/sepolia/deployments.json"));
+    assertEqual(readJson(path.join(REPO_ROOT, "deployments/sepolia/factory-inventory.json")),
+      baselineJson(rotation, "factory-inventory.json"), "Unchanged baseline factory inventory");
+    for (const [name, key] of [["standardHooksFactory", "HooksFactory"],
+      ["revolvingHooksFactory", "HooksFactoryRevolving"], ["wrapperFactory", "Wildcat4626WrapperFactory"]]) {
+      assertEqual(existingBindings(rotation)[name], baseline[key], `${name} predecessor baseline`);
+      assertEqual(current[key], baseline[key], `${key} baseline alias`);
+    }
+    assertEqual(rotation.reused.borrowerIdentityRegistry, baseline.WildcatBorrowerIdentityRegistry,
+      "Reused borrower identity registry baseline");
+    for (const record of reused.values()) {
+      const key = record.provenance.deploymentKey.replace(/_v\d+\.\d+\.\d+$/, "");
+      assertEqual(record.address, baseline[key], `${key} reused baseline alias`);
+      assertEqual(current[key], baseline[key], `${key} baseline alias`);
+    }
+  }
+  for (const [output, record] of reused) {
+    const artifact = Object.values(artifacts).find((value) =>
+      value.output === output || value.previousId === `deploy-${output}`);
+    if (!artifact) throw new Error(`Missing reused artifact for ${output}`);
+    assertEqual(artifact.bytecode, record.bytecode, `${output} bytecode differs from baseline`);
+    if (!record.initCodeHash) {
+      assertEqual(keccak256(artifact.artifact.deployedBytecode.object), record.runtimeCodeHash,
+        `${output} runtime differs from baseline`);
+    }
+  }
+  return reused;
 }
 
 function isCurrentCeremony(rotation) {
@@ -918,7 +956,17 @@ function buildEntries(rotation, artifacts) {
   }
   if (isCurrentCeremony(rotation)) {
     const current = currentEntries(rotation, artifacts, entries);
-    return isTemplateUpdate(rotation) ? templateUpdateEntries(rotation, current) : current;
+    if (isTemplateUpdate(rotation)) return templateUpdateEntries(rotation, current);
+    const reused = loadReusedDeployments(rotation);
+    const replaceReferences = (value) => {
+      if (value?.$ref && reused.has(value.$ref)) return reused.get(value.$ref).address;
+      if (Array.isArray(value)) return value.map(replaceReferences);
+      if (value && typeof value === "object") return Object.fromEntries(
+        Object.entries(value).map(([key, child]) => [key, replaceReferences(child)]));
+      return value;
+    };
+    const selected = current.filter((entry) => !reused.has(entry.output)).map(replaceReferences);
+    return selected.map((entry, index) => ({ ...entry, after: index ? [selected[index - 1].id] : [] }));
   }
   return entries;
 }
@@ -1089,6 +1137,7 @@ function assertEqual(actual, expected, context) {
 
 function assertRotationPlan(plan, rotation, artifacts) {
   if (isTemplateUpdate(rotation)) assertTemplateBaseline(rotation, artifacts);
+  assertReusedArtifacts(rotation, artifacts);
   const generic = validatePlan(plan);
   if (!generic.ok) {
     throw new Error(
@@ -1255,6 +1304,8 @@ function writeImpactReport(rotation, artifacts) {
           existing: rotation.existing, disabledTemplates: rotation.previousTemplates,
         } : {}),
         reused: rotation.reused,
+        ...(rotation.reusedDeployments ? { reusedDeployments: Array.from(loadReusedDeployments(rotation).values(),
+          ({ bytecode, ...record }) => record) } : {}),
         authority: rotation.authority,
         authorityChanges: [],
         retirementTargets: [],
@@ -1529,6 +1580,11 @@ function buildInventoryPendingRecords(rotation, artifacts) {
     ),
     providerKind: ACCESS_LIST_FACTORY.providerKind,
   };
+  for (const [output, reused] of loadReusedDeployments(rotation)) {
+    const record = records.find(({ value }) => value.address?.$ref === output);
+    if (!record) throw new Error(`Missing pending record for reused ${output}`);
+    Object.assign(record.value, { address: reused.address, reused: true, provenance: reused.provenance });
+  }
   const storageEntries = buildEntries(rotation, artifacts).filter(
     ({ predicate }) => predicate.type === "splitCodeHash"
   );
@@ -1910,6 +1966,7 @@ async function preflight(args) {
   const rotation = config();
   assertContractSourceBoundary(rotation);
   if (isTemplateUpdate(rotation)) assertTemplateBaseline(rotation, loadArtifacts(rotation));
+  const reusedDeployments = assertReusedArtifacts(rotation, loadArtifacts(rotation));
   const rehearsal = args.rehearsal === true;
   if (args.rehearsal !== undefined && !rehearsal) {
     throw new Error("--rehearsal does not take a value");
@@ -1950,6 +2007,10 @@ async function preflight(args) {
     if ((await provider.getCode(address)) === "0x") {
       throw new Error(`${label} has no code at ${address}`);
     }
+  }
+  for (const [output, record] of reusedDeployments) {
+    assertEqual(keccak256(await provider.getCode(record.address)), record.runtimeCodeHash,
+      `${output} deployed runtime differs from its pinned receipt-backed source`);
   }
 
   const factoryAbi = [
@@ -2017,7 +2078,16 @@ async function preflight(args) {
           `${marketType} baseline template commitment`);
       }
     }
-    if (templates.length !== 3) {
+    const templateSource = rotation.reusedDeployments?.find((entry) =>
+      entry.output === "open-term-hooks-init-code-storage");
+    const baselineTemplates = templateSource
+      ? baselineJson(rotation, path.basename(templateSource.handoff)) : null;
+    if (baselineTemplates) {
+      assertEqual(Array.from(templates, getAddress), [
+        ...baselineTemplates.templates.map((entry) => entry.previousAddress),
+        ...baselineTemplates.templates.map((entry) => entry.address),
+      ], `${marketType} predecessor template history`);
+    } else if (templates.length !== 3) {
       throw new Error(
         `${marketType} predecessor has ${templates.length} templates`
       );
@@ -2039,7 +2109,8 @@ async function preflight(args) {
         Number(details[1]) !== rotation.templateFees.originationFeeAmount ||
         Number(details[2]) !== rotation.templateFees.protocolFeeBips ||
         details[3] !== true ||
-        details[4] !== true
+        details[4] !== (baselineTemplates ? baselineTemplates.templates.some((entry) =>
+          entry.address.toLowerCase() === template.toLowerCase()) : true)
       ) {
         throw new Error(
           `${marketType} ${template} fee or enabled state differs`
@@ -2050,7 +2121,11 @@ async function preflight(args) {
         name: details[7],
         feeRecipient: getAddress(details[6]),
         protocolFeeBips: Number(details[2]),
+        enabled: details[4],
       });
+      const reused = Array.from(reusedDeployments.values()).find((entry) => entry.address === getAddress(template));
+      if (reused?.initCodeHash) assertEqual(await factory.getHooksTemplateInitCodeHash(template),
+        reused.initCodeHash, `${marketType} reused template commitment`);
     }
     factoryState.push({
       marketType,
@@ -2111,6 +2186,8 @@ async function preflight(args) {
       ).toString(),
     },
     factories: factoryState,
+    ...(reusedDeployments.size ? { reusedDeployments: Array.from(reusedDeployments.values(),
+      ({ bytecode, ...record }) => record) } : {}),
     authorityPolicy: rotation.authorityPolicy,
     noAuthorityRotation: true,
   };
@@ -2398,6 +2475,11 @@ async function verifyActivation(args) {
   );
 
   const outputs = deploymentOutputs(plan, runState);
+  for (const [name, record] of loadReusedDeployments(rotation)) {
+    assertEqual(keccak256(await provider.getCode(record.address)), record.runtimeCodeHash,
+      `${name} reused runtime`);
+    outputs.set(name, record.address);
+  }
   if (isTemplateUpdate(rotation)) {
     for (const [name, address] of templateReuseOutputs(rotation)) outputs.set(name, address);
   }
@@ -2690,6 +2772,7 @@ module.exports = {
   buildInventoryPendingRecords,
   config,
   loadArtifacts,
+  assertReusedArtifacts,
   prepareStorage,
   stripMetadata,
   buildTemplateUpdateHandoff,

@@ -181,6 +181,27 @@ if [[ "$(jq -r '.activationScope // "factories"' "$SEPOLIA_REPLACEMENT_CONFIG")"
   node scripts/sepolia-v2-5-fix-rotation.js finalize-template-update \
     --rpc-url "$RPC" --run-state "$run_state" --preflight "$preflight" \
     --out "$post_activation" --output-dir "$evidence_dir/finalized"
+elif [[ "$(jq -r '.schemaVersion' "$SEPOLIA_REPLACEMENT_CONFIG")" == '1.1.0' ]]; then
+  # Exercise the downstream handoff against the fork without changing live records.
+  mkdir -p "$evidence_dir/finalized"
+  cp deployments/sepolia/factory-inventory.json "$evidence_dir/finalized/factory-inventory.json"
+  cp deployments/sepolia/deployments.json "$evidence_dir/finalized/deployments.json"
+  node scripts/factory-inventory.js apply-run --network sepolia \
+    --run-state "$run_state" --plan "$PLAN" \
+    --pending-directory "deployments/sepolia/inventory-pending-${RELEASE}" \
+    --input "$evidence_dir/finalized/factory-inventory.json" \
+    --deployments "$evidence_dir/finalized/deployments.json" \
+    --output "$evidence_dir/finalized/reconcile-report.json" --rpc-url "$RPC"
+  node scripts/generate-handoff.js --network sepolia --release "$RELEASE" \
+    --run-state "$run_state" --plan "$PLAN" \
+    --inventory "$evidence_dir/finalized/factory-inventory.json" \
+    --deployments "$evidence_dir/finalized/deployments.json" \
+    --output-dir "$evidence_dir/finalized"
+  node scripts/factory-inventory.js reconcile --network sepolia \
+    --input "$evidence_dir/finalized/factory-inventory.json" \
+    --deployments "$evidence_dir/finalized/deployments.json" \
+    --handoff "$evidence_dir/finalized/handoff-${RELEASE}.json" \
+    --output "$evidence_dir/finalized/reconcile-report.json" --rpc-url "$RPC"
 fi
 
 echo "Pinned Sepolia fork rehearsal GREEN at block ${FORK_BLOCK_NUMBER}"

@@ -2,7 +2,7 @@
 
 This packet prepares a `v2.5.6` hook-template update on Sepolia (`11155111`).
 It carries the repayment-date parameter freeze into fresh hook templates.
-Follow the [ceremony checklist](../../script/deploy/CEREMONY_CHECKLIST.md) for
+Follow the [ceremony checklist](../../script/deploy/CEREMONY_CHECKLIST-v2.5.6.md) for
 the real-wallet fork rehearsal, live activation, and receipt-backed finalization.
 
 ## Scope
@@ -116,7 +116,7 @@ records into a ZIP with a SHA-256 checksum and per-file manifest. Python 3.9+
 is required; no additional packages are needed. `stage archive-evidence`
 can package an already-finalized live session offline, including after a
 tooling-only update. It records the source commit from the original session.
-See the [checklist](../../script/deploy/CEREMONY_CHECKLIST.md) for handoff and
+See the [checklist](../../script/deploy/CEREMONY_CHECKLIST-v2.5.6.md) for handoff and
 archive recovery commands.
 
 SDK and application creation routes must target the v2.5.5 factory addresses in

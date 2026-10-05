@@ -1,5 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
+const { execFileSync } = require("node:child_process");
 const {
   assertRotationPlan,
   assertRehearsalPlan,
@@ -10,8 +11,25 @@ const {
 } = require("../sepolia-v2-5-fix-rotation");
 const rotation = require("../../deployments/sepolia/v2.5.6.json");
 const plan = require("../../deployments/sepolia/plan-v2.5.6.json");
-const deployments = require("../../deployments/sepolia/deployments.json");
+const deployments = JSON.parse(execFileSync("git", ["show",
+  `${rotation.inventoryBaselineCommit}:deployments/sepolia/deployments.json`], { encoding: "utf8" }));
 const artifacts = loadArtifacts(rotation);
+// This historical template-only packet reused the pre-2.5.7 market code.
+// Restore those artifact bytes from its pinned plan, rather than comparing
+// the old packet with today's deliberately changed market implementations.
+const baselinePlan = require("../../deployments/sepolia/plan-v2.5.5.json");
+for (const key of ["standardMarket", "revolvingMarket", "wrapperFactory"]) {
+  const entry = baselinePlan.transactions.find((tx) => tx.id === artifacts[key].previousId);
+  if (!artifacts[key].storedInitCode) {
+    artifacts[key] = { ...artifacts[key], bytecode: entry.initCode };
+    continue;
+  }
+  const primary = entry.constructorArgs.decoded[0];
+  const length = parseInt(primary.slice(-8, -4), 16);
+  const secondary = baselinePlan.transactions.find((tx) => tx.output === `${entry.output}-secondary`);
+  artifacts[key] = { ...artifacts[key], bytecode:
+    `0x${primary.slice(-48 - length * 2, -48)}${secondary.constructorArgs.decoded[0].slice(4)}` };
+}
 const call = (entry) => entry.forwardedCall;
 
 test("template update deploys only three stores, registers both factories, then disables old templates", () => {

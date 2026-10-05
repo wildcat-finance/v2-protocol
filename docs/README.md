@@ -69,6 +69,9 @@ review coverage, or remediation status from source ancestry alone.
   verification, and handoffs
 - [Sepolia v2.5.5](./operations/sepolia-v2.5.5.md): activation scope,
   preparation status, and downstream handoff
+- [Sepolia v2.5.6](./operations/sepolia-v2.5.6.md): deployed hook-template update
+- [Sepolia v2.5.7](./operations/sepolia-v2.5.7.md): delegated-transfer sanctions
+  patch, replacement factories and current ceremony
 
 Machine-readable state in [`deployments/`](../deployments/) is authoritative for
 deployment facts.

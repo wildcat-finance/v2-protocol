@@ -173,3 +173,41 @@ test("ceremony evidence is trackable while active-session pointers stay ignored"
   assert.equal(spawnSync("git", ["check-ignore", "--no-index",
     "deployments/sepolia/ceremony-evidence/v2.5.6-active-session"], { cwd: root }).status, 0);
 });
+
+test("factory evidence ZIP carries original reuse sources and rejects altered receipts", (t) => {
+  const f = fixture(t);
+  const rotation = require("../../deployments/sepolia/v2.5.7.json");
+  const reused = require("../reused-deployments").loadReusedDeployments(rotation);
+  f.modify(configPath, (config) => {
+    config.activationScope = "factories";
+    config.inventoryBaselineCommit = rotation.inventoryBaselineCommit;
+    config.reusedDeployments = rotation.reusedDeployments;
+  });
+  const handoff = { release: "v2.5.6", chain: { network: "sepolia", chainId: 11155111 },
+    releaseContracts: Array.from(reused.values(), (record) => ({ reused: true,
+      address: record.address, startBlock: record.startBlock, deployTxHash: record.txHash,
+      provenance: record.provenance })) };
+  for (const record of reused.values()) {
+    for (const source of [record.provenance.handoff, record.provenance.plan]) {
+      f.write(source, fs.readFileSync(path.join(root, source)));
+    }
+  }
+  const finalPath = "deployments/sepolia/handoff-v2.5.6.json";
+  f.write(finalPath, JSON.stringify(handoff));
+  const result = f.run();
+  assert.equal(result.status, 0, result.stderr);
+  const archive = readArchive(path.join(f.directory, "deployments/sepolia/ceremony-evidence", f.archives()[0]));
+  for (const record of reused.values()) {
+    for (const source of [record.provenance.handoff, record.provenance.plan]) {
+      assert.deepEqual(archive[source], fs.readFileSync(path.join(root, source)));
+    }
+  }
+  for (const index of [0, 1, 2, 3]) {
+    f.write(finalPath, JSON.stringify(handoff));
+    f.modify(finalPath, (value) => { value.releaseContracts[index].startBlock += 1; });
+    const failure = f.run();
+    assert.equal(failure.status, 1);
+    assert.match(failure.stderr, /receipt differs from its original handoff/);
+  }
+  assert.equal(f.archives().length, 1);
+});
