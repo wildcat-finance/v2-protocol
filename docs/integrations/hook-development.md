@@ -264,7 +264,7 @@ Deployed hook runtime must fit 24,576 bytes. Fitting creation artifacts use one
 raw `STOP || initcode` store. Larger artifacts use two immutable stores, each
 within that same runtime limit, through one template address. Storage splitting
 does not relax the hook runtime limit. See
-[stored creation code](../operations/deployment.md#stored-creation-code).
+[stored creation code](https://github.com/wildcat-finance/v2-protocol/blob/bfe1412141f263ba6b056c60c3f4654a461598dd/docs/operations/deployment.md#stored-creation-code).
 
 The complete CREATE payload must fit 49,152 bytes. The instance constructor's
 `(address, bytes)` envelope with empty `args` adds 96 bytes to creation code;

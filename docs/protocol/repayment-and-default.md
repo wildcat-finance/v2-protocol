@@ -45,7 +45,7 @@ The supplied hooks impose further creation limits through
 These are the current template limits. A registered template's
 `_getParameterConstraints()` controls both discovery and enforcement. Limits
 are not chosen through arbitrary borrower constructor data. Final network
-parameters belong to the [deployment preparation](../operations/deployment.md#release-workflow).
+parameters belong to the [deployment preparation](https://github.com/wildcat-finance/v2-protocol/blob/bfe1412141f263ba6b056c60c3f4654a461598dd/docs/operations/deployment.md#release-workflow).
 
 ## Reaching the date
 

@@ -1,9 +1,9 @@
 # Testing
 
 The canonical protocol suite lives in [`test/`](./test/). Deployment-format
-comparisons and lifecycle invariants are part of that tree, not an alternate
-release-test profile. Standalone gas and optimizer research uses fixtures under
-`scripts/research/fixtures/`; those do not replace the canonical suite.
+comparisons and lifecycle invariants are part of that tree. This audit branch
+retains the release suite except tests and matrix cases for excluded providers;
+see the [scope and test accounting](./docs/releases/v2.5-audit-scope.md).
 
 ## Required commands
 
@@ -11,13 +11,13 @@ Install the pinned Foundry toolchain using the [build setup](./README.md#build-a
 
 ```sh
 forge test
-yarn test:fixed
+forge test --block-timestamp 1724284800 --fuzz-seed 0x5eed --summary
 FOUNDRY_PROFILE=deploy forge test
 ```
 
 - `forge test` is the default for local work and CI.
-- `yarn test:fixed` uses a fixed timestamp and fuzz seed. Use it when you need a
-  repeatable audit run.
+- The second command uses a fixed timestamp and fuzz seed for a repeatable
+  audit run. `yarn test:fixed` is an optional alias for it.
 - `FOUNDRY_PROFILE=deploy forge test` runs the same suite with the deployment
   artifact settings.
 
@@ -39,22 +39,33 @@ is enabled in the repository configuration. That reference qualifies the
 historical compression comparison; current deployment tooling selects raw or
 split storage.
 
-## Deployment tooling
+## Focused development
 
-Install the locked root and deployment-UI JavaScript dependencies, then run:
+After the initial compile, run one suite or regression without forcing a clean
+build:
 
 ```sh
-yarn install --frozen-lockfile --ignore-scripts
-npm --prefix deploy-ui ci --ignore-scripts
-node --test scripts/__tests__/*.test.js
-npm --prefix deploy-ui test
-npm --prefix deploy-ui run build
+forge test --match-path test/market/RepayExpiryDelinquency.t.sol
+forge test --match-test test_wildcatDebtTokenCannotAuthorizeDepositsIntoItsOwnMarket -vvv
 ```
 
-These cover plan commitments, template registration, handoff records, predicate
-verification and the UI executor. They supplement the contract suite. A release
-also needs the [deployment rehearsal](./docs/operations/deployment.md#release-workflow)
-on a pinned target-chain fork with the actual frozen plan.
+`--match-path` and `--match-test` select execution; the canonical compilation
+graph still makes artifacts available to fixtures that use `vm.getCode`.
+Keep that graph for regression work unless you have checked the fixture's
+artifact dependencies. A changed Solidity dependency may still require a
+substantial compile. Run the full suite before handing back a finding or fix.
+
+`LiveBalanceRoleProviderMock` deliberately imports the pinned Solady
+`MerkleProofLib` even though its credential checks do not call that library.
+The original provider suite brought this source into the compiler input.
+Removing it changes compiler-generated identifiers and the optimized lens
+bytecode under Solidity 0.8.25. Keep the import when reproducing the package's
+canonical artifacts; source-only or otherwise narrowed builds have a different
+input graph and may emit different bytecode.
+
+The installation constructors and their Solidity regression helpers remain.
+Ceremony, inventory, and deployment-UI programs are excluded; operational
+rehearsal belongs to the release repository.
 
 See [`test/README.md`](./test/README.md) for suite ownership, fixture rules,
 stateful testing, and the focused coverage boundary.

@@ -16,10 +16,9 @@ Report suspected vulnerabilities privately as described in
 
 ## JavaScript toolchain
 
-Use Node `24.21.0`, Yarn Classic `1.22.22` for the protocol root, and npm
-`11.19.0` for `deploy-ui`. [`.node-version`](./.node-version) selects Node for
-compatible version managers. Each package manifest declares its Node and package
-manager versions; the UI also rejects incompatible engines during installation.
+The canonical Solidity suite does not need Node or Yarn. For optional linting
+and inventory tools, use Node `24.21.0` and Yarn Classic `1.22.22`.
+[`.node-version`](./.node-version) selects Node for compatible version managers.
 
 Use Corepack to select the root Yarn pin without a global Yarn installation.
 Verify the installed tools, then install from the existing lockfiles:
@@ -27,16 +26,14 @@ Verify the installed tools, then install from the existing lockfiles:
 ```sh
 node --version
 corepack yarn --version
-(cd deploy-ui && npm --version)
 corepack yarn install --frozen-lockfile --ignore-scripts
-(cd deploy-ui && npm ci --ignore-scripts)
 ```
 
-Keep `yarn.lock` at the root and `package-lock.json` in `deploy-ui`. Do not swap
-package managers or regenerate a lockfile as part of routine setup.
+Keep `yarn.lock`. Do not swap package managers or regenerate the lockfile as
+part of routine setup.
 The `yarn` commands elsewhere in these docs can also be run as `corepack yarn`.
 
-The root `.yarnrc` and UI `.npmrc` disable automatic lifecycle scripts by default.
+The root `.yarnrc` disables automatic lifecycle scripts by default.
 Explicit test and build commands still run. Do not enable dependency scripts to
 work around an install failure without reviewing the package and its scripts.
 

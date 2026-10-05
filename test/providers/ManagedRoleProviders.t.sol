@@ -10,7 +10,6 @@ pragma solidity 0.8.25;
 //  setUp()
 //  _deployManaged(...)
 //  _deployAccessList(...)
-//  _deployMerkle(...)
 //  _singleMember(...)
 //
 //  PROVIDER AUTHORITY
@@ -30,35 +29,16 @@ pragma solidity 0.8.25;
 //  test_accessList_MemberUpdateErrorsAndAuthority()
 //  test_accessList_PaginationClampsAndRejectsInvalidRanges()
 //
-//  MERKLE MEMBERSHIP
-//  test_merkle_ConstructorAndMembershipSurface()
-//  testFuzz_merkleGeneratedProofValidatesOnlyItsAccount(...)
-//  testFuzz_merkleMalformedCredentialDataFailsClosed(...)
-//  test_merkle_NonCanonicalCredentialEncodingsFailClosed()
-//  test_merkle_SingleLeafAcceptsCanonicalEmptyProof()
-//  test_merkle_RootUpdatesEmitAndRequireAdministrator()
-//  _leaf(...)
-//  _hashPair(...)
-//  _rootFor(...)
-//
 //  HOOK ACCESS FIXTURES
 //  _newHookFixture(...)
 //  _deployHooks(...)
 //  _deposit(...)
 //  _expectDepositDenied(...)
 //  _queueWithdrawal(...)
-//  _merkleHooksData(...)
 //
 //  ACCESS LIST HOOK INTEGRATION
 //  test_accessListHook_MembershipRemovalRespectsConfiguredTtl()
 //  test_accessListHook_LocalBlockAndAttachmentSurviveProviderUpdates()
-//
-//  MERKLE HOOK INTEGRATION
-//  test_merkleHook_ValidProofAllowsMemberAndRejectsNonmember()
-//  test_merkleHook_RootUpdateRespectsPositiveTtl()
-//  test_merkleHook_ZeroTtlUsesSameBlockCredentialThenRequiresFreshProof()
-//  test_merkleHook_MalformedDataFailsClosed()
-//  test_merkleHook_EmptyProofTracksSingleLeafRootUpdates()
 // ═════
 
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
@@ -68,8 +48,6 @@ import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { AccessListRoleProvider } from 'src/providers/AccessListRoleProvider.sol';
 import { IAccessListRoleProvider } from 'src/providers/IAccessListRoleProvider.sol';
-import { IMerkleRoleProvider } from 'src/providers/IMerkleRoleProvider.sol';
-import { MerkleRoleProvider } from 'src/providers/MerkleRoleProvider.sol';
 import { encodeHooksConfig } from 'src/types/HooksConfig.sol';
 import { LenderStatus } from 'src/types/LenderStatus.sol';
 import { RoleProvider } from 'src/types/RoleProvider.sol';
@@ -78,8 +56,7 @@ import { TestKernel } from '../shared/TestKernel.sol';
 // ┌─ ManagedRoleProvidersTest ─────────────────────────────────────────────────
 contract ManagedRoleProvidersTest is TestKernel {
   enum ManagedProviderKind {
-    AccessList,
-    Merkle
+    AccessList
   }
 
   struct HookFixture {
@@ -100,17 +77,8 @@ contract ManagedRoleProvidersTest is TestKernel {
   }
 
   // ┌─ _deployManaged ─────
-  function _deployManaged(
-    ManagedProviderKind kind,
-    address administrator
-  )
-    internal
-    returns (IManagedRoleProvider provider)
-  {
-    if (kind == ManagedProviderKind.AccessList) {
-      return IManagedRoleProvider(address(_deployAccessList(administrator, _singleMember(Alice))));
-    }
-    return IManagedRoleProvider(address(_deployMerkle(administrator, _leaf(Alice))));
+  function _deployManaged(ManagedProviderKind, address administrator) internal returns (IManagedRoleProvider provider) {
+    return IManagedRoleProvider(address(_deployAccessList(administrator, _singleMember(Alice))));
   }
 
   // ┌─ _deployAccessList ─────
@@ -128,13 +96,6 @@ contract ManagedRoleProvidersTest is TestKernel {
     );
   }
 
-  // ┌─ _deployMerkle ─────
-  function _deployMerkle(address administrator, bytes32 root) internal returns (MerkleRoleProvider provider) {
-    provider = MerkleRoleProvider(
-      _deployCode('src/providers/MerkleRoleProvider.sol:MerkleRoleProvider', abi.encode(administrator, root))
-    );
-  }
-
   // ┌─ _singleMember ─────
   function _singleMember(address account) internal pure returns (address[] memory members) {
     members = new address[](1);
@@ -147,14 +108,11 @@ contract ManagedRoleProvidersTest is TestKernel {
   function test_managedProviderMatrix_RejectsZeroAdministrator() external {
     vm.expectRevert(IManagedRoleProvider.InvalidAdministratorTransferTarget.selector);
     _deployAccessList(address(0), new address[](0));
-
-    vm.expectRevert(IManagedRoleProvider.InvalidAdministratorTransferTarget.selector);
-    _deployMerkle(address(0), bytes32(0));
   }
 
   // ┌─ test_managedProviderMatrix_RequestReplaceAndCancelTransfer ─────
   function test_managedProviderMatrix_RequestReplaceAndCancelTransfer() external {
-    for (uint8 i; i <= uint8(ManagedProviderKind.Merkle); i++) {
+    for (uint8 i; i <= uint8(ManagedProviderKind.AccessList); i++) {
       IManagedRoleProvider provider = _deployManaged(ManagedProviderKind(i), address(this));
 
       vm.expectEmit(address(provider));
@@ -178,7 +136,7 @@ contract ManagedRoleProvidersTest is TestKernel {
 
   // ┌─ test_managedProviderMatrix_TransferErrors ─────
   function test_managedProviderMatrix_TransferErrors() external {
-    for (uint8 i; i <= uint8(ManagedProviderKind.Merkle); i++) {
+    for (uint8 i; i <= uint8(ManagedProviderKind.AccessList); i++) {
       IManagedRoleProvider provider = _deployManaged(ManagedProviderKind(i), address(this));
 
       vm.expectRevert(IManagedRoleProvider.InvalidAdministratorTransferTarget.selector);
@@ -198,7 +156,7 @@ contract ManagedRoleProvidersTest is TestKernel {
 
   // ┌─ test_managedProviderMatrix_AcceptMovesAuthorityAndPreservesConfiguration ─────
   function test_managedProviderMatrix_AcceptMovesAuthorityAndPreservesConfiguration() external {
-    for (uint8 i; i <= uint8(ManagedProviderKind.Merkle); i++) {
+    for (uint8 i; i <= uint8(ManagedProviderKind.AccessList); i++) {
       ManagedProviderKind kind = ManagedProviderKind(i);
       IManagedRoleProvider provider = _deployManaged(kind, address(this));
       provider.requestAdministratorTransfer(Bob);
@@ -228,31 +186,22 @@ contract ManagedRoleProvidersTest is TestKernel {
   }
 
   // ┌─ _mutateManaged ─────
-  function _mutateManaged(ManagedProviderKind kind, IManagedRoleProvider provider) internal {
-    if (kind == ManagedProviderKind.AccessList) {
-      AccessListRoleProvider(address(provider)).addMember(Carol);
-    } else {
-      MerkleRoleProvider(address(provider)).updateRoot(_leaf(Carol));
-    }
+  function _mutateManaged(ManagedProviderKind, IManagedRoleProvider provider) internal {
+    AccessListRoleProvider(address(provider)).addMember(Carol);
   }
 
   // ┌─ _assertManagedConfiguration ─────
   function _assertManagedConfiguration(
-    ManagedProviderKind kind,
+    ManagedProviderKind,
     IManagedRoleProvider provider,
     bool initialConfiguration
   )
     internal
     view
   {
-    if (kind == ManagedProviderKind.AccessList) {
-      AccessListRoleProvider accessList = AccessListRoleProvider(address(provider));
-      assertTrue(accessList.isMember(Alice), 'initial member');
-      assertEq(accessList.isMember(Carol), !initialConfiguration, 'new member');
-    } else {
-      bytes32 expectedRoot = initialConfiguration ? _leaf(Alice) : _leaf(Carol);
-      assertEq(MerkleRoleProvider(address(provider)).root(), expectedRoot, 'root');
-    }
+    AccessListRoleProvider accessList = AccessListRoleProvider(address(provider));
+    assertTrue(accessList.isMember(Alice), 'initial member');
+    assertEq(accessList.isMember(Carol), !initialConfiguration, 'new member');
   }
 
   // ░░▒▒▓▓██ [ ACCESS LIST MEMBERSHIP ] ───────────────────────────────────────
@@ -384,111 +333,6 @@ contract ManagedRoleProvidersTest is TestKernel {
     provider.getMembers(2, 1);
   }
 
-  // ░░▒▒▓▓██ [ MERKLE MEMBERSHIP ] ────────────────────────────────────────────
-
-  // ┌─ test_merkle_ConstructorAndMembershipSurface ─────
-  function test_merkle_ConstructorAndMembershipSurface() external {
-    bytes32 sibling = _leaf(Carol);
-    bytes32 root = _hashPair(_leaf(Alice), sibling);
-    MerkleRoleProvider provider = _deployMerkle(address(this), root);
-    bytes32[] memory proof = new bytes32[](1);
-    proof[0] = sibling;
-
-    assertEq(provider.administrator(), address(this), 'administrator');
-    assertEq(provider.pendingAdministrator(), address(0), 'pending administrator');
-    assertFalse(provider.isPullProvider(), 'push provider');
-    assertEq(provider.root(), root, 'root');
-    assertEq(provider.getCredential(Alice), 0, 'pull credential');
-    assertTrue(provider.isMember(Alice, proof), 'member');
-    assertFalse(provider.isMember(Bob, proof), 'non-member');
-  }
-
-  // ┌─ testFuzz_merkleGeneratedProofValidatesOnlyItsAccount ─────
-  function testFuzz_merkleGeneratedProofValidatesOnlyItsAccount(address account, bytes32[] calldata proof) external {
-    vm.assume(proof.length <= 64);
-    MerkleRoleProvider provider = _deployMerkle(address(this), _rootFor(account, proof));
-    address differentAccount = address(uint160(account) ^ uint160(1));
-
-    assertEq(provider.validateCredential(account, abi.encode(proof)), uint32(getTimestamp()), 'member credential');
-    assertEq(provider.validateCredential(differentAccount, abi.encode(proof)), 0, 'different account credential');
-  }
-
-  // ┌─ testFuzz_merkleMalformedCredentialDataFailsClosed ─────
-  function testFuzz_merkleMalformedCredentialDataFailsClosed(bytes calldata data) external {
-    MerkleRoleProvider provider = _deployMerkle(address(this), _leaf(Alice));
-    assertEq(provider.validateCredential(Bob, data), 0, 'credential');
-  }
-
-  // ┌─ test_merkle_NonCanonicalCredentialEncodingsFailClosed ─────
-  function test_merkle_NonCanonicalCredentialEncodingsFailClosed() external {
-    bytes32 sibling = _leaf(Carol);
-    MerkleRoleProvider provider = _deployMerkle(address(this), _hashPair(_leaf(Alice), sibling));
-    bytes32[] memory proof = new bytes32[](1);
-    proof[0] = sibling;
-
-    assertEq(provider.validateCredential(Alice, hex'01'), 0, 'short');
-    assertEq(provider.validateCredential(Alice, abi.encodePacked(uint256(1), uint256(0))), 0, 'offset');
-    assertEq(
-      provider.validateCredential(Alice, abi.encodePacked(type(uint256).max - 31, uint256(0))), 0, 'oversized offset'
-    );
-    assertEq(
-      _deployMerkle(address(this), _leaf(Alice)).validateCredential(Alice, abi.encodePacked(uint256(0), uint256(0))),
-      0,
-      'noncanonical empty proof'
-    );
-    assertEq(
-      provider.validateCredential(Alice, abi.encodePacked(abi.encode(proof), bytes32(uint256(1)))), 0, 'trailing data'
-    );
-    assertEq(
-      provider.validateCredential(Alice, abi.encodePacked(uint256(0x20), uint256(2), bytes32(uint256(sibling)))),
-      0,
-      'oversized proof length'
-    );
-  }
-
-  // ┌─ test_merkle_SingleLeafAcceptsCanonicalEmptyProof ─────
-  function test_merkle_SingleLeafAcceptsCanonicalEmptyProof() external {
-    MerkleRoleProvider provider = _deployMerkle(address(this), _leaf(Alice));
-    bytes32[] memory proof = new bytes32[](0);
-
-    assertTrue(provider.isMember(Alice, proof), 'member');
-    assertEq(provider.validateCredential(Alice, abi.encode(proof)), uint32(getTimestamp()), 'credential');
-  }
-
-  // ┌─ test_merkle_RootUpdatesEmitAndRequireAdministrator ─────
-  function test_merkle_RootUpdatesEmitAndRequireAdministrator() external {
-    bytes32 oldRoot = _leaf(Alice);
-    bytes32 newRoot = _leaf(Bob);
-    MerkleRoleProvider provider = _deployMerkle(address(this), oldRoot);
-
-    vm.prank(Bob);
-    vm.expectRevert(IManagedRoleProvider.CallerNotAdministrator.selector);
-    provider.updateRoot(newRoot);
-
-    vm.expectEmit(address(provider));
-    emit IMerkleRoleProvider.RootUpdated(address(this), oldRoot, newRoot);
-    provider.updateRoot(newRoot);
-    assertEq(provider.root(), newRoot, 'root');
-  }
-
-  // ┌─ _leaf ─────
-  function _leaf(address account) internal pure returns (bytes32) {
-    return keccak256(abi.encode(account));
-  }
-
-  // ┌─ _hashPair ─────
-  function _hashPair(bytes32 left, bytes32 right) internal pure returns (bytes32) {
-    return left < right ? keccak256(abi.encodePacked(left, right)) : keccak256(abi.encodePacked(right, left));
-  }
-
-  // ┌─ _rootFor ─────
-  function _rootFor(address account, bytes32[] calldata proof) internal pure returns (bytes32 root) {
-    root = _leaf(account);
-    for (uint256 i; i < proof.length; i++) {
-      root = _hashPair(root, proof[i]);
-    }
-  }
-
   // ░░▒▒▓▓██ [ HOOK ACCESS FIXTURES ] ─────────────────────────────────────────
 
   // ┌─ _newHookFixture ─────
@@ -551,11 +395,6 @@ contract ManagedRoleProvidersTest is TestKernel {
     fixture.hooks.onQueueWithdrawal(lender, 0, 1, state, hooksData);
   }
 
-  // ┌─ _merkleHooksData ─────
-  function _merkleHooksData(address provider, bytes32[] memory proof) internal pure returns (bytes memory) {
-    return abi.encodePacked(provider, abi.encode(proof));
-  }
-
   // ░░▒▒▓▓██ [ ACCESS LIST HOOK INTEGRATION ] ─────────────────────────────────
 
   // ┌─ test_accessListHook_MembershipRemovalRespectsConfiguredTtl ─────
@@ -602,75 +441,5 @@ contract ManagedRoleProvidersTest is TestKernel {
     vm.prank(Bob);
     provider.removeMember(Alice);
     assertFalse(provider.isMember(Alice), 'new administrator authority');
-  }
-
-  // ░░▒▒▓▓██ [ MERKLE HOOK INTEGRATION ] ──────────────────────────────────────
-
-  // ┌─ test_merkleHook_ValidProofAllowsMemberAndRejectsNonmember ─────
-  function test_merkleHook_ValidProofAllowsMemberAndRejectsNonmember() external {
-    bytes32 sibling = _leaf(Carol);
-    bytes32[] memory proof = new bytes32[](1);
-    proof[0] = sibling;
-    MerkleRoleProvider provider = _deployMerkle(address(this), _hashPair(_leaf(Alice), sibling));
-    HookFixture memory fixture = _newHookFixture(address(provider), 0, 4);
-    bytes memory hooksData = _merkleHooksData(address(provider), proof);
-
-    _deposit(fixture, Alice, hooksData);
-    _expectDepositDenied(fixture, Bob, hooksData);
-  }
-
-  // ┌─ test_merkleHook_RootUpdateRespectsPositiveTtl ─────
-  function test_merkleHook_RootUpdateRespectsPositiveTtl() external {
-    bytes32 sibling = _leaf(Carol);
-    bytes32[] memory proof = new bytes32[](1);
-    proof[0] = sibling;
-    MerkleRoleProvider provider = _deployMerkle(address(this), _hashPair(_leaf(Alice), sibling));
-    HookFixture memory fixture = _newHookFixture(address(provider), 1, 5);
-    bytes memory hooksData = _merkleHooksData(address(provider), proof);
-    _deposit(fixture, Alice, hooksData);
-
-    provider.updateRoot(_hashPair(_leaf(Bob), sibling));
-    _deposit(fixture, Alice, hooksData);
-    vm.warp(vm.getBlockTimestamp() + 2);
-    _expectDepositDenied(fixture, Alice, hooksData);
-  }
-
-  // ┌─ test_merkleHook_ZeroTtlUsesSameBlockCredentialThenRequiresFreshProof ─────
-  function test_merkleHook_ZeroTtlUsesSameBlockCredentialThenRequiresFreshProof() external {
-    bytes32 sibling = _leaf(Carol);
-    bytes32[] memory proof = new bytes32[](1);
-    proof[0] = sibling;
-    MerkleRoleProvider provider = _deployMerkle(address(this), _hashPair(_leaf(Alice), sibling));
-    HookFixture memory fixture = _newHookFixture(address(provider), 0, 6);
-    bytes memory hooksData = _merkleHooksData(address(provider), proof);
-    _deposit(fixture, Alice, hooksData);
-
-    provider.updateRoot(_hashPair(_leaf(Bob), sibling));
-    _deposit(fixture, Alice, '');
-    vm.warp(vm.getBlockTimestamp() + 1);
-    _expectDepositDenied(fixture, Alice, hooksData);
-  }
-
-  // ┌─ test_merkleHook_MalformedDataFailsClosed ─────
-  function test_merkleHook_MalformedDataFailsClosed() external {
-    MerkleRoleProvider provider = _deployMerkle(address(this), _leaf(Alice));
-    HookFixture memory fixture = _newHookFixture(address(provider), 0, 7);
-
-    _expectDepositDenied(fixture, Alice, abi.encodePacked(address(provider), hex'01'));
-    _expectDepositDenied(fixture, Alice, abi.encodePacked(address(provider), uint256(1), uint256(0)));
-    _expectDepositDenied(
-      fixture, Alice, abi.encodePacked(address(provider), uint256(0x20), uint256(2), bytes32(uint256(1)))
-    );
-  }
-
-  // ┌─ test_merkleHook_EmptyProofTracksSingleLeafRootUpdates ─────
-  function test_merkleHook_EmptyProofTracksSingleLeafRootUpdates() external {
-    bytes32[] memory emptyProof = new bytes32[](0);
-    MerkleRoleProvider provider = _deployMerkle(address(this), _leaf(Alice));
-    HookFixture memory fixture = _newHookFixture(address(provider), 0, 8);
-
-    _deposit(fixture, Alice, _merkleHooksData(address(provider), emptyProof));
-    provider.updateRoot(_leaf(Bob));
-    _deposit(fixture, Bob, _merkleHooksData(address(provider), emptyProof));
   }
 }

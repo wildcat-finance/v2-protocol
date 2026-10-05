@@ -2,10 +2,10 @@
 
 These pages describe contract changes and integration compatibility between
 versions. Addresses, factory lifecycle, and transaction receipts are recorded
-in [`deployments/`](../../deployments/).
+in [`deployments/`](https://github.com/wildcat-finance/v2-protocol/tree/bfe1412141f263ba6b056c60c3f4654a461598dd/deployments).
 
-Generated [contract inventories](./inventory/README.md) pin each first-party
-source unit and ABI-bearing declaration to a release commit.
+The [audit scope](./v2.5-audit-scope.md) and its file manifest define this
+branch. Historical inventories remain in the release repository.
 
 ## V2.5
 
@@ -34,16 +34,16 @@ A later tag does not extend an earlier review's source scope.
 
 ## V2.5 review material
 
-Each record applies to its named source revision:
+- [Audit scope](./v2.5-audit-scope.md): current source identity, review boundary,
+  security properties, exclusions, and test accounting.
+- [Scope manifest](./v2.5-audit-manifest.json): retained source hashes, artifact
+  identities, and supporting-file inventory.
+- [Verification receipt](./v2.5-audit-verification.json): results for this
+  pruned package, including source and artifact comparisons.
+- [2026-10-05 release test review](./test-review-2026-10-05.json): historical
+  full-provider-suite results and partial coverage. Its 958-test total predates
+  this package's provider exclusions.
 
-- [Audit scope](./v2.5-audit-scope.md): the prior source freeze, subsequent
-  review delta, and requirements for a new audit packet.
-- [Contract inventory](./inventory/v2.5.json): the prior `7fad3de` audit source.
-- [Pre-freeze verification](./v2.5-verification.md): results for an earlier
-  candidate, using that candidate's compiler settings.
-- [2026-10-05 test review](./test-review-2026-10-05.json): canonical test results,
-  compilation timing, partial coverage, Slither compatibility, and the
-  subsequent test-maintenance checks.
-
-The prior inventory and pre-freeze receipt do not cover the later V2.5 changes.
-The audit-scope document records the remaining freeze and verification work.
+The earlier audit packet and deployment evidence are available at the
+[release base](https://github.com/wildcat-finance/v2-protocol/tree/bfe1412141f263ba6b056c60c3f4654a461598dd).
+Their source boundaries and measurements do not override this package's scope.

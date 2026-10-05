@@ -2,7 +2,7 @@
 
 These are the trust and compatibility assumptions of the active release source.
 Deployment-specific addresses and role holders live in
-[`deployments/`](../../deployments/).
+[`deployments/`](https://github.com/wildcat-finance/v2-protocol/tree/bfe1412141f263ba6b056c60c3f4654a461598dd/deployments).
 
 ## Credit and borrower authority
 
@@ -75,7 +75,7 @@ hashes are fixed at factory deployment; hook hashes are fixed at template
 registration. The hash must come from the reviewed artifact. A store's own
 claim about its output does not establish that identity. Review the reader,
 installation constructors, plan commitments and execution tooling together;
-see [deployment](../operations/deployment.md#stored-creation-code).
+see [deployment](https://github.com/wildcat-finance/v2-protocol/blob/bfe1412141f263ba6b056c60c3f4654a461598dd/docs/operations/deployment.md#stored-creation-code).
 
 ## Sanctions dependency
 

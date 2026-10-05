@@ -9,6 +9,12 @@
 
 Plain `forge test` needs no timestamp, seed, profile, or environment setup.
 
+This audit branch narrows provider scope to AccessList and the shared managed
+base. The [audit receipt](../docs/releases/v2.5-audit-verification.json) records
+its 907 results; the historical 958-result release run included the excluded
+providers. The [scope](../docs/releases/v2.5-audit-scope.md) accounts for the
+removed tests and retained integration assertions.
+
 The default, fixed-seed, and `deploy` runs use optimizer runs `1` and the
 exact Yul sequence pinned in [`foundry.toml`](../foundry.toml). The suite
 includes the market and hook artifact limits and the real factory deployment
@@ -20,14 +26,14 @@ matrix. Keep those checks enabled when changing compiler settings.
 # Canonical local and CI boundary
 forge test
 
-# Reproducible timestamp and fuzz seed
-yarn test:fixed
+# Reproducible timestamp and fuzz seed (also available as yarn test:fixed)
+forge test --block-timestamp 1724284800 --fuzz-seed 0x5eed --summary
 
 # Deployment-profile confirmation
 FOUNDRY_PROFILE=deploy forge test
 
 # Focused coverage (see Coverage boundary for limits)
-FOUNDRY_TEST=test/sanctions yarn coverage --match-contract SanctionsTest
+FOUNDRY_TEST=test/sanctions ./scripts/coverage.sh --match-contract SanctionsTest
 ```
 
 ## Structure
@@ -99,7 +105,7 @@ narrows the compilation graph. A `--match-contract` filter alone does not do
 that. For example:
 
 ```sh
-FOUNDRY_TEST=test/libraries/FeeMath.t.sol yarn coverage \
+FOUNDRY_TEST=test/libraries/FeeMath.t.sol ./scripts/coverage.sh \
   --report lcov --report-file /tmp/fee-math.lcov
 ```
 
@@ -138,6 +144,11 @@ and its qualification instructions. Pin the runtime revision: the qualified
 fork and an unpatched installation can both report version `0.11.6`.
 
 ## Recorded results
+
+Use the [audit-package receipt](../docs/releases/v2.5-audit-verification.json)
+for this branch's results and coverage comparison on retained source only.
+
+### Release baseline
 
 The [2026-10-05 test review](../docs/releases/test-review-2026-10-05.json)
 records source identities, tool versions, commands, coverage inputs, and

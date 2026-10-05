@@ -1,17 +1,17 @@
 # Technical documentation
 
-Contract behavior, integration guides, and deployment tooling for developers
-and security reviewers.
+Contract behavior and integration guides for security reviewers. Start with
+the [audit scope](./releases/v2.5-audit-scope.md) for this branch's source boundary.
 
 Use the documentation from the same tag or commit as the contracts you are
 working with. [Release notes](./releases/README.md) describe compatibility
-between versions; [deployment records](../deployments/) identify contracts by
-network, address, and release.
+between versions. Deployment records remain in the pinned release repository;
+this audit snapshot does not attest deployed state.
 
 ## Build and contribute
 
 - [Build setup](../README.md#build-and-test)
-- [Testing](../TESTS.md): canonical commands, reproducible runs, and tooling tests
+- [Testing](../TESTS.md): canonical commands, reproducible runs, and coverage limits
 - [Test suite guide](../test/README.md): fixtures, invariants, and coverage limits
 - [Contributing](../CONTRIBUTING.md): toolchain setup and source conventions
 
@@ -56,11 +56,9 @@ network, address, and release.
 - [`SECURITY.md`](../SECURITY.md): private vulnerability reporting
 - [`audits/`](../audits/README.md): published external review evidence
 
-## Releases and operations
+## Review and release context
 
-- [Release notes](./releases/README.md): V2.0, V2.1, and V2.5 source boundaries
-  and compatibility changes
-- [V2.5 review material](./releases/README.md#v25-review-material): source
-  inventories, review scope, and dated verification results
-- [Deployment](./operations/deployment.md): inventory, plans, ceremonies,
-  verification, and release-specific runbooks
+- [Audit scope](./releases/v2.5-audit-scope.md): source identity, exclusions,
+  security properties, and verification
+- [Release notes](./releases/README.md): source boundaries and compatibility
+  changes from V2.0 and V2.1

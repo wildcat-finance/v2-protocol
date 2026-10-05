@@ -73,8 +73,6 @@ import { DeployMarketInputs, MarketParameters } from 'src/interfaces/WildcatStru
 import { LibERC20 } from 'src/libraries/LibERC20.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { WildcatMarketRevolving } from 'src/market/WildcatMarketRevolving.sol';
-import { ERC20RoleProvider } from 'src/providers/ERC20RoleProvider.sol';
-import { ERC4626AssetsRoleProvider } from 'src/providers/ERC4626AssetsRoleProvider.sol';
 import { EmptyHooksConfig, HooksConfig } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_Deposit } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
@@ -87,6 +85,7 @@ import { HookDispatchFactoryMock } from '../mocks/HookDispatchMocks.sol';
 import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 import { SanctionsListMock } from '../mocks/SanctionsMocks.sol';
 import { WrapperQueueAccountMock } from '../mocks/WrapperQueueAccountMock.sol';
+import { LiveBalanceRoleProviderMock } from '../mocks/LiveBalanceRoleProviderMock.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
 // keep concrete hooks and revolving-market imports even though deployment uses vm.getCode.
@@ -844,8 +843,11 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
   function test_wildcatDebtTokenCannotAuthorizeDepositsIntoItsOwnMarket() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     _deposit(fixture, Lender, 1e18);
-    ERC20RoleProvider provider = ERC20RoleProvider(
-      _deployCode('src/providers/ERC20RoleProvider.sol:ERC20RoleProvider', abi.encode(address(fixture.market), 1e18))
+    LiveBalanceRoleProviderMock provider = LiveBalanceRoleProviderMock(
+      _deployCode(
+        'test/mocks/LiveBalanceRoleProviderMock.sol:LiveBalanceRoleProviderMock',
+        abi.encode(address(fixture.market), 1e18, false)
+      )
     );
     assertEq(provider.getCredential(Lender), uint32(vm.getBlockTimestamp()), 'outside credential');
 
@@ -864,9 +866,10 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     fixture.market.borrow(borrowableAssets);
 
     uint256 minimumBalance = fixture.market.balanceOf(Lender) + 1e18;
-    ERC20RoleProvider provider = ERC20RoleProvider(
+    LiveBalanceRoleProviderMock provider = LiveBalanceRoleProviderMock(
       _deployCode(
-        'src/providers/ERC20RoleProvider.sol:ERC20RoleProvider', abi.encode(address(fixture.market), minimumBalance)
+        'test/mocks/LiveBalanceRoleProviderMock.sol:LiveBalanceRoleProviderMock',
+        abi.encode(address(fixture.market), minimumBalance, false)
       )
     );
     MockERC20 targetAsset = _newAsset('Target Token', 'TGT');
@@ -899,10 +902,10 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     vm.stopPrank();
 
     uint256 minimumAssets = wrapper.convertToAssets(shares) + 1e18;
-    ERC4626AssetsRoleProvider provider = ERC4626AssetsRoleProvider(
+    LiveBalanceRoleProviderMock provider = LiveBalanceRoleProviderMock(
       _deployCode(
-        'src/providers/ERC4626AssetsRoleProvider.sol:ERC4626AssetsRoleProvider',
-        abi.encode(address(wrapper), minimumAssets)
+        'test/mocks/LiveBalanceRoleProviderMock.sol:LiveBalanceRoleProviderMock',
+        abi.encode(address(wrapper), minimumAssets, true)
       )
     );
     MockERC20 targetAsset = _newAsset('Target Token', 'TGT');

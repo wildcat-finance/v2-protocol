@@ -61,7 +61,7 @@ market. Template disabling is not a kill switch.
 
 `addHooksTemplate` requires the original `initCodeHash`. That commitment is
 checked at registration and before every instance deployment. It excludes
-instance constructor arguments. See [stored creation code](../operations/deployment.md#stored-creation-code)
+instance constructor arguments. See [stored creation code](https://github.com/wildcat-finance/v2-protocol/blob/bfe1412141f263ba6b056c60c3f4654a461598dd/docs/operations/deployment.md#stored-creation-code)
 for preparation and verification of both storage contracts.
 
 ## Callback flags

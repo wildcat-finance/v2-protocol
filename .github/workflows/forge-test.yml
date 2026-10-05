@@ -3,10 +3,10 @@ name: Forge tests
 on:
   pull_request:
     branches:
-      - release/v2.5
+      - audit/v2.5
   push:
     branches:
-      - release/v2.5
+      - audit/v2.5
   workflow_dispatch:
 
 permissions:
