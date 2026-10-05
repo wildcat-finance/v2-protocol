@@ -27,7 +27,10 @@ deployments/*/HooksFactoryRevolving-0x*/
 deployments/*/pending-admin-actions/
 deployments/*/rcf-template-sync-*.json
 deployments/*/rcf-v2-handoff*.json
-deployments/*/ceremony-evidence/*-active-session
+# Keep ceremony archives and checksums; unpacked sessions stay local.
+deployments/*/ceremony-evidence/*
+!deployments/*/ceremony-evidence/*.zip
+!deployments/*/ceremony-evidence/*.sha256
 deployments/*/ceremony-v2-5-*.json
 deployments/*/ceremony-v2.*.json
 deployments/*/bundles-v2-5*/

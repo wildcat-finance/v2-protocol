@@ -167,11 +167,23 @@ finalize_inventory
   });
 }
 
-test("ceremony evidence is trackable while active-session pointers stay ignored", () => {
-  const evidencePath = "deployments/sepolia/ceremony-evidence/new-session/run-state.json";
-  assert.equal(spawnSync("git", ["check-ignore", "--no-index", evidencePath], { cwd: root }).status, 1);
-  assert.equal(spawnSync("git", ["check-ignore", "--no-index",
-    "deployments/sepolia/ceremony-evidence/v2.5.6-active-session"], { cwd: root }).status, 0);
+test("ceremony archives and checksums are trackable while loose evidence stays ignored", () => {
+  for (const network of ["sepolia", "mainnet"]) {
+    for (const [filename, ignored] of [
+      ["new-evidence.zip", false],
+      ["new-evidence.zip.sha256", false],
+      ["new-evidence.sha256", false],
+      ["new-session/run-state.json", true],
+      ["new-session/preflight.json", true],
+      ["new-session/ui-started", true],
+      ["v2.5.6-active-session", true],
+      ["preparation.log", true],
+    ]) {
+      const evidencePath = `deployments/${network}/ceremony-evidence/${filename}`;
+      assert.equal(spawnSync("git", ["check-ignore", "--no-index", evidencePath], { cwd: root }).status,
+        ignored ? 0 : 1, evidencePath);
+    }
+  }
 });
 
 test("factory evidence ZIP carries original reuse sources and rejects altered receipts", (t) => {

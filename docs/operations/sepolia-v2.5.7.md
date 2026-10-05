@@ -98,6 +98,11 @@ handoffs and plans needed to interpret reused deployments. If ZIP creation fails
 after finalization, `stage archive-evidence` retries offline without replaying
 transactions or inventory changes.
 
+Commit the ZIP and `.sha256` files at the root of that evidence directory.
+Unpacked session folders, active-session pointers and working files are ignored.
+The archives preserve the original verification records; local session files
+remain available to the ceremony tools.
+
 Once actual receipts are available, update the subgraph's factory inventory and
 wrapper data sources, then update SDK canonical factories, wrapper and lens
 addresses. The existing V2.5 event surface is unchanged; address/configuration
