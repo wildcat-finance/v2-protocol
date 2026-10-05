@@ -1,0 +1,215 @@
+# Withdrawals
+
+Wildcat groups withdrawal requests into fixed-duration batches. If a market
+cannot satisfy every request immediately, lenders in the same batch share the
+available liquidity pro rata.
+
+## Queueing and batch ownership
+
+The first request creates a batch. Later requests can join through the expiry
+timestamp itself; expiry is processed only at a strictly later timestamp.
+Funded closure can release the current batch earlier.
+
+Markets expose three queueing methods:
+
+- `queueWithdrawal(uint256)` queues a normalized market-token amount.
+- `queueWithdrawalScaled(uint256)` queues an exact scaled amount. Wrappers and
+  other scaled-balance integrations should use this path.
+- `queueFullWithdrawal()` queues the caller's full direct market-token balance.
+
+Queueing moves the scaled amount out of the lender's balance and into the
+batch. It does not reduce total supply. The batch keeps earning interest until
+the market reserves underlying assets and burns the corresponding scaled
+tokens.
+
+Batch ownership is stored in scaled units. Two equal normalized requests made
+at different scale factors may settle to slightly different normalized
+amounts. That difference comes from interest between the queue events, not the
+order in which lenders later execute.
+
+`queueWithdrawalScaled` preserves the exact requested scaled amount. Its event
+reports the normalized value at queue time. `queueFullWithdrawal` only includes
+the caller's direct market-token balance.
+
+At an enabled repayment date the market stops calling `onQueueWithdrawal`.
+Lenders can queue regardless of hook access or term restrictions; market
+sanctions checks remain. Default alone does not open queueing. The repayment
+phase keeps the configured batch duration, allocation and priority rules.
+
+## Batch states
+
+- **Current:** accepts requests through the expiry timestamp. It can remain
+  recorded as current after that timestamp passes, until the next state update
+  processes it.
+- **Unpaid:** expired without enough reserved assets to cover every request.
+- **Paid:** has enough assets reserved, but lenders may not have executed their
+  claims yet.
+
+## Expiry and priority
+
+An underfunded batch enters the unpaid queue. That queue is first in, first out.
+Earlier batches get paid first; lenders inside one batch split its allocation
+by scaled ownership.
+
+At expiry, the current batch can use the market's underlying balance after
+subtracting:
+
+- paid but unclaimed withdrawals;
+- the normalized value of earlier unpaid withdrawals and their retained payment
+  fractions; and
+- accrued protocol fees.
+
+If expiry is processed by a later transaction, the batch uses the last
+underlying balance observed by a market state write at or before expiry. Assets
+first observed after expiry remain available from that checkpoint onward, but
+cannot retroactively change batch settlement or delinquency for the elapsed
+interval.
+
+The ERC-20 does not record when an asset was transferred directly to the
+market. To make a direct transfer count at expiry, call `updateState()` after
+the transfer and no later than the expiry timestamp. Repayment and other market
+actions write state themselves.
+
+An expiring batch can be paid while older unpaid batches exist only if the
+market already holds enough assets for those older obligations. Once a batch
+enters the unpaid queue, later payments follow FIFO order. See
+[`WithdrawalLib.availableLiquidityForPendingBatch`](../../src/libraries/Withdrawal.sol).
+
+## Payment and execution
+
+_Payment_ reserves underlying assets for a batch and burns the matching scaled
+market tokens. Burned tokens stop earning interest. Reserved assets move into
+`normalizedUnclaimedWithdrawals`; they cannot be borrowed, paid as protocol
+fees, or allocated to another batch.
+
+Payment can happen:
+
+- when a lender adds a request to the current batch;
+- during a state update for the current batch; or
+- through `repayAndProcessUnpaidWithdrawalBatches` for expired unpaid batches.
+
+Each partial payment adds the exact `scaledAmountBurned * scaleFactor`
+numerator to the batch's prior `paymentRemainder`. Dividing by `RAY` funds the
+integer quotient; the remainder stays as unpaid, non-interest-bearing debt.
+Market debt and required reserves include the sum of these remainders before
+rounding. Pending-batch liquidity excludes that batch's own remainder from the
+liabilities protected for earlier batches.
+
+A fully paid current batch retains its remainder while later requests can join.
+Once it is fully paid and expired or released by closure, its terminal fraction
+is removed from the market-wide sum. Funding truncation is therefore less than
+one atomic unit per completed batch. Lender execution still rounds each
+cumulative pro-rata entitlement to an integer.
+
+This describes the current source, not an upgrade to existing markets.
+Earlier implementations floor every partial payment independently. The
+[original experiment assessment](../security/withdrawal-rounding-experiment.md)
+retains its candidate-specific measurements and decisions; the current debt
+formula is in [accounting](./accounting.md#total-debt-and-withdrawal-fractions).
+
+Plain `repay` transfers assets into the market and updates state. It does not
+walk the unpaid queue. Use `repayAndProcessUnpaidWithdrawalBatches` when the
+same transaction should route new liquidity through that queue.
+
+A repayment made after an unprocessed expiry first settles the expiry against
+the checkpointed balance. The combined repayment path can then apply the newly
+received assets to the resulting unpaid queue in the same transaction, subject
+to `maxBatches` and FIFO order.
+
+_Execution_ transfers a lender's paid pro-rata claim out of the market. Anyone
+can execute for an account and batch once it is no longer the current pending
+batch, normally after expiry or after closure releases it. If the lender is
+sanctioned, the market sends the assets to that lender's sanctions escrow.
+
+New V2.5 markets never call `onExecuteWithdrawal`, including markets without
+repayment terms. They reject a hook configuration enabling it. A hook cannot
+add another eligibility check when collecting an accepted, payable claim.
+Token transfers and sanctions dependencies can still fail.
+
+See
+[`WildcatMarketWithdrawals`](../../src/market/WildcatMarketWithdrawals.sol) for
+queueing, payment, and execution.
+
+## Representation limits
+
+Batch totals, paid scaled amounts, and each account's queued amount are stored
+as `uint128`, preserving the current packed layout and getter ABI. Queue
+admission deliberately caps a batch's cumulative scaled total at
+`type(uint104).max`. Paid shares cannot exceed that total, and account shares
+sum to it. Individual queue amounts, live balances, supply, and outstanding
+unpaid scaled withdrawals also retain their `uint104` bounds. Paid underlying
+amounts and unclaimed withdrawal liabilities remain `uint128`.
+
+Each payment is capped by the remaining global unclaimed-withdrawal capacity.
+At extreme balances, even a fully funded market may need older paid claims
+executed before it can reserve more assets for a later batch.
+
+The cumulative cap preserves the representation invariant at every legal scale
+factor:
+
+```text
+floor((2^104 - 1) * (2^112 - 1) / 10^27) < 2^128 - 1
+```
+
+The bound also holds when partial payments use different factors; carry keeps
+the fractional numerators in the same cumulative calculation. If another
+request would cross the cap, every admission route reverts atomically with the
+same arithmetic panic as the earlier `uint104` layout. The lender keeps the
+unqueued balance and can enter the next batch after the current one expires.
+This also applies to sanctions quarantine through `nukeFromOrbit`.
+
+The two scaled batch counters share one slot; normalized payments and the
+payment remainder share a second. An account's scaled ownership and normalized
+amount withdrawn share one slot. The wider counter declarations add no storage
+slots, but change packed offsets. The aggregate remainder adds a separate slot
+to `MarketState`. This is a new-market representation, not an in-place storage
+migration. Older immutable markets retain their original layouts.
+
+`getWithdrawalBatch(uint32)` and
+`getAccountWithdrawalStatus(address,uint32)` declare their scaled counters as
+`uint128`. Successful scaled values remain within `uint104`, so the width
+change alone does not exceed a legacy decoder's range. Getter selectors are
+unchanged, but return shapes are not: the batch tuple appends `paymentRemainder`
+as a fourth word. Account status still returns two words. Market state also
+appends `withdrawalRemainder` as a fifteenth word.
+
+Use generation-aware decoders and carry-aware accounting. A decoder accepting
+the old prefix does not account for the added debt. Withdrawal events and the
+lens's outward `uint256` amount fields are unchanged. See
+[known limitations](../security/known-issues.md#withdrawal-batches) and
+[lens compatibility](../integrations/lenses.md#accounting-tuple-compatibility).
+
+Batch keys are absolute `uint32` Unix timestamps. Creating a batch requires
+`block.timestamp + withdrawalBatchDuration <= type(uint32).max`; the checked
+conversion reverts instead of wrapping into an earlier key. With the maximum
+365-day duration, the final representable creation timestamp is
+2105-02-07 06:28:15 UTC. V2.x markets and lender positions must be retired with
+enough margin to complete withdrawals before this generation-wide timestamp
+horizon. See [known limitations](../security/known-issues.md#timestamp-horizon).
+
+## Closing a market
+
+`closeMarket()` processes every unpaid withdrawal batch before closing the
+market. Its gas cost grows with the unpaid queue.
+
+Before closing, a caller can bound that work with:
+
+```solidity
+repayAndProcessUnpaidWithdrawalBatches(0, maxBatches)
+```
+
+Once the queue is small enough, `closeMarket()` can finish it in one
+transaction.
+
+Automatic closure at or after a repayment date pays and releases the current
+batch without walking the old queue. The older obligations stay backed and
+can finish through the same zero-repayment processor after closure. A current
+batch released by closure is collectible even before its original expiry.
+
+New requests after closure use the existing closed-market rule: batch duration
+is zero. A processed expiry key is never reused; the market may choose the
+next second or reject a further collision. Repayment and default do not change
+that key-protection rule.
+
+See [repayment and default](./repayment-and-default.md) for the funding and
+deadline conditions. Closure does not require lenders to collect every claim.

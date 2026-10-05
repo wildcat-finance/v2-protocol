@@ -1,22 +1,24 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
 
-function emit_ChangedSpherexOperator(address oldSphereXAdmin, address newSphereXAdmin) {
-  assembly {
-    mstore(0, oldSphereXAdmin)
-    mstore(0x20, newSphereXAdmin)
-    log1(0, 0x40, 0x2ac55ae7ba47db34b5334622acafeb34a65daf143b47019273185d64c73a35a5)
-  }
-}
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // SphereXProtectedEvents
+//  \ ^ /   Compact emitters for SphereX authority and engine changes.
+//    V
+//
+//  ADMINISTRATION
+//  emit_SpherexAdminTransferStarted(...)
+//  emit_SpherexAdminTransferCompleted(...)
+//  emit_ChangedSpherexOperator(...)
+//
+//  ENGINE INTEGRATION
+//  emit_ChangedSpherexEngineAddress(...)
+//  emit_NewAllowedSenderOnchain(...)
+// ═════
 
-function emit_ChangedSpherexEngineAddress(address oldEngineAddress, address newEngineAddress) {
-  assembly {
-    mstore(0, oldEngineAddress)
-    mstore(0x20, newEngineAddress)
-    log1(0, 0x40, 0xf33499cccaa0611882086224cc48cd82ef54b66a4d2edf4ed67108dd516896d5)
-  }
-}
+// ░░▒▒▓▓██ [ ADMINISTRATION ] ─────────────────────────────────────────────────
 
+// ┌─ emit_SpherexAdminTransferStarted ─────
 function emit_SpherexAdminTransferStarted(address currentAdmin, address pendingAdmin) {
   assembly {
     mstore(0, currentAdmin)
@@ -25,6 +27,7 @@ function emit_SpherexAdminTransferStarted(address currentAdmin, address pendingA
   }
 }
 
+// ┌─ emit_SpherexAdminTransferCompleted ─────
 function emit_SpherexAdminTransferCompleted(address oldAdmin, address newAdmin) {
   assembly {
     mstore(0, oldAdmin)
@@ -33,6 +36,27 @@ function emit_SpherexAdminTransferCompleted(address oldAdmin, address newAdmin) 
   }
 }
 
+// ┌─ emit_ChangedSpherexOperator ─────
+function emit_ChangedSpherexOperator(address oldSphereXAdmin, address newSphereXAdmin) {
+  assembly {
+    mstore(0, oldSphereXAdmin)
+    mstore(0x20, newSphereXAdmin)
+    log1(0, 0x40, 0x2ac55ae7ba47db34b5334622acafeb34a65daf143b47019273185d64c73a35a5)
+  }
+}
+
+// ░░▒▒▓▓██ [ ENGINE INTEGRATION ] ─────────────────────────────────────────────
+
+// ┌─ emit_ChangedSpherexEngineAddress ─────
+function emit_ChangedSpherexEngineAddress(address oldEngineAddress, address newEngineAddress) {
+  assembly {
+    mstore(0, oldEngineAddress)
+    mstore(0x20, newEngineAddress)
+    log1(0, 0x40, 0xf33499cccaa0611882086224cc48cd82ef54b66a4d2edf4ed67108dd516896d5)
+  }
+}
+
+// ┌─ emit_NewAllowedSenderOnchain ─────
 function emit_NewAllowedSenderOnchain(address sender) {
   assembly {
     mstore(0, sender)

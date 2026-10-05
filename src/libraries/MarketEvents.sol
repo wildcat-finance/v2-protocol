@@ -1,13 +1,186 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
 
-uint256 constant InterestAndFeesAccrued_abi_head_size = 0xc0;
-uint256 constant InterestAndFeesAccrued_toTimestamp_offset = 0x20;
-uint256 constant InterestAndFeesAccrued_scaleFactor_offset = 0x40;
-uint256 constant InterestAndFeesAccrued_baseInterestRay_offset = 0x60;
-uint256 constant InterestAndFeesAccrued_delinquencyFeeRay_offset = 0x80;
-uint256 constant InterestAndFeesAccrued_protocolFees_offset = 0xa0;
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketEvents
+//  \ ^ /   Canonical market event encoding, ordered by lifecycle.
+//    V
+//
+//  BORROWER AUTHORITY
+//  emit_BorrowerTransferRequested(...)
+//  emit_BorrowerTransferred(...)
+//  emit_BorrowerTransferCancelled(...)
+//
+//  CONFIGURATION
+//  emit_MaxTotalSupplyUpdated(...)
+//  emit_AnnualInterestAndReserveRatioBipsUpdated(...)
+//  emit_ProtocolFeeBipsUpdated(...)
+//
+//  TOKEN ACCOUNTING
+//  emit_Approval(...)
+//  emit_Transfer(...)
+//
+//  DEPOSITS AND BORROWING
+//  emit_Deposit(...)
+//  emit_Borrow(...)
+//  emit_DrawnAmountUpdated(...)
+//
+//  REPAYMENT AND CLOSURE
+//  emit_DebtRepaid(...)
+//  emit_RepaymentDateReached(...)
+//  emit_DefaultRecorded(...)
+//  emit_MarketClosed(...)
+//
+//  PROTOCOL FEES
+//  emit_FeesCollected(...)
+//
+//  STATE UPDATES
+//  emit_InterestAndFeesAccrued(...)
+//  emit_StateUpdated(...)
+//
+//  WITHDRAWAL QUEUEING
+//  emit_WithdrawalBatchCreated(...)
+//  emit_WithdrawalQueued(...)
+//
+//  BATCH FUNDING
+//  emit_WithdrawalBatchExpired(...)
+//  emit_WithdrawalBatchPayment(...)
+//  emit_WithdrawalBatchClosed(...)
+//
+//  CLAIM COLLECTION
+//  emit_WithdrawalExecuted(...)
+//
+//  SANCTIONS
+//  emit_SanctionedAccountAssetsQueuedForWithdrawal(...)
+//  emit_SanctionedAccountWithdrawalSentToEscrow(...)
+// ═════
 
+import { LifecycleAccrual } from './MarketLifecycle.sol';
+
+// ░░▒▒▓▓██ [ BORROWER AUTHORITY ] ─────────────────────────────────────────────
+
+// ┌─ emit_BorrowerTransferRequested ─────
+function emit_BorrowerTransferRequested(
+  address borrower,
+  address previousPendingBorrower,
+  address pendingBorrower,
+  address borrowerPrincipal,
+  address previousPendingBorrowerPrincipal,
+  address pendingBorrowerPrincipal
+) {
+  assembly {
+    // topic zero is the event signature; the three indexed borrower addresses fill the rest.
+    // principals go in three ABI data words. scratch only covers 0x00-0x3f, so borrow
+    // the free memory pointer's slot at 0x40 and restore it after the log.
+    let freePointer := mload(0x40)
+    mstore(0, borrowerPrincipal)
+    mstore(0x20, previousPendingBorrowerPrincipal)
+    mstore(0x40, pendingBorrowerPrincipal)
+    // log4 reads the three non-indexed words from 0x00-0x5f.
+    log4(
+      0,
+      0x60,
+      0x52a27a931945087c237eb781de9ec1bd1328a944b2ce031b914ed4ac5ce2ae47,
+      borrower,
+      previousPendingBorrower,
+      pendingBorrower
+    )
+    mstore(0x40, freePointer)
+  }
+}
+
+// ┌─ emit_BorrowerTransferred ─────
+function emit_BorrowerTransferred(
+  address previousBorrower,
+  address newBorrower,
+  address previousBorrowerPrincipal,
+  address newBorrowerPrincipal
+) {
+  assembly {
+    // newBorrowerPrincipal is indexed: keep it in a topic, not the data buffer.
+    // only previousBorrowerPrincipal goes in memory; log4 carries the signature and three indexed fields.
+    mstore(0, previousBorrowerPrincipal)
+    log4(
+      0,
+      0x20,
+      0x933b680a96769adaa385bb12d51347d449bd0e14defe462185eb094f62bc6628,
+      previousBorrower,
+      newBorrower,
+      newBorrowerPrincipal
+    )
+  }
+}
+
+// ┌─ emit_BorrowerTransferCancelled ─────
+function emit_BorrowerTransferCancelled(
+  address borrower,
+  address cancelledPendingBorrower,
+  address borrowerPrincipal,
+  address cancelledPendingBorrowerPrincipal
+) {
+  assembly {
+    // log3 carries the signature and two indexed addresses. the principals are two ABI data words.
+    mstore(0, borrowerPrincipal)
+    mstore(0x20, cancelledPendingBorrowerPrincipal)
+    log3(
+      0,
+      0x40,
+      0x845fafbf05c3dba243e654ea4d739f09ec145e9d8c0d24cc8859eedcbd121889,
+      borrower,
+      cancelledPendingBorrower
+    )
+  }
+}
+
+// ░░▒▒▓▓██ [ CONFIGURATION ] ──────────────────────────────────────────────────
+
+// ┌─ emit_MaxTotalSupplyUpdated ─────
+function emit_MaxTotalSupplyUpdated(address eventCaller, uint256 previousMaxTotalSupply, uint256 newMaxTotalSupply) {
+  assembly {
+    mstore(0, previousMaxTotalSupply)
+    mstore(0x20, newMaxTotalSupply)
+    log2(0, 0x40, 0xd017ca3aaecec8f5f194aa734b4f62d6a43d6a273268b625de051c3b692a2c6e, eventCaller)
+  }
+}
+
+// ┌─ emit_AnnualInterestAndReserveRatioBipsUpdated ─────
+function emit_AnnualInterestAndReserveRatioBipsUpdated(
+  address eventCaller,
+  uint256 previousAnnualInterestBips,
+  uint256 newAnnualInterestBips,
+  uint256 previousReserveRatioBips,
+  uint256 newReserveRatioBips
+) {
+  assembly {
+    let dst := mload(0x40)
+    mstore(dst, previousAnnualInterestBips)
+    mstore(add(dst, 0x20), newAnnualInterestBips)
+    mstore(add(dst, 0x40), previousReserveRatioBips)
+    mstore(add(dst, 0x60), newReserveRatioBips)
+    log2(dst, 0x80, 0xe829464a47e4f00b1c8c879651d6d9f8238513fdd4721d8f8a0a93531a939e80, eventCaller)
+  }
+}
+
+// ┌─ emit_ProtocolFeeBipsUpdated ─────
+function emit_ProtocolFeeBipsUpdated(address eventCaller, uint256 previousProtocolFeeBips, uint256 newProtocolFeeBips) {
+  assembly {
+    mstore(0, previousProtocolFeeBips)
+    mstore(0x20, newProtocolFeeBips)
+    log2(0, 0x40, 0x54f104211bc2c1b4b49e83767e54234a36150ee5cbf00a5516a19e7a5026c509, eventCaller)
+  }
+}
+
+// ░░▒▒▓▓██ [ TOKEN ACCOUNTING ] ───────────────────────────────────────────────
+
+// ┌─ emit_Approval ─────
+function emit_Approval(address owner, address spender, uint256 value) {
+  assembly {
+    mstore(0, value)
+    log3(0, 0x20, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, owner, spender)
+  }
+}
+
+// ┌─ emit_Transfer ─────
 function emit_Transfer(address from, address to, uint256 value) {
   assembly {
     mstore(0, value)
@@ -15,71 +188,9 @@ function emit_Transfer(address from, address to, uint256 value) {
   }
 }
 
-function emit_Approval(address owner, address spender, uint256 value) {
-  assembly {
-    mstore(0, value)
-    log3(
-      0,
-      0x20,
-      0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925,
-      owner,
-      spender
-    )
-  }
-}
+// ░░▒▒▓▓██ [ DEPOSITS AND BORROWING ] ─────────────────────────────────────────
 
-function emit_MaxTotalSupplyUpdated(uint256 assets) {
-  assembly {
-    mstore(0, assets)
-    log1(0, 0x20, 0xf2672935fc79f5237559e2e2999dbe743bf65430894ac2b37666890e7c69e1af)
-  }
-}
-
-function emit_ProtocolFeeBipsUpdated(uint256 protocolFeeBips) {
-  assembly {
-    mstore(0, protocolFeeBips)
-    log1(0, 0x20, 0x4b34705283cdb9398d0e50b216b8fb424c6d4def5db9bfadc661ee3adc6076ee)
-  }
-}
-
-function emit_AnnualInterestBipsUpdated(uint256 annualInterestBipsUpdated) {
-  assembly {
-    mstore(0, annualInterestBipsUpdated)
-    log1(0, 0x20, 0xff7b6c8be373823323d3c5d99f5d027dd409dce5db54eae511bbdd5546b75037)
-  }
-}
-
-function emit_ReserveRatioBipsUpdated(uint256 reserveRatioBipsUpdated) {
-  assembly {
-    mstore(0, reserveRatioBipsUpdated)
-    log1(0, 0x20, 0x72877a153052500f5edbb2f9da96a0f45d671d4b4555fdf8628a709dc4eab43a)
-  }
-}
-
-function emit_SanctionedAccountAssetsSentToEscrow(address account, address escrow, uint256 amount) {
-  assembly {
-    mstore(0, escrow)
-    mstore(0x20, amount)
-    log2(0, 0x40, 0x571e706c2f09ae0632313e5f3ae89fffdedfc370a2ea59a07fb0d8091147645b, account)
-  }
-}
-
-function emit_SanctionedAccountAssetsQueuedForWithdrawal(
-  address account,
-  uint32 expiry,
-  uint256 scaledAmount,
-  uint256 normalizedAmount
-) {
-  assembly {
-    let freePointer := mload(0x40)
-    mstore(0, expiry)
-    mstore(0x20, scaledAmount)
-    mstore(0x40, normalizedAmount)
-    log2(0, 0x60, 0xe12b220b92469ae28fb0d79de531f94161431be9f073b96b8aad3effb88be6fa, account)
-    mstore(0x40, freePointer)
-  }
-}
-
+// ┌─ emit_Deposit ─────
 function emit_Deposit(address account, uint256 assetAmount, uint256 scaledAmount) {
   assembly {
     mstore(0, assetAmount)
@@ -88,13 +199,26 @@ function emit_Deposit(address account, uint256 assetAmount, uint256 scaledAmount
   }
 }
 
-function emit_Borrow(uint256 assetAmount) {
+// ┌─ emit_Borrow ─────
+function emit_Borrow(address borrower, uint256 assetAmount) {
   assembly {
     mstore(0, assetAmount)
-    log1(0, 0x20, 0xb848ae6b1253b6cb77e81464128ce8bd94d3d524fea54e801e0da869784dca33)
+    log2(0, 0x20, 0xcbc04eca7e9da35cb1393a6135a199ca52e450d5e9251cbd99f7847d33a36750, borrower)
   }
 }
 
+// ┌─ emit_DrawnAmountUpdated ─────
+function emit_DrawnAmountUpdated(uint256 previousDrawnAmount, uint256 newDrawnAmount) {
+  assembly {
+    mstore(0, previousDrawnAmount)
+    mstore(0x20, newDrawnAmount)
+    log1(0, 0x40, 0x2ce2176519c2ba0775d24b5f484690a4c3cf808f45a5a9094bf065d9ad59c0f9)
+  }
+}
+
+// ░░▒▒▓▓██ [ REPAYMENT AND CLOSURE ] ──────────────────────────────────────────
+
+// ┌─ emit_DebtRepaid ─────
 function emit_DebtRepaid(address from, uint256 assetAmount) {
   assembly {
     mstore(0, assetAmount)
@@ -102,20 +226,55 @@ function emit_DebtRepaid(address from, uint256 assetAmount) {
   }
 }
 
-function emit_MarketClosed(uint256 _timestamp) {
+// ┌─ emit_RepaymentDateReached ─────
+function emit_RepaymentDateReached(uint256 effectiveTimestamp) {
+  assembly {
+    mstore(0, effectiveTimestamp)
+    log1(0, 0x20, 0xc3157561a2540931c54c4d87f190fb36b67ec699ed45330099987708095831a8)
+  }
+}
+
+// ┌─ emit_DefaultRecorded ─────
+function emit_DefaultRecorded(uint256 effectiveTimestamp) {
+  assembly {
+    mstore(0, effectiveTimestamp)
+    log1(0, 0x20, 0xc60e2d68ebeaab1fd64af16f0dd22373068ea4ce1c7ee840494fcfc4ff6e94a3)
+  }
+}
+
+// ┌─ emit_MarketClosed ─────
+function emit_MarketClosed(address borrower, uint256 _timestamp) {
   assembly {
     mstore(0, _timestamp)
-    log1(0, 0x20, 0x9dc30b8eda31a6a144e092e5de600955523a6a925cc15cc1d1b9b4872cfa6155)
+    log2(0, 0x20, 0xcd125386a57ad5c51057dd568605a0a6854d06095d7d414e8ac65bcbf288e4eb, borrower)
   }
 }
 
-function emit_FeesCollected(uint256 assets) {
+// ░░▒▒▓▓██ [ PROTOCOL FEES ] ──────────────────────────────────────────────────
+
+// ┌─ emit_FeesCollected ─────
+function emit_FeesCollected(address collector, address feeRecipient, uint256 assets) {
   assembly {
     mstore(0, assets)
-    log1(0, 0x20, 0x860c0aa5520013080c2f65981705fcdea474d9f7c3daf954656ed5e65d692d1f)
+    log3(0, 0x20, 0x9bcb6d1f38f6800906185471a11ede9a8e16200853225aa62558db6076490f2d, collector, feeRecipient)
   }
 }
 
+// ░░▒▒▓▓██ [ STATE UPDATES ] ──────────────────────────────────────────────────
+
+// ┌─ emit_InterestAndFeesAccrued ─────
+/// @dev LifecycleAccrual is already the six event words in ABI order. clean the narrow fields,
+///      then log that buffer directly. keep this aligned with the struct's memory layout.
+function emit_InterestAndFeesAccrued(LifecycleAccrual memory accrual) {
+  assembly {
+    mstore(accrual, and(mload(accrual), 0xffffffff))
+    mstore(add(accrual, 0x20), and(mload(add(accrual, 0x20)), 0xffffffff))
+    mstore(add(accrual, 0x40), and(mload(add(accrual, 0x40)), sub(shl(112, 1), 1)))
+    log1(accrual, 0xc0, 0x18247a393d0531b65fbd94f5e78bc5639801a4efda62ae7b43533c4442116c3a)
+  }
+}
+
+// ┌─ emit_StateUpdated ─────
 function emit_StateUpdated(uint256 scaleFactor, bool isDelinquent) {
   assembly {
     mstore(0, scaleFactor)
@@ -124,36 +283,27 @@ function emit_StateUpdated(uint256 scaleFactor, bool isDelinquent) {
   }
 }
 
-function emit_InterestAndFeesAccrued(
-  uint256 fromTimestamp,
-  uint256 toTimestamp,
-  uint256 scaleFactor,
-  uint256 baseInterestRay,
-  uint256 delinquencyFeeRay,
-  uint256 protocolFees
-) {
+// ░░▒▒▓▓██ [ WITHDRAWAL QUEUEING ] ────────────────────────────────────────────
+
+// ┌─ emit_WithdrawalBatchCreated ─────
+function emit_WithdrawalBatchCreated(uint256 expiry) {
   assembly {
-    let dst := mload(0x40)
-    /// Copy fromTimestamp
-    mstore(dst, fromTimestamp)
-    /// Copy toTimestamp
-    mstore(add(dst, InterestAndFeesAccrued_toTimestamp_offset), toTimestamp)
-    /// Copy scaleFactor
-    mstore(add(dst, InterestAndFeesAccrued_scaleFactor_offset), scaleFactor)
-    /// Copy baseInterestRay
-    mstore(add(dst, InterestAndFeesAccrued_baseInterestRay_offset), baseInterestRay)
-    /// Copy delinquencyFeeRay
-    mstore(add(dst, InterestAndFeesAccrued_delinquencyFeeRay_offset), delinquencyFeeRay)
-    /// Copy protocolFees
-    mstore(add(dst, InterestAndFeesAccrued_protocolFees_offset), protocolFees)
-    log1(
-      dst,
-      InterestAndFeesAccrued_abi_head_size,
-      0x18247a393d0531b65fbd94f5e78bc5639801a4efda62ae7b43533c4442116c3a
-    )
+    log2(0, 0x00, 0x5c9a946d3041134198ebefcd814de7748def6576efd3d1b48f48193e183e89ef, expiry)
   }
 }
 
+// ┌─ emit_WithdrawalQueued ─────
+function emit_WithdrawalQueued(uint256 expiry, address account, uint256 scaledAmount, uint256 normalizedAmount) {
+  assembly {
+    mstore(0, scaledAmount)
+    mstore(0x20, normalizedAmount)
+    log3(0, 0x40, 0xecc966b282a372469fa4d3e497c2ac17983c3eaed03f3f17c9acf4b15591663e, expiry, account)
+  }
+}
+
+// ░░▒▒▓▓██ [ BATCH FUNDING ] ──────────────────────────────────────────────────
+
+// ┌─ emit_WithdrawalBatchExpired ─────
 function emit_WithdrawalBatchExpired(
   uint256 expiry,
   uint256 scaledTotalAmount,
@@ -170,23 +320,8 @@ function emit_WithdrawalBatchExpired(
   }
 }
 
-function emit_WithdrawalBatchCreated(uint256 expiry) {
-  assembly {
-    log2(0, 0x00, 0x5c9a946d3041134198ebefcd814de7748def6576efd3d1b48f48193e183e89ef, expiry)
-  }
-}
-
-function emit_WithdrawalBatchClosed(uint256 expiry) {
-  assembly {
-    log2(0, 0x00, 0xcbdf25bf6e096dd9030d89bb2ba2e3e7adb82d25a233c3ca3d92e9f098b74e55, expiry)
-  }
-}
-
-function emit_WithdrawalBatchPayment(
-  uint256 expiry,
-  uint256 scaledAmountBurned,
-  uint256 normalizedAmountPaid
-) {
+// ┌─ emit_WithdrawalBatchPayment ─────
+function emit_WithdrawalBatchPayment(uint256 expiry, uint256 scaledAmountBurned, uint256 normalizedAmountPaid) {
   assembly {
     mstore(0, scaledAmountBurned)
     mstore(0x20, normalizedAmountPaid)
@@ -194,44 +329,44 @@ function emit_WithdrawalBatchPayment(
   }
 }
 
-function emit_WithdrawalQueued(
-  uint256 expiry,
+// ┌─ emit_WithdrawalBatchClosed ─────
+function emit_WithdrawalBatchClosed(uint256 expiry) {
+  assembly {
+    log2(0, 0x00, 0xcbdf25bf6e096dd9030d89bb2ba2e3e7adb82d25a233c3ca3d92e9f098b74e55, expiry)
+  }
+}
+
+// ░░▒▒▓▓██ [ CLAIM COLLECTION ] ───────────────────────────────────────────────
+
+// ┌─ emit_WithdrawalExecuted ─────
+function emit_WithdrawalExecuted(uint256 expiry, address account, uint256 normalizedAmount) {
+  assembly {
+    mstore(0, normalizedAmount)
+    log3(0, 0x20, 0xd6cddb3d69146e96ebc2c87b1b3dd0b20ee2d3b0eadf134e011afb434a3e56e6, expiry, account)
+  }
+}
+
+// ░░▒▒▓▓██ [ SANCTIONS ] ──────────────────────────────────────────────────────
+
+// ┌─ emit_SanctionedAccountAssetsQueuedForWithdrawal ─────
+function emit_SanctionedAccountAssetsQueuedForWithdrawal(
   address account,
+  uint32 expiry,
   uint256 scaledAmount,
   uint256 normalizedAmount
 ) {
   assembly {
-    mstore(0, scaledAmount)
-    mstore(0x20, normalizedAmount)
-    log3(
-      0,
-      0x40,
-      0xecc966b282a372469fa4d3e497c2ac17983c3eaed03f3f17c9acf4b15591663e,
-      expiry,
-      account
-    )
+    let freePointer := mload(0x40)
+    mstore(0, expiry)
+    mstore(0x20, scaledAmount)
+    mstore(0x40, normalizedAmount)
+    log2(0, 0x60, 0xe12b220b92469ae28fb0d79de531f94161431be9f073b96b8aad3effb88be6fa, account)
+    mstore(0x40, freePointer)
   }
 }
 
-function emit_WithdrawalExecuted(uint256 expiry, address account, uint256 normalizedAmount) {
-  assembly {
-    mstore(0, normalizedAmount)
-    log3(
-      0,
-      0x20,
-      0xd6cddb3d69146e96ebc2c87b1b3dd0b20ee2d3b0eadf134e011afb434a3e56e6,
-      expiry,
-      account
-    )
-  }
-}
-
-function emit_SanctionedAccountWithdrawalSentToEscrow(
-  address account,
-  address escrow,
-  uint32 expiry,
-  uint256 amount
-) {
+// ┌─ emit_SanctionedAccountWithdrawalSentToEscrow ─────
+function emit_SanctionedAccountWithdrawalSentToEscrow(address account, address escrow, uint32 expiry, uint256 amount) {
   assembly {
     let freePointer := mload(0x40)
     mstore(0, escrow)

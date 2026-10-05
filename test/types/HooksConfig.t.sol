@@ -1,385 +1,484 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity 0.8.25;
 
-import 'src/types/HooksConfig.sol';
-import { Test, console2 } from 'forge-std/Test.sol';
-import '../helpers/Assertions.sol';
-import '../helpers/fuzz/MarketStateFuzzInputs.sol';
-import '../shared/mocks/MockHooks.sol';
-import '../shared/mocks/MockHookCaller.sol';
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HooksConfig.t
+//  \ ^ /   Packed hook flags and exact callback dispatch tests.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//
+//  CONFIGURATION ENCODING
+//  testEncode(...)
+//  test_encodeHooksDeploymentConfig(...)
+//  test_mergeSharedFlags(...)
+//  test_mergeFlags(...)
+//  test_configUtilities(...)
+//  _assertConfig(...)
+//
+//  DISPATCH SUPPORT
+//  _configure(...)
+//  _call(...)
+//  _assertHookCall(...)
+//
+//  LENDER CALLBACKS
+//  test_onDeposit(...)
+//  test_onTransfer(...)
+//  test_onQueueWithdrawal(...)
+//  test_onExecuteWithdrawal(...)
+//
+//  BORROWER CALLBACKS
+//  test_onBorrow(...)
+//  test_onRepay(...)
+//  test_onCloseMarket(...)
+//
+//  CONFIGURATION CALLBACKS
+//  test_onSetMaxTotalSupply(...)
+//  test_onSetAnnualInterestAndReserveRatioBips(...)
+//  test_onSetProtocolFeeBips(...)
+//  test_onNukeFromOrbit(...)
+//
+//  CALLBACK FAILURES
+//  test_hookRevertBubbles(...)
+//  test_aprHookRejectsShortReturnData(...)
+// ═════
 
-contract HooksConfigTest is Test, Assertions {
-  MockHooks internal hooks = new MockHooks(address(this), '');
-  MockHookCaller internal mockHookCaller = new MockHookCaller();
+import { IHooks } from 'src/access/IHooks.sol';
+import { MarketState } from 'src/libraries/MarketState.sol';
+import { HooksConfig } from 'src/types/HooksConfig.sol';
+import { HooksDeploymentConfig } from 'src/types/HooksConfig.sol';
+import { encodeHooksDeploymentConfig } from 'src/types/HooksConfig.sol';
+import { HooksConfigCaller } from '../mocks/HooksConfigCaller.sol';
+import { HooksConfigTarget } from '../mocks/HooksConfigTarget.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
+import { StandardHooksConfig, StandardHooksDeploymentConfig } from '../shared/TestStructs.sol';
 
-  function _callMockHookCaller(bytes memory _calldata) internal {
-    assembly {
-      let success := call(
-        gas(),
-        sload(mockHookCaller.slot),
-        0,
-        add(_calldata, 0x20),
-        mload(_calldata),
-        0,
-        0
-      )
-      if iszero(success) {
-        returndatacopy(0, 0, returndatasize())
-        revert(0, returndatasize())
+struct ExecuteWithdrawalInputs {
+  address lender;
+  uint32 expiry;
+  uint128 normalizedAmountWithdrawn;
+}
+
+struct AprUpdateInputs {
+  uint16 annualInterestBips;
+  uint16 reserveRatioBips;
+  uint16 annualInterestBipsToReturn;
+  uint16 reserveRatioBipsToReturn;
+}
+
+// ┌─ HooksConfigTest ──────────────────────────────────────────────────────────
+contract HooksConfigTest is TestKernel {
+  HooksConfigTarget internal hooks;
+  HooksConfigCaller internal caller;
+  address internal shortReturnHooks;
+
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
+  function setUp() external {
+    hooks = HooksConfigTarget(_deployCode('test/mocks/HooksConfigTarget.sol:HooksConfigTarget'));
+    caller = HooksConfigCaller(_deployCode('test/mocks/HooksConfigCaller.sol:HooksConfigCaller'));
+    shortReturnHooks = _deployCode('test/mocks/HooksConfigTarget.sol:HooksConfigShortReturnTarget');
+  }
+
+  // ░░▒▒▓▓██ [ CONFIGURATION ENCODING ] ───────────────────────────────────────
+
+  // ┌─ testEncode ─────
+  function testEncode(StandardHooksConfig memory input) external pure {
+    _assertConfig(input.toHooksConfig(), input, 'encoded');
+  }
+
+  // ┌─ test_encodeHooksDeploymentConfig ─────
+  function test_encodeHooksDeploymentConfig(StandardHooksDeploymentConfig memory deploymentFlags) external pure {
+    deploymentFlags.optional.hooksAddress = address(0);
+    deploymentFlags.required.hooksAddress = address(0);
+    HooksConfig optional = deploymentFlags.optional.toHooksConfig();
+    HooksConfig required = deploymentFlags.required.toHooksConfig();
+    HooksDeploymentConfig encoded = encodeHooksDeploymentConfig(optional, required);
+    assertEq(HooksConfig.unwrap(encoded.optionalFlags()), HooksConfig.unwrap(optional), 'optional');
+    assertEq(HooksConfig.unwrap(encoded.requiredFlags()), HooksConfig.unwrap(required), 'required');
+  }
+
+  // ┌─ test_mergeSharedFlags ─────
+  function test_mergeSharedFlags(StandardHooksConfig memory aInput, StandardHooksConfig memory bInput) external pure {
+    StandardHooksConfig memory expected = aInput.mergeSharedFlags(bInput);
+    _assertConfig(aInput.toHooksConfig().mergeSharedFlags(bInput.toHooksConfig()), expected, 'merged');
+  }
+
+  // ┌─ test_mergeFlags ─────
+  function test_mergeFlags(
+    StandardHooksConfig memory configInput,
+    StandardHooksDeploymentConfig memory deploymentFlags
+  )
+    external
+    pure
+  {
+    StandardHooksConfig memory expected = configInput.mergeFlags(deploymentFlags);
+    HooksDeploymentConfig encoded = deploymentFlags.toHooksDeploymentConfig();
+    _assertConfig(configInput.toHooksConfig().mergeFlags(encoded), expected, 'merged');
+  }
+
+  // ┌─ test_configUtilities ─────
+  function test_configUtilities(uint256 aRaw, uint256 bRaw, address newHooksAddress, uint256 bit) external pure {
+    uint256 flagMask = type(uint96).max;
+    HooksConfig a = HooksConfig.wrap(aRaw);
+    HooksConfig b = HooksConfig.wrap(bRaw);
+
+    HooksConfig withNewAddress = a.setHooksAddress(newHooksAddress);
+    assertEq(
+      HooksConfig.unwrap(withNewAddress),
+      (aRaw & flagMask) | (uint256(uint160(newHooksAddress)) << 96),
+      'setHooksAddress'
+    );
+
+    HooksConfig merged = a.mergeAllFlags(b);
+    assertEq(HooksConfig.unwrap(merged), (aRaw & ~flagMask) | ((aRaw | bRaw) & flagMask), 'mergeAllFlags');
+
+    bit = bound(bit, 0, 95);
+    HooksConfig flagged = a.setFlag(bit);
+    assertTrue(flagged.readFlag(bit), 'setFlag/readFlag');
+    assertEq(HooksConfig.unwrap(flagged), aRaw | (uint256(1) << bit), 'setFlag changed another bit');
+
+    HooksConfig cleared = flagged.clearFlag(bit);
+    assertFalse(cleared.readFlag(bit), 'clearFlag/readFlag');
+    assertEq(HooksConfig.unwrap(cleared), aRaw & ~(uint256(1) << bit), 'clearFlag changed another bit');
+  }
+
+  // ┌─ _assertConfig ─────
+  function _assertConfig(HooksConfig actual, StandardHooksConfig memory expected, string memory label) internal pure {
+    assertEq(actual.hooksAddress(), expected.hooksAddress, string.concat(label, '.hooksAddress'));
+    assertEq(actual.useOnDeposit(), expected.useOnDeposit, string.concat(label, '.onDeposit'));
+    assertEq(actual.useOnQueueWithdrawal(), expected.useOnQueueWithdrawal, string.concat(label, '.onQueueWithdrawal'));
+    assertEq(
+      actual.useOnExecuteWithdrawal(), expected.useOnExecuteWithdrawal, string.concat(label, '.onExecuteWithdrawal')
+    );
+    assertEq(actual.useOnTransfer(), expected.useOnTransfer, string.concat(label, '.onTransfer'));
+    assertEq(actual.useOnBorrow(), expected.useOnBorrow, string.concat(label, '.onBorrow'));
+    assertEq(actual.useOnRepay(), expected.useOnRepay, string.concat(label, '.onRepay'));
+    assertEq(actual.useOnCloseMarket(), expected.useOnCloseMarket, string.concat(label, '.onCloseMarket'));
+    assertEq(actual.useOnNukeFromOrbit(), expected.useOnNukeFromOrbit, string.concat(label, '.onNukeFromOrbit'));
+    assertEq(
+      actual.useOnSetMaxTotalSupply(), expected.useOnSetMaxTotalSupply, string.concat(label, '.onSetMaxTotalSupply')
+    );
+    assertEq(
+      actual.useOnSetAnnualInterestAndReserveRatioBips(),
+      expected.useOnSetAnnualInterestAndReserveRatioBips,
+      string.concat(label, '.onSetAnnualInterestAndReserveRatioBips')
+    );
+    assertEq(
+      actual.useOnSetProtocolFeeBips(), expected.useOnSetProtocolFeeBips, string.concat(label, '.onSetProtocolFeeBips')
+    );
+    assertEq(
+      actual.useOnExecutePendingAnnualInterestBipsReduction(),
+      expected.useOnExecutePendingAnnualInterestBipsReduction,
+      string.concat(label, '.onExecutePendingAnnualInterestBipsReduction')
+    );
+  }
+
+  // ░░▒▒▓▓██ [ DISPATCH SUPPORT ] ─────────────────────────────────────────────
+
+  // ┌─ _configure ─────
+  function _configure(
+    MarketState calldata state,
+    StandardHooksConfig memory configInput
+  )
+    internal
+    returns (HooksConfig config)
+  {
+    caller.setState(state);
+    configInput.hooksAddress = address(hooks);
+    config = configInput.toHooksConfig();
+    caller.setConfig(config);
+  }
+
+  // ┌─ _call ─────
+  function _call(bytes memory callData) internal returns (bytes memory returnData) {
+    bool success;
+    (success, returnData) = address(caller).call(callData);
+    if (!success) {
+      assembly {
+        revert(add(returnData, 0x20), mload(returnData))
       }
     }
   }
 
-  function testEncode(StandardHooksConfig memory input) external {
-    HooksConfig hooks = input.toHooksConfig();
-    assertEq(hooks, input);
-  }
-
-  function test_mergeSharedFlags(
-    StandardHooksConfig memory _a,
-    StandardHooksConfig memory _b
-  ) external {
-    StandardHooksConfig memory expectedMergeResult = _a.mergeSharedFlags(_b);
-    HooksConfig a = _a.toHooksConfig();
-    HooksConfig b = _b.toHooksConfig();
-    HooksConfig actualMergeResult = a.mergeSharedFlags(b);
-    assertEq(actualMergeResult, expectedMergeResult, 'mergeSharedFlags');
-  }
-
-  function test_encodeHooksDeploymentConfig(
-    StandardHooksDeploymentConfig memory _deploymentFlags
-  ) external {
-    _deploymentFlags.optional.hooksAddress = address(0);
-    _deploymentFlags.required.hooksAddress = address(0);
-    HooksConfig _optional = _deploymentFlags.optional.toHooksConfig();
-    HooksConfig _required = _deploymentFlags.required.toHooksConfig();
-    HooksDeploymentConfig flags = encodeHooksDeploymentConfig(_optional, _required);
-    assertEq(flags.optionalFlags(), _optional, 'optionalFlags');
-    assertEq(flags.requiredFlags(), _required, 'requiredFlags');
-  }
-
-  function test_mergeFlags(
-    StandardHooksConfig memory _config,
-    StandardHooksDeploymentConfig memory _deploymentFlags
-  ) external {
-    StandardHooksConfig memory expectedMergeResult = _config.mergeFlags(_deploymentFlags);
-    HooksConfig config = _config.toHooksConfig();
-    HooksDeploymentConfig flags = encodeHooksDeploymentConfig(
-      _deploymentFlags.optional.toHooksConfig(),
-      _deploymentFlags.required.toHooksConfig()
+  // ┌─ _assertHookCall ─────
+  function _assertHookCall(bool enabled, bytes memory expectedCalldata, uint256 extraDataLength) internal view {
+    // LibHooksConfig sends dynamic bytes without ABI tail padding. trim the
+    // canonical encoding to the exact payload length before comparing it.
+    uint256 trailingPadding = (32 - (extraDataLength % 32)) % 32;
+    assembly {
+      mstore(expectedCalldata, sub(mload(expectedCalldata), trailingPadding))
+    }
+    assertEq(
+      hooks.lastCalldataHash(),
+      enabled ? keccak256(expectedCalldata) : bytes32(0),
+      enabled ? 'wrong hook calldata' : 'disabled hook was called'
     );
-
-    HooksConfig actualMergeResult = config.mergeFlags(flags);
-    assertEq(actualMergeResult, expectedMergeResult, 'mergeSharedFlags');
   }
 
+  // ░░▒▒▓▓██ [ LENDER CALLBACKS ] ─────────────────────────────────────────────
+
+  // ┌─ test_onDeposit ─────
   function test_onDeposit(
-    MarketStateFuzzInputs memory stateInput,
+    MarketState calldata state,
     StandardHooksConfig memory configInput,
-    bytes memory extraData
-  ) external {
-    MarketState memory state = stateInput.toState();
-    mockHookCaller.setState(state);
-    configInput.hooksAddress = address(hooks);
-    HooksConfig config = configInput.toHooksConfig();
-    mockHookCaller.setConfig(config);
-    bytes memory _calldata = abi.encodePacked(
-      abi.encodeWithSelector(mockHookCaller.deposit.selector, 100),
-      extraData
+    bytes calldata extraData
+  )
+    external
+  {
+    HooksConfig config = _configure(state, configInput);
+    _call(abi.encodePacked(abi.encodeWithSelector(caller.deposit.selector, 100), extraData));
+    _assertHookCall(
+      config.useOnDeposit(),
+      abi.encodeWithSelector(IHooks.onDeposit.selector, address(this), 100, state, extraData),
+      extraData.length
     );
-    if (config.useOnDeposit()) {
-      vm.expectEmit();
-      emit OnDepositCalled(address(this), 100, state, extraData);
-    }
-    _callMockHookCaller(_calldata);
-    if (!config.useOnDeposit()) {
-      assertEq(hooks.lastCalldataHash(), 0);
-    }
   }
 
-  function test_onQueueWithdrawal(
-    MarketStateFuzzInputs memory stateInput,
-    StandardHooksConfig memory configInput,
-    uint scaledAmount,
-    bytes memory extraData
-  ) external {
-    MarketState memory state = stateInput.toState();
-    mockHookCaller.setState(state);
-    configInput.hooksAddress = address(hooks);
-    HooksConfig config = configInput.toHooksConfig();
-    mockHookCaller.setConfig(config);
-    uint32 expiry = uint32(block.timestamp + 1 days);
-
-    bytes memory _calldata = abi.encodePacked(
-      abi.encodeWithSelector(mockHookCaller.queueWithdrawal.selector, expiry, scaledAmount),
-      extraData
-    );
-    if (config.useOnQueueWithdrawal()) {
-      vm.expectEmit();
-      emit OnQueueWithdrawalCalled(address(this), expiry, scaledAmount, state, extraData);
-    }
-    _callMockHookCaller(_calldata);
-    if (!config.useOnQueueWithdrawal()) {
-      assertEq(hooks.lastCalldataHash(), 0);
-    }
-  }
-
-  function test_onExecuteWithdrawal(
-    MarketStateFuzzInputs memory stateInput,
-    StandardHooksConfig memory configInput,
-    address lender,
-    uint128 normalizedAmountWithdrawn,
-    bytes memory extraData
-  ) external {
-    MarketState memory state = stateInput.toState();
-    mockHookCaller.setState(state);
-    configInput.hooksAddress = address(hooks);
-    HooksConfig config = configInput.toHooksConfig();
-    mockHookCaller.setConfig(config);
-    bytes memory _calldata = abi.encodePacked(
-      abi.encodeWithSelector(
-        mockHookCaller.executeWithdrawal.selector,
-        lender,
-        normalizedAmountWithdrawn
-      ),
-      extraData
-    );
-    if (config.useOnExecuteWithdrawal()) {
-      vm.expectEmit();
-      emit OnExecuteWithdrawalCalled(lender, normalizedAmountWithdrawn, state, extraData);
-    }
-    _callMockHookCaller(_calldata);
-
-    if (!config.useOnExecuteWithdrawal()) {
-      assertEq(hooks.lastCalldataHash(), 0);
-    }
-  }
-
+  // ┌─ test_onTransfer ─────
   function test_onTransfer(
-    MarketStateFuzzInputs memory stateInput,
+    MarketState calldata state,
     StandardHooksConfig memory configInput,
     address to,
     uint256 scaledAmount,
-    bytes memory extraData
-  ) external {
-    MarketState memory state = stateInput.toState();
-    mockHookCaller.setState(state);
-    configInput.hooksAddress = address(hooks);
-    HooksConfig config = configInput.toHooksConfig();
-    mockHookCaller.setConfig(config);
-
-    bytes memory _calldata = abi.encodePacked(
-      abi.encodeWithSelector(mockHookCaller.transfer.selector, to, scaledAmount),
-      extraData
-    );
-
-    if (config.useOnTransfer()) {
-      vm.expectEmit();
-      emit OnTransferCalled(address(this), address(this), to, scaledAmount, state, extraData);
-    }
-    _callMockHookCaller(_calldata);
-    if (!config.useOnTransfer()) {
-      assertEq(hooks.lastCalldataHash(), 0);
-    }
-  }
-
-  function test_onBorrow(
-    MarketStateFuzzInputs memory stateInput,
-    StandardHooksConfig memory configInput,
-    bytes memory extraData
-  ) external {
-    MarketState memory state = stateInput.toState();
-    mockHookCaller.setState(state);
-    configInput.hooksAddress = address(hooks);
-    HooksConfig config = configInput.toHooksConfig();
-    mockHookCaller.setConfig(config);
-    bytes memory _calldata = abi.encodePacked(
-      abi.encodeWithSelector(mockHookCaller.borrow.selector, 100),
-      extraData
-    );
-    if (config.useOnBorrow()) {
-      vm.expectEmit();
-      emit OnBorrowCalled(100, state, extraData);
-    }
-    _callMockHookCaller(_calldata);
-    if (!config.useOnBorrow()) {
-      assertEq(hooks.lastCalldataHash(), 0);
-    }
-  }
-
-  function test_onRepay(
-    MarketStateFuzzInputs memory stateInput,
-    StandardHooksConfig memory configInput,
-    bytes memory extraData
-  ) external {
-    MarketState memory state = stateInput.toState();
-    mockHookCaller.setState(state);
-    configInput.hooksAddress = address(hooks);
-    HooksConfig config = configInput.toHooksConfig();
-    mockHookCaller.setConfig(config);
-    bytes memory _calldata = abi.encodePacked(
-      abi.encodeWithSelector(mockHookCaller.repay.selector, 100),
-      extraData
-    );
-    if (config.useOnRepay()) {
-      vm.expectEmit();
-      emit OnRepayCalled(100, state, extraData);
-    }
-    _callMockHookCaller(_calldata);
-    if (!config.useOnRepay()) {
-      assertEq(hooks.lastCalldataHash(), 0);
-    }
-  }
-
-  function test_onCloseMarket(
-    MarketStateFuzzInputs memory stateInput,
-    StandardHooksConfig memory configInput,
-    bytes memory extraData
-  ) external {
-    MarketState memory state = stateInput.toState();
-    mockHookCaller.setState(state);
-    configInput.hooksAddress = address(hooks);
-    HooksConfig config = configInput.toHooksConfig();
-    mockHookCaller.setConfig(config);
-    bytes memory _calldata = abi.encodePacked(
-      abi.encodeWithSelector(mockHookCaller.closeMarket.selector),
-      extraData
-    );
-    if (config.useOnCloseMarket()) {
-      vm.expectEmit();
-      emit OnCloseMarketCalled(state, extraData);
-    }
-    _callMockHookCaller(_calldata);
-    if (!config.useOnCloseMarket()) {
-      assertEq(hooks.lastCalldataHash(), 0);
-    }
-  }
-
-  function test_onNukeFromOrbit(
-    MarketStateFuzzInputs memory stateInput,
-    StandardHooksConfig memory configInput,
-    bytes memory extraData,
-    address lender
-  ) external {
-    MarketState memory state = stateInput.toState();
-    mockHookCaller.setState(state);
-    configInput.hooksAddress = address(hooks);
-    HooksConfig config = configInput.toHooksConfig();
-    mockHookCaller.setConfig(config);
-    bytes memory _calldata = abi.encodePacked(
+    bytes calldata extraData
+  )
+    external
+  {
+    HooksConfig config = _configure(state, configInput);
+    _call(abi.encodePacked(abi.encodeWithSelector(caller.transfer.selector, to, scaledAmount), extraData));
+    _assertHookCall(
+      config.useOnTransfer(),
       abi.encodeWithSelector(
-        mockHookCaller.nukeFromOrbit.selector,
-        lender
+        IHooks.onTransfer.selector, address(this), address(this), to, scaledAmount, state, extraData
       ),
-      extraData
+      extraData.length
     );
-    if (config.useOnNukeFromOrbit()) {
-      vm.expectEmit();
-      emit OnNukeFromOrbitCalled(lender, state, extraData);
-    }
-    _callMockHookCaller(_calldata);
-    if (!config.useOnNukeFromOrbit()) {
-      assertEq(hooks.lastCalldataHash(), 0);
-    }
   }
 
-  function test_onSetMaxTotalSupply(
-    MarketStateFuzzInputs memory stateInput,
+  // ┌─ test_onQueueWithdrawal ─────
+  function test_onQueueWithdrawal(
+    MarketState calldata state,
     StandardHooksConfig memory configInput,
-    bytes memory extraData
-  ) external {
-    MarketState memory state = stateInput.toState();
-    mockHookCaller.setState(state);
-    configInput.hooksAddress = address(hooks);
-    HooksConfig config = configInput.toHooksConfig();
-    mockHookCaller.setConfig(config);
-    bytes memory _calldata = abi.encodePacked(
-      abi.encodeWithSelector(mockHookCaller.setMaxTotalSupply.selector, 100),
-      extraData
+    uint256 scaledAmount,
+    bytes calldata extraData
+  )
+    external
+  {
+    HooksConfig config = _configure(state, configInput);
+    uint32 expiry = uint32(getTimestamp() + 1 days);
+    _call(abi.encodePacked(abi.encodeWithSelector(caller.queueWithdrawal.selector, expiry, scaledAmount), extraData));
+    _assertHookCall(
+      config.useOnQueueWithdrawal(),
+      abi.encodeWithSelector(IHooks.onQueueWithdrawal.selector, address(this), expiry, scaledAmount, state, extraData),
+      extraData.length
     );
-    if (config.useOnSetMaxTotalSupply()) {
-      vm.expectEmit();
-      emit OnSetMaxTotalSupplyCalled(100, state, extraData);
-    }
-    _callMockHookCaller(_calldata);
-    if (!config.useOnSetMaxTotalSupply()) {
-      assertEq(hooks.lastCalldataHash(), 0);
-    }
   }
 
-  function test_onSetAnnualInterestAndReserveRatioBips(
-    MarketStateFuzzInputs memory stateInput,
+  // ┌─ test_onExecuteWithdrawal ─────
+  function test_onExecuteWithdrawal(
+    MarketState calldata state,
     StandardHooksConfig memory configInput,
-    bytes memory extraData,
-    uint16 annualInterestBips,
-    uint16 reserveRatioBips,
-    uint16 annualInterestBipsToReturn,
-    uint16 reserveRatioBipsToReturn
-  ) external {
-    hooks.setAnnualInterestAndReserveRatioBips(
-      annualInterestBipsToReturn,
-      reserveRatioBipsToReturn
+    ExecuteWithdrawalInputs calldata inputs,
+    bytes calldata extraData
+  )
+    external
+  {
+    HooksConfig config = _configure(state, configInput);
+    _call(
+      abi.encodePacked(
+        abi.encodeWithSelector(
+          caller.executeWithdrawal.selector, inputs.lender, inputs.expiry, inputs.normalizedAmountWithdrawn
+        ),
+        extraData
+      )
     );
-    MarketState memory state = stateInput.toState();
-    mockHookCaller.setState(state);
-    configInput.hooksAddress = address(hooks);
-    HooksConfig config = configInput.toHooksConfig();
-    mockHookCaller.setConfig(config);
-    bytes memory _calldata = abi.encodePacked(
+    _assertHookCall(
+      config.useOnExecuteWithdrawal(),
       abi.encodeWithSelector(
-        mockHookCaller.setAnnualInterestAndReserveRatioBips.selector,
-        annualInterestBips,
-        reserveRatioBips
-      ),
-      extraData
-    );
-
-    if (config.useOnSetAnnualInterestAndReserveRatioBips()) {
-      vm.expectEmit();
-      emit OnSetAnnualInterestAndReserveRatioBipsCalled(
-        annualInterestBips,
-        reserveRatioBips,
+        IHooks.onExecuteWithdrawal.selector,
+        inputs.lender,
+        inputs.expiry,
+        inputs.normalizedAmountWithdrawn,
         state,
         extraData
-      );
-    }
-    _callMockHookCaller(_calldata);
-    if (config.useOnSetAnnualInterestAndReserveRatioBips()) {
-      uint16 returnedAnnualInterestBips;
-      uint16 returnedReserveRatioBips;
-      assembly {
-        returndatacopy(0, 0, 0x40)
-        returnedAnnualInterestBips := mload(0)
-        returnedReserveRatioBips := mload(0x20)
-      }
-      assertEq(returnedAnnualInterestBips, annualInterestBipsToReturn, 'updatedAnnualInterestBips');
-      assertEq(returnedReserveRatioBips, reserveRatioBipsToReturn, 'updatedReserveRatioBips');
-    } else {
-      assertEq(hooks.lastCalldataHash(), 0);
-    }
+      ),
+      extraData.length
+    );
   }
 
-  function test_onSetProtocolFeeBips(
-    MarketStateFuzzInputs memory stateInput,
+  // ░░▒▒▓▓██ [ BORROWER CALLBACKS ] ───────────────────────────────────────────
+
+  // ┌─ test_onBorrow ─────
+  function test_onBorrow(
+    MarketState calldata state,
     StandardHooksConfig memory configInput,
-    bytes memory extraData
-  ) external {
-    MarketState memory state = stateInput.toState();
-    mockHookCaller.setState(state);
-    configInput.hooksAddress = address(hooks);
-    HooksConfig config = configInput.toHooksConfig();
-    mockHookCaller.setConfig(config);
-    bytes memory _calldata = abi.encodePacked(
-      abi.encodeWithSelector(mockHookCaller.setProtocolFeeBips.selector, 100),
-      extraData
+    bytes calldata extraData
+  )
+    external
+  {
+    HooksConfig config = _configure(state, configInput);
+    _call(abi.encodePacked(abi.encodeWithSelector(caller.borrow.selector, 100), extraData));
+    _assertHookCall(
+      config.useOnBorrow(), abi.encodeWithSelector(IHooks.onBorrow.selector, 100, state, extraData), extraData.length
     );
-    if (config.useOnSetProtocolFeeBips()) {
-      vm.expectEmit();
-      emit OnSetProtocolFeeBipsCalled(100, state, extraData);
-    }
-    _callMockHookCaller(_calldata);
-    if (!config.useOnSetProtocolFeeBips()) {
-      assertEq(hooks.lastCalldataHash(), 0);
-    }
+  }
+
+  // ┌─ test_onRepay ─────
+  function test_onRepay(
+    MarketState calldata state,
+    StandardHooksConfig memory configInput,
+    bytes calldata extraData
+  )
+    external
+  {
+    HooksConfig config = _configure(state, configInput);
+    _call(abi.encodePacked(abi.encodeWithSelector(caller.repay.selector, 100), extraData));
+    _assertHookCall(
+      config.useOnRepay(), abi.encodeWithSelector(IHooks.onRepay.selector, 100, state, extraData), extraData.length
+    );
+  }
+
+  // ┌─ test_onCloseMarket ─────
+  function test_onCloseMarket(
+    MarketState calldata state,
+    StandardHooksConfig memory configInput,
+    bytes calldata extraData
+  )
+    external
+  {
+    HooksConfig config = _configure(state, configInput);
+    _call(abi.encodePacked(abi.encodeWithSelector(caller.closeMarket.selector), extraData));
+    _assertHookCall(
+      config.useOnCloseMarket(),
+      abi.encodeWithSelector(IHooks.onCloseMarket.selector, state, extraData),
+      extraData.length
+    );
+  }
+
+  // ░░▒▒▓▓██ [ CONFIGURATION CALLBACKS ] ──────────────────────────────────────
+
+  // ┌─ test_onSetMaxTotalSupply ─────
+  function test_onSetMaxTotalSupply(
+    MarketState calldata state,
+    StandardHooksConfig memory configInput,
+    bytes calldata extraData
+  )
+    external
+  {
+    HooksConfig config = _configure(state, configInput);
+    _call(abi.encodePacked(abi.encodeWithSelector(caller.setMaxTotalSupply.selector, 100), extraData));
+    _assertHookCall(
+      config.useOnSetMaxTotalSupply(),
+      abi.encodeWithSelector(IHooks.onSetMaxTotalSupply.selector, 100, state, extraData),
+      extraData.length
+    );
+  }
+
+  // ┌─ test_onSetAnnualInterestAndReserveRatioBips ─────
+  function test_onSetAnnualInterestAndReserveRatioBips(
+    MarketState calldata state,
+    StandardHooksConfig memory configInput,
+    bytes calldata extraData,
+    AprUpdateInputs calldata inputs
+  )
+    external
+  {
+    hooks.setAnnualInterestAndReserveRatioBips(inputs.annualInterestBipsToReturn, inputs.reserveRatioBipsToReturn);
+    HooksConfig config = _configure(state, configInput);
+    bytes memory returnData = _call(
+      abi.encodePacked(
+        abi.encodeWithSelector(
+          caller.setAnnualInterestAndReserveRatioBips.selector, inputs.annualInterestBips, inputs.reserveRatioBips
+        ),
+        extraData
+      )
+    );
+    _assertHookCall(
+      config.useOnSetAnnualInterestAndReserveRatioBips(),
+      abi.encodeWithSelector(
+        IHooks.onSetAnnualInterestAndReserveRatioBips.selector,
+        inputs.annualInterestBips,
+        inputs.reserveRatioBips,
+        state,
+        extraData
+      ),
+      extraData.length
+    );
+    (uint16 returnedAnnualInterestBips, uint16 returnedReserveRatioBips) = abi.decode(returnData, (uint16, uint16));
+    assertEq(
+      returnedAnnualInterestBips,
+      config.useOnSetAnnualInterestAndReserveRatioBips()
+        ? inputs.annualInterestBipsToReturn
+        : inputs.annualInterestBips,
+      'annual interest return'
+    );
+    assertEq(
+      returnedReserveRatioBips,
+      config.useOnSetAnnualInterestAndReserveRatioBips() ? inputs.reserveRatioBipsToReturn : inputs.reserveRatioBips,
+      'reserve ratio return'
+    );
+  }
+
+  // ┌─ test_onSetProtocolFeeBips ─────
+  function test_onSetProtocolFeeBips(
+    MarketState calldata state,
+    StandardHooksConfig memory configInput,
+    bytes calldata extraData
+  )
+    external
+  {
+    HooksConfig config = _configure(state, configInput);
+    _call(abi.encodePacked(abi.encodeWithSelector(caller.setProtocolFeeBips.selector, 100), extraData));
+    _assertHookCall(
+      config.useOnSetProtocolFeeBips(),
+      abi.encodeWithSelector(IHooks.onSetProtocolFeeBips.selector, 100, state, extraData),
+      extraData.length
+    );
+  }
+
+  // ┌─ test_onNukeFromOrbit ─────
+  function test_onNukeFromOrbit(
+    MarketState calldata state,
+    StandardHooksConfig memory configInput,
+    bytes calldata extraData,
+    address lender
+  )
+    external
+  {
+    HooksConfig config = _configure(state, configInput);
+    _call(abi.encodePacked(abi.encodeWithSelector(caller.nukeFromOrbit.selector, lender), extraData));
+    _assertHookCall(
+      config.useOnNukeFromOrbit(),
+      abi.encodeWithSelector(IHooks.onNukeFromOrbit.selector, lender, state, extraData),
+      extraData.length
+    );
+  }
+
+  // ░░▒▒▓▓██ [ CALLBACK FAILURES ] ────────────────────────────────────────────
+
+  // ┌─ test_hookRevertBubbles ─────
+  function test_hookRevertBubbles(MarketState calldata state) external {
+    StandardHooksConfig memory configInput;
+    configInput.useOnDeposit = true;
+    _configure(state, configInput);
+    hooks.setShouldRevert(true);
+
+    vm.expectRevert(HooksConfigTarget.ForcedRevert.selector);
+    caller.deposit(100);
+  }
+
+  // ┌─ test_aprHookRejectsShortReturnData ─────
+  function test_aprHookRejectsShortReturnData(MarketState calldata state) external {
+    StandardHooksConfig memory configInput;
+    configInput.hooksAddress = shortReturnHooks;
+    configInput.useOnSetAnnualInterestAndReserveRatioBips = true;
+    caller.setState(state);
+    caller.setConfig(configInput.toHooksConfig());
+
+    vm.expectRevert();
+    caller.setAnnualInterestAndReserveRatioBips(100, 200);
   }
 }

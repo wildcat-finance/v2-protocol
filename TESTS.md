@@ -1,29 +1,76 @@
-## Testing external functions in contracts
+# Testing
 
-Every contract or library `<Contract>` defined in `src/<subdir>/<FileName>.sol` should have a corresponding test `<Contract>Test` defined in `test/<subdir>/<FileName>.t.sol`.
+The canonical protocol suite lives in [`test/`](./test/). Deployment-format
+comparisons and lifecycle invariants are part of that tree, not an alternate
+release-test profile. Standalone gas and optimizer research uses fixtures under
+`scripts/research/fixtures/`; those do not replace the canonical suite.
 
-Every execution path in the function should be tested, ideally with a distinct test. The naming should be `test_<functionName>_<PascalCaseLabel>`, where `PascalCaseLabel` is some brief summary of the path being tested.
+## Required commands
 
-Test case labels:
-- For testing that a specific event is emitted that is not emitted in the default path, the label should be the name of the event.
-- Same as above for testing that specific errors are thrown.
-- If we're testing what happens when a null recipient is given in a transfer call, the label might be `test_transfer_NullRecipient`
+Install the pinned Foundry toolchain using the [build setup](./README.md#build-and-test).
 
-## Library Tests
+```sh
+forge test
+yarn test:fixed
+FOUNDRY_PROFILE=deploy forge test
+```
 
-We use wrapper contracts for libraries in our tests for two reasons: forge coverage support and event/error testing.
+- `forge test` is the default for local work and CI.
+- `yarn test:fixed` uses a fixed timestamp and fuzz seed. Use it when you need a
+  repeatable audit run.
+- `FOUNDRY_PROFILE=deploy forge test` runs the same suite with the deployment
+  artifact settings.
 
-Forge coverage issues:
-1. Forge coverage is currently incapable of mapping MemberAccess function calls with expressions other than library identifiers, meaning expressions like `XLib.x(value)` will work in forge coverage, but expressions like `value.x()` will not.
-2. Forge coverage will not track internal methods which are only invoked in the codebase within the context of a test function. This means that even if we wrote forge tests to directly access functions as library members (where the main codebase always uses them as members of a type), because the library method syntax is only used in the tests, those invocations will not cause the method to be tracked.
+[`foundry.toml`](./foundry.toml) pins Solidity `0.8.25`, Cancun, via-IR,
+optimizer runs `1`, and the exact Yul optimizer sequence. Normal builds, tests,
+and the `deploy` profile share these settings. The market runtime-size tests
+enforce the deployment limit under that configuration.
 
-Events and errors:
+The configuration explicitly enables call isolation and dynamic test linking,
+the defaults adopted with Foundry 1.8.3. Isolation gives top-level test calls
+separate transaction contexts, so gas comparisons must preserve that setting
+and distinguish direct test calls from callbacks nested inside market actions.
+Deployment fixtures continue to use production artifacts and the real factory
+paths where deployment identity and behavior are under test.
 
-- Forge's `expectEmit` and `expectRevert` operate on the next message call within the execution context, not the current call context. If a library has custom events or errors, we must invoke the methods which use them as external calls to validate they emit the right events or revert with the right errors.
+The complete suite also uses Python 3 and a local C compiler (`cc`) for the
+offline [storage-codec reference](./test/reference/fastlz/README.md). Foundry FFI
+is enabled in the repository configuration. That reference qualifies the
+historical compression comparison; current deployment tooling selects raw or
+split storage.
 
-Because of these issues, for any library in the main codebase which:
-- has methods that are primarily invoked as type members rather than as standalone functions or library members; OR
-- has methods which can emit events or revert; OR
-- has methods which are not invoked in the main codebase
+## Deployment tooling
 
-We define a wrapper library that redefines all the library functions as external functions, and a test contract which invokes those functions as external calls to the wrapper.
+Install the locked root and deployment-UI JavaScript dependencies, then run:
+
+```sh
+yarn install --frozen-lockfile --ignore-scripts
+npm --prefix deploy-ui ci --ignore-scripts
+node --test scripts/__tests__/*.test.js
+npm --prefix deploy-ui test
+npm --prefix deploy-ui run build
+```
+
+These cover plan commitments, template registration, handoff records, predicate
+verification and the UI executor. They supplement the contract suite. A release
+also needs the [deployment rehearsal](./docs/operations/deployment.md#release-workflow)
+on a pinned target-chain fork with the actual frozen plan.
+
+See [`test/README.md`](./test/README.md) for suite ownership, fixture rules,
+stateful testing, and the focused coverage boundary.
+
+## What tests should cover
+
+- Give each behavior domain one owning suite. Don't multiply entrypoints through
+  test inheritance.
+- Cover authorization, success, reverts, events, boundaries, rounding, and state
+  transitions where they apply.
+- Test shared implementations through runtime matrices. Give distinct behavior
+  its own properties.
+- Keep mocks small and assertions explicit. Use real deployment paths when a
+  test depends on constructors, immutables, CREATE2, or registration.
+- Every bug fix needs a regression that fails against the unfixed code.
+
+Library wrappers under `test/libraries/wrappers/` expose internal library
+functions when a test needs an external call for a revert, event, or coverage
+assertion. They are test infrastructure, not protocol interfaces.

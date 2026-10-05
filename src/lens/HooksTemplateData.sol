@@ -1,12 +1,24 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HooksTemplateData
+//  \ ^ /   Template metadata and borrower origination-fee readiness.
+//    V
+//
+//  TEMPLATE AND FEE DATA
+//  fill(...)
+//  fill(...)
+// ═════
 
 import '../HooksFactory.sol';
 import './TokenData.sol';
+import './OptionalData.sol';
 
 using HooksTemplateDataLib for HooksTemplateData global;
 using HooksTemplateDataLib for FeeConfiguration global;
 
+/// @notice metadata, fees, and deployment count for one hooks template.
 struct HooksTemplateData {
   address hooksTemplate;
   FeeConfiguration fees;
@@ -15,31 +27,49 @@ struct HooksTemplateData {
   uint24 index;
   string name;
   uint256 totalMarkets;
+
+  /// @dev factory-registered creation-code commitment. older factories may not expose it.
+  OptionalBytes32Data initCodeHash;
 }
 
+/// @notice template fee terms, with optional balance and allowance data for one borrower.
 struct FeeConfiguration {
   address feeRecipient;
-  /// @dev Basis points paid on interest for markets deployed using hooks
-  ///      based on this template
+
+  /// @dev basis points of lender interest charged to markets using this template.
   uint16 protocolFeeBips;
-  /// @dev Asset used to pay origination fee
+
+  /// @dev metadata for the origination-fee asset. zeroed when there is no fee asset.
   TokenMetadata originationFeeToken;
-  /// @dev Amount of `originationFeeAsset` paid to deploy a new market using
-  ///      an instance of this template.
+
+  /// @dev amount of the origination-fee asset required for market deployment.
   uint256 originationFeeAmount;
-  /// @dev Balance of the borrower in `originationFeeAsset`
+
+  /// @dev borrower balance in the fee asset. zero when no borrower was requested.
   uint256 borrowerOriginationFeeBalance;
-  /// @dev Approval from the borrower for the hooks factory to transfer `originationFeeAsset`
+
+  /// @dev borrower allowance to the hooks factory. zero when no borrower was requested.
   uint256 borrowerOriginationFeeApproval;
 }
 
+// ┌─ HooksTemplateDataLib ─────────────────────────────────────────────────────
+/// @notice fillers for hooks-template metadata and borrower fee readiness.
 library HooksTemplateDataLib {
+  // ░░▒▒▓▓██ [ TEMPLATE AND FEE DATA ] ────────────────────────────────────────
+
+  // ┌─ fill ─────
+  /// @notice fill template metadata and fee readiness for `borrower`.
+  ///
+  /// @dev pass a zero borrower to skip balance and allowance reads.
   function fill(
     HooksTemplateData memory data,
-    HooksFactory factory,
+    IHooksFactory factory,
     address hooksTemplate,
     address borrower
-  ) internal view {
+  )
+    internal
+    view
+  {
     HooksTemplate memory template = factory.getHooksTemplateDetails(hooksTemplate);
     data.hooksTemplate = hooksTemplate;
     data.exists = template.exists;
@@ -48,14 +78,24 @@ library HooksTemplateDataLib {
     data.name = template.name;
     data.totalMarkets = factory.getMarketsForHooksTemplateCount(hooksTemplate);
     data.fees.fill(template, factory, borrower);
+    uint256 hash;
+    (data.initCodeHash.isPresent, hash) = OptionalDataLib.readWord(
+      address(factory), abi.encodeCall(IHooksFactory.getHooksTemplateInitCodeHash, (hooksTemplate))
+    );
+    data.initCodeHash.value = bytes32(hash);
   }
 
+  // ┌─ fill ─────
+  /// @notice fill the fee tuple from an already-loaded template.
   function fill(
     FeeConfiguration memory data,
     HooksTemplate memory template,
-    HooksFactory factory,
+    IHooksFactory factory,
     address borrower
-  ) internal view {
+  )
+    internal
+    view
+  {
     data.feeRecipient = template.feeRecipient;
     data.protocolFeeBips = template.protocolFeeBips;
     data.originationFeeAmount = template.originationFeeAmount;

@@ -1,12 +1,40 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IWildcatSanctionsSentinel
+//  \ ^ /   Borrower-scoped sanctions overrides and escrow deployment.
+//    V
+//
+//  CONFIGURATION
+//  chainalysisSanctionsList()
+//  archController()
+//
+//  SANCTION OVERRIDES
+//  overrideSanction(...)
+//  removeSanctionOverride(...)
+//  sanctionOverrides(...)
+//
+//  SANCTION QUERIES
+//  isSanctioned(...)
+//  isFlaggedByChainalysis(...)
+//
+//  ESCROW DEPLOYMENT
+//  createEscrow(...)
+//  getEscrowAddress(...)
+//  WildcatSanctionsEscrowInitcodeHash()
+//  tmpEscrowParams()
+// ═════
+
+// ┌─ IWildcatSanctionsSentinel ────────────────────────────────────────────────
+/// @title Wildcat sanctions sentinel
+///
+/// @notice wrap the external sanctions list with borrower-scoped overrides and deterministic
+///         escrows.
+///
+/// @dev dependency failures are not treated as an unflagged account; they bubble to the caller.
 interface IWildcatSanctionsSentinel {
-  event NewSanctionsEscrow(
-    address indexed borrower,
-    address indexed account,
-    address indexed asset
-  );
+  event NewSanctionsEscrow(address indexed borrower, address indexed account, address indexed asset);
 
   event SanctionOverride(address indexed borrower, address indexed account);
 
@@ -18,57 +46,67 @@ interface IWildcatSanctionsSentinel {
     address asset;
   }
 
-  function WildcatSanctionsEscrowInitcodeHash() external pure returns (bytes32);
+  // ░░▒▒▓▓██ [ CONFIGURATION ] ────────────────────────────────────────────────
 
-  // Returns immutable sanctions list contract
+  // ┌─ chainalysisSanctionsList ─────
+  /// @notice immutable external sanctions-list contract.
   function chainalysisSanctionsList() external view returns (address);
 
-  // Returns immutable arch-controller
+  // ┌─ archController ─────
+  /// @notice immutable ArchController associated with this sentinel.
   function archController() external view returns (address);
 
-  // Returns temporary escrow params
-  function tmpEscrowParams()
-    external
-    view
-    returns (address borrower, address account, address asset);
+  // ░░▒▒▓▓██ [ SANCTION OVERRIDES ] ───────────────────────────────────────────
 
-  // Returns result of `chainalysisSanctionsList().isSanctioned(account)`
-  function isFlaggedByChainalysis(address account) external view returns (bool);
-
-  // Returns result of `chainalysisSanctionsList().isSanctioned(account)`
-  // if borrower has not overridden the status of `account`
-  function isSanctioned(address borrower, address account) external view returns (bool);
-
-  // Returns boolean indicating whether `borrower` has overridden the
-  // sanction status of `account`
-  function sanctionOverrides(address borrower, address account) external view returns (bool);
-
+  // ┌─ overrideSanction ─────
+  /// @notice let the caller allow a flagged account in its own borrower namespace.
   function overrideSanction(address account) external;
 
+  // ┌─ removeSanctionOverride ─────
+  /// @notice remove the caller's override for `account`.
   function removeSanctionOverride(address account) external;
 
-  // Returns create2 address of sanctions escrow contract for
-  // combination of `borrower,account,asset`
+  // ┌─ sanctionOverrides ─────
+  /// @notice return whether `borrower` has overridden `account`'s flagged status.
+  function sanctionOverrides(address borrower, address account) external view returns (bool);
+
+  // ░░▒▒▓▓██ [ SANCTION QUERIES ] ─────────────────────────────────────────────
+
+  // ┌─ isSanctioned ─────
+  /// @notice return whether `account` is flagged and has no override from `borrower`.
+  function isSanctioned(address borrower, address account) external view returns (bool);
+
+  // ┌─ isFlaggedByChainalysis ─────
+  /// @notice return the raw sanctions-list result for `account`.
+  function isFlaggedByChainalysis(address account) external view returns (bool);
+
+  // ░░▒▒▓▓██ [ ESCROW DEPLOYMENT ] ────────────────────────────────────────────
+
+  // ┌─ createEscrow ─────
+  /// @notice deploy the escrow for `(borrower, account, asset)`, or return the existing one.
+  ///
+  /// @dev the new escrow is automatically exempted in `borrower`'s namespace so it can receive
+  ///      quarantined assets. callers do not need permission.
+  function createEscrow(address borrower, address account, address asset) external returns (address escrowContract);
+
+  // ┌─ getEscrowAddress ─────
+  /// @notice return the CREATE2 escrow address for `(borrower, account, asset)`.
   function getEscrowAddress(
     address borrower,
     address account,
     address asset
-  ) external view returns (address escrowContract);
+  )
+    external
+    view
+    returns (address escrowContract);
 
-  /**
-   * @dev Returns a create2 deployment of WildcatSanctionsEscrow unique to each
-   *      combination of `account,borrower,asset`. If the contract is already
-   *      deployed, returns the existing address.
-   *
-   *      Emits `NewSanctionsEscrow(borrower, account, asset)` if a new contract
-   *      is deployed.
-   *
-   *      The sanctions escrow contract is used to hold assets until either the
-   *      sanctioned status is lifted or the assets are released by the borrower.
-   */
-  function createEscrow(
-    address borrower,
-    address account,
-    address asset
-  ) external returns (address escrowContract);
+  // ┌─ WildcatSanctionsEscrowInitcodeHash ─────
+  /// @notice initcode hash used to derive escrow addresses.
+  function WildcatSanctionsEscrowInitcodeHash() external pure returns (bytes32);
+
+  // ┌─ tmpEscrowParams ─────
+  /// @notice return constructor parameters for the escrow currently being deployed.
+  ///
+  /// @dev returns nonzero placeholders outside a sentinel-managed deployment.
+  function tmpEscrowParams() external view returns (address borrower, address account, address asset);
 }

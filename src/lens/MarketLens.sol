@@ -1,236 +1,601 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
-import './MarketData.sol';
-import './TokenData.sol';
-import './HooksInstanceData.sol';
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLens
+//  \ ^ /   Read facade over core, aggregation, and live-data helpers.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//
+//  BORROWER HOOKS DATA
+//  getHooksDataForBorrower(...)
+//  getHooksDataForBorrower(...)
+//  getAggregatedHooksDataForBorrower(...)
+//
+//  HOOKS INSTANCES
+//  getHooksInstancesForBorrower(...)
+//  getHooksInstancesForBorrower(...)
+//  getAggregatedHooksInstancesForBorrower(...)
+//
+//  HOOKS TEMPLATES
+//  getHooksTemplateForBorrower(...)
+//  getHooksTemplateForBorrower(...)
+//  getHooksTemplatesForBorrower(...)
+//  getHooksTemplatesForBorrower(...)
+//  getAllHooksTemplatesForBorrower(...)
+//  getAllHooksTemplatesForBorrower(...)
+//  getAggregatedAllHooksTemplatesForBorrower(...)
+//  getAggregatedHooksTemplatesForBorrowerWithFactory(...)
+//
+//  TOKEN METADATA
+//  getTokenInfo(...)
+//  getTokensInfo(...)
+//
+//  MARKET DATA
+//  getMarketData(...)
+//  getMarketsData(...)
+//  getMarketDataV2(...)
+//  getMarketsDataV2(...)
+//
+//  TEMPLATE MARKETS
+//  getMarketsForHooksTemplateCount(...)
+//  getMarketsForHooksTemplateCount(...)
+//  getAggregatedMarketsForHooksTemplateCount(...)
+//  getPaginatedMarketsDataForHooksTemplate(...)
+//  getPaginatedMarketsDataForHooksTemplate(...)
+//  getPaginatedMarketsDataV2ForHooksTemplate(...)
+//  getPaginatedMarketsDataV2ForHooksTemplate(...)
+//  getAllMarketsDataForHooksTemplate(...)
+//  getAllMarketsDataForHooksTemplate(...)
+//  getAllMarketsDataV2ForHooksTemplate(...)
+//  getAllMarketsDataV2ForHooksTemplate(...)
+//  getAggregatedAllMarketsDataForHooksTemplate(...)
+//  getAggregatedAllMarketsDataV2ForHooksTemplate(...)
+//
+//  LIVE MARKET DATA
+//  getMarketsLiveDataV2(...)
+//  getMarketsLiveDataWithLenderStatusV2(...)
+//
+//  LENDER DATA
+//  getMarketDataWithLenderStatus(...)
+//  getMarketsDataWithLenderStatus(...)
+//  getLenderAccountData(...)
+//  getLenderAccountData(...)
+//  getLenderAccountsData(...)
+//  queryLenderAccount(...)
+//  queryLenderAccounts(...)
+//
+//  WITHDRAWAL BATCHES
+//  getWithdrawalBatchData(...)
+//  getWithdrawalBatchesData(...)
+//  getWithdrawalBatchDataWithLenderStatus(...)
+//  getWithdrawalBatchesDataWithLenderStatus(...)
+//  getWithdrawalBatchDataWithLendersStatus(...)
+//
+//  QUERY FORWARDING
+//  _delegateCoreHelper()
+//  _delegateAggregationHelper()
+//  _delegateLiveHelper()
+//  _delegate(...)
+// ═════
+
+import '../IHooksFactory.sol';
+import './FactoryScopedHooksTemplateData.sol';
 import './HooksDataForBorrower.sol';
+import './HooksInstanceData.sol';
+import './MarketData.sol';
+import './MarketLiveData.sol';
+import './TokenData.sol';
+import './interfaces/IMarketLensAggregator.sol';
+import './interfaces/IMarketLensCore.sol';
+import './interfaces/IMarketLensLive.sol';
 
-contract MarketLens {
+// ┌─ MarketLens ───────────────────────────────────────────────────────────────
+/// @title Wildcat market lens
+///
+/// @notice read facade over separate core, aggregation, and live-data helpers.
+///
+/// @dev each function forwards its original calldata by `staticcall` and passes the helper's exact
+///      result through. splitting the implementation keeps the facade under the code-size limit.
+contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
+  /// @dev declared for ABI completeness: raised in the data-filling libraries
+  ///      and bubbled up to callers through `_delegate`.
+  error NotV2Market();
+  error InvalidParameterConstraints();
+
+  /// @notice ArchController configured for this facade.
   WildcatArchController public immutable archController;
-  HooksFactory public immutable hooksFactory;
 
-  constructor(address _archController, address _hooksFactory) {
+  /// @notice default hooks factory configured for this facade.
+  IHooksFactory public immutable hooksFactory;
+
+  /// @notice helper used for strict market, token, and lender reads.
+  IMarketLensCore public immutable coreHelper;
+
+  /// @notice helper used for cross-factory aggregation reads.
+  IMarketLensAggregator public immutable aggregationHelper;
+
+  /// @notice helper used for compact accrued-state reads.
+  IMarketLensLive public immutable liveHelper;
+
+  // ░░▒▒▓▓██ [ SETUP ] ────────────────────────────────────────────────────────
+
+  // ┌─ constructor ─────
+  constructor(
+    address _archController,
+    address _hooksFactory,
+    address _coreHelper,
+    address _aggregationHelper,
+    address _liveHelper
+  ) {
     archController = WildcatArchController(_archController);
-    hooksFactory = HooksFactory(_hooksFactory);
+    hooksFactory = IHooksFactory(_hooksFactory);
+    coreHelper = IMarketLensCore(_coreHelper);
+    aggregationHelper = IMarketLensAggregator(_aggregationHelper);
+    liveHelper = IMarketLensLive(_liveHelper);
   }
 
-  // ========================================================================== //
-  //                         All hooks data for borrower                        //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ BORROWER HOOKS DATA ] ──────────────────────────────────────────
 
+  // ┌─ getHooksDataForBorrower ─────
+  function getHooksDataForBorrower(address borrower) external view returns (HooksDataForBorrower memory data) {
+    _delegateAggregationHelper();
+  }
+
+  // ┌─ getHooksDataForBorrower ─────
   function getHooksDataForBorrower(
+    address hooksFactoryAddress,
     address borrower
-  ) public view returns (HooksDataForBorrower memory data) {
-    data.fill(archController, hooksFactory, borrower);
+  )
+    external
+    view
+    returns (HooksDataForBorrower memory data)
+  {
+    _delegateAggregationHelper();
   }
 
-  // ========================================================================== //
-  //                        Hooks instances for borrower                        //
-  // ========================================================================== //
+  // ┌─ getAggregatedHooksDataForBorrower ─────
+  function getAggregatedHooksDataForBorrower(address borrower)
+    external
+    view
+    returns (HooksDataForBorrower memory data)
+  {
+    _delegateAggregationHelper();
+  }
 
+  // ░░▒▒▓▓██ [ HOOKS INSTANCES ] ──────────────────────────────────────────────
+
+  // ┌─ getHooksInstancesForBorrower ─────
+  function getHooksInstancesForBorrower(address borrower) external view returns (HooksInstanceData[] memory arr) {
+    _delegateAggregationHelper();
+  }
+
+  // ┌─ getHooksInstancesForBorrower ─────
   function getHooksInstancesForBorrower(
+    address hooksFactoryAddress,
     address borrower
-  ) public view returns (HooksInstanceData[] memory arr) {
-    address[] memory hooksInstances = hooksFactory.getHooksInstancesForBorrower(borrower);
-    arr = new HooksInstanceData[](arr.length);
-    for (uint i; i < hooksInstances.length; i++) {
-      arr[i].fill(hooksInstances[i], hooksFactory);
-    }
+  )
+    external
+    view
+    returns (HooksInstanceData[] memory arr)
+  {
+    _delegateAggregationHelper();
   }
 
-  // ========================================================================== //
-  //                        Hooks templates for borrower                        //
-  // ========================================================================== //
+  // ┌─ getAggregatedHooksInstancesForBorrower ─────
+  /// @inheritdoc IMarketLensAggregator
+  function getAggregatedHooksInstancesForBorrower(address borrower)
+    external
+    view
+    returns (HooksInstanceData[] memory arr)
+  {
+    _delegateAggregationHelper();
+  }
 
+  // ░░▒▒▓▓██ [ HOOKS TEMPLATES ] ──────────────────────────────────────────────
+
+  // ┌─ getHooksTemplateForBorrower ─────
   function getHooksTemplateForBorrower(
     address borrower,
     address hooksTemplate
-  ) public view returns (HooksTemplateData memory data) {
-    data.fill(hooksFactory, hooksTemplate, borrower);
+  )
+    external
+    view
+    returns (HooksTemplateData memory data)
+  {
+    _delegateAggregationHelper();
   }
 
+  // ┌─ getHooksTemplateForBorrower ─────
+  function getHooksTemplateForBorrower(
+    address hooksFactoryAddress,
+    address borrower,
+    address hooksTemplate
+  )
+    external
+    view
+    returns (HooksTemplateData memory data)
+  {
+    _delegateAggregationHelper();
+  }
+
+  // ┌─ getHooksTemplatesForBorrower ─────
   function getHooksTemplatesForBorrower(
     address borrower,
     address[] memory hooksTemplates
-  ) public view returns (HooksTemplateData[] memory data) {
-    data = new HooksTemplateData[](hooksTemplates.length);
-    for (uint i; i < hooksTemplates.length; i++) {
-      data[i].fill(hooksFactory, hooksTemplates[i], borrower);
-    }
+  )
+    external
+    view
+    returns (HooksTemplateData[] memory data)
+  {
+    _delegateAggregationHelper();
   }
 
+  // ┌─ getHooksTemplatesForBorrower ─────
+  function getHooksTemplatesForBorrower(
+    address hooksFactoryAddress,
+    address borrower,
+    address[] memory hooksTemplates
+  )
+    external
+    view
+    returns (HooksTemplateData[] memory data)
+  {
+    _delegateAggregationHelper();
+  }
+
+  // ┌─ getAllHooksTemplatesForBorrower ─────
+  function getAllHooksTemplatesForBorrower(address borrower) external view returns (HooksTemplateData[] memory data) {
+    _delegateAggregationHelper();
+  }
+
+  // ┌─ getAllHooksTemplatesForBorrower ─────
   function getAllHooksTemplatesForBorrower(
+    address hooksFactoryAddress,
     address borrower
-  ) public view returns (HooksTemplateData[] memory data) {
-    address[] memory hooksTemplates = hooksFactory.getHooksTemplates();
-    return getHooksTemplatesForBorrower(borrower, hooksTemplates);
+  )
+    external
+    view
+    returns (HooksTemplateData[] memory data)
+  {
+    _delegateAggregationHelper();
   }
 
-  // ========================================================================== //
-  //                                 Token info                                 //
-  // ========================================================================== //
-
-  function getTokenInfo(address token) public view returns (TokenMetadata memory info) {
-    info.fill(token);
+  // ┌─ getAggregatedAllHooksTemplatesForBorrower ─────
+  /// @inheritdoc IMarketLensAggregator
+  function getAggregatedAllHooksTemplatesForBorrower(address borrower)
+    external
+    view
+    returns (HooksTemplateData[] memory data)
+  {
+    _delegateAggregationHelper();
   }
 
-  function getTokensInfo(
-    address[] memory tokens
-  ) public view returns (TokenMetadata[] memory info) {
-    info = new TokenMetadata[](tokens.length);
-    for (uint256 i; i < tokens.length; i++) {
-      info[i].fill(tokens[i]);
-    }
+  // ┌─ getAggregatedHooksTemplatesForBorrowerWithFactory ─────
+  /// @inheritdoc IMarketLensAggregator
+  function getAggregatedHooksTemplatesForBorrowerWithFactory(address borrower)
+    external
+    view
+    returns (FactoryScopedHooksTemplateData[] memory data)
+  {
+    _delegateAggregationHelper();
   }
 
-  // ========================================================================== //
-  //                                   Markets                                  //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ TOKEN METADATA ] ───────────────────────────────────────────────
 
+  // ┌─ getTokenInfo ─────
+  function getTokenInfo(address token) external view returns (TokenMetadata memory info) {
+    _delegateCoreHelper();
+  }
+
+  // ┌─ getTokensInfo ─────
+  function getTokensInfo(address[] calldata tokens) external view returns (TokenMetadata[] memory info) {
+    _delegateCoreHelper();
+  }
+
+  // ░░▒▒▓▓██ [ MARKET DATA ] ──────────────────────────────────────────────────
+
+  // ┌─ getMarketData ─────
+  function getMarketData(address market) external view returns (MarketData memory data) {
+    _delegateCoreHelper();
+  }
+
+  // ┌─ getMarketsData ─────
+  function getMarketsData(address[] calldata markets) external view returns (MarketData[] memory data) {
+    _delegateCoreHelper();
+  }
+
+  // ┌─ getMarketDataV2 ─────
+  function getMarketDataV2(address market) external view returns (MarketDataV2_5 memory data) {
+    _delegateCoreHelper();
+  }
+
+  // ┌─ getMarketsDataV2 ─────
+  function getMarketsDataV2(address[] calldata markets) external view returns (MarketDataV2_5[] memory data) {
+    _delegateCoreHelper();
+  }
+
+  // ░░▒▒▓▓██ [ TEMPLATE MARKETS ] ─────────────────────────────────────────────
+
+  // ┌─ getMarketsForHooksTemplateCount ─────
   function getMarketsForHooksTemplateCount(address hooksTemplate) external view returns (uint256) {
-    return hooksFactory.getMarketsForHooksTemplateCount(hooksTemplate);
+    _delegateAggregationHelper();
   }
 
-  function getMarketData(address market) public view returns (MarketData memory data) {
-    data.fill(WildcatMarket(market));
+  // ┌─ getMarketsForHooksTemplateCount ─────
+  function getMarketsForHooksTemplateCount(
+    address hooksFactoryAddress,
+    address hooksTemplate
+  )
+    external
+    view
+    returns (uint256)
+  {
+    _delegateAggregationHelper();
   }
 
-  function getMarketsData(address[] memory markets) public view returns (MarketData[] memory data) {
-    data = new MarketData[](markets.length);
-    for (uint256 i; i < markets.length; i++) {
-      data[i].fill(WildcatMarket(markets[i]));
-    }
+  // ┌─ getAggregatedMarketsForHooksTemplateCount ─────
+  function getAggregatedMarketsForHooksTemplateCount(address hooksTemplate) external view returns (uint256 count) {
+    _delegateAggregationHelper();
   }
 
+  // ┌─ getPaginatedMarketsDataForHooksTemplate ─────
   function getPaginatedMarketsDataForHooksTemplate(
     address hooksTemplate,
     uint256 start,
     uint256 end
-  ) public view returns (MarketData[] memory data) {
-    address[] memory markets = hooksFactory.getMarketsForHooksTemplate(hooksTemplate, start, end);
-    return getMarketsData(markets);
+  )
+    external
+    view
+    returns (MarketData[] memory data)
+  {
+    _delegateAggregationHelper();
   }
 
+  // ┌─ getPaginatedMarketsDataForHooksTemplate ─────
+  function getPaginatedMarketsDataForHooksTemplate(
+    address hooksFactoryAddress,
+    address hooksTemplate,
+    uint256 start,
+    uint256 end
+  )
+    external
+    view
+    returns (MarketData[] memory data)
+  {
+    _delegateAggregationHelper();
+  }
+
+  // ┌─ getPaginatedMarketsDataV2ForHooksTemplate ─────
+  function getPaginatedMarketsDataV2ForHooksTemplate(
+    address hooksTemplate,
+    uint256 start,
+    uint256 end
+  )
+    external
+    view
+    returns (MarketDataV2_5[] memory data)
+  {
+    _delegateAggregationHelper();
+  }
+
+  // ┌─ getPaginatedMarketsDataV2ForHooksTemplate ─────
+  function getPaginatedMarketsDataV2ForHooksTemplate(
+    address hooksFactoryAddress,
+    address hooksTemplate,
+    uint256 start,
+    uint256 end
+  )
+    external
+    view
+    returns (MarketDataV2_5[] memory data)
+  {
+    _delegateAggregationHelper();
+  }
+
+  // ┌─ getAllMarketsDataForHooksTemplate ─────
+  function getAllMarketsDataForHooksTemplate(address hooksTemplate) external view returns (MarketData[] memory data) {
+    _delegateAggregationHelper();
+  }
+
+  // ┌─ getAllMarketsDataForHooksTemplate ─────
   function getAllMarketsDataForHooksTemplate(
+    address hooksFactoryAddress,
     address hooksTemplate
-  ) external view returns (MarketData[] memory data) {
-    address[] memory markets = hooksFactory.getMarketsForHooksTemplate(hooksTemplate);
-    return getMarketsData(markets);
+  )
+    external
+    view
+    returns (MarketData[] memory data)
+  {
+    _delegateAggregationHelper();
   }
 
-  // ========================================================================== //
-  //                         Markets with lender status                         //
-  // ========================================================================== //
+  // ┌─ getAllMarketsDataV2ForHooksTemplate ─────
+  function getAllMarketsDataV2ForHooksTemplate(address hooksTemplate)
+    external
+    view
+    returns (MarketDataV2_5[] memory data)
+  {
+    _delegateAggregationHelper();
+  }
 
+  // ┌─ getAllMarketsDataV2ForHooksTemplate ─────
+  function getAllMarketsDataV2ForHooksTemplate(
+    address hooksFactoryAddress,
+    address hooksTemplate
+  )
+    external
+    view
+    returns (MarketDataV2_5[] memory data)
+  {
+    _delegateAggregationHelper();
+  }
+
+  // ┌─ getAggregatedAllMarketsDataForHooksTemplate ─────
+  function getAggregatedAllMarketsDataForHooksTemplate(address hooksTemplate)
+    external
+    view
+    returns (MarketData[] memory data)
+  {
+    _delegateAggregationHelper();
+  }
+
+  // ┌─ getAggregatedAllMarketsDataV2ForHooksTemplate ─────
+  function getAggregatedAllMarketsDataV2ForHooksTemplate(address hooksTemplate)
+    external
+    view
+    returns (MarketDataV2_5[] memory data)
+  {
+    _delegateAggregationHelper();
+  }
+
+  // ░░▒▒▓▓██ [ LIVE MARKET DATA ] ─────────────────────────────────────────────
+
+  // ┌─ getMarketsLiveDataV2 ─────
+  function getMarketsLiveDataV2(address[] calldata markets) external view returns (MarketLiveDataV2_5[] memory data) {
+    _delegateLiveHelper();
+  }
+
+  // ┌─ getMarketsLiveDataWithLenderStatusV2 ─────
+  function getMarketsLiveDataWithLenderStatusV2(
+    address lender,
+    address[] calldata markets
+  )
+    external
+    view
+    returns (MarketLiveDataWithLenderStatusV2_5[] memory data)
+  {
+    _delegateLiveHelper();
+  }
+
+  // ░░▒▒▓▓██ [ LENDER DATA ] ──────────────────────────────────────────────────
+
+  // ┌─ getMarketDataWithLenderStatus ─────
   function getMarketDataWithLenderStatus(
     address lender,
     address market
-  ) public view returns (MarketDataWithLenderStatus memory data) {
-    data.fill(WildcatMarket(market), lender);
+  )
+    external
+    view
+    returns (MarketDataWithLenderStatus memory data)
+  {
+    _delegateCoreHelper();
   }
 
+  // ┌─ getMarketsDataWithLenderStatus ─────
   function getMarketsDataWithLenderStatus(
     address lender,
-    address[] memory markets
-  ) public view returns (MarketDataWithLenderStatus[] memory data) {
-    data = new MarketDataWithLenderStatus[](markets.length);
-    for (uint256 i; i < markets.length; i++) {
-      data[i].fill(WildcatMarket(markets[i]), lender);
-    }
+    address[] calldata markets
+  )
+    external
+    view
+    returns (MarketDataWithLenderStatus[] memory data)
+  {
+    _delegateCoreHelper();
   }
 
-  // ========================================================================== //
-  //                        Lender status in market only                        //
-  // ========================================================================== //
+  // ┌─ getLenderAccountData ─────
+  function getLenderAccountData(address lender, address market) external view returns (LenderAccountData memory data) {
+    _delegateCoreHelper();
+  }
 
+  // ┌─ getLenderAccountData ─────
   function getLenderAccountData(
     address lender,
-    address market
-  ) external view returns (LenderAccountData memory data) {
-    data.fill(WildcatMarket(market), lender);
+    address[] calldata markets
+  )
+    external
+    view
+    returns (LenderAccountData[] memory arr)
+  {
+    _delegateCoreHelper();
   }
 
-  function getLenderAccountData(
-    address lender,
-    address[] memory markets
-  ) external view returns (LenderAccountData[] memory arr) {
-    arr = new LenderAccountData[](markets.length);
-    for (uint256 i; i < markets.length; i++) {
-      arr[i].fill(WildcatMarket(markets[i]), lender);
-    }
-  }
-
+  // ┌─ getLenderAccountsData ─────
   function getLenderAccountsData(
     address marketAddress,
-    address[] memory lenders
-  ) external view returns (LenderAccountData[] memory data) {
-    data = new LenderAccountData[](lenders.length);
-    WildcatMarket market = WildcatMarket(marketAddress);
-    for (uint256 i; i < lenders.length; i++) {
-      data[i].fill(market, lenders[i]);
-    }
+    address[] calldata lenders
+  )
+    external
+    view
+    returns (LenderAccountData[] memory data)
+  {
+    _delegateCoreHelper();
   }
 
-  function queryLenderAccount(
-    LenderAccountQuery memory query
-  ) external view returns (LenderAccountQueryResult memory result) {
-    result.fill(query);
+  // ┌─ queryLenderAccount ─────
+  function queryLenderAccount(LenderAccountQuery calldata query)
+    external
+    view
+    returns (LenderAccountQueryResult memory result)
+  {
+    _delegateCoreHelper();
   }
 
-  function queryLenderAccounts(
-    LenderAccountQuery[] memory queries
-  ) external view returns (LenderAccountQueryResult[] memory result) {
-    result = new LenderAccountQueryResult[](queries.length);
-    for (uint256 i; i < queries.length; i++) {
-      result[i].fill(queries[i]);
-    }
+  // ┌─ queryLenderAccounts ─────
+  function queryLenderAccounts(LenderAccountQuery[] calldata queries)
+    external
+    view
+    returns (LenderAccountQueryResult[] memory result)
+  {
+    _delegateCoreHelper();
   }
 
-  // ========================================================================== //
-  //                          Withdrawal batch queries                          //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ WITHDRAWAL BATCHES ] ───────────────────────────────────────────
 
+  // ┌─ getWithdrawalBatchData ─────
   function getWithdrawalBatchData(
     address market,
     uint32 expiry
-  ) public view returns (WithdrawalBatchData memory data) {
-    data.fill(WildcatMarket(market), expiry);
+  )
+    external
+    view
+    returns (WithdrawalBatchData memory data)
+  {
+    _delegateCoreHelper();
   }
 
+  // ┌─ getWithdrawalBatchesData ─────
   function getWithdrawalBatchesData(
     address market,
-    uint32[] memory expiries
-  ) public view returns (WithdrawalBatchData[] memory data) {
-    data = new WithdrawalBatchData[](expiries.length);
-    for (uint256 i; i < expiries.length; i++) {
-      data[i].fill(WildcatMarket(market), expiries[i]);
-    }
+    uint32[] calldata expiries
+  )
+    external
+    view
+    returns (WithdrawalBatchData[] memory data)
+  {
+    _delegateCoreHelper();
   }
 
-  // ========================================================================== //
-  //                    Withdrawal batch queries with account                   //
-  // ========================================================================== //
-
-  function getWithdrawalBatchesDataWithLenderStatus(
-    address market,
-    uint32[] memory expiries,
-    address lender
-  ) external view returns (WithdrawalBatchDataWithLenderStatus[] memory statuses) {
-    statuses = new WithdrawalBatchDataWithLenderStatus[](expiries.length);
-    for (uint256 i; i < expiries.length; i++) {
-      statuses[i].fill(WildcatMarket(market), expiries[i], lender);
-    }
-  }
-
+  // ┌─ getWithdrawalBatchDataWithLenderStatus ─────
   function getWithdrawalBatchDataWithLenderStatus(
     address market,
     uint32 expiry,
     address lender
-  ) external view returns (WithdrawalBatchDataWithLenderStatus memory status) {
-    status.fill(WildcatMarket(market), expiry, lender);
+  )
+    external
+    view
+    returns (WithdrawalBatchDataWithLenderStatus memory status)
+  {
+    _delegateCoreHelper();
   }
 
+  // ┌─ getWithdrawalBatchesDataWithLenderStatus ─────
+  function getWithdrawalBatchesDataWithLenderStatus(
+    address market,
+    uint32[] calldata expiries,
+    address lender
+  )
+    external
+    view
+    returns (WithdrawalBatchDataWithLenderStatus[] memory statuses)
+  {
+    _delegateCoreHelper();
+  }
+
+  // ┌─ getWithdrawalBatchDataWithLendersStatus ─────
   function getWithdrawalBatchDataWithLendersStatus(
     address market,
     uint32 expiry,
@@ -240,11 +605,40 @@ contract MarketLens {
     view
     returns (WithdrawalBatchData memory batch, WithdrawalBatchLenderStatus[] memory statuses)
   {
-    batch.fill(WildcatMarket(market), expiry);
+    _delegateCoreHelper();
+  }
 
-    statuses = new WithdrawalBatchLenderStatus[](lenders.length);
-    for (uint256 i; i < lenders.length; i++) {
-      statuses[i].fill(WildcatMarket(market), batch, lenders[i]);
+  // ░░▒▒▓▓██ [ QUERY FORWARDING ] ─────────────────────────────────────────────
+
+  // ┌─ _delegateCoreHelper ─────
+  function _delegateCoreHelper() internal view {
+    _delegate(address(coreHelper));
+  }
+
+  // ┌─ _delegateAggregationHelper ─────
+  function _delegateAggregationHelper() internal view {
+    _delegate(address(aggregationHelper));
+  }
+
+  // ┌─ _delegateLiveHelper ─────
+  function _delegateLiveHelper() internal view {
+    _delegate(address(liveHelper));
+  }
+
+  // ┌─ _delegate ─────
+  /// @dev forward the original calldata to `helper` and pass its complete result through.
+  ///      the helper has to expose the same function signature. there is no fallback routing.
+  function _delegate(address helper) internal view {
+    assembly ('memory-safe') {
+      let ptr := mload(0x40)
+      calldatacopy(ptr, 0, calldatasize())
+      let success := staticcall(gas(), helper, ptr, calldatasize(), 0, 0)
+      let size := returndatasize()
+      returndatacopy(ptr, 0, size)
+      if iszero(success) {
+        revert(ptr, size)
+      }
+      return(ptr, size)
     }
   }
 }

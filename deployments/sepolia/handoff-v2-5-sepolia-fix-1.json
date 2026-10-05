@@ -1,0 +1,548 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-08-28T01:02:41.960Z",
+  "release": "v2-5-sepolia-fix-1",
+  "chain": {
+    "network": "sepolia",
+    "chainId": 11155111
+  },
+  "sources": {
+    "factoryInventory": "deployments/sepolia/factory-inventory.json",
+    "deployments": "deployments/sepolia/deployments.json",
+    "plan": "deployments/sepolia/plan-v2-5-sepolia-fix-1.json",
+    "runState": "deployments/sepolia/run-state-v2-5-sepolia-fix-1.json"
+  },
+  "canonicalAddresses": {
+    "archController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+    "sanctionsSentinel": "0xFBCE262eC835be5e6A458cE1722EeCe0E453316B",
+    "borrowerIdentityRegistry": "0xc2cF90781595203D1e75c28246b306C95d4b8b21",
+    "accessListRoleProviderFactory": "0x92995EA2ba572E4Cb8bB41E30f813BeB77FD4974",
+    "standardHooksFactory": "0x89797b782cA5b4BBFC975146B98ba3941Fe26C56",
+    "revolvingHooksFactory": "0xb3FBD4FBeb1EE4BEE7afdbC4A75C7c4E97CF105C",
+    "marketLens": "0x3e0A214d105463719F18DaA850246E770c9c7BDb",
+    "wrapperFactory": "0x31D8D5564Ce11f764E74beca5B4e8d363046949f"
+  },
+  "factoryGenerations": [
+    {
+      "label": "legacy-v2",
+      "kind": "hooks-factory",
+      "marketType": "legacy",
+      "address": "0xE3e4B7C9E0Ab4ccbC70e0583Dca7B4Db9B4CFD88",
+      "startBlock": 6973842,
+      "lifecycle": "live",
+      "canonical": false,
+      "registered": true,
+      "indexAll": true,
+      "exclusionReason": null,
+      "forgeArtifactName": "src/IHooksFactory.sol:IHooksFactory"
+    },
+    {
+      "label": "standard-v2-1",
+      "kind": "hooks-factory",
+      "marketType": "legacy",
+      "address": "0x10A64ABa0159720F8a23E1A552800CA4eb21576C",
+      "startBlock": 7124440,
+      "lifecycle": "live",
+      "canonical": false,
+      "registered": true,
+      "indexAll": true,
+      "exclusionReason": null,
+      "forgeArtifactName": "src/IHooksFactory.sol:IHooksFactory"
+    },
+    {
+      "label": "revolving-sepolia-20260419-233246",
+      "kind": "hooks-factory",
+      "marketType": "revolving",
+      "address": "0xF4564015E524cf5629828E61F45ed339D998D85f",
+      "startBlock": 10695521,
+      "lifecycle": "retired",
+      "canonical": false,
+      "registered": true,
+      "indexAll": false,
+      "exclusionReason": "inventory lifecycle is retired",
+      "forgeArtifactName": "src/IHooksFactoryRevolving.sol:IHooksFactoryRevolving"
+    },
+    {
+      "label": "revolving-sepolia-20260424-140119",
+      "kind": "hooks-factory",
+      "marketType": "revolving",
+      "address": "0xb899ba2a5F5b609898A2bABe445Aa31dDf0277e5",
+      "startBlock": 10725492,
+      "lifecycle": "live",
+      "canonical": false,
+      "registered": true,
+      "indexAll": true,
+      "exclusionReason": null,
+      "forgeArtifactName": "src/IHooksFactoryRevolving.sol:IHooksFactoryRevolving"
+    },
+    {
+      "label": "standard-v2-5-preview-20260727",
+      "kind": "hooks-factory",
+      "marketType": "legacy",
+      "address": "0xAa9BbaE0D519e85B6aBEA81aD3C2cBeBfA57696C",
+      "startBlock": 11363908,
+      "lifecycle": "live",
+      "canonical": false,
+      "registered": true,
+      "indexAll": true,
+      "exclusionReason": null,
+      "forgeArtifactName": "src/IHooksFactory.sol:IHooksFactory"
+    },
+    {
+      "label": "revolving-v2-5-preview-20260727",
+      "kind": "hooks-factory",
+      "marketType": "revolving",
+      "address": "0x76Fe050d91940a72133e1819BF34c1042d8DBe73",
+      "startBlock": 11363912,
+      "lifecycle": "live",
+      "canonical": false,
+      "registered": true,
+      "indexAll": true,
+      "exclusionReason": null,
+      "forgeArtifactName": "src/IHooksFactoryRevolving.sol:IHooksFactoryRevolving"
+    },
+    {
+      "label": "legacy-test-2024-08-05",
+      "kind": "hooks-factory",
+      "marketType": "legacy",
+      "address": "0x6Cb3512b541733d340Aa520b63105586588BD600",
+      "startBlock": 6443857,
+      "lifecycle": "retired",
+      "canonical": false,
+      "registered": true,
+      "indexAll": false,
+      "exclusionReason": "inventory lifecycle is retired",
+      "forgeArtifactName": "src/IHooksFactory.sol:IHooksFactory"
+    },
+    {
+      "label": "legacy-test-2024-09-23",
+      "kind": "hooks-factory",
+      "marketType": "legacy",
+      "address": "0xE1d14E8176d27415c204A4F9Ef58E107964CA12C",
+      "startBlock": 6746262,
+      "lifecycle": "retired",
+      "canonical": false,
+      "registered": true,
+      "indexAll": false,
+      "exclusionReason": "inventory lifecycle is retired",
+      "forgeArtifactName": "src/IHooksFactory.sol:IHooksFactory"
+    },
+    {
+      "label": "legacy-test-2024-11-21",
+      "kind": "hooks-factory",
+      "marketType": "legacy",
+      "address": "0xCf872Ac862d2ba97F99804ed25f0dB5F2352933a",
+      "startBlock": 7123486,
+      "lifecycle": "retired",
+      "canonical": false,
+      "registered": true,
+      "indexAll": false,
+      "exclusionReason": "inventory lifecycle is retired",
+      "forgeArtifactName": "src/IHooksFactory.sol:IHooksFactory"
+    },
+    {
+      "label": "HooksFactory_v2-5",
+      "kind": "hooks-factory",
+      "marketType": "legacy",
+      "address": "0xbFbDaFc91977eE599a61B30D9e75788565Ad6d18",
+      "startBlock": 11559133,
+      "lifecycle": "live",
+      "canonical": false,
+      "registered": true,
+      "indexAll": true,
+      "exclusionReason": null,
+      "forgeArtifactName": "src/IHooksFactory.sol:IHooksFactory"
+    },
+    {
+      "label": "HooksFactoryRevolving_v2-5",
+      "kind": "hooks-factory",
+      "marketType": "revolving",
+      "address": "0x190B42942fe9492df9CeA441dA5c43309840E93A",
+      "startBlock": 11559137,
+      "lifecycle": "live",
+      "canonical": false,
+      "registered": true,
+      "indexAll": true,
+      "exclusionReason": null,
+      "forgeArtifactName": "src/IHooksFactoryRevolving.sol:IHooksFactoryRevolving"
+    },
+    {
+      "label": "HooksFactory_v2-5-sepolia-fix-1",
+      "kind": "hooks-factory",
+      "marketType": "legacy",
+      "address": "0x89797b782cA5b4BBFC975146B98ba3941Fe26C56",
+      "startBlock": 11581361,
+      "lifecycle": "canonical",
+      "canonical": true,
+      "registered": true,
+      "indexAll": true,
+      "exclusionReason": null,
+      "forgeArtifactName": "src/IHooksFactory.sol:IHooksFactory"
+    },
+    {
+      "label": "HooksFactoryRevolving_v2-5-sepolia-fix-1",
+      "kind": "hooks-factory",
+      "marketType": "revolving",
+      "address": "0xb3FBD4FBeb1EE4BEE7afdbC4A75C7c4E97CF105C",
+      "startBlock": 11581363,
+      "lifecycle": "canonical",
+      "canonical": true,
+      "registered": true,
+      "indexAll": true,
+      "exclusionReason": null,
+      "forgeArtifactName": "src/IHooksFactoryRevolving.sol:IHooksFactoryRevolving"
+    },
+    {
+      "label": "wrapper-v1",
+      "kind": "wrapper-factory",
+      "marketType": null,
+      "address": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843",
+      "startBlock": 10534112,
+      "lifecycle": "live",
+      "canonical": false,
+      "registered": null,
+      "indexAll": true,
+      "exclusionReason": null,
+      "v1Factory": null,
+      "forgeArtifactName": "src/vault/Wildcat4626WrapperFactory.sol:IWildcat4626WrapperFactoryV1"
+    },
+    {
+      "label": "Wildcat4626WrapperFactory_v2-5",
+      "kind": "wrapper-factory",
+      "marketType": null,
+      "address": "0x6B1DD93453584346C530A1646e98aB306fD6D37C",
+      "startBlock": 11559124,
+      "lifecycle": "live",
+      "canonical": false,
+      "registered": null,
+      "indexAll": true,
+      "exclusionReason": null,
+      "v1Factory": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843",
+      "forgeArtifactName": "src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory"
+    },
+    {
+      "label": "Wildcat4626WrapperFactory_v2-5-sepolia-fix-1",
+      "kind": "wrapper-factory",
+      "marketType": null,
+      "address": "0x31D8D5564Ce11f764E74beca5B4e8d363046949f",
+      "startBlock": 11581359,
+      "lifecycle": "canonical",
+      "canonical": true,
+      "registered": null,
+      "indexAll": true,
+      "exclusionReason": null,
+      "v1Factory": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843",
+      "forgeArtifactName": "src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory"
+    }
+  ],
+  "releaseContracts": [
+    {
+      "deploymentKey": "WildcatBorrowerIdentityRegistry_v2-5-sepolia-fix-1",
+      "kind": "borrower-identity-registry",
+      "address": "0xc2cF90781595203D1e75c28246b306C95d4b8b21",
+      "startBlock": null,
+      "deployTxHash": null,
+      "forgeArtifactName": "src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry",
+      "abiArtifactName": "src/interfaces/IBorrowerIdentityRegistry.sol:IBorrowerIdentityRegistry"
+    },
+    {
+      "deploymentKey": "AccessListRoleProviderFactory_v2-5-sepolia-fix-1",
+      "kind": "role-provider-factory",
+      "address": "0x92995EA2ba572E4Cb8bB41E30f813BeB77FD4974",
+      "startBlock": null,
+      "deployTxHash": null,
+      "forgeArtifactName": "src/providers/AccessListRoleProviderFactory.sol:AccessListRoleProviderFactory",
+      "abiArtifactName": "src/providers/IAccessListRoleProviderFactory.sol:IAccessListRoleProviderFactory"
+    },
+    {
+      "deploymentKey": "WildcatMarket_initCodeStorage_v2-5-sepolia-fix-1",
+      "kind": "market-init-code-storage",
+      "address": "0x0514795F0A7CBb754f0B7Da92e1B2ce2FD13Bd90",
+      "startBlock": 11581360,
+      "deployTxHash": "0x8ec8017cc91b2f174ab30bd97afc5fd61ae00339e448787467d86eec642879f6",
+      "forgeArtifactName": "script/common/DeployScriptBase.sol:InitCodeStorage",
+      "abiArtifactName": "src/market/WildcatMarket.sol:WildcatMarket"
+    },
+    {
+      "deploymentKey": "HooksFactory_v2-5-sepolia-fix-1",
+      "kind": "hooks-factory",
+      "address": "0x89797b782cA5b4BBFC975146B98ba3941Fe26C56",
+      "startBlock": 11581361,
+      "deployTxHash": "0x9dab6896f934b1cc44291a7bb1866ad7fd577b6f6ef4a487df6448c948d09871",
+      "forgeArtifactName": "src/HooksFactory.sol:HooksFactory",
+      "abiArtifactName": "src/IHooksFactory.sol:IHooksFactory"
+    },
+    {
+      "deploymentKey": "WildcatMarketRevolving_initCodeStorage_v2-5-sepolia-fix-1",
+      "kind": "market-init-code-storage",
+      "address": "0x3B6eBDb29c937340568Ee90a4577BB0bB7535447",
+      "startBlock": 11581362,
+      "deployTxHash": "0x3b6b83a7f4bc975471ee96c621362fbc8b870102d5a044e96ed57623496f951b",
+      "forgeArtifactName": "script/common/DeployScriptBase.sol:InitCodeStorage",
+      "abiArtifactName": "src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving"
+    },
+    {
+      "deploymentKey": "HooksFactoryRevolving_v2-5-sepolia-fix-1",
+      "kind": "hooks-factory",
+      "address": "0xb3FBD4FBeb1EE4BEE7afdbC4A75C7c4E97CF105C",
+      "startBlock": 11581363,
+      "deployTxHash": "0x5fef7eed5e56fe6906864ffb31d568f51bdd13b5bcd0e16916ae6c40ba1110e0",
+      "forgeArtifactName": "src/HooksFactoryRevolving.sol:HooksFactoryRevolving",
+      "abiArtifactName": "src/IHooksFactoryRevolving.sol:IHooksFactoryRevolving"
+    },
+    {
+      "deploymentKey": "MarketLensCore_v2-5-sepolia-fix-1",
+      "kind": "lens-helper-core",
+      "address": "0xa12e227A67e4678A2428eD550df9564C7aFfB76E",
+      "startBlock": 11581364,
+      "deployTxHash": "0xb38196158befed773eabd38c39744b10441d1d8f275a586a39d04ce1501ffe84",
+      "forgeArtifactName": "src/lens/MarketLensCore.sol:MarketLensCore",
+      "abiArtifactName": "src/lens/MarketLensCore.sol:MarketLensCore"
+    },
+    {
+      "deploymentKey": "MarketLensAggregator_v2-5-sepolia-fix-1",
+      "kind": "lens-helper-aggregator",
+      "address": "0xf86A8C0a7A167b695cF7E7eE2e1950Ddd0e4eD06",
+      "startBlock": 11581365,
+      "deployTxHash": "0x7048c6bc43ea02ca8c8da4d688bdf5120ce9bda0684868484adee272af1c526e",
+      "forgeArtifactName": "src/lens/MarketLensAggregator.sol:MarketLensAggregator",
+      "abiArtifactName": "src/lens/MarketLensAggregator.sol:MarketLensAggregator"
+    },
+    {
+      "deploymentKey": "MarketLensLive_v2-5-sepolia-fix-1",
+      "kind": "lens-helper-live",
+      "address": "0x7491353fC4BB349c41f43122aaF9993cDa8E4dc3",
+      "startBlock": 11581366,
+      "deployTxHash": "0x4a32d422fafcf76c7c99f59c49e4c14525bdb70de88ea943bf7efc8889fb44e3",
+      "forgeArtifactName": "src/lens/MarketLensLive.sol:MarketLensLive",
+      "abiArtifactName": "src/lens/MarketLensLive.sol:MarketLensLive"
+    },
+    {
+      "deploymentKey": "MarketLens_v2-5-sepolia-fix-1",
+      "kind": "lens-facade",
+      "address": "0x3e0A214d105463719F18DaA850246E770c9c7BDb",
+      "startBlock": 11581367,
+      "deployTxHash": "0xc7075275ac2ecb1c24721837e22b20cc5c3dfbefd0cff014b4d1cfc2cab9cf8c",
+      "forgeArtifactName": "src/lens/MarketLens.sol:MarketLens",
+      "abiArtifactName": "src/lens/MarketLens.sol:MarketLens"
+    },
+    {
+      "deploymentKey": "Wildcat4626WrapperFactory_v2-5-sepolia-fix-1",
+      "kind": "wrapper-factory",
+      "address": "0x31D8D5564Ce11f764E74beca5B4e8d363046949f",
+      "startBlock": 11581359,
+      "deployTxHash": "0x9781e2ed943622ce0627485dd83f5ca16c579b7bd1757564cb235a15c579564b",
+      "forgeArtifactName": "src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory",
+      "abiArtifactName": "src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory"
+    },
+    {
+      "deploymentKey": "OpenTermHooks_initCodeStorage_v2-5-sepolia-fix-1",
+      "kind": "hooks-template-init-code-storage",
+      "address": "0xae00f2c2fd926007beF2EeC2B2204A4c3528b401",
+      "startBlock": 11581368,
+      "deployTxHash": "0x22c3be94cfe80e428855581a2fed9486e5f000bac30da85ab5b63c9bba9156a6",
+      "forgeArtifactName": "script/common/DeployScriptBase.sol:InitCodeStorage",
+      "abiArtifactName": "src/access/OpenTermHooks.sol:OpenTermHooks"
+    },
+    {
+      "deploymentKey": "FixedTermHooks_initCodeStorage_v2-5-sepolia-fix-1",
+      "kind": "hooks-template-init-code-storage",
+      "address": "0xEB2f6c7DF8b760542e5b4ba509f4347252bdE4b8",
+      "startBlock": 11581369,
+      "deployTxHash": "0x2760bff5bb2bb71e20a46f686335f8b76c18f51d594df7ca770497d3c4e699d6",
+      "forgeArtifactName": "script/common/DeployScriptBase.sol:InitCodeStorage",
+      "abiArtifactName": "src/access/FixedTermHooks.sol:FixedTermHooks"
+    },
+    {
+      "deploymentKey": "PeriodicTermHooks_initCodeStorage_v2-5-sepolia-fix-1",
+      "kind": "hooks-template-init-code-storage",
+      "address": "0x931329D440E66f22F1CcDCe73C1049DBf5C35659",
+      "startBlock": 11581371,
+      "deployTxHash": "0xe5b4554562955ed51c49a0c8449242c7583d30c32baea39e9160e9361c5d07c5",
+      "forgeArtifactName": "script/common/DeployScriptBase.sol:InitCodeStorage",
+      "abiArtifactName": "src/access/PeriodicTermHooks.sol:PeriodicTermHooks"
+    }
+  ],
+  "routing": {
+    "factories": "Use canonical lifecycle records for new deployments and SDK routing. Continue indexing every generation with indexAll=true. Do not index records with indexAll=false; they remain in the append-only inventory.",
+    "wrapper4626": {
+      "facade": "0x31D8D5564Ce11f764E74beca5B4e8d363046949f",
+      "v1Factory": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843",
+      "behavior": "The canonical v2.5 facade serves locally recorded v2.5 floor-rounding markets. Markets without scaledTransferRounding() fall through to v1Factory when configured. Markets declaring an unsupported rounding do not fall through."
+    },
+    "lens": {
+      "facade": "0x3e0A214d105463719F18DaA850246E770c9c7BDb",
+      "coreHelper": "0xa12e227A67e4678A2428eD550df9564C7aFfB76E",
+      "aggregationHelper": "0xf86A8C0a7A167b695cF7E7eE2e1950Ddd0e4eD06",
+      "liveHelper": "0x7491353fC4BB349c41f43122aaF9993cDa8E4dc3",
+      "behavior": "Treat MarketLens as the public facade. It static-calls the core, aggregation, or live helper selected by the requested method; helper addresses are implementation contracts, not replacement facade addresses."
+    },
+    "canonicalVsLive": "Canonical means the generation selected for new deployments and current aliases. Live means an older generation that remains indexed for its existing markets. Retired generations stay recorded but are excluded from indexing."
+  },
+  "abiChangesSinceDeployedV2": [
+    {
+      "component": "WildcatMarket and WildcatMarketRevolving",
+      "artifactNames": [
+        "src/market/WildcatMarket.sol:WildcatMarket",
+        "src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving"
+      ],
+      "changed": [
+        "version() return value changed from '2' to '2.5'."
+      ],
+      "added": [
+        "borrower(), borrowerPrincipal(), borrowerIdentityRegistry(), pendingBorrower(), pendingBorrowerPrincipal(), requestBorrowerTransfer(address), cancelBorrowerTransfer(), and acceptBorrowerTransfer().",
+        "wrapperFactory(), registerWrapper(address), and registeredWrapper().",
+        "WrapperRegistered(address) event plus NotWrapperFactory, WrapperAlreadyRegistered, and CannotNukeWrapper errors.",
+        "queueWithdrawalScaled(uint256) queues an exact scaled withdrawal amount.",
+        "scaledTransferRounding() returns keccak256('scaleAmountDown').",
+        "executePendingAnnualInterestBipsReduction() applies a matured hooks proposal.",
+        "AprReductionNotReduction error.",
+        "ExecutePendingAprReductionNotEnabled error.",
+        "WithdrawalBatchKeyAlreadyExists error."
+      ],
+      "removed": [
+        "NullBuyBackAmount and BuyBackOnDelinquentMarket errors."
+      ]
+    },
+    {
+      "component": "Borrower identity registry",
+      "artifactNames": [
+        "src/interfaces/IBorrowerIdentityRegistry.sol:IBorrowerIdentityRegistry"
+      ],
+      "changed": [],
+      "added": [
+        "Principal resolution for direct borrowers and borrower accounts.",
+        "Account-factory registration and account-to-principal association events.",
+        "Two-step borrower-account principal transfers."
+      ]
+    },
+    {
+      "component": "Access-list role-provider factory",
+      "artifactNames": [
+        "src/providers/IAccessListRoleProviderFactory.sol:IAccessListRoleProviderFactory",
+        "src/providers/IAccessListRoleProvider.sol:IAccessListRoleProvider"
+      ],
+      "changed": [],
+      "added": [
+        "Permissionless deterministic deployment of borrower-administered access-list providers.",
+        "Two-step provider administrator transfers and enumerable membership management."
+      ]
+    },
+    {
+      "component": "HooksFactory and HooksFactoryRevolving",
+      "artifactNames": [
+        "src/IHooksFactory.sol:IHooksFactory",
+        "src/IHooksFactoryRevolving.sol:IHooksFactoryRevolving"
+      ],
+      "changed": [
+        "HooksTemplateAdded, HooksTemplateDisabled, and HooksTemplateFeesUpdated identify the caller and preserve complete fee history.",
+        "HooksInstanceDeployed identifies the template, administrator, deployer, name, and version.",
+        "MarketDeployed identifies borrower, principal, identity registry, requested hooks, and accepted hooks; configuration and hook payload move to companion events.",
+        "getMarketParameters() includes the borrower identity registry and wrapper factory."
+      ],
+      "added": [
+        "HooksInstanceRoleProviders, HooksInstanceAdministratorTransferred, MarketDeploymentConfig, MarketHooksData, and RevolvingMarketDeployed events.",
+        "borrowerIdentityRegistry(), wrapperFactory(), hook-administrator indexing, and administrator-transfer callback views."
+      ]
+    },
+    {
+      "component": "PeriodicTermHooks",
+      "artifactNames": [
+        "src/access/PeriodicTermHooks.sol:PeriodicTermHooks"
+      ],
+      "changed": [],
+      "added": [
+        "AnnualInterestBipsReductionProposed event.",
+        "AnnualInterestBipsReductionProposalCancelled event.",
+        "AnnualInterestBipsReductionExecuted event.",
+        "AprReductionProposalDuringWithdrawalWindow error.",
+        "AprReductionProposalNotReduction error.",
+        "NoPendingAprChange error.",
+        "AprChangeDoesNotMatchProposal error.",
+        "AprChangeNotReady error.",
+        "AprReductionProposalExpired error.",
+        "AprReductionProposalOnClosedMarket error.",
+        "UnpaidWithdrawalsExist error.",
+        "templateVersion() returns 2; version() remains 'PeriodicTermHooks'.",
+        "pendingAprChanges(address), getHookedMarket(address), getHookedMarkets(address[]), isWithdrawalWindowOpen(address), and getPendingAprChange(address) views."
+      ]
+    },
+    {
+      "component": "Access-control hook templates",
+      "artifactNames": [
+        "src/access/OpenTermHooks.sol:OpenTermHooks",
+        "src/access/FixedTermHooks.sol:FixedTermHooks",
+        "src/access/PeriodicTermHooks.sol:PeriodicTermHooks"
+      ],
+      "changed": [],
+      "added": [
+        "administrator(), pendingAdministrator(), requestAdministratorTransfer(address), cancelAdministratorTransfer(), and acceptAdministratorTransfer().",
+        "AdministratorTransferRequested, AdministratorTransferCancelled, and AdministratorTransferred events.",
+        "RoleProviderAdded, RoleProviderUpdated, and RoleProviderRemoved carry administrator, TTL, and complete pull/push index history.",
+        "AccountAccessGranted and AccountAccessRevoked identify provider, account, and caller.",
+        "NameUpdated, MinimumDepositUpdated, FixedTermUpdated, and PeriodicTermUpdated carry actor plus previous/new state where applicable.",
+        "isMarketTransferDisabled(address) reports the immutable per-market transfer policy.",
+        "DepositHookNotEnabled error."
+      ]
+    },
+    {
+      "component": "MarketLens",
+      "artifactNames": [
+        "src/lens/MarketLens.sol:MarketLens",
+        "src/lens/MarketLensCore.sol:MarketLensCore",
+        "src/lens/MarketLensAggregator.sol:MarketLensAggregator"
+      ],
+      "changed": [
+        "HooksConfigData return tuples append useOnExecutePendingAnnualInterestBipsReduction; consumers must regenerate ABI tuple decoders."
+      ],
+      "added": [
+        "Borrower, principal, pending borrower, hook administrator, provider administration, transfer policy, wrapper, and revolving-credit state in the v2.5 market and hooks views.",
+        "Core, aggregation, and live helper routing behind the MarketLens facade."
+      ]
+    },
+    {
+      "component": "Wildcat4626WrapperFactory",
+      "artifactNames": [
+        "src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory"
+      ],
+      "changed": [],
+      "added": [
+        "v1Factory(), wrapperForMarket(address), createWrapper(address), isFloorRoundingMarket(address), and WrapperDeployed(address,address).",
+        "WrapperAlreadyExists, LegacyMarketsNotSupported, UnsupportedMarketRounding, NotRegisteredMarket, InvalidV1Factory, and ZeroAddress errors.",
+        "MarketTransfersDisabled(address) error.",
+        "UnsupportedMarketTransferPolicy(address,address) error."
+      ]
+    },
+    {
+      "component": "WildcatMarketRevolving",
+      "artifactNames": [
+        "src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving",
+        "src/interfaces/IWildcatMarketRevolving.sol:IWildcatMarketRevolving"
+      ],
+      "changed": [],
+      "added": [
+        "commitmentFeeBips() view.",
+        "drawnAmount() view.",
+        "DrawnAmountUpdated(uint256,uint256) event."
+      ]
+    },
+    {
+      "component": "Market event surface",
+      "artifactNames": [
+        "src/interfaces/IMarketEventsAndErrors.sol:IMarketEventsAndErrors"
+      ],
+      "changed": [
+        "MaxTotalSupplyUpdated, ProtocolFeeBipsUpdated, Borrow, MarketClosed, and FeesCollected identify the acting borrower, caller, collector, or fee recipient and preserve previous/new values where applicable.",
+        "AnnualInterestBipsUpdated and ReserveRatioBipsUpdated are replaced by the atomic AnnualInterestAndReserveRatioBipsUpdated event."
+      ],
+      "added": [
+        "BorrowerTransferRequested, BorrowerTransferCancelled, and BorrowerTransferred events preserve operational borrower and principal history.",
+        "WrapperRegistered(address) event."
+      ],
+      "removed": [
+        "AccountSanctioned event.",
+        "SanctionedAccountAssetsSentToEscrow event."
+      ]
+    }
+  ]
+}

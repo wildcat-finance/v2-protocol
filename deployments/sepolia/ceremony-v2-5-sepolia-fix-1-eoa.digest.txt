@@ -1,0 +1,3 @@
+Ceremony package written: /Users/kethcode/wildcat/mono/v2-protocol/deployments/sepolia/ceremony-v2-5-sepolia-fix-1-eoa.json
+Ceremony digest: 0x429707c55c4f163eddc33beca3e62671598aa2a6396decb8f3f0d7bf134dd14e
+Call-time fingerprint: 4297-07C5-5C4F

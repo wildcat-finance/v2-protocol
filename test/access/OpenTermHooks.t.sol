@@ -1,415 +1,169 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
-import 'forge-std/Test.sol';
-import 'src/access/OpenTermHooks.sol';
-import '../shared/mocks/MockOpenTermHooks.sol';
-import { VmSafe } from 'forge-std/Vm.sol';
-import './BaseAccessControls.t.sol';
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // OpenTermHooks.t
+//  \ ^ /   Open-term metadata, market queries, and administrator handoff.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//  _newHooks(...)
+//  _createMarket(...)
+//  _requestedConfig(...)
+//
+//  METADATA AND MARKET QUERIES
+//  test_metadata_IsCanonical()
+//  test_getHookedMarkets_PreservesOrderAndUnknownValues()
+//
+//  ADMINISTRATOR HANDOFF
+//  test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority()
+//  archController()
+//  isRegisteredBorrower(...)
+//  onHooksAdministratorTransferred(...)
+// ═════
 
-using LibString for uint256;
-using LibString for address;
-using MathUtils for uint256;
-using BoolUtils for bool;
+import { BaseHooks } from 'src/access/BaseHooks.sol';
+import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
+import { HookedMarket, OpenTermHooks } from 'src/access/OpenTermHooks.sol';
+import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
+import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
+import { Bit_Enabled_Deposit } from 'src/types/HooksConfig.sol';
+import { Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
+import { Bit_Enabled_Transfer } from 'src/types/HooksConfig.sol';
+import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
+import { HooksConfig } from 'src/types/HooksConfig.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
-contract OpenTermHooksTest is BaseAccessControlsTest {
-  MockOpenTermHooks internal hooks;
+// ┌─ OpenTermHooksTest ────────────────────────────────────────────────────────
+contract OpenTermHooksTest is TestKernel {
+  address internal constant MarketA = address(0x1001);
+  address internal constant MarketB = address(0x1002);
+  address internal constant MarketC = address(0x1003);
+  address internal constant MarketD = address(0x1004);
+  address internal constant NewAdministrator = address(0xAD011);
 
+  OpenTermHooks internal hooks;
+  mapping(address account => bool registered) internal registeredBorrowers;
+  address internal callbackPreviousAdministrator;
+  address internal callbackNewAdministrator;
+
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
-    hooks = new MockOpenTermHooks(address(this));
-    baseHooks = MockBaseAccessControls(address(hooks));
-    assertEq(hooks.factory(), address(this), 'factory');
-    assertEq(hooks.borrower(), address(this), 'borrower');
-    _addExpectedProvider(MockRoleProvider(address(this)), type(uint32).max, false);
-    _validateRoleProviders();
-    // Set block.timestamp to 4:50 am, May 3 2024
-    warp(1714737030);
-  }
-
-  // ========================================================================== //
-  //                                 Constructor                                //
-  // ========================================================================== //
-
-  function test_constructor_ExistingProviders(
-    bool isPullProvider1,
-    uint32 ttl1,
-    bool isPullProvider2,
-    uint32 ttl2
-  ) external {
+    registeredBorrowers[address(this)] = true;
     NameAndProviderInputs memory inputs;
-    inputs.name = 'Some Name';
-    inputs.existingProviders = new ExistingProviderInputs[](2);
-    inputs.existingProviders[0] = ExistingProviderInputs({
-      providerAddress: address(mockProvider1),
-      timeToLive: ttl1
-    });
-    inputs.existingProviders[1] = ExistingProviderInputs({
-      providerAddress: address(mockProvider2),
-      timeToLive: ttl2
-    });
-    mockProvider1.setIsPullProvider(isPullProvider1);
-    mockProvider2.setIsPullProvider(isPullProvider2);
-    _addExpectedProvider(mockProvider1, ttl1, isPullProvider1);
-    _addExpectedProvider(mockProvider2, ttl2, isPullProvider2);
-    hooks = MockOpenTermHooks(
-      address(new OpenTermHooks(address(this), abi.encode(inputs)))
-    );
-    baseHooks = MockBaseAccessControls(address(hooks));
-    _validateRoleProviders();
-    assertEq(hooks.name(), inputs.name, 'name');
+    hooks = _newHooks(address(this), inputs);
   }
 
-  function test_constructor_NewProviders(
-    bool isPullProvider1,
-    uint32 ttl1,
-    bool isPullProvider2,
-    uint32 ttl2
-  ) external {
-    bytes32 salt1 = bytes32(uint256(1));
-    bytes32 salt2 = bytes32(uint256(2));
-    NameAndProviderInputs memory inputs;
-    inputs.name = 'OpenTermHooks Name';
-    inputs.roleProviderFactory = address(providerFactory);
-    inputs.newProviderInputs = new CreateProviderInputs[](2);
-    inputs.newProviderInputs[0] = CreateProviderInputs({
-      providerFactoryCalldata: abi.encode(salt1, isPullProvider1),
-      timeToLive: ttl1
-    });
-    inputs.newProviderInputs[1] = CreateProviderInputs({
-      providerFactoryCalldata: abi.encode(salt2, isPullProvider2),
-      timeToLive: ttl2
-    });
-    _addExpectedProvider(
-      MockRoleProvider(providerFactory.computeProviderAddress(salt1)),
-      ttl1,
-      isPullProvider1
+  // ┌─ _newHooks ─────
+  function _newHooks(
+    address administrator,
+    NameAndProviderInputs memory inputs
+  )
+    internal
+    returns (OpenTermHooks deployed)
+  {
+    deployed = OpenTermHooks(
+      _deployCode('src/access/OpenTermHooks.sol:OpenTermHooks', abi.encode(administrator, abi.encode(inputs)))
     );
-    _addExpectedProvider(
-      MockRoleProvider(providerFactory.computeProviderAddress(salt2)),
-      ttl2,
-      isPullProvider2
-    );
-    hooks = MockOpenTermHooks(
-      address(new OpenTermHooks(address(this), abi.encode(inputs)))
-    );
-    baseHooks = MockBaseAccessControls(address(hooks));
-    _validateRoleProviders();
-    assertEq(hooks.name(), inputs.name, 'name');
   }
 
-  function test_constructor_NewAndExistingProviders(
-    bool isPullProvider1,
-    uint32 ttl1,
-    bool isPullProvider2,
-    uint32 ttl2
-  ) external {
-    bytes32 salt = bytes32(uint256(1));
-    NameAndProviderInputs memory inputs;
-    inputs.name = 'OpenTermHooks Name';
-    inputs.roleProviderFactory = address(providerFactory);
-    inputs.newProviderInputs = new CreateProviderInputs[](1);
-    inputs.existingProviders = new ExistingProviderInputs[](1);
-    inputs.existingProviders[0].timeToLive = ttl1;
-    inputs.existingProviders[0].providerAddress = address(mockProvider1);
-    inputs.newProviderInputs[0].providerFactoryCalldata = abi.encode(salt, isPullProvider2);
-    inputs.newProviderInputs[0].timeToLive = ttl2;
-
-    _addExpectedProvider(mockProvider1, ttl1, isPullProvider1);
-    _addExpectedProvider(
-      MockRoleProvider(providerFactory.computeProviderAddress(salt)),
-      ttl2,
-      isPullProvider2
-    );
-    hooks = MockOpenTermHooks(
-      address(new OpenTermHooks(address(this), abi.encode(inputs)))
-    );
-    baseHooks = MockBaseAccessControls(address(hooks));
-    _validateRoleProviders();
-    assertEq(hooks.name(), inputs.name, 'name');
-  }
-
-  function test_constructor_NewProviders_CreateRoleProviderFailed() external {
-    providerFactory.setNextProviderAddress(address(0));
-    NameAndProviderInputs memory inputs;
-    inputs.name = 'OpenTermHooks Name';
-    inputs.roleProviderFactory = address(providerFactory);
-    inputs.newProviderInputs = new CreateProviderInputs[](1);
-    inputs.newProviderInputs[0].timeToLive = 1 days;
-    inputs.newProviderInputs[0].providerFactoryCalldata = abi.encode(bytes32(0), false);
-    vm.expectRevert(BaseAccessControls.CreateRoleProviderFailed.selector);
-    new OpenTermHooks(address(this), abi.encode(inputs));
-  }
-
-  // ========================================================================== //
-  //                               onCreateMarket                               //
-  // ========================================================================== //
-
-  function test_onCreateMarket_CallerNotFactory() external asAccount(address(1)) {
-    vm.expectRevert(IHooks.CallerNotFactory.selector);
+  // ┌─ _createMarket ─────
+  function _createMarket(
+    OpenTermHooks target,
+    address market,
+    HooksConfig requestedConfig,
+    bytes memory hooksData
+  )
+    internal
+    returns (HooksConfig effectiveConfig)
+  {
     DeployMarketInputs memory inputs;
-    hooks.onCreateMarket(address(1), address(1), inputs, '');
+    inputs.hooks = requestedConfig;
+    effectiveConfig = target.onCreateMarket(address(this), market, inputs, hooksData);
   }
 
-  function test_onCreateMarket_CallerNotBorrower() external {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
-    DeployMarketInputs memory inputs;
-    hooks.onCreateMarket(address(1), address(1), inputs, '');
+  // ┌─ _requestedConfig ─────
+  function _requestedConfig(
+    OpenTermHooks target,
+    bool deposit,
+    bool queueWithdrawal,
+    bool transfer
+  )
+    internal
+    pure
+    returns (HooksConfig config)
+  {
+    config = EmptyHooksConfig.setHooksAddress(address(target));
+    if (deposit) config = config.setFlag(Bit_Enabled_Deposit);
+    if (queueWithdrawal) config = config.setFlag(Bit_Enabled_QueueWithdrawal);
+    if (transfer) config = config.setFlag(Bit_Enabled_Transfer);
   }
 
-  function test_onCreateMarket_ForceEnableDepositTransferHooks() external {
-    DeployMarketInputs memory inputs;
+  // ░░▒▒▓▓██ [ METADATA AND MARKET QUERIES ] ──────────────────────────────────
 
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, '');
-    HooksConfig expectedConfig = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
-    });
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertEq(config, expectedConfig, 'config');
-    assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
+  // ┌─ test_metadata_IsCanonical ─────
+  function test_metadata_IsCanonical() external view {
+    assertEq(hooks.version(), 'OpenTermHooks', 'version');
   }
 
-  function test_onCreateMarket_setMinimumDeposit() external {
-    DeployMarketInputs memory inputs;
-
-    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
-    HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(1e18));
-    HooksConfig expectedConfig = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: false,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: false,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
-    });
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertEq(config, expectedConfig, 'config');
-    assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
-    assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
+  // ┌─ test_getHookedMarkets_PreservesOrderAndUnknownValues ─────
+  function test_getHookedMarkets_PreservesOrderAndUnknownValues() external {
+    _createMarket(hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(uint128(100)));
+    _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), abi.encode(uint128(200), true));
+    address[] memory markets = new address[](3);
+    markets[0] = MarketB;
+    markets[1] = MarketC;
+    markets[2] = MarketA;
+    HookedMarket[] memory configs = hooks.getHookedMarkets(markets);
+    assertEq(configs.length, 3, 'market count');
+    assertEq(configs[0].minimumDeposit, 200, 'first minimum');
+    assertTrue(configs[0].transfersDisabled, 'first transfer policy');
+    assertEq(configs[2].minimumDeposit, 100, 'last minimum');
+    HookedMarket memory empty;
+    assertEq(abi.encode(configs[1]), abi.encode(empty), 'unknown batch configuration');
+    assertEq(abi.encode(hooks.getHookedMarket(MarketC)), abi.encode(empty), 'unknown single configuration');
   }
 
-  function test_onCreateMarket_setMinimumDeposit_Zero() external {
-    DeployMarketInputs memory inputs;
+  // ░░▒▒▓▓██ [ ADMINISTRATOR HANDOFF ] ────────────────────────────────────────
 
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(0));
-    HooksConfig expectedConfig = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
-    });
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertEq(config, expectedConfig, 'config');
-    assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
-    assertEq(market.minimumDeposit, 0, 'minimumDeposit');
+  // ┌─ test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority ─────
+  function test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority() external {
+    _createMarket(hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(uint128(100), true));
+    bytes32 configBefore = keccak256(abi.encode(hooks.getHookedMarket(MarketA)));
+    registeredBorrowers[NewAdministrator] = true;
+    hooks.requestAdministratorTransfer(NewAdministrator);
+    vm.prank(NewAdministrator);
+    hooks.acceptAdministratorTransfer();
+
+    assertEq(hooks.administrator(), NewAdministrator, 'administrator');
+    assertEq(callbackPreviousAdministrator, address(this), 'callback previous administrator');
+    assertEq(callbackNewAdministrator, NewAdministrator, 'callback new administrator');
+    assertEq(keccak256(abi.encode(hooks.getHookedMarket(MarketA))), configBefore, 'market config');
+
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    hooks.setMinimumDeposit(MarketA, 200);
+    vm.prank(NewAdministrator);
+    hooks.setMinimumDeposit(MarketA, 200);
+    assertEq(hooks.getHookedMarket(MarketA).minimumDeposit, 200, 'updated minimum');
   }
 
-  function test_onCreateMarket_disableTransfers() external {
-    DeployMarketInputs memory inputs;
-
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    HooksConfig config = hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(0, true)
-    );
-    HooksConfig expectedConfig = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
-    });
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertEq(config, expectedConfig, 'config');
-    assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
-    assertEq(market.minimumDeposit, 0, 'minimumDeposit');
-    assertEq(market.transfersDisabled, true, 'transfersDisabled');
-    assertTrue(config.useOnTransfer(), 'useOnTransfer');
+  // ┌─ archController ─────
+  function archController() external view returns (address) {
+    return address(this);
   }
 
-  function test_onTransfer_TransfersDisabled() external {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(1e18, true));
-    vm.expectRevert(OpenTermHooks.TransfersDisabled.selector);
-    MarketState memory state;
-    vm.prank(address(1));
-    hooks.onTransfer(address(1), address(2), address(3), 100, state, '');
+  // ┌─ isRegisteredBorrower ─────
+  function isRegisteredBorrower(address account) external view returns (bool) {
+    return registeredBorrowers[account];
   }
 
-  function test_onCreateMarket_MinimumDepositOverflow() external {
-    DeployMarketInputs memory inputs;
-
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    vm.expectRevert(abi.encodePacked(Panic_ErrorSelector, Panic_Arithmetic));
-    HooksConfig config = hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(type(uint136).max)
-    );
-  }
-
-  function test_version() external {
-    assertEq(hooks.version(), 'OpenTermHooks');
-  }
-
-  function test_config() external {
-    StandardHooksDeploymentConfig memory expectedConfig;
-    expectedConfig.optional = StandardHooksConfig({
-      hooksAddress: address(0),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: false,
-      useOnSetProtocolFeeBips: false
-    });
-    expectedConfig.required.useOnSetAnnualInterestAndReserveRatioBips = true;
-    assertEq(hooks.config(), expectedConfig, 'config.');
-  }
-
-  // ========================================================================== //
-  //                          Role provider management                          //
-  // ========================================================================== //
-
-  function test_getParameterConstraints() external view {
-    MarketParameterConstraints memory constraints = hooks.getParameterConstraints();
-    assertEq(constraints.minimumDelinquencyGracePeriod, 0, 'minimumDelinquencyGracePeriod');
-    assertEq(constraints.maximumDelinquencyGracePeriod, 90 days, 'maximumDelinquencyGracePeriod');
-    assertEq(constraints.minimumReserveRatioBips, 0, 'minimumReserveRatioBips');
-    assertEq(constraints.maximumReserveRatioBips, 10_000, 'maximumReserveRatioBips');
-    assertEq(constraints.minimumDelinquencyFeeBips, 0, 'minimumDelinquencyFeeBips');
-    assertEq(constraints.maximumDelinquencyFeeBips, 10_000, 'maximumDelinquencyFeeBips');
-    assertEq(constraints.minimumWithdrawalBatchDuration, 0, 'minimumWithdrawalBatchDuration');
-    assertEq(
-      constraints.maximumWithdrawalBatchDuration,
-      365 days,
-      'maximumWithdrawalBatchDuration'
-    );
-    assertEq(constraints.minimumAnnualInterestBips, 0, 'minimumAnnualInterestBips');
-    assertEq(constraints.maximumAnnualInterestBips, 10_000, 'maximumAnnualInterestBips');
-  }
-
-  // ========================================================================== //
-  //                              setMinimumDeposit                             //
-  // ========================================================================== //
-
-  function test_setMinimumDeposit() external {
-    DeployMarketInputs memory inputs;
-
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(1e18));
-    HooksConfig expectedConfig = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
-    });
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertEq(config, expectedConfig, 'config');
-    assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
-    assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
-
-    vm.expectEmit(address(hooks));
-    emit OpenTermHooks.MinimumDepositUpdated(address(1), 2e18);
-    hooks.setMinimumDeposit(address(1), 2e18);
-    assertEq(hooks.getHookedMarket(address(1)).minimumDeposit, 2e18, 'minimumDeposit');
-  }
-
-  function test_setMinimumDeposit_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
-    hooks.setMinimumDeposit(address(1), 1);
-  }
-
-  function test_setMinimumDeposit_NotHookedMarket() external {
-    vm.expectRevert(OpenTermHooks.NotHookedMarket.selector);
-    hooks.setMinimumDeposit(address(1), 1);
-  }
-
-  // ========================================================================== //
-  //                               NotHookedMarket                              //
-  // ========================================================================== //
-
-  function test_onDeposit_NotHookedMarket() external {
-    vm.expectRevert(OpenTermHooks.NotHookedMarket.selector);
-    MarketState memory state;
-    hooks.onDeposit(address(1), 0, state, '');
-  }
-
-  function test_onTransfer_NotHookedMarket() external {
-    MarketState memory state;
-    vm.expectRevert(OpenTermHooks.NotHookedMarket.selector);
-    hooks.onTransfer(address(1), address(1), address(1), 0, state, '');
+  // ┌─ onHooksAdministratorTransferred ─────
+  function onHooksAdministratorTransferred(address previousAdministrator, address newAdministrator) external {
+    assertEq(msg.sender, address(hooks), 'callback caller');
+    callbackPreviousAdministrator = previousAdministrator;
+    callbackNewAdministrator = newAdministrator;
   }
 }
