@@ -1,0 +1,2732 @@
+{
+  "schemaVersion": "1.0.0",
+  "observedOn": "2026-10-05",
+  "repository": "wildcat-finance/v2-protocol",
+  "auditBranch": "audit/v2.5",
+  "releaseBase": {
+    "commit": "bfe1412141f263ba6b056c60c3f4654a461598dd",
+    "sourceTree": "9bff1ff9d73c1542a1df2b110f6e5dcd6f6df17a",
+    "featureHead": "cb9cf2b5fceb56f8432c86004512143bfd8a1bbf",
+    "mergeTreeMatchesFeatureHead": true
+  },
+  "packageIdentity": "Bind the package to the full audit commit when committed. This manifest verifies the prepared file bytes and does not claim a future commit SHA.",
+  "reviewScope": {
+    "fileCount": 100,
+    "nonBlankNonCommentLines": 13103,
+    "lineCountingMethod": "Physical lines with Solidity strings retained and line/block comments removed; excludes blank lines, includes declarations, braces and imports.",
+    "files": [
+      {
+        "path": "src/HooksFactory.sol",
+        "sha256": "f677aaa199e20617ca468b0ee1859441e2aa843018045e3ed52308451e20c1c6",
+        "gitBlob": "6257535d9dca174d9e7ed10a83e41cfff005a0ca",
+        "nonBlankNonCommentLines": 702
+      },
+      {
+        "path": "src/HooksFactoryRevolving.sol",
+        "sha256": "1d62f36208c14a5bff84fcc931266925b96ecd514ad26343cefa7b099d70eb8c",
+        "gitBlob": "b04e90b8da59670cec8079983cdc3d3e1c3635c8",
+        "nonBlankNonCommentLines": 734
+      },
+      {
+        "path": "src/IHooksFactory.sol",
+        "sha256": "076883c7e5009aa1c1b88ceae360c5c96b333b22aa69763964384dbe9096075f",
+        "gitBlob": "a288cc29a6449a7eec34180a277c1ed6ef522abd",
+        "nonBlankNonCommentLines": 271
+      },
+      {
+        "path": "src/IHooksFactoryRevolving.sol",
+        "sha256": "e535fca2e240028c75b5a0c651f7d9be087aa011b12985a5b6e8799bdb884271",
+        "gitBlob": "ae01495f6917469c901a7c8a8c5384697c2a7202",
+        "nonBlankNonCommentLines": 112
+      },
+      {
+        "path": "src/ReentrancyGuard.sol",
+        "sha256": "a6fe2e086dc7ff1a6238d9d88086ebb43979e73e79cbac7b62efc53d2cc40def",
+        "gitBlob": "94564cdc2911795db04daec0264d5a436f880f3b",
+        "nonBlankNonCommentLines": 40
+      },
+      {
+        "path": "src/WildcatArchController.sol",
+        "sha256": "e4a8e11abe22fd6dec5e5c6400b1e229f8744154293ee4fd254ee1f2cff58b85",
+        "gitBlob": "fe5385ee719d0ea9ab3895b369d69dedf129c604",
+        "nonBlankNonCommentLines": 282
+      },
+      {
+        "path": "src/WildcatBorrowerIdentityRegistry.sol",
+        "sha256": "605a6337c0075d0485051f337c929c74f6550225f589443269a4637f252717f8",
+        "gitBlob": "55611ca07535bc65b7118b7ce5c33178813c9099",
+        "nonBlankNonCommentLines": 263
+      },
+      {
+        "path": "src/WildcatSanctionsEscrow.sol",
+        "sha256": "3412cb9a4fa99c45ecfef0c9203dc0f9fa4aeb980257efea87790819f2c9b85c",
+        "gitBlob": "0b24065c5f2c92552ee57a676f92a8a38613ff92",
+        "nonBlankNonCommentLines": 33
+      },
+      {
+        "path": "src/WildcatSanctionsSentinel.sol",
+        "sha256": "de12c2c46f16fe583abd6db0659209a2b6319fe9ac075894994b5d489a107867",
+        "gitBlob": "4bc4c816d37a28afe06a77ddd694ce7f8903f60b",
+        "nonBlankNonCommentLines": 100
+      },
+      {
+        "path": "src/access/BaseAccessControls.sol",
+        "sha256": "8c084111d2ad90d2896acdbaabbfbb925c358a49d8225474bf2617d1e4c77275",
+        "gitBlob": "e00a4b218d3d8290f87744319d58b1c017f4acd5",
+        "nonBlankNonCommentLines": 603
+      },
+      {
+        "path": "src/access/BaseHooks.sol",
+        "sha256": "aaa422ee95083d4041d50bf05ab41b9c4d91dac5d80f2886af0222a776f4fb71",
+        "gitBlob": "6efbe4836c94718723b4f9d5a9c9a2d6b6ef8145",
+        "nonBlankNonCommentLines": 413
+      },
+      {
+        "path": "src/access/FixedTermHooks.sol",
+        "sha256": "548b68787f70d1b836c4baff9e6b8db135620f6153a6c139b07fa3e5847af94e",
+        "gitBlob": "37d40aadeca0d8dbeb25d2b2284fb85f6d75562b",
+        "nonBlankNonCommentLines": 37
+      },
+      {
+        "path": "src/access/FixedTermPolicy.sol",
+        "sha256": "dbd9f613dea2a8b54a9798792be4ca258f1128b2f219b5c05466bff7b18bb32d",
+        "gitBlob": "61bbce42af77ac7d1748ee39f29a9bda8a46f65a",
+        "nonBlankNonCommentLines": 186
+      },
+      {
+        "path": "src/access/IHooks.sol",
+        "sha256": "7f99b5009f683a387131ce3a842bfab38ea3dad32ea229bc245425df01c6a74b",
+        "gitBlob": "2effeab76423a0bbf999a7f7f8feff7f2fa6d9f8",
+        "nonBlankNonCommentLines": 115
+      },
+      {
+        "path": "src/access/IHooksAdministrator.sol",
+        "sha256": "4fa9de7976e72dc056ec093d411b3bc770de32eb0af36d31e89df56220e8e6d7",
+        "gitBlob": "93b32c0fd0a0d026fe555c5353e79fba9d538ecd",
+        "nonBlankNonCommentLines": 12
+      },
+      {
+        "path": "src/access/IManagedRoleProvider.sol",
+        "sha256": "1a61e9417fc56e568db747af0693bbb84cc0d95e3b2bbc0b3b928c2b408c56ef",
+        "gitBlob": "ad1e8f3d912b29c45474ab4c09bccee3a0a3cc58",
+        "nonBlankNonCommentLines": 19
+      },
+      {
+        "path": "src/access/IMarketTransferPolicy.sol",
+        "sha256": "56d055bc35bbc572e184519f83c173d946526906f7530a31054003f3aa51c6c8",
+        "gitBlob": "f7c3adc1794e1b8652edb70fc25ece769ff1a471",
+        "nonBlankNonCommentLines": 5
+      },
+      {
+        "path": "src/access/IRoleProvider.sol",
+        "sha256": "23d731ed4416293210649efa4908ae3903bd34be3b2a317c70dde88562289810",
+        "gitBlob": "20ff6b28ec919699af930e02395c3b7220286216",
+        "nonBlankNonCommentLines": 6
+      },
+      {
+        "path": "src/access/IRoleProviderFactory.sol",
+        "sha256": "cbbb179277132e59b80e63362082b02a20b8ec71abcad2d8aef73ba9763f7e36",
+        "gitBlob": "5f491b2e391fce67d4c173faace8e2bc1f02e62c",
+        "nonBlankNonCommentLines": 4
+      },
+      {
+        "path": "src/access/MarketConstraintHooks.sol",
+        "sha256": "6a5834b62f8ad6fc19754417e567a82a5b7497e4566a56c9be5dccbe943af416",
+        "gitBlob": "d0fab8af34d8508259b431bb1a0f0bea5c2d5cc5",
+        "nonBlankNonCommentLines": 220
+      },
+      {
+        "path": "src/access/OpenTermHooks.sol",
+        "sha256": "7ba4a55d0fbfeda3d447df618646f1060ae31a63b0657f22d9e3782194a5b1aa",
+        "gitBlob": "4795210d3dfd2b14fe7daa95ef7109d5f305ce47",
+        "nonBlankNonCommentLines": 37
+      },
+      {
+        "path": "src/access/OpenTermPolicy.sol",
+        "sha256": "b7497e793b201d927258b0676a5cc0f67233bb6a8a32987c7dc9e71eb1c4971c",
+        "gitBlob": "41b5db678b2aacdc0bdfab07a0fc5caba0024f01",
+        "nonBlankNonCommentLines": 64
+      },
+      {
+        "path": "src/access/PeriodicTermHooks.sol",
+        "sha256": "7441d234e75446e4c126e004ac07f5d15d783b8c8d94f108f3abac16840dbe18",
+        "gitBlob": "dde184117e01eea129ef1f80613e54b15c48412e",
+        "nonBlankNonCommentLines": 44
+      },
+      {
+        "path": "src/access/PeriodicTermPolicy.sol",
+        "sha256": "68d97270e05b2bb8382972a1d491a3f1c969c2de9c9d0d297fe7753e06807aad",
+        "gitBlob": "19f07d71377968de167013f6890084ffaf964c84",
+        "nonBlankNonCommentLines": 361
+      },
+      {
+        "path": "src/access/ProviderStructs.sol",
+        "sha256": "2e627535aaa82b64edf5148f0b6312e8ee6b9abe2eafd9fad42fe7d0dd953805",
+        "gitBlob": "c5861a70f56d23ff96359efd7b37d44758f9958b",
+        "nonBlankNonCommentLines": 15
+      },
+      {
+        "path": "src/access/types/FixedTermHookTypes.sol",
+        "sha256": "a2af767ce260f9e2bba54417c3c8dcef875a5c278b9226b880b8e78942d3a890",
+        "gitBlob": "4db9ba523e6903a1781539d769649b6eba0bdc7e",
+        "nonBlankNonCommentLines": 12
+      },
+      {
+        "path": "src/access/types/OpenTermHookTypes.sol",
+        "sha256": "0337b180754d83ec44f6d92aa1f09b388b815903459e8c9013fbf02847344acf",
+        "gitBlob": "fe6db69161d7974288ba2353df35c9c6e1f5cfb6",
+        "nonBlankNonCommentLines": 8
+      },
+      {
+        "path": "src/access/types/PeriodicTermHookTypes.sol",
+        "sha256": "f7acf7e9fc89f1ee9c4e6b45928f1a8222e72adf5899c385c30498e371bba109",
+        "gitBlob": "b03da2fe62036549059f9bc94ce26eb5caf9256c",
+        "nonBlankNonCommentLines": 27
+      },
+      {
+        "path": "src/interfaces/IBorrowerIdentityRegistry.sol",
+        "sha256": "796d81f4e6c37cc9ffb0268c83d4efac7137b3197a9c1f1c0e82218a9c09e823",
+        "gitBlob": "48044014dc24db38285a24a426c76fc7a55a6615",
+        "nonBlankNonCommentLines": 67
+      },
+      {
+        "path": "src/interfaces/IChainalysisSanctionsList.sol",
+        "sha256": "63314bf0903d7f3ca08d70ae261ea97005604ddc12880eaeb5c987d34132e2b0",
+        "gitBlob": "a565dafab71d991a9b09af03493deaa80dfbc784",
+        "nonBlankNonCommentLines": 4
+      },
+      {
+        "path": "src/interfaces/IERC20.sol",
+        "sha256": "ae909a4bedea1484bbad0340c01433a03c66cc6bae92efe5e80c2bead03210de",
+        "gitBlob": "4c6c281a77d157147673fb1fb7bec7a88b5c854e",
+        "nonBlankNonCommentLines": 16
+      },
+      {
+        "path": "src/interfaces/IMarketEventsAndErrors.sol",
+        "sha256": "fc8a50444aad33a6ed7f43f6b93eccf40a43ebea1e2903a45fb8627c4a096eee",
+        "gitBlob": "c04789797912e8efb7d01917f51043c3c8277244",
+        "nonBlankNonCommentLines": 121
+      },
+      {
+        "path": "src/interfaces/ISphereXProtectedRegisteredBase.sol",
+        "sha256": "6fd110e56a5ff15aba8965e436c107cd83991aa2a242debbdb703e89bb9dfd5c",
+        "gitBlob": "450932e4012a23405c895a56abf94f9c3f0403d6",
+        "nonBlankNonCommentLines": 9
+      },
+      {
+        "path": "src/interfaces/IWildcatArchController.sol",
+        "sha256": "67e3b39d7c25d14a7b597b5a3ea6dbc7ba653061db47702fa97763e83917783c",
+        "gitBlob": "f518f33c642cf312c2a2e726dc108e03040ebb83",
+        "nonBlankNonCommentLines": 64
+      },
+      {
+        "path": "src/interfaces/IWildcatMarketRevolving.sol",
+        "sha256": "f1edca11f19fdcaa00d5664aece7a6368dde51052fbfc318685d3a4ea71a4912",
+        "gitBlob": "0cd39b1da5a9824ddb03484e3d8602ebab5b4d45",
+        "nonBlankNonCommentLines": 6
+      },
+      {
+        "path": "src/interfaces/IWildcatSanctionsEscrow.sol",
+        "sha256": "b6b025951d84d61a5d90e002b75456767bc2919237769cc080b52a619a9471e3",
+        "gitBlob": "f131d19c55eae0105a72cd2d925b204a5b0284e1",
+        "nonBlankNonCommentLines": 12
+      },
+      {
+        "path": "src/interfaces/IWildcatSanctionsSentinel.sol",
+        "sha256": "bc85b0cad1049e03de4ea8627eee126495aac540c6f287795297698bd75c3230",
+        "gitBlob": "2c34a094ee7e8a1c23f4f1ec658c3b2dcce0a04c",
+        "nonBlankNonCommentLines": 29
+      },
+      {
+        "path": "src/interfaces/WildcatStructsAndEnums.sol",
+        "sha256": "e2eb8a88335bf059c6f5c4915f5464d52f2fefdc8d3e4b953958fa344d239e83",
+        "gitBlob": "97a3e00f13f43a5bc50a79ac418263e80b57c425",
+        "nonBlankNonCommentLines": 81
+      },
+      {
+        "path": "src/lens/FactoryScopedHooksTemplateData.sol",
+        "sha256": "1e6afccf4a3552ad715b47e3ecfe805bbdf5b414222a850e19d3e6e6bf8a21e4",
+        "gitBlob": "01efb032ced9e0ad509ce49a3990e8600676f14c",
+        "nonBlankNonCommentLines": 6
+      },
+      {
+        "path": "src/lens/HooksConfigData.sol",
+        "sha256": "f4601a87a75df2a61cf8ffa1cc0cbe94857a15ce6e37123224bb728d5724355e",
+        "gitBlob": "6ac035600cddcc34ebfc2d326d473f749958845f",
+        "nonBlankNonCommentLines": 187
+      },
+      {
+        "path": "src/lens/HooksDataForBorrower.sol",
+        "sha256": "c9c9e7cd5383534a4a2d2110c42956fb0cbc37b055ee9f9ba8f6e7b502fbd087",
+        "gitBlob": "bc8789fdf111d066f2c4db0d1ecfe9b4cb07528e",
+        "nonBlankNonCommentLines": 38
+      },
+      {
+        "path": "src/lens/HooksInstanceData.sol",
+        "sha256": "1ca8d82400be2b9bf61c43869f114b0cd47963e2ad9346f4fa7ce6866385d11e",
+        "gitBlob": "9e6ef4cfffb1dfed3cf206da3a2494b42a7a84a5",
+        "nonBlankNonCommentLines": 110
+      },
+      {
+        "path": "src/lens/HooksTemplateData.sol",
+        "sha256": "7954ef23993c0824731ebfc5c1649c513c880717bc1ce6f522b26b7cfda87634",
+        "gitBlob": "b236bae4f04e9c86b30520918e6e2c2ca54c9dc9",
+        "nonBlankNonCommentLines": 70
+      },
+      {
+        "path": "src/lens/LenderAccountData.sol",
+        "sha256": "e9156ad04609740b3433c05742cab53fa1f9c4a2c953274cf2af5d8d25596901",
+        "gitBlob": "652aaef29ba1452219a266776106c11c69a09f28",
+        "nonBlankNonCommentLines": 67
+      },
+      {
+        "path": "src/lens/MarketAccountingReader.sol",
+        "sha256": "d85a7e3ef76712be5faa9def3bf57a1012ba759c7a3d460b552a254e07dde9d7",
+        "gitBlob": "6fff7290b9bd8cd68bb5dc420b01adee36546e00",
+        "nonBlankNonCommentLines": 28
+      },
+      {
+        "path": "src/lens/MarketData.sol",
+        "sha256": "be2623af324000aab66f9eb7ee30fc951a3d110c937f5fae6c06e3670d1dd59d",
+        "gitBlob": "723607d27b49d1f6fe5b718b161c29f051fe71f7",
+        "nonBlankNonCommentLines": 260
+      },
+      {
+        "path": "src/lens/MarketLens.sol",
+        "sha256": "abfdd2ab6dbac97f1b8d58d39c82f2abfb3a24a822688c526153e0b6b3c85479",
+        "gitBlob": "fad9ad81843881efa6cbfd3d7d8cb6e16f2eed5a",
+        "nonBlankNonCommentLines": 411
+      },
+      {
+        "path": "src/lens/MarketLensAggregator.sol",
+        "sha256": "66b4c0f936dab61c96448af0a8a3ce587dec0c9084980cd15a9b7ec7b26c38db",
+        "gitBlob": "2d0a527dc4ed15acf048c04d0d5d71b8dcd36642",
+        "nonBlankNonCommentLines": 520
+      },
+      {
+        "path": "src/lens/MarketLensCore.sol",
+        "sha256": "930b47b45e5ae142fb3d47881d6a36155a1711d4376755b9e476931b08febd56",
+        "gitBlob": "76b4b90e6a13244af9a9108147f091d164d4f0bf",
+        "nonBlankNonCommentLines": 174
+      },
+      {
+        "path": "src/lens/MarketLensLive.sol",
+        "sha256": "24b6a3491318b1ec0acc7ae62cbc260b4470c931ab18e8ab2155633b5f1828e9",
+        "gitBlob": "93c5481f753855ce5c4943dfcb7dbc629872ece7",
+        "nonBlankNonCommentLines": 32
+      },
+      {
+        "path": "src/lens/MarketLifecycleData.sol",
+        "sha256": "f1533f1d3f8386ba95946ae34dd545ba96a9c28ed844fb8b6cee34f5ec9b92f9",
+        "gitBlob": "583a7bb5f9dbddc2c4ff6dd0910b7b54507be8dd",
+        "nonBlankNonCommentLines": 57
+      },
+      {
+        "path": "src/lens/MarketLiveData.sol",
+        "sha256": "679b8e7562324a8ffa9c992668fcb41baa2920392b82db8c2bd9df5b8c0692b3",
+        "gitBlob": "2929f997fe1e0b9d9f77717d8d092e8dca329258",
+        "nonBlankNonCommentLines": 77
+      },
+      {
+        "path": "src/lens/OptionalData.sol",
+        "sha256": "cbc8f305e198c124dcd451c75d47b16e9888908c2706a13176b2963e3a30f8c6",
+        "gitBlob": "1e32d63bf39a817d077f119d28d29da18c84cd02",
+        "nonBlankNonCommentLines": 21
+      },
+      {
+        "path": "src/lens/RoleProviderData.sol",
+        "sha256": "2516fe20612beddc1f180d4d4d5aaadb67d5e2e8067b1334bd30542321b364e4",
+        "gitBlob": "74fa09772109913e0807ec7df0eb1a5326f7c2a0",
+        "nonBlankNonCommentLines": 52
+      },
+      {
+        "path": "src/lens/TokenData.sol",
+        "sha256": "224671b658372faf7fdf7000247560b68ee1bd96636fc136013c73eb2f291fff",
+        "gitBlob": "b9f7f18ae4bd82d7e5e4018a57b93391306b9f51",
+        "nonBlankNonCommentLines": 31
+      },
+      {
+        "path": "src/lens/WithdrawalBatchData.sol",
+        "sha256": "f9b8ccafc85d7025b0f82e2597919f659461658be7dcd4a1ddc3818d2656122a",
+        "gitBlob": "cfa7bc2cba8a65b65dce16b0c208369f3d1f269d",
+        "nonBlankNonCommentLines": 98
+      },
+      {
+        "path": "src/lens/interfaces/IMarketLensAggregator.sol",
+        "sha256": "5c358cbb58373cd8862b73a11ba9d1fc4bcac05f2499ecd848f1b8f51235764d",
+        "gitBlob": "3ebf9ada387f53f69d7916f3d60a7a1e2e2d1f1d",
+        "nonBlankNonCommentLines": 145
+      },
+      {
+        "path": "src/lens/interfaces/IMarketLensCore.sol",
+        "sha256": "243d46629803c383a6a5523f6a54f65366ae28c9d1a59b6ed2ac5bd4b0766383",
+        "gitBlob": "791455cc50f7bbceb85ffb3b67ca46e121da909d",
+        "nonBlankNonCommentLines": 82
+      },
+      {
+        "path": "src/lens/interfaces/IMarketLensLive.sol",
+        "sha256": "a8249b97b5a157d2d60c53dbb191d2c9019e58a4da387e912053319fafcad7b5",
+        "gitBlob": "1dad7df82669644fb1ac42963262c9b985e29ccf",
+        "nonBlankNonCommentLines": 12
+      },
+      {
+        "path": "src/libraries/BoolUtils.sol",
+        "sha256": "125798a4dd26605534357af2a94f3754d757f2bd15ddc0977b176a85b43c817b",
+        "gitBlob": "6232b5d0b67150c8d5dc688a3507b6d5e87ded35",
+        "nonBlankNonCommentLines": 18
+      },
+      {
+        "path": "src/libraries/Errors.sol",
+        "sha256": "3a1b6b4738e8ba8869d4a31c420c157d5fe046ec0d38345359e9a6775c8d46be",
+        "gitBlob": "bfbbedc1f03feecea5f6794eb764ff2ade863d21",
+        "nonBlankNonCommentLines": 41
+      },
+      {
+        "path": "src/libraries/FIFOQueue.sol",
+        "sha256": "4ec0f6aa2366272b99f3fa3ed677005d6f93d904b69321dbb0d932a739271529",
+        "gitBlob": "1cb37f550ba3124fad12b1a8a21a329547003e20",
+        "nonBlankNonCommentLines": 83
+      },
+      {
+        "path": "src/libraries/FeeMath.sol",
+        "sha256": "6afa62bf9816e356ce80cc20b657906ba2734f29486b4e75950fc4d853a682c7",
+        "gitBlob": "017fc3705024688448e7d8f06445214e47861031",
+        "nonBlankNonCommentLines": 97
+      },
+      {
+        "path": "src/libraries/FunctionTypeCasts.sol",
+        "sha256": "7b73cd29d65ed7de8a966670d51fab30a9c00f5e306833822d3d33274a9a8602",
+        "gitBlob": "0e2b978a0356405f4164197022182228fffbafa6",
+        "nonBlankNonCommentLines": 43
+      },
+      {
+        "path": "src/libraries/LibCompressedInitCode.sol",
+        "sha256": "20c2b49b6477c22328b87856f2194867431040bf0953592d431b675974b5bf48",
+        "gitBlob": "7480fe46234e3fc457788174a9dfa8b770bf2b45",
+        "nonBlankNonCommentLines": 48
+      },
+      {
+        "path": "src/libraries/LibERC20.sol",
+        "sha256": "92edb005ffb7ef262bb5ecee01c05c82822e6d2269ed8e184cbcbad8f19f64c9",
+        "gitBlob": "14328577ce8652bdab9533b46410d9e37fb99a4d",
+        "nonBlankNonCommentLines": 109
+      },
+      {
+        "path": "src/libraries/LibFixedCall.sol",
+        "sha256": "28a4c78f07e3b5711820bb1ac0a9682481e42f4cc11352dd911ba3589099a3bb",
+        "gitBlob": "bee2dc001ce0916df0f0827b1ad75d48f5fe4ec4",
+        "nonBlankNonCommentLines": 37
+      },
+      {
+        "path": "src/libraries/LibSplitInitCode.sol",
+        "sha256": "11368305ad5dc91c80032c7de8da7bd68ff8261f7129ff2b1e776b7ff64be05c",
+        "gitBlob": "978b48d68b39113333b71762960b46dc4db4ce4d",
+        "nonBlankNonCommentLines": 90
+      },
+      {
+        "path": "src/libraries/LibStoredInitCode.sol",
+        "sha256": "57edbc5c5c9087cf2d4b278919c70bc2ed402b5aca1a0de60ee4022e8c55173e",
+        "gitBlob": "08b3107084a8d42b6cb836e6419faf7bb7f2879c",
+        "nonBlankNonCommentLines": 185
+      },
+      {
+        "path": "src/libraries/MarketErrors.sol",
+        "sha256": "5b2c617c800f27456028e32e4c5fc2a57e2fa07fdfa0650ade51e54d254fe08d",
+        "gitBlob": "5d3f071842a315f3f2cea88828f62074623846e7",
+        "nonBlankNonCommentLines": 310
+      },
+      {
+        "path": "src/libraries/MarketEvents.sol",
+        "sha256": "c102402cc8e2c879d2b5cc841b744ab57922244ee4ac2b8ee96baa2ccc4c7eed",
+        "gitBlob": "5e894d88dfdf8c3e88c93d17b521b6863bbd37bc",
+        "nonBlankNonCommentLines": 239
+      },
+      {
+        "path": "src/libraries/MarketLifecycle.sol",
+        "sha256": "fa3823c1fcc117df54c80a2a8621febb1f3ae776c5720457e5b04ea17e318dc8",
+        "gitBlob": "81c56d0fdc17f53753e270cd83edc297597d0687",
+        "nonBlankNonCommentLines": 82
+      },
+      {
+        "path": "src/libraries/MarketState.sol",
+        "sha256": "c87dcd7720ac15cb98ee6bd3502d7a8a8609ed35054161c63442a4786b747604",
+        "gitBlob": "cb19263145507c14fdac305b0379e5f70fa1e06a",
+        "nonBlankNonCommentLines": 98
+      },
+      {
+        "path": "src/libraries/MathUtils.sol",
+        "sha256": "91ca0d691b6ff6e4bd2326145fb43c50f5de32d468c115797e7cd290c9ea73d3",
+        "gitBlob": "e43c248a4c07a1928651e9a44b6c0396a6352080",
+        "nonBlankNonCommentLines": 109
+      },
+      {
+        "path": "src/libraries/SafeCastLib.sol",
+        "sha256": "1cec2cb6646aff94baeef207894e84d27ea890a7e95cc815c4a5486abf573634",
+        "gitBlob": "1a2c27897d40a7310a90eca41bb5316f33796284",
+        "nonBlankNonCommentLines": 106
+      },
+      {
+        "path": "src/libraries/StringQuery.sol",
+        "sha256": "7ae37099fe15def1f791104e7cd717756d3bb31400f989479b38f23ffd335163",
+        "gitBlob": "6b857f198a0d2ba506b069f8a5c4d25ffcc6b043",
+        "nonBlankNonCommentLines": 107
+      },
+      {
+        "path": "src/libraries/Withdrawal.sol",
+        "sha256": "d853e731c2f6433e070d381fff1baf193c123f103e6e73f6c2f6ca59fa000fe5",
+        "gitBlob": "e3ade75bf51dd3b18c2a337365d80b2bd0f62282",
+        "nonBlankNonCommentLines": 46
+      },
+      {
+        "path": "src/market/WildcatMarket.sol",
+        "sha256": "b27dde965b23bf909f91f732ba6e2e118d0b9102b817a3a92c43d6ee593c6f18",
+        "gitBlob": "8e70c7c984a14147b27deb93c442026492336b67",
+        "nonBlankNonCommentLines": 175
+      },
+      {
+        "path": "src/market/WildcatMarketBase.sol",
+        "sha256": "1fdf8f15e4568b2e944358e64122f6c34cd4a693e6221ae688c1d6faffad7dac",
+        "gitBlob": "c46529307ccdf2d5135c8955d49ca8ad5e81c702",
+        "nonBlankNonCommentLines": 806
+      },
+      {
+        "path": "src/market/WildcatMarketConfig.sol",
+        "sha256": "8c93469c5f618bf339adbdfb93bcefe4385464d5cd3368b509c4d5613f0ddb27",
+        "gitBlob": "aeefc2a2111db77022b837df310c53ab1b4a3971",
+        "nonBlankNonCommentLines": 138
+      },
+      {
+        "path": "src/market/WildcatMarketRevolving.sol",
+        "sha256": "ca6ef6fcb47327c3eb180bc3f3bfa0d220a78802133a1bcb871079fa0ec239fb",
+        "gitBlob": "b363220e73894f385a0f459efb10bbeda3f5c7c2",
+        "nonBlankNonCommentLines": 104
+      },
+      {
+        "path": "src/market/WildcatMarketToken.sol",
+        "sha256": "7e5d2f6cbb49ebd0e06f7f33588ed69d34aea5c9495b179ac752d76b275c5059",
+        "gitBlob": "577600553353ffaa9a793c41bf9158b59e2cacc9",
+        "nonBlankNonCommentLines": 59
+      },
+      {
+        "path": "src/market/WildcatMarketWithdrawals.sol",
+        "sha256": "040ed098f5bdddbdadef2970e33665ae718ae561791b6fec81feef8ed9f26e1f",
+        "gitBlob": "1bef7b49510793b1ab17215eb66703b22666a46e",
+        "nonBlankNonCommentLines": 250
+      },
+      {
+        "path": "src/providers/AccessListRoleProvider.sol",
+        "sha256": "16d10d205b901895024634eb0eb27f8d43901c19ca8d8a8357bdfa7889b5b9be",
+        "gitBlob": "1aceb4938240e0ae8304587969c88cce73b773b3",
+        "nonBlankNonCommentLines": 77
+      },
+      {
+        "path": "src/providers/AccessListRoleProviderFactory.sol",
+        "sha256": "61eea15f1cf5c202056c5dddabb5c633a7135a491470ced0dd114dcfdb2aeb5e",
+        "gitBlob": "988287450093140406eb7ef913082d8ebf8fd9e9",
+        "nonBlankNonCommentLines": 64
+      },
+      {
+        "path": "src/providers/IAccessListRoleProvider.sol",
+        "sha256": "6e85df42f1823bec7b32d59eecacc9473bc90095b405b3124b2bc86b3a6f388f",
+        "gitBlob": "2695c9f1f0c60062f100ab9191e3838bd3dd9134",
+        "nonBlankNonCommentLines": 19
+      },
+      {
+        "path": "src/providers/IAccessListRoleProviderFactory.sol",
+        "sha256": "106a25d353d10b02f07436efd8bca2e25a5bd539b1121f4199dd368d9e50b256",
+        "gitBlob": "13c8701ee60bceb090dd4aa33c8793005d6a3d91",
+        "nonBlankNonCommentLines": 27
+      },
+      {
+        "path": "src/providers/ManagedRoleProvider.sol",
+        "sha256": "5142a6a48104bee65ece37ea55777b2e39cff49faa5e15db07ca95f87acd9ecf",
+        "gitBlob": "c464db157ed72e061c7f9d5cc7ae384368d42aec",
+        "nonBlankNonCommentLines": 38
+      },
+      {
+        "path": "src/spherex/ISphereXEngine.sol",
+        "sha256": "bb8f953ca439da3427998dd3d3066c738e037cd89c492d24c05e9d67efb7554a",
+        "gitBlob": "40cd031f1f70d0af6e84ca3ee8fce16f27b9381c",
+        "nonBlankNonCommentLines": 27
+      },
+      {
+        "path": "src/spherex/SphereXConfig.sol",
+        "sha256": "a3a621f66c7edd1e58da215c0e0a1bf943aa7cd4e742b75ce51da54fe83e3ede",
+        "gitBlob": "8158d8f35ba12149a9d6306165163ae4a6ef3514",
+        "nonBlankNonCommentLines": 109
+      },
+      {
+        "path": "src/spherex/SphereXProtectedErrors.sol",
+        "sha256": "d97fb08b8e98df18a65513006174a52705a29a88eea42f76bffaf16f0cd21d95",
+        "gitBlob": "d592d2782682d4765a0b8fe2a8752a569f08b417",
+        "nonBlankNonCommentLines": 31
+      },
+      {
+        "path": "src/spherex/SphereXProtectedEvents.sol",
+        "sha256": "39509960d081ec48ea26d17b903e8b0d46aaba1c160fc9ed3b0ed60f20c662ea",
+        "gitBlob": "8956fc5f697c8c5157311e37372e12d3adb3ad5a",
+        "nonBlankNonCommentLines": 35
+      },
+      {
+        "path": "src/spherex/SphereXProtectedRegisteredBase.sol",
+        "sha256": "e2211a684a58d5c0a717acf97aa86e68cb4fbdcff9eff0bcad48a27e4b4b9831",
+        "gitBlob": "4035b978f1cba121db526f5bbbc450f35e3acaf2",
+        "nonBlankNonCommentLines": 166
+      },
+      {
+        "path": "src/types/HooksConfig.sol",
+        "sha256": "08a618146150f4fa8b91fb918bd0db7efd4c55251a0d79f656f5040dcc3effc4",
+        "gitBlob": "ed0938180537df4e87928415279f51165e93fd50",
+        "nonBlankNonCommentLines": 571
+      },
+      {
+        "path": "src/types/LenderStatus.sol",
+        "sha256": "d3cdd5474d250c0c64d50a6540ae37b6c963119ae69be68849e775d601b22041",
+        "gitBlob": "da81591f494d5b676f06626c2dd84beb3fea0085",
+        "nonBlankNonCommentLines": 30
+      },
+      {
+        "path": "src/types/RoleProvider.sol",
+        "sha256": "a2b935f742369cca09e898143fb81f59f8e95e431b8977176bc4f9a7bd30bd15",
+        "gitBlob": "0a402befb3f081eb799a26dfef70fc46b85fc368",
+        "nonBlankNonCommentLines": 128
+      },
+      {
+        "path": "src/types/TransientBytesArray.sol",
+        "sha256": "94ddd2452de25639c2f441291c719010cce9e2d1ed2cb2bd5cd083a47ced31f0",
+        "gitBlob": "ea1e6b0eb1f037a3a4adb45347658018200c2589",
+        "nonBlankNonCommentLines": 98
+      },
+      {
+        "path": "src/vault/Wildcat4626Wrapper.sol",
+        "sha256": "61bf1cb2c4fae7fec0d0782c61c174144aec5d600027a64f23a9385a265064eb",
+        "gitBlob": "a168c40cb23c4e07f62c51970144a117ace6fefa",
+        "nonBlankNonCommentLines": 576
+      },
+      {
+        "path": "src/vault/Wildcat4626WrapperFactory.sol",
+        "sha256": "60ddd297ca2a9a93f8214897e927735f83bfb29ef5caf2621b2c7fa6f438fc68",
+        "gitBlob": "376479a39cc4ef93cb55ac13d84a5031eea85a1f",
+        "nonBlankNonCommentLines": 92
+      },
+      {
+        "path": "script/common/PreparedInitCodeStorage.sol",
+        "sha256": "c04817738f3239da82efedf0a27a3d76cdcf6144b64e7082d9901c394e09a980",
+        "gitBlob": "d278233e25cf0ae45b73c36de31046f896aaab7e",
+        "nonBlankNonCommentLines": 23
+      }
+    ]
+  },
+  "unchangedSupportingSolidity": [
+    {
+      "path": "script/common/DeployScriptBase.sol",
+      "sha256": "7499cf0044999e5aef59d7bf191d690779cdeb3d097d7979add8dd9a51bfe926"
+    },
+    {
+      "path": "script/common/LibDeployment.sol",
+      "sha256": "1f4344dfcee97b5666131a66e2402983488c216ff7f76a85b1aeb94d8f84f8e3"
+    },
+    {
+      "path": "script/mock/MockArchControllerOwner.sol",
+      "sha256": "af9c73d6b6fed19f2027c625011e82a64946feed3fe481177cadeb84bf80693a"
+    }
+  ],
+  "testAndReferenceFiles": [
+    {
+      "path": "test/README.md",
+      "sha256": "03f3b44d1e769542064dcc022868a5647e684b45856f3c38ce69f54efaf753a2"
+    },
+    {
+      "path": "test/access/AprValidation.t.sol",
+      "sha256": "746174ec346777439cd421c758a13bfc157483c76635cda13a41e101da59882e"
+    },
+    {
+      "path": "test/access/BaseAccessControls.t.sol",
+      "sha256": "777d0f9767e710a0575672152f9b230d96837a2934ff3f57703cad5fc2b6fc7c"
+    },
+    {
+      "path": "test/access/BaseAccessControlsHarness.sol",
+      "sha256": "2f58799eee3b1ab85ba4d4d8a4b213e9b2248ed2360cac1d78ce6c6839d0fd44"
+    },
+    {
+      "path": "test/access/BaseHooks.t.sol",
+      "sha256": "b2c0e09099738e743654bacad43aab23b112e4d6f20f19cd5200f682e1916e02"
+    },
+    {
+      "path": "test/access/FixedTermHooks.t.sol",
+      "sha256": "dadb2f4be3054ecfafeb8f2aa5ebb6c2d514b33b705bee352b5a0264ffa7afea"
+    },
+    {
+      "path": "test/access/HookExtensions.t.sol",
+      "sha256": "7a25116a2b4bd71057d6ff8ca08cfedcf49f3a40266c453495a28486bc91e6e8"
+    },
+    {
+      "path": "test/access/MarketConstraintHooks.t.sol",
+      "sha256": "804c225d98d38a2642370479dfa6074c45f01b2f8fea3ec180a23957348ac3e7"
+    },
+    {
+      "path": "test/access/OpenTermHooks.t.sol",
+      "sha256": "26304fd77522233d7b8cdcf02e14ef2af5e5416f1a7773a18cfed82b85e6dfe4"
+    },
+    {
+      "path": "test/access/PeriodicTermHooks.t.sol",
+      "sha256": "e58a74688209f83f665e20aad703e670441cf2700374aac85f08100f705da09f"
+    },
+    {
+      "path": "test/factories/HooksFactories.t.sol",
+      "sha256": "89d22d27ef62d990d99da15b6d2d7bd77690ba627953778353c1643ee539a650"
+    },
+    {
+      "path": "test/factories/ZeroValueTransferReview.t.sol",
+      "sha256": "11c6a8ec2e510cd0c39006362d1659c6918b7d288d045c60fdff8ca59d36fb9f"
+    },
+    {
+      "path": "test/integration/BorrowerAccountCompatibility.t.sol",
+      "sha256": "38f8d8a951b6196c7ef8998e0fee1e0a39206a7cc3342d2640861aedc09611fa"
+    },
+    {
+      "path": "test/integration/BorrowerAccountOrigination.t.sol",
+      "sha256": "dfb91449340be85a724ee8012773d2e81a9729a548e17b0eae85b267f529b044"
+    },
+    {
+      "path": "test/integration/HookDispatch.t.sol",
+      "sha256": "595030449c32dcf18ca2a57a74dee9c3f4b9bb403abac3f8f07108696f59f75d"
+    },
+    {
+      "path": "test/integration/HooksAdministratorTransfer.t.sol",
+      "sha256": "541278850f831b16f739d4090de2023fe93f970f9e80ba476343ee8ca8d02da3"
+    },
+    {
+      "path": "test/integration/ProductionEconomics.t.sol",
+      "sha256": "9999aa0aa9b1f9782883497d44288eef575e7f76a40de4ef09b9fd6c98f905e1"
+    },
+    {
+      "path": "test/integration/ProductionMatrixScenarios.t.sol",
+      "sha256": "1501196849d0bb306bcb782120bfe0f57f1fb73954c2967d7135ea99afa35642"
+    },
+    {
+      "path": "test/integration/RepaymentPrototype.t.sol",
+      "sha256": "5878dc615c29af8abdacf842476da232aa3c3ba7bf97edc12bf3c6a042c82c76"
+    },
+    {
+      "path": "test/integration/Wildcat4626WrapperIntegration.t.sol",
+      "sha256": "17721e4118e9d41ef38c637fbeb3696978098b4b4a4510644dc4921fa030b8f5"
+    },
+    {
+      "path": "test/invariants/LifecycleAuthority.t.sol",
+      "sha256": "51ac6a2f65a02e464e86d0fac4b24264ab5b76a59c3c586cad0bb5433176eead"
+    },
+    {
+      "path": "test/invariants/LifecycleFixture.sol",
+      "sha256": "fbe4d278c02e1f648feeaf83b921223ce4fa86d60fc7c181616b203d17be7b7a"
+    },
+    {
+      "path": "test/invariants/LifecycleHandler.sol",
+      "sha256": "c3506737ed9163f90ad6629a7459d999b18e34867b5194753fd5888a97347301"
+    },
+    {
+      "path": "test/invariants/LifecycleOracle.sol",
+      "sha256": "7a7ccc35936790e3267f4222fed4aedb68edee140d6253ad78531e3f08326e47"
+    },
+    {
+      "path": "test/invariants/LifecycleScenarios.t.sol",
+      "sha256": "cc6eb5d9ba693d656c99c92aa52bc3a1fc72552311c56fc6e682361a0e1322fa"
+    },
+    {
+      "path": "test/invariants/MarketMatrixFixture.sol",
+      "sha256": "26af14ed3ab34ff6ff1bc85591c92b5495aafa7f86b4093bf17442ab4b110cc2"
+    },
+    {
+      "path": "test/invariants/MarketMatrixHandler.sol",
+      "sha256": "b4ed594b8c52dcc9a3e50e25f6c516037eb60af94b97c17b447b761c2c98ddf5"
+    },
+    {
+      "path": "test/invariants/MarketMatrixInvariant.t.sol",
+      "sha256": "36653f76cfcf503b572532f11a496826f811f3a64c2568de178a2cac6f1fa704"
+    },
+    {
+      "path": "test/invariants/PenaltyLifecycleInvariant.t.sol",
+      "sha256": "be1d1d3d333d6ae08f42960cdbe87374649f7095940f07540ca58bf23b2bd8bc"
+    },
+    {
+      "path": "test/invariants/PenaltyLifecycleScenarios.t.sol",
+      "sha256": "a6527470657d2fd97bd13cc0f105bd744716ab7d638dca1f95c45befa937072f"
+    },
+    {
+      "path": "test/invariants/RepaymentLifecycleInvariant.t.sol",
+      "sha256": "8f4e6f2a35ababc020d5e37d3ed8bfd87c50cf2c486e79f91b192ce0495383ff"
+    },
+    {
+      "path": "test/lens/MarketAccountingReader.t.sol",
+      "sha256": "bd13b56fce265d416378b65fbaabcd0d1d3ec7b4053392fbf765c1bc52f1df73"
+    },
+    {
+      "path": "test/lens/MarketLensAggregator.t.sol",
+      "sha256": "0587e737e72b72ca0160c6030a23f4ffbd0408b1e3f8ec1078cefb7b7168bc58"
+    },
+    {
+      "path": "test/lens/MarketLensCore.t.sol",
+      "sha256": "fa8ed346ad3c3ab5af53f345660fb9515748968e6182b19ffb93c762bdf6302f"
+    },
+    {
+      "path": "test/lens/MarketLensDeployment.t.sol",
+      "sha256": "63f48240b871bd7c373f1a5276580638046751ffa639d498aa7a34ac9a2422ad"
+    },
+    {
+      "path": "test/lens/MarketLensFacade.t.sol",
+      "sha256": "63b7fc915becee6ba6a7d2840a6edacc2b8fd3d0dbcb93b93f049f2f94b3c544"
+    },
+    {
+      "path": "test/lens/MarketLensLifecycle.t.sol",
+      "sha256": "925631560ef365a2151de50cb82451b1f005b3faee85ca13aa1c08687cfa99c8"
+    },
+    {
+      "path": "test/lens/MarketLensOptionalData.t.sol",
+      "sha256": "54bc8d072d705db7167898a22584858709474a7078f876913cd4e70339c36f93"
+    },
+    {
+      "path": "test/lens/TokenMetadataReview.t.sol",
+      "sha256": "1d8c72848d71cac9313971047fbfc382e351bfad3464a7a47cf35c4161d95306"
+    },
+    {
+      "path": "test/libraries/BoolUtils.t.sol",
+      "sha256": "3c3739a0bb2df940cacac6a7216ac52a4ba6e9c721ed67ff91a6b752b037c357"
+    },
+    {
+      "path": "test/libraries/BoundedMarketState.t.sol",
+      "sha256": "b72133f6663fa183c462a27fc9cf104d177af67c04d15503cebb2deae251f1ae"
+    },
+    {
+      "path": "test/libraries/CompressedInitCode.t.sol",
+      "sha256": "3bf96c313234cec84b66bd2d248f0dff24d1e4094705d25008d83eca4a89c00e"
+    },
+    {
+      "path": "test/libraries/CompressionIntegrity.t.sol",
+      "sha256": "4829c949b2b097a359666ab4e89da218deb69edf3b1e0353d5ad4fb28496758b"
+    },
+    {
+      "path": "test/libraries/FIFOQueue.t.sol",
+      "sha256": "3eb9a89f82cd5a76a31a5fcc3e12191c30d1a32d4ba3e15bdfecb0a9d63b9085"
+    },
+    {
+      "path": "test/libraries/FeeMath.t.sol",
+      "sha256": "02f7cb25190acada5c4d76cae7b006bf6fedb4a346795e98d8f1f0f0a63e23d8"
+    },
+    {
+      "path": "test/libraries/LibERC20.t.sol",
+      "sha256": "16a408afeb7362c6fc0e8d3d01c2950dc931ec82106b1ca88ef1e4fae0f44ed7"
+    },
+    {
+      "path": "test/libraries/LibFixedCall.t.sol",
+      "sha256": "2daccd49afe4cf6ce8b6f4b7f9b4dcc6805a82e52bdbe82bf330ef4698219805"
+    },
+    {
+      "path": "test/libraries/LibStoredInitCode.t.sol",
+      "sha256": "de15bd332e3bf0a176a65be0c170c0ed7dd20934c8b2ff1eb9343fc66b2a0aac"
+    },
+    {
+      "path": "test/libraries/MarketEvents.t.sol",
+      "sha256": "fe6a71e2860c15afe6c2b0210e4bf2458b1a851023cb5df5297d7cd9b4ad205e"
+    },
+    {
+      "path": "test/libraries/MarketState.t.sol",
+      "sha256": "2af6848ecebcc28072203ca5ba6521ab79fbb7da833883c2e263fc417353b0fe"
+    },
+    {
+      "path": "test/libraries/MarketTransitionLayout.t.sol",
+      "sha256": "ea897ecfdee57d642b36878521cc5375eb1c94583767ad3375165f42952ae7f7"
+    },
+    {
+      "path": "test/libraries/MathUtils.t.sol",
+      "sha256": "66c1184ccdd19b20b8603bc681c5978a9df4d5034999cd8b99b06395ffb2c491"
+    },
+    {
+      "path": "test/libraries/SafeCastLib.t.sol",
+      "sha256": "d64c6e8684f3184b1c480b852de290abd1bf3c259aad96e209d94ad1c2c83946"
+    },
+    {
+      "path": "test/libraries/SplitInitCode.t.sol",
+      "sha256": "49d7532207f45ce4693819edffc920f70a36df9efcafacf326be23f7f07744a3"
+    },
+    {
+      "path": "test/libraries/StringQuery.t.sol",
+      "sha256": "10253645a0bd827dfaca67510f58f126af42245f29200392d70be2dd48175307"
+    },
+    {
+      "path": "test/libraries/Withdrawal.t.sol",
+      "sha256": "d7368139d2fa4289acbf7d28ece1d244c8c7b80d0184d500698db855c49c0c3f"
+    },
+    {
+      "path": "test/libraries/WithdrawalCarrySequence.t.sol",
+      "sha256": "dad0c98fc42596ef94441920dc6cedd776b88c68e90d049b2f8d48c68870f7ba"
+    },
+    {
+      "path": "test/libraries/WithdrawalPaymentCapacity.t.sol",
+      "sha256": "5b21ad9997b8e12ba9d025ec31288d790f41b73f2200e516a7af2fdf92d98064"
+    },
+    {
+      "path": "test/libraries/WithdrawalRemainderState.t.sol",
+      "sha256": "b6ec94cb148cebe4128133c6aef11dad3433b52553c62939ac1657313e47418e"
+    },
+    {
+      "path": "test/libraries/wrappers/FIFOQueueLibExternal.sol",
+      "sha256": "5493f7d2c38a568f8c45502df41646014d9f391af89beb01f50f0cf82d5e0b06"
+    },
+    {
+      "path": "test/libraries/wrappers/FeeMathExternal.sol",
+      "sha256": "feecc3aeb415f92e3da987ecc05bb8041514f9692c74f039951a02ea12173e85"
+    },
+    {
+      "path": "test/libraries/wrappers/LibStoredInitCodeExternal.sol",
+      "sha256": "1fc2aba3146f84c17ce3927560f4765261b3980e65a47f38ab5c97a97c4c04fb"
+    },
+    {
+      "path": "test/libraries/wrappers/MarketStateLibExternal.sol",
+      "sha256": "0a142c816caf553b6633eda4d3b9b8581f435719a607d6c75c47b4cc42608d02"
+    },
+    {
+      "path": "test/libraries/wrappers/MathUtilsExternal.sol",
+      "sha256": "9cca8ac4c16d9d824ce0ca8414dc5de920ace5fc7ad5387bf29c1108e96db0f3"
+    },
+    {
+      "path": "test/libraries/wrappers/SafeCastLibExternal.sol",
+      "sha256": "9b6de45a3cdff58cd523e813b034f8161c674eba13e83e144689547a9545c637"
+    },
+    {
+      "path": "test/libraries/wrappers/WithdrawalLibExternal.sol",
+      "sha256": "3700f5acecd393b8c361aceeedaa4c3853228e2e0ca36558344cdf5eaf0b3e16"
+    },
+    {
+      "path": "test/market/DelegateSanctions.t.sol",
+      "sha256": "cb4687a5c1ed6a1ac5746216a0a38a0fa026bfee5453d69c7bfeb8f2085b57ca"
+    },
+    {
+      "path": "test/market/MarketSurplus.t.sol",
+      "sha256": "e8ac2d3d01339d7df20715d0d32bc88bec1a27ae9868bf3b2ed10c3b01afca68"
+    },
+    {
+      "path": "test/market/NukeBatchAveraging.t.sol",
+      "sha256": "d9f7d06b68064fb2e12a0059f5fc3271ead9b9a583a3de73b33ff2492e155a5d"
+    },
+    {
+      "path": "test/market/ProtocolFeeRoundingReview.t.sol",
+      "sha256": "cae899cac5e53b6ab62d2a8ba0ae8689f65a5b4ba0868c7c5919b2aa5b20f79a"
+    },
+    {
+      "path": "test/market/RepayExpiryDelinquency.t.sol",
+      "sha256": "501cfed1659cc2d3962311882f3305bb1e5e9267f8a8d5974579746a969e655f"
+    },
+    {
+      "path": "test/market/RevolvingInterestDustReview.t.sol",
+      "sha256": "ea500e64b6598cb4bbc1f4db63b0240477fe04a52a578ca07f6a42a558742645"
+    },
+    {
+      "path": "test/market/WildcatMarket.t.sol",
+      "sha256": "8a925a8406e82c6a2ab9c66e854b63367ad5b350a365ace9f74b1524c8cf8fe3"
+    },
+    {
+      "path": "test/market/WildcatMarketBorrowerTransfer.t.sol",
+      "sha256": "d2622ea8983dbd808404da6c1c5df816ccfbd20d650d931ae083ddc88c7be9ba"
+    },
+    {
+      "path": "test/market/WithdrawalCounters.t.sol",
+      "sha256": "01f72b8d3cee8f1a1aa21297c484c09904916667ff8dd71ad8e01975b7990f45"
+    },
+    {
+      "path": "test/market/WithdrawalRoundingCarry.t.sol",
+      "sha256": "07fe77b8c4356e5925178fa9110b2122e8a0bdd237dd678ad1afe8039cd467f2"
+    },
+    {
+      "path": "test/mocks/AprReplacementHooks.sol",
+      "sha256": "053f8cc030d1cb5d7b7ded1972b6a32349b48650b2598a1aa642e79ab3dc5ca1"
+    },
+    {
+      "path": "test/mocks/AprReplacementPolicy.sol",
+      "sha256": "56e38d06f8989b733be97e3942388ccf95f735a41977793fde73cc42f6cad0d7"
+    },
+    {
+      "path": "test/mocks/AprValidationHooks.sol",
+      "sha256": "3836352fc44af55e8e9955abd4ffab1583a51665b2d60edf1374992b939d448a"
+    },
+    {
+      "path": "test/mocks/AprValidationPolicy.sol",
+      "sha256": "d10a744acc7213af9b5380f537f879dd695f49b1471642b40f75523551683c19"
+    },
+    {
+      "path": "test/mocks/ArchControllerMocks.sol",
+      "sha256": "c67abf25a9b3abae0df051a492c86f2fc6decb54b3a838f5f780695be4286c85"
+    },
+    {
+      "path": "test/mocks/ArchControllerOwnerMocks.sol",
+      "sha256": "1feddbc3787ab2a3218889127a0641f6420be118a0d1daf6c82e0ba4c7eca4a0"
+    },
+    {
+      "path": "test/mocks/BorrowAmountPolicy.sol",
+      "sha256": "ae104d62f4004a1fff343b79837ea6235474a670f100fece0a5e8ad9c7f795d4"
+    },
+    {
+      "path": "test/mocks/BorrowFeatureHooks.sol",
+      "sha256": "a326653f28b44fd45bdb6ed4ebc313094f8ca813660e9275617b8e0426da39b1"
+    },
+    {
+      "path": "test/mocks/BorrowerAccountMocks.sol",
+      "sha256": "82cf918656491f77103210517ba19d3a3f1a3b17cd4e28c22b1e502fa6f0554b"
+    },
+    {
+      "path": "test/mocks/BorrowerIdentityMocks.sol",
+      "sha256": "32b426144854bd978405ee8b1188340ed3f44d8e1913ed3d1b08d9a4fbc7371c"
+    },
+    {
+      "path": "test/mocks/FixedTermManagementHooks.sol",
+      "sha256": "adc6d8b1718b08492cc2a3305a191e5223ad981dab5666e12dae44ab4062a4da"
+    },
+    {
+      "path": "test/mocks/HookDispatchMocks.sol",
+      "sha256": "84b7d32a4ce8c0a847d34085c229fa042526fadd5c7bcb29b16b4a144a0646f4"
+    },
+    {
+      "path": "test/mocks/HooksConfigCaller.sol",
+      "sha256": "80cf738e37d3fada695eb0345ecf5a0f1788a5e1ec06624b531eec8297885ba0"
+    },
+    {
+      "path": "test/mocks/HooksConfigTarget.sol",
+      "sha256": "aafd8c297f1fe6ac4497ff51cd08970470b93c2f7fcd68233b6835f267ee5527"
+    },
+    {
+      "path": "test/mocks/HooksFactoryMocks.sol",
+      "sha256": "19fce92560ae78ce3df12d74a423aa4234cce595f18360a545d70e5bdd1d6045"
+    },
+    {
+      "path": "test/mocks/LensMocks.sol",
+      "sha256": "8a234915c358ea37be1035dc477248e4aa59baa9cbd5cae661fbbbf429b1a420"
+    },
+    {
+      "path": "test/mocks/LiveBalanceRoleProviderMock.sol",
+      "sha256": "ca7afdf28e3c1ac328ae37a4ab6d38846359aae2916ff2dbedff971323e561c6"
+    },
+    {
+      "path": "test/mocks/MarketConfigurationHooks.sol",
+      "sha256": "8a9997b8d943472912390499a0b608fba5b5a75406a40ce0d7604bc5ec703ecb"
+    },
+    {
+      "path": "test/mocks/MarketMocks.sol",
+      "sha256": "4f31e54424f988403b10a5a1ba497c3f11b85bc52413845b3947858d28370f7d"
+    },
+    {
+      "path": "test/mocks/MockRoleProvider.sol",
+      "sha256": "b973beac5770a44ca1c8e5cd3c0a74a5917cd319247b310abca28c8590832cff"
+    },
+    {
+      "path": "test/mocks/MockRoleProviderFactory.sol",
+      "sha256": "6f4a86b3c0df3d68c4e052cfc5540cbbb9ba5189c38b4645c8da8e6a39fcbb24"
+    },
+    {
+      "path": "test/mocks/PeriodicAprMarketMock.sol",
+      "sha256": "091466d6f8dee3bedd8753eaf0cd4aa247d1f294796d1a493638b938adac2ec1"
+    },
+    {
+      "path": "test/mocks/PeriodicProposalHooks.sol",
+      "sha256": "976b888a97da5755005f416eefc103444dac8ec6523f8eb5938545338082ceb3"
+    },
+    {
+      "path": "test/mocks/RecipientRejectingERC20.sol",
+      "sha256": "e2517e5365ec9c40df3020847706d5fdc13d6915584294da679347f7316f4d33"
+    },
+    {
+      "path": "test/mocks/ReentrancyHarness.sol",
+      "sha256": "78646d9f7c1af831e2048ced9abb179eac13de3ccfc1318412769765e7ce3711"
+    },
+    {
+      "path": "test/mocks/RoleProviderFactoryMocks.sol",
+      "sha256": "f2a99e827250b98c340f7034c826ddb9924dc1bd13ddac66f82566d8b31e1859"
+    },
+    {
+      "path": "test/mocks/SanctionsMocks.sol",
+      "sha256": "ad5f89db71d3d67ebd0d4267ded90dec6e4854f389862181b5a302a95c3eef05"
+    },
+    {
+      "path": "test/mocks/SphereXConfigMocks.sol",
+      "sha256": "8703c2a658c25c6b7c94c0011bc48949c1f5ce2d42500135cbdddae2e7ec4b9f"
+    },
+    {
+      "path": "test/mocks/TransferFeatureHooks.sol",
+      "sha256": "f565e78853f0b38ec5e82b2eee377dfbde24e82ff9c4e5c601858706e72e8c98"
+    },
+    {
+      "path": "test/mocks/TransferFeaturePolicies.sol",
+      "sha256": "cce59df962de7df6d0b159571c8c9b868c1aa11d5dfa05f8dd6e19630a7fdea4"
+    },
+    {
+      "path": "test/mocks/TransitionAllocatorHarness.sol",
+      "sha256": "3da4616e5d0016f48cf3efc76bee732bc0693d5018dddd2dcf1fdfb2d2cdf8ab"
+    },
+    {
+      "path": "test/mocks/WithdrawalPaymentHarness.sol",
+      "sha256": "00a93d270c9420d1d5c8f0788f3fdab6ecd0dcd03c65d29eca2111b43ebae297"
+    },
+    {
+      "path": "test/mocks/WrapperMocks.sol",
+      "sha256": "e2a61036ab885812229f6078051ff5bc1b706edaf21f6b8e48ecb6fa605acec4"
+    },
+    {
+      "path": "test/mocks/WrapperQueueAccountMock.sol",
+      "sha256": "ffd0336aea7e8db7a5f4fffc8a3f67582c67579615be3bff1fd383e2ee89c489"
+    },
+    {
+      "path": "test/providers/ManagedRoleProviders.t.sol",
+      "sha256": "52ad4bdd2fcb9aca99a9aaf8f7a330d20251038fd8b18e3af6adc49bfda455d3"
+    },
+    {
+      "path": "test/providers/RoleProviderFactories.t.sol",
+      "sha256": "a4750cf9d545ba49cde07e6106e18f03ffba9e8f6fa5377a50455de9d4b539dd"
+    },
+    {
+      "path": "test/reference/fastlz/README.md",
+      "sha256": "61d9be8636f865ed27b999a2afd40876cb98f19e1a9f4861308b4698eb3f3f61"
+    },
+    {
+      "path": "test/reference/fastlz/fastlz.c",
+      "sha256": "36b9b686fe372eaf1406a78914b6b85ed2865bbd3f285b0ba37fdbb294bc66ff"
+    },
+    {
+      "path": "test/reference/fastlz/fastlz.h",
+      "sha256": "d2b6ca9c0f4b5cdd0855d90695e3b7e0da70203ac93119971020e46bb0b68039"
+    },
+    {
+      "path": "test/research/CompressionFactoryIntegrity.t.sol",
+      "sha256": "1f248502daeccb2dee126cf91fdc2a8eca0d9081f05a28139933639ee724fc6e"
+    },
+    {
+      "path": "test/research/HookArtifactCommitment.t.sol",
+      "sha256": "6057492cd22028ae5a42a420e4b67c938c4c24007cb72179570bfc04fa4d3167"
+    },
+    {
+      "path": "test/research/InitCodeStorageTools.t.sol",
+      "sha256": "3a895aaaacb3e0a29600122c352ae74e874164ee0a20b7bd86411e924dd20b6b"
+    },
+    {
+      "path": "test/research/SingleStorageDeployment.t.sol",
+      "sha256": "7328f9ff980b722097a1b1a3504b29cc65cb8324ad12e1fbfb1a3fec13eb39b0"
+    },
+    {
+      "path": "test/research/SplitStorageDeployment.t.sol",
+      "sha256": "c7dc5f799c44dd63cca09c3aee66f7ad53342569c004a0b2964c14f2d65fb231"
+    },
+    {
+      "path": "test/root/MockArchControllerOwner.t.sol",
+      "sha256": "de3271250b9e77d73d4fb3daebcb2a5a6501a91cb9074f8b0136f27d7fe0056f"
+    },
+    {
+      "path": "test/root/ReentrancyGuard.t.sol",
+      "sha256": "8df9ddddd79404636af66da95f5b485072677d447f1812a0572423bc8f81e2a5"
+    },
+    {
+      "path": "test/root/WildcatArchController.t.sol",
+      "sha256": "4e5e52273bdc0ea562c96999a20a9457ef20f1f21cb35a83d5a1086ca482b252"
+    },
+    {
+      "path": "test/root/WildcatBorrowerIdentityRegistry.t.sol",
+      "sha256": "2c5a6875bc0130b7b5e6468bb9459371c85fd4f889476fdd232b6c9584fca5cf"
+    },
+    {
+      "path": "test/sanctions/Sanctions.t.sol",
+      "sha256": "a45edf8cc1270a2bf3b87bf7d69b616980f541392635dc0d4f3290343a425082"
+    },
+    {
+      "path": "test/shared/HookTemplateFixture.sol",
+      "sha256": "291c786a7a2b0363b5142e2a84f6a13968c513674304e6e80f8fd5a52a0753e7"
+    },
+    {
+      "path": "test/shared/MarketFixture.sol",
+      "sha256": "77caf63312ae2a8ad1c5ec2f35f2bda39d2be2c3c43ac8c0b0e09f5f87edb2f6"
+    },
+    {
+      "path": "test/shared/PRNG.sol",
+      "sha256": "cd6b177c71afa4deba34a8b55b249bcb2a9b23e3e5199035e62c7d30d81e9801"
+    },
+    {
+      "path": "test/shared/ProductionMatrixFixture.sol",
+      "sha256": "6742bdec39303f18cc8ca87ff94847b6b88bf17e8dd6a5091c5d355b87614b3c"
+    },
+    {
+      "path": "test/shared/TestKernel.sol",
+      "sha256": "9e01c1862b9bf2d15d12be9f0fa0c5059fb4e1cbc4d1391702eb9f0465751429"
+    },
+    {
+      "path": "test/shared/TestStructs.sol",
+      "sha256": "e0dca289a8adca330a40c7cccd2049c74507cbea1b7ffd31d81cf2d760efe075"
+    },
+    {
+      "path": "test/spherex/SphereXConfig.t.sol",
+      "sha256": "ecafbcb289168310d8f41dae323b07e5dc3bccae52b957f490e79cacb3dfb8b3"
+    },
+    {
+      "path": "test/types/HooksConfig.t.sol",
+      "sha256": "3b7c8fb85a8f1f02e4d3e9a89f6bdff522d2109a240b7611120b3922a4455176"
+    },
+    {
+      "path": "test/types/LenderStatus.t.sol",
+      "sha256": "e54c5a6dbf574e7ed82ebd5ac5c8dce6d55c19ab513c8168d4d2b2d8ad985df6"
+    },
+    {
+      "path": "test/types/RoleProvider.t.sol",
+      "sha256": "51415d6ad2fcee53d722b213cf0679efbf59e4d76b4d0585dcc897974fa5fb3c"
+    },
+    {
+      "path": "test/types/TransientBytesArray.t.sol",
+      "sha256": "2498bbf1c09e297f71e45f210a136bc2ee01026214a7270179543f2d6ecabd58"
+    },
+    {
+      "path": "test/vault/Wildcat4626Wrapper.t.sol",
+      "sha256": "b5a907cddf291d8dd0018cf617037a62248f3e355f6fede03f745a5b9779ef4c"
+    },
+    {
+      "path": "test/vault/Wildcat4626WrapperFactory.t.sol",
+      "sha256": "144b4f9dc4318e3fe16576f0563b00053448f04ceb7e48b2d70e81eb1a9193e9"
+    }
+  ],
+  "buildAndToolingFiles": [
+    {
+      "path": "foundry.toml",
+      "sha256": "075d71aa8cb805cf47f2bdb5bc8a3c543c365ac1f99589e04ffb2482b9f361c3"
+    },
+    {
+      "path": ".foundry-version",
+      "sha256": "ddf1ecdfe0d62b1977a1afee6970e6ef28ad373b08f6e9d547a8e58655da7481"
+    },
+    {
+      "path": "remappings.txt",
+      "sha256": "65229b29cb7f7e8b85b166102ed6858909863de52330ce50effc11ce970e8dda"
+    },
+    {
+      "path": ".gitmodules",
+      "sha256": "70f5fda3eee73f500abaea3e1a41f6d30f423a7b2249e5a090e1817bf2b176d4"
+    },
+    {
+      "path": "package.json",
+      "sha256": "90eac6ce58c27a438b4c6c20aae9142d4fca766de0668f905cb91dcf7f0eebdf"
+    },
+    {
+      "path": "yarn.lock",
+      "sha256": "0915ddc6fbb8607c4b6825b4aac5fba59962f38515c4e8f54bdcda9277a797ac"
+    },
+    {
+      "path": "scripts/coverage.sh",
+      "sha256": "d2f9c485cc571e3241b7f44e53772c2adda8ee84dedcbef96e9a79a734c14d0f"
+    },
+    {
+      "path": "scripts/coverage-spherex.patch",
+      "sha256": "4f66323793d54f88136317d4cf83f2ca4e299f5a32d0934e8afc643905957286"
+    },
+    {
+      "path": "scripts/research/fastlz-reference.py",
+      "sha256": "05e25e15aafb9358b04360ee52e62bfb88ca6ac6473285074c9067d7a6a82081"
+    },
+    {
+      "path": "scripts/check-eip1153.js",
+      "sha256": "bfa830a149ddae9f458790051e43217e3f3560dc64dd3e76c9f8f16e5c369c9e"
+    },
+    {
+      "path": "deployments/write-standard-json.sh",
+      "sha256": "32f9a810a0c4a188c7f890c773f5f011d31c0c96b4313ba2901de71c8bc22510"
+    }
+  ],
+  "submodules": {
+    "lib/forge-std": "b6a506db2262cad5ff982a87789ee6d1558ec861",
+    "lib/openzeppelin-contracts": "fd81a96f01cc42ef1c9a5399364968d0e07e9e90",
+    "lib/solady": "2ba1cc1eaa3bffd5c093d94f76ef1b87b167ff3c",
+    "lib/solmate": "1b3adf677e7e383cc684b5d5bd441da86bf4bf1c"
+  },
+  "excludedProviderSources": [
+    "src/providers/ERC1155RoleProvider.sol",
+    "src/providers/ERC1155RoleProviderFactory.sol",
+    "src/providers/ERC20RoleProvider.sol",
+    "src/providers/ERC20RoleProviderFactory.sol",
+    "src/providers/ERC4626AssetsRoleProvider.sol",
+    "src/providers/ERC4626AssetsRoleProviderFactory.sol",
+    "src/providers/ERC5192RoleProvider.sol",
+    "src/providers/ERC5484RoleProvider.sol",
+    "src/providers/ERC721RoleProvider.sol",
+    "src/providers/ERC721RoleProviderFactory.sol",
+    "src/providers/IERC1155RoleProvider.sol",
+    "src/providers/IERC1155RoleProviderFactory.sol",
+    "src/providers/IERC20RoleProvider.sol",
+    "src/providers/IERC20RoleProviderFactory.sol",
+    "src/providers/IERC4626AssetsRoleProvider.sol",
+    "src/providers/IERC4626AssetsRoleProviderFactory.sol",
+    "src/providers/IERC721RoleProvider.sol",
+    "src/providers/IERC721RoleProviderFactory.sol",
+    "src/providers/IMerkleRoleProvider.sol",
+    "src/providers/IMerkleRoleProviderFactory.sol",
+    "src/providers/MerkleRoleProvider.sol",
+    "src/providers/MerkleRoleProviderFactory.sol",
+    "src/providers/TokenInterfaces.sol"
+  ],
+  "ancillaryExclusions": {
+    "trackedFilesRemoved": 402,
+    "areas": [
+      "deploy-ui/",
+      "deployments/ except write-standard-json.sh",
+      "script/ except common/*.sol and mock/MockArchControllerOwner.sol",
+      "scripts/ except retained coverage, inventory, EIP-1153 probe and offline reference tools",
+      "docs/operations/",
+      "superseded audit inventories and verification records",
+      "deployment environment example, TypeScript config and product issue template"
+    ],
+    "evidenceOwner": "Original evidence and deployment programs remain byte-for-byte in the pinned release base."
+  },
+  "artifactHashEncoding": {
+    "bytecode": "SHA-256 of compiled creation/runtime bytes before immutable substitution; metadata disabled.",
+    "abi": "SHA-256 of ABI JSON with sorted object keys and compact separators; array order preserved."
+  },
+  "compiledArtifacts": [
+    {
+      "artifact": "script/common/DeployScriptBase.sol:CompressedInitCodeStorage",
+      "scope": "support",
+      "creation": {
+        "bytes": 183,
+        "sha256": "8f7847ceabc0bcf46d84a16d1becbf0701ad8cb3277ad1bbd173586a101a877d"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "c01a49a8a694305cdab686a0a7f7a584d605f0ccfdc3f098f412b8e1e7732d6d"
+    },
+    {
+      "artifact": "script/common/DeployScriptBase.sol:DeployScriptBase",
+      "scope": "support",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "4816953833428d0eea080b0d68cc24d5f1772278a7c8ccae8f637eb3d3675f89"
+    },
+    {
+      "artifact": "script/common/DeployScriptBase.sol:InitCodeStorage",
+      "scope": "support",
+      "creation": {
+        "bytes": 231,
+        "sha256": "a6e76f3a259dc521c46442766997889c7729639fde27929fa7ede534c76c9b30"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "8310d9dc6f3cb1395b97ea50140cd2cf346f94882bcd2c3582e5b6ff99965347"
+    },
+    {
+      "artifact": "script/common/DeployScriptBase.sol:V25DeployScriptBase",
+      "scope": "support",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "4816953833428d0eea080b0d68cc24d5f1772278a7c8ccae8f637eb3d3675f89"
+    },
+    {
+      "artifact": "script/common/LibDeployment.sol:JsonUtil",
+      "scope": "support",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "script/common/LibDeployment.sol:LibDeployment",
+      "scope": "support",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "script/common/LibDeployment.sol:StandardInputJson",
+      "scope": "support",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage",
+      "scope": "review",
+      "creation": {
+        "bytes": 350,
+        "sha256": "54b2514515da34e6e6bb84f26d50de08f5e982a2b6c3a2c1a203da51faa83bad"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "8ca580737fc10b4644588c91a28edc6152dd11d43c1d6bba6f00d1126c6eaff4"
+    },
+    {
+      "artifact": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "scope": "review",
+      "creation": {
+        "bytes": 183,
+        "sha256": "8f7847ceabc0bcf46d84a16d1becbf0701ad8cb3277ad1bbd173586a101a877d"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "c01a49a8a694305cdab686a0a7f7a584d605f0ccfdc3f098f412b8e1e7732d6d"
+    },
+    {
+      "artifact": "script/mock/MockArchControllerOwner.sol:IArchControllerBound",
+      "scope": "support",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "885330884b93334b6e4a1ac6dbcc4b0cba7b7a3be153b04c241796bd33a27b67"
+    },
+    {
+      "artifact": "script/mock/MockArchControllerOwner.sol:ILegacyWildcatMarketControllerFactory",
+      "scope": "support",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "a06f5a34fb43374d775e62f3e7edf4164b45d6155961ed6c5340864995bf736c"
+    },
+    {
+      "artifact": "script/mock/MockArchControllerOwner.sol:MockArchControllerOwner",
+      "scope": "support",
+      "creation": {
+        "bytes": 3741,
+        "sha256": "3c9a5c3aaa070a38a557baf0ce3fd841ce2a2bddbc9120406287c2ba6550d0ef"
+      },
+      "runtime": {
+        "bytes": 3081,
+        "sha256": "1e50f164944631e25066d85ccd818eeece5808191c047bec4cb3379398755541"
+      },
+      "abiSha256": "991498c2539cdcff93e6058c2b18dd89b4708a6a9cf2854aea0615f2f0523edb"
+    },
+    {
+      "artifact": "src/HooksFactory.sol:HooksFactory",
+      "scope": "review",
+      "creation": {
+        "bytes": 17281,
+        "sha256": "ad41f886885d7e1e6ceeb899efe7de4314d1564e08359182a15fbb9056c39a42"
+      },
+      "runtime": {
+        "bytes": 16568,
+        "sha256": "0b2d6bcfd836435b324bc485f9b7d671bb337c77a8c51a356303c2afc87b6587"
+      },
+      "abiSha256": "69e3515ba8789c396be01f0b56333ad5e988e521bb0c18f407ce4dd9980c59ea"
+    },
+    {
+      "artifact": "src/HooksFactoryRevolving.sol:HooksFactoryRevolving",
+      "scope": "review",
+      "creation": {
+        "bytes": 17831,
+        "sha256": "98e5f328656d5be988ea9baa1c0b29a924fc79cb30617981196348ac7ebf3462"
+      },
+      "runtime": {
+        "bytes": 17118,
+        "sha256": "e28b8fc6a55f847b445d0d9a6e774ad6248f9f8815ad5534da1d8baf66f77ea6"
+      },
+      "abiSha256": "20458a2da52a4b873105d4ab293737890115e9db6b95c2af52b740c646d4d05c"
+    },
+    {
+      "artifact": "src/IHooksFactory.sol:IHooksFactory",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "f259e29efbd381cf25001b8d180a247258af60f670eaa67ddc696aafcd169fe4"
+    },
+    {
+      "artifact": "src/IHooksFactory.sol:IHooksFactoryEventsAndErrors",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "86f0b81461e398955209c0aadd75b9c63ec73bd691e93b1d7afe6466e5f88e7c"
+    },
+    {
+      "artifact": "src/IHooksFactoryRevolving.sol:IHooksFactoryRevolving",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "62b333a6f2e514575085a1a9c57cd8e457449c96583fbee9df96f6e222a04644"
+    },
+    {
+      "artifact": "src/ReentrancyGuard.sol:ReentrancyGuard",
+      "scope": "review",
+      "creation": {
+        "bytes": 27,
+        "sha256": "f50b39e306dcbc825f5c181a8d4f5a90935008f9777868f68d35e5d847e8de66"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "58e8ec708836c9729630eec869ea6f80c0f8bcc5a58f129528cb9ea346c03dac"
+    },
+    {
+      "artifact": "src/WildcatArchController.sol:WildcatArchController",
+      "scope": "review",
+      "creation": {
+        "bytes": 7359,
+        "sha256": "09b73b04e25f339a844df06a7341c65451cda53b85af93a32553e2684c027ac6"
+      },
+      "runtime": {
+        "bytes": 7063,
+        "sha256": "b6c4a8da279a0a8664c9fb5bd018b737a9013d0bbfe0b78e0518e6ddabcc6094"
+      },
+      "abiSha256": "3a3584c7930bb22b91239baec9a86c097f15b50f6b4f2da056ab773b4964615e"
+    },
+    {
+      "artifact": "src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry",
+      "scope": "review",
+      "creation": {
+        "bytes": 4342,
+        "sha256": "c0aa49b0e848320eeeff46267bb6d5aeb9f79b8a925ad64842918c82ac45745e"
+      },
+      "runtime": {
+        "bytes": 4164,
+        "sha256": "9e0306c046d7c65c76a123874fe4239c70dd6a7e7a0d09e122c6b4a720da2507"
+      },
+      "abiSha256": "e7e3fef29ba9e38ac58940517f10590297853e06a26ecfd747d19a425855f2d0"
+    },
+    {
+      "artifact": "src/WildcatSanctionsEscrow.sol:WildcatSanctionsEscrow",
+      "scope": "review",
+      "creation": {
+        "bytes": 1438,
+        "sha256": "fa7bdb6f62029cfa79f189da1886ff39fa4ffa908dd41993bc9ec5e82eb45783"
+      },
+      "runtime": {
+        "bytes": 1120,
+        "sha256": "9448b18028788b6e3c79f1978ac3aaba32fcc92abfa89bf74a6644776ea68427"
+      },
+      "abiSha256": "a4fc73f8ed17df7828c859ab7d95389da02b7194c915ab3230579d7aab2423b5"
+    },
+    {
+      "artifact": "src/WildcatSanctionsSentinel.sol:WildcatSanctionsSentinel",
+      "scope": "review",
+      "creation": {
+        "bytes": 3471,
+        "sha256": "388b7d16018f9d3b46e88b24b039569716a1db10640c04c800924454f3802b1e"
+      },
+      "runtime": {
+        "bytes": 3220,
+        "sha256": "90ca978784f4f8af4d5e23d4195221f6938be0e8389891f9ba767170cf3e0933"
+      },
+      "abiSha256": "f298739d50693d6172d309117e66473dd3918cc940392fc76898d9e381574a8e"
+    },
+    {
+      "artifact": "src/access/BaseAccessControls.sol:BaseAccessControls",
+      "scope": "review",
+      "creation": {
+        "bytes": 7411,
+        "sha256": "8b24b287589198497d889fd5011e6f2a6253addd92ef0c44d15c3c69cc44c32c"
+      },
+      "runtime": {
+        "bytes": 7255,
+        "sha256": "be79eab391b0260a08e700933991315ebc944c48cfb036b3e4bf35cb794fd416"
+      },
+      "abiSha256": "0ec09b814b42ade99de4853c3465f717832328ce966e129624bdaa6cca015aed"
+    },
+    {
+      "artifact": "src/access/BaseHooks.sol:BaseHooks",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "4c022b702531f6fe28489fa22b6f10772dd152c26d696f27f1b0c66cf5b4998e"
+    },
+    {
+      "artifact": "src/access/FixedTermHooks.sol:FixedTermHooks",
+      "scope": "review",
+      "creation": {
+        "bytes": 19470,
+        "sha256": "665dc5bd06d2ffc763bf600e2e363398a2f9b6378fa2737b214ebe94febc6cb2"
+      },
+      "runtime": {
+        "bytes": 16985,
+        "sha256": "5ab245dbed4cd7fb33d184463446bd4f7ac3831a54908d49712bff5beabd7ba3"
+      },
+      "abiSha256": "709801749716c183bdcc5a111454a878420ee6ca5823dbe0ade733f81f51ad99"
+    },
+    {
+      "artifact": "src/access/FixedTermPolicy.sol:FixedTermPolicy",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "c9510e0c4d60d233beccb5be65d0b1578d8557e1c1e9ac9269f688baa0447798"
+    },
+    {
+      "artifact": "src/access/IHooks.sol:IHooks",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "c2681d440c0bd671edaca8d9d290f6806f641eb4c361b2efa7cc3abc5b69a92d"
+    },
+    {
+      "artifact": "src/access/IHooksAdministrator.sol:IHooksAdministrator",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "d44a4effd805473b540b64bee944703f9dd0b045bd32dd2cb4bd00e6d0fb335e"
+    },
+    {
+      "artifact": "src/access/IHooksAdministrator.sol:IHooksFactoryAdministratorCallback",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "2511034271f9f32882696f362cf75d9ea04b815a6a65f44d5d118dbf4a9829e6"
+    },
+    {
+      "artifact": "src/access/IManagedRoleProvider.sol:IManagedRoleProvider",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "7792cbe82744f235982d4af1130e282c55c919a6edcdd2c404f3ee644f461cac"
+    },
+    {
+      "artifact": "src/access/IMarketTransferPolicy.sol:IMarketTransferPolicy",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "3bdc6e7070fd476ad3c16861da70e61de135f02a14836c6b64d128e693ad0e36"
+    },
+    {
+      "artifact": "src/access/IRoleProvider.sol:IRoleProvider",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "756ced3f6651c16d1e1447d432500aa67976909f61945912dec568a701478fc3"
+    },
+    {
+      "artifact": "src/access/IRoleProviderFactory.sol:IRoleProviderFactory",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "d1d6498efd72f3fcea8c7d6a88b163b2e9a67e85e235c7e47ece41b1dcac174e"
+    },
+    {
+      "artifact": "src/access/MarketConstraintHooks.sol:IMarketLifecycleView",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "d07930a1111f847ff6598ec3d40be6f70543cebe6f1ce60488effed90dcc57e1"
+    },
+    {
+      "artifact": "src/access/MarketConstraintHooks.sol:MarketConstraintHooks",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "cda82aa11e8b9d463781188d39f0975eb4f33c12c717ac21fee20c41e458fa44"
+    },
+    {
+      "artifact": "src/access/OpenTermHooks.sol:OpenTermHooks",
+      "scope": "review",
+      "creation": {
+        "bytes": 17955,
+        "sha256": "975d5f1c2d4178390f10d1ee83e13a6974a4874a1bbf8941c44009658125f690"
+      },
+      "runtime": {
+        "bytes": 15471,
+        "sha256": "bcf3e8d441b495df60cf54f275a776e372740c006885f836680e312c4ea4869d"
+      },
+      "abiSha256": "b0b2849fa7c9e63b59d27c1b6917de53029116ced190d3c83c16e208877c6e5e"
+    },
+    {
+      "artifact": "src/access/OpenTermPolicy.sol:OpenTermPolicy",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "4c022b702531f6fe28489fa22b6f10772dd152c26d696f27f1b0c66cf5b4998e"
+    },
+    {
+      "artifact": "src/access/PeriodicTermHooks.sol:PeriodicTermHooks",
+      "scope": "review",
+      "creation": {
+        "bytes": 22708,
+        "sha256": "a3458328d8273943f7cb0534c3c4bba761ed976735c379624702e63537ef283b"
+      },
+      "runtime": {
+        "bytes": 20223,
+        "sha256": "a3c2fec1e339cc9c3e285a011776da54d5e6bcccd4e8e3a6eea4ff926939dec9"
+      },
+      "abiSha256": "7546769419be9306f96c42481cdcc8b244e58e7bb751c27033b6122bce711ded"
+    },
+    {
+      "artifact": "src/access/PeriodicTermPolicy.sol:PeriodicTermPolicy",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "53496c2a2a09e563cf2cc628c8cf85d6b7b348340201ed024d80341955a960a6"
+    },
+    {
+      "artifact": "src/access/types/PeriodicTermHookTypes.sol:IMarketApr",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "bb5c141d14a884f62397cce1b305eedc79bb6f526e07af517da27c7adb74d81e"
+    },
+    {
+      "artifact": "src/interfaces/IBorrowerIdentityRegistry.sol:IBorrowerIdentityRegistry",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "2cd5eeaa9409339c3d35e496263a3fd11093a9622a5509b48b2025d590d0f558"
+    },
+    {
+      "artifact": "src/interfaces/IChainalysisSanctionsList.sol:IChainalysisSanctionsList",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "b1d607b04988bc1f05aea5a8e87fb51159efba0f305e2708e11a6302e1cc8cb4"
+    },
+    {
+      "artifact": "src/interfaces/IERC20.sol:IERC20",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "b54010bb2366a9045ab667fbc0cf8636dfc1d1d5640bff396784279aa1d44d53"
+    },
+    {
+      "artifact": "src/interfaces/IMarketEventsAndErrors.sol:IMarketEventsAndErrors",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "8ff8349a2abe60bd936df01fe36beacf1f3a356640f00424b638ffa19171bf34"
+    },
+    {
+      "artifact": "src/interfaces/ISphereXProtectedRegisteredBase.sol:ISphereXProtectedRegisteredBase",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "4c339a561a0e0c5ee6e9fab8021b3baccea6dead2b9c68384ddb976fb7a0cb3d"
+    },
+    {
+      "artifact": "src/interfaces/IWildcatArchController.sol:IWildcatArchController",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "0c4db0a5b0f13d5f8c004b871554680af83e84d388afe0e0ba81dd6da5804944"
+    },
+    {
+      "artifact": "src/interfaces/IWildcatMarketRevolving.sol:IWildcatMarketRevolving",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "f602e8a917ba5247304cdf96203f212412407e577acc4afcb6ddc986cd7fddd7"
+    },
+    {
+      "artifact": "src/interfaces/IWildcatSanctionsEscrow.sol:IWildcatSanctionsEscrow",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "4c69ed1fdc1bafd3dd0c3787ae599ed3d1d44e3d770e2b1f53e6306c5d9d01de"
+    },
+    {
+      "artifact": "src/interfaces/IWildcatSanctionsSentinel.sol:IWildcatSanctionsSentinel",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "2953781ffab77bc1848da6455c71f21c175304faaca1b82887625efbbf51b5a3"
+    },
+    {
+      "artifact": "src/lens/HooksConfigData.sol:HooksConfigDataLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/lens/HooksDataForBorrower.sol:HooksDataForBorrowerLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/lens/HooksInstanceData.sol:HooksInstanceDataLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4430b59329738b7c633b48e5069be049b0f886209f0f32e87d5c2b87731fbd62"
+    },
+    {
+      "artifact": "src/lens/HooksTemplateData.sol:HooksTemplateDataLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/lens/LenderAccountData.sol:IVersionedContract",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "f38088996152ae7bee6b13094b0e8e517aad824274e62e6621a6d11ba93dbdad"
+    },
+    {
+      "artifact": "src/lens/LenderAccountData.sol:LenderAccountDataLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/lens/MarketAccountingReader.sol:MarketAccountingReader",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/lens/MarketData.sol:MarketDataLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "de6cba899ca4eb424a1ccfbacc536ae5f743c4df236cf3ada625b38eaf3e605d"
+    },
+    {
+      "artifact": "src/lens/MarketLens.sol:MarketLens",
+      "scope": "review",
+      "creation": {
+        "bytes": 4888,
+        "sha256": "7367587b03a9467621cca34145a7e19e7c2d8a45de919ecd146ca7437bdaa6b1"
+      },
+      "runtime": {
+        "bytes": 4512,
+        "sha256": "90025a48e306976e8461238871ad7de0b85eed18a3a691b02a4bde75c59d4950"
+      },
+      "abiSha256": "29d9bdf8e7a84a73b5d61c394a4bc4f82630fcc9a281758c88443523f2e02452"
+    },
+    {
+      "artifact": "src/lens/MarketLensAggregator.sol:MarketLensAggregator",
+      "scope": "review",
+      "creation": {
+        "bytes": 22632,
+        "sha256": "709ddc257341924441546c64702d03f79367a38cbcba0355b487af98400eab02"
+      },
+      "runtime": {
+        "bytes": 22364,
+        "sha256": "00c6294fd139364bcf9293366427fec00de2cdd9d01b94cc4b0f0df9d906c865"
+      },
+      "abiSha256": "6591d6cd41c8a2616636bb7655998a05e3b0f5e0c741d8310149c5ac96b937cb"
+    },
+    {
+      "artifact": "src/lens/MarketLensCore.sol:MarketLensCore",
+      "scope": "review",
+      "creation": {
+        "bytes": 21601,
+        "sha256": "ec72d8f892c311fca7aa0e10ce46fe5c398d40372e95b32cb0c8635444bb7822"
+      },
+      "runtime": {
+        "bytes": 21431,
+        "sha256": "48ec78ff102a3769b6480caf5da54b5817b8bc06d446299ea6810a8fa3b57da6"
+      },
+      "abiSha256": "e0cd9e3f06add1b10b2639ce4ae9765a07c6012efd6e2960a09da8d52bf48b96"
+    },
+    {
+      "artifact": "src/lens/MarketLensLive.sol:MarketLensLive",
+      "scope": "review",
+      "creation": {
+        "bytes": 6163,
+        "sha256": "7efb99a5ff5d8adda9923322339216e05b3ba36f5d9a44a498da76d82b9eae67"
+      },
+      "runtime": {
+        "bytes": 5993,
+        "sha256": "6a8acd75051814646d39492e700706c0a6c5adbc7f3f80638993db7b6d83a630"
+      },
+      "abiSha256": "93e13efc3735942505601de33a0ed09b8c08686a88749d8a014fbd3ea7ffe4fb"
+    },
+    {
+      "artifact": "src/lens/MarketLifecycleData.sol:MarketLifecycleDataLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/lens/MarketLiveData.sol:MarketLiveDataLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/lens/OptionalData.sol:OptionalDataLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/lens/RoleProviderData.sol:RoleProviderDataLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/lens/TokenData.sol:TokenMetadataLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/lens/WithdrawalBatchData.sol:WithdrawalBatchDataLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/lens/interfaces/IMarketLensAggregator.sol:IMarketLensAggregator",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "290000887f19f9b99cb454774146a598e9edd9f18f3e9189b22960c5249ebb36"
+    },
+    {
+      "artifact": "src/lens/interfaces/IMarketLensCore.sol:IMarketLensCore",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "039765f34008af3f0d329fc499180425b8323b5c7a464ce0fd061371ca45d385"
+    },
+    {
+      "artifact": "src/lens/interfaces/IMarketLensLive.sol:IMarketLensLive",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "9e312e505847c485588077b65043877d0e31964f8691bf5cd01bfe4d47a921dd"
+    },
+    {
+      "artifact": "src/libraries/BoolUtils.sol:BoolUtils",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/libraries/FIFOQueue.sol:FIFOQueueLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "b5dff91e67452ab3b1ea84aa55004d320cc914d2c0daf5d1a002707b68e5c1ae"
+    },
+    {
+      "artifact": "src/libraries/FeeMath.sol:FeeMath",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/libraries/FunctionTypeCasts.sol:FunctionTypeCasts",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/libraries/LibCompressedInitCode.sol:CompressedInitCodeReader",
+      "scope": "review",
+      "creation": {
+        "bytes": 360,
+        "sha256": "58826ef0abbdba1224547e147f63ceb2630784f9d6d73c214d415e6af28fe5a9"
+      },
+      "runtime": {
+        "bytes": 334,
+        "sha256": "0e9723f931faf7eb4085e6f34e71f963f88876bcf016885a53bee9cf3404f144"
+      },
+      "abiSha256": "f5e20fac84184f51a48505cd15df9d16a895262274e1bb05f88bcc269e5d3db7"
+    },
+    {
+      "artifact": "src/libraries/LibCompressedInitCode.sol:LibCompressedInitCode",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "d9a3b6303dee2fc8bf6cdd13c1089ae01bfd196ff5705cc6c920f916800e0a0a"
+    },
+    {
+      "artifact": "src/libraries/LibERC20.sol:LibERC20",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "ce8bae820463ac586d92eda702873be6c2eee20253ee05ca86e03b90377339fa"
+    },
+    {
+      "artifact": "src/libraries/LibFixedCall.sol:LibFixedCall",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/libraries/LibSplitInitCode.sol:LibSplitInitCode",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "d9a3b6303dee2fc8bf6cdd13c1089ae01bfd196ff5705cc6c920f916800e0a0a"
+    },
+    {
+      "artifact": "src/libraries/LibSplitInitCode.sol:SplitInitCodeReader",
+      "scope": "review",
+      "creation": {
+        "bytes": 138,
+        "sha256": "86e39777b774db5fe22d4b050be9f95ec88ac2329593c41f489091c66588f8f4"
+      },
+      "runtime": {
+        "bytes": 114,
+        "sha256": "9ff0e675531be0be46634d79bf0a92b5ca476041bc285ee77df721387f1ccf49"
+      },
+      "abiSha256": "f5e20fac84184f51a48505cd15df9d16a895262274e1bb05f88bcc269e5d3db7"
+    },
+    {
+      "artifact": "src/libraries/LibStoredInitCode.sol:LibStoredInitCode",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "8e9f565db416994a1a413d240d0307e718cdadf37a50c9d02e2ecac99f84de77"
+    },
+    {
+      "artifact": "src/libraries/MarketLifecycle.sol:MarketLifecycleLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/libraries/MarketState.sol:MarketStateLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/libraries/MathUtils.sol:MathUtils",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "53be99349c24c3959ce85588652a5ee7a3096e049a3816d8de65ecabf30862ef"
+    },
+    {
+      "artifact": "src/libraries/SafeCastLib.sol:SafeCastLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/libraries/Withdrawal.sol:WithdrawalLib",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/market/WildcatMarket.sol:WildcatMarket",
+      "scope": "review",
+      "creation": {
+        "bytes": 25623,
+        "sha256": "edb872026c8e2015c2dec0df0dda8028a34d695ec4be9d94593e7e3de43a7e1d"
+      },
+      "runtime": {
+        "bytes": 23985,
+        "sha256": "6e6df41c13c1be0ac4f330cff1fae352849497d8b981d777513d15e7a136bd16"
+      },
+      "abiSha256": "e3e45bd8354e61a7c6f1e597fce2d93d16a13a79e68f6e32ba969fedadb84b43"
+    },
+    {
+      "artifact": "src/market/WildcatMarketBase.sol:WildcatMarketBase",
+      "scope": "review",
+      "creation": {
+        "bytes": 11005,
+        "sha256": "9a86775ff40e59e0a1c1e563ad81a35b627408289124eebd56149023f3c26439"
+      },
+      "runtime": {
+        "bytes": 9549,
+        "sha256": "f53116325445fd8f4ed8dacdeab780b88c5c86677bb53e2bc666ea4299021387"
+      },
+      "abiSha256": "493d88dbc626d4f33c8255927992986b9fcfcfc5c78c4975990ebcfe7cbf8348"
+    },
+    {
+      "artifact": "src/market/WildcatMarketConfig.sol:IPeriodicTermAprReductionHooks",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "3966203c1973c26d53a795b05979cd06cc8be9c47eacbd14a04310e60e799a6b"
+    },
+    {
+      "artifact": "src/market/WildcatMarketConfig.sol:WildcatMarketConfig",
+      "scope": "review",
+      "creation": {
+        "bytes": 16215,
+        "sha256": "ab29663358efcfbe1ad32132af9a3b16cba4d5c7d63ebbf42eccdcb56865daa5"
+      },
+      "runtime": {
+        "bytes": 14738,
+        "sha256": "55a3d793876eedf825d2835fa646e7a5896af69bf98832d350f7c67fb675fb2c"
+      },
+      "abiSha256": "6364b754e58fcebe785460c2d73c57a00d543b956f7655c3d902acd10a85c5c9"
+    },
+    {
+      "artifact": "src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving",
+      "scope": "review",
+      "creation": {
+        "bytes": 26243,
+        "sha256": "45314e544451974d893745fd76baa70c425e99a377fba57ece7ac1a4dc38d3e1"
+      },
+      "runtime": {
+        "bytes": 24541,
+        "sha256": "87b622830f21dbd151b9722d0d607e96edfea4b5a0233902a778385d44a3ab86"
+      },
+      "abiSha256": "f831ab8b9e04e2b2b3f36ff7aa676b6732f03a12279c80c39ceb6d0a439ce348"
+    },
+    {
+      "artifact": "src/market/WildcatMarketToken.sol:WildcatMarketToken",
+      "scope": "review",
+      "creation": {
+        "bytes": 14561,
+        "sha256": "f0d8feda7a06caf3841fedb4492ae85fd146112d928fd9380391ce224298ef8e"
+      },
+      "runtime": {
+        "bytes": 13133,
+        "sha256": "31327d00b82c8a0d72f464f13fa094ebe7b1a29d3e1697cd567b66566095cb72"
+      },
+      "abiSha256": "dabb8b1755b478cd854c18cdff692c9cad51452d8c4f26fdb27efa7a531b3e54"
+    },
+    {
+      "artifact": "src/market/WildcatMarketWithdrawals.sol:WildcatMarketWithdrawals",
+      "scope": "review",
+      "creation": {
+        "bytes": 18033,
+        "sha256": "fec6bd5babd95a5398b6c4ac79e5981477ffe096c7e0e9b595fced453e891887"
+      },
+      "runtime": {
+        "bytes": 16556,
+        "sha256": "3146f81e6816ba8851a3c8be7c0f3bc410067a5dbe59c4688a4dc977ef7eeef7"
+      },
+      "abiSha256": "74c09904e305e425e39f4ea7ed4604c8ca8c4d23bfad5179b4dfed6ab614f283"
+    },
+    {
+      "artifact": "src/providers/AccessListRoleProvider.sol:AccessListRoleProvider",
+      "scope": "review",
+      "creation": {
+        "bytes": 3163,
+        "sha256": "c76411284492de03e43368bc5ea5597adc1e893c4ad2cddeca2705a98826ec3a"
+      },
+      "runtime": {
+        "bytes": 2600,
+        "sha256": "1ed83b683ad028bcf3d4433d9f45e2c02ef78c35221b83046487e876344319e5"
+      },
+      "abiSha256": "fbca43a76a16c1bb01a20e0303cb41ddc850a7e08eac816656d0d4841339a164"
+    },
+    {
+      "artifact": "src/providers/AccessListRoleProviderFactory.sol:AccessListRoleProviderFactory",
+      "scope": "review",
+      "creation": {
+        "bytes": 4387,
+        "sha256": "ff77e59674d32d851f10c10fddcc0c1d6e2e04b893d04c7f3ff3c2b62ac8b996"
+      },
+      "runtime": {
+        "bytes": 4361,
+        "sha256": "16efa1a31d7a29e834b4af275fa04dea37bdc3508ed9f9caea087fb165cde4d3"
+      },
+      "abiSha256": "2a8031948c9db921e70cffdf6bef330642ea2d7cf5154ff2095864293d55f8f0"
+    },
+    {
+      "artifact": "src/providers/IAccessListRoleProvider.sol:IAccessListRoleProvider",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "eb2a1a7b15ced1277edc3deebabae7bcdf5714a3e5485917135eace25e13ace4"
+    },
+    {
+      "artifact": "src/providers/IAccessListRoleProviderFactory.sol:IAccessListRoleProviderFactory",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "16b2ce5f3206355797afa0fdf4a066b35cfd7a86139498cd789c8e7c259c7268"
+    },
+    {
+      "artifact": "src/providers/ManagedRoleProvider.sol:ManagedRoleProvider",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "7792cbe82744f235982d4af1130e282c55c919a6edcdd2c404f3ee644f461cac"
+    },
+    {
+      "artifact": "src/spherex/ISphereXEngine.sol:ISphereXEngine",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "31ed7fab50bfee30775cff31be04e96b29297a3809b026ddabf78c9c89ae3f9f"
+    },
+    {
+      "artifact": "src/spherex/SphereXConfig.sol:SphereXConfig",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "7482251bdb4edb7ac15595d491b7edc166dabc4296b75fef599ef5a7008863f4"
+    },
+    {
+      "artifact": "src/spherex/SphereXProtectedRegisteredBase.sol:SphereXProtectedRegisteredBase",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "4c339a561a0e0c5ee6e9fab8021b3baccea6dead2b9c68384ddb976fb7a0cb3d"
+    },
+    {
+      "artifact": "src/types/HooksConfig.sol:LibHooksConfig",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/types/LenderStatus.sol:LibLenderStatus",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/types/RoleProvider.sol:LibRoleProvider",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/types/TransientBytesArray.sol:LibTransientBytesArray",
+      "scope": "review",
+      "creation": {
+        "bytes": 31,
+        "sha256": "2067ac46f280f650f96fa87cb079a94fa3e6b00aea566108a20ca15326dd56df"
+      },
+      "runtime": {
+        "bytes": 3,
+        "sha256": "0668b20e4ee135e7cac4091998933a5123658a8e777994fdb4b4ee2d553e6438"
+      },
+      "abiSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "artifact": "src/vault/Wildcat4626Wrapper.sol:IWildcatMarketToken",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "739e2513a89b89ced5ce54e5f44e2f4829d7261c3cc1a6b4c33ea877487ce73f"
+    },
+    {
+      "artifact": "src/vault/Wildcat4626Wrapper.sol:Wildcat4626Wrapper",
+      "scope": "review",
+      "creation": {
+        "bytes": 10232,
+        "sha256": "f1008e85276d9598dd7951b6ecc104480530b2518dfe0c3520f1b944d46fa42e"
+      },
+      "runtime": {
+        "bytes": 8687,
+        "sha256": "4736468fa1bc255344a758b8c2e9cd1ab0742eb6fc00d72fd351436563707a43"
+      },
+      "abiSha256": "a264bdab8aaa4432421dc74b226ae5ec9bdf491dbf247bf2169c624392ac11d6"
+    },
+    {
+      "artifact": "src/vault/Wildcat4626WrapperFactory.sol:IMarketRounding",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "f190a57119abc95c187f31fb0d158097e1d2c48309dd02795598658a25963b92"
+    },
+    {
+      "artifact": "src/vault/Wildcat4626WrapperFactory.sol:IWildcat4626WrapperFactoryV1",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "5d5b193e095aa1d426548d6118a651d7287f991da857186d80b694459bfa6da7"
+    },
+    {
+      "artifact": "src/vault/Wildcat4626WrapperFactory.sol:IWrapperAwareMarket",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "80cc6037008f5a94a3f089bb9acc059d79e336afb75d787347d8686b5adf0261"
+    },
+    {
+      "artifact": "src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory",
+      "scope": "review",
+      "creation": {
+        "bytes": 12600,
+        "sha256": "579c3a89ea03ef7c7248a1e19e20eb9efdfb6942421aae7ebe39ca8b65292cd2"
+      },
+      "runtime": {
+        "bytes": 12216,
+        "sha256": "5c3facaec5cc9fb9f214f0367a1b285fb902d09832664f4adc31aaa2a52c2fbe"
+      },
+      "abiSha256": "6c5f646349b3f76e4b1b71c7c90f40bdbf732d26960ffb9afa17fcdad70680da"
+    }
+  ],
+  "compilerContext": {
+    "retainedInput": "lib/solady/src/utils/MerkleProofLib.sol",
+    "importedBy": "test/mocks/LiveBalanceRoleProviderMock.sol",
+    "reason": "Retain release compiler context after excluding the Merkle provider. Removing this input changes compiler-generated IDs and lens optimizer output under Solidity 0.8.25. The canonical full test build matches the release artifacts; arbitrary narrowed input graphs are not guaranteed to do so."
+  }
+}

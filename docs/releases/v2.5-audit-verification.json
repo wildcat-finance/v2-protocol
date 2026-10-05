@@ -1,0 +1,296 @@
+{
+  "schemaVersion": "1.0.0",
+  "observedOn": "2026-10-05",
+  "scope": "Audit-package preparation: source and ABI/bytecode identity, canonical tests, focused coverage, formatting, lint, and documentation checks. No deployment, chain-state validation, or new security-detector review.",
+  "releaseBase": "bfe1412141f263ba6b056c60c3f4654a461598dd",
+  "manifest": {
+    "path": "docs/releases/v2.5-audit-manifest.json",
+    "sha256": "ad8d2cdc37e64dd186783ab734b8d5f2b6d1634548cd6364c58951a9f2774f1c"
+  },
+  "canonical": {
+    "command": "forge test --block-timestamp 1724284800 --fuzz-seed 0x5eed --summary",
+    "profile": "default",
+    "coldBuild": true,
+    "exitCode": 0,
+    "foundryVersion": "1.8.3",
+    "foundryCommit": "cae51ad458f6abb64852b7709eb784352429825d",
+    "solidityVersion": "0.8.25+commit.b61c2a91",
+    "evmVersion": "cancun",
+    "viaIR": true,
+    "optimizerRuns": 1,
+    "optimizerSteps": "Exact sequence in the unchanged foundry.toml.",
+    "metadataHash": "none",
+    "cborMetadata": false,
+    "isolate": true,
+    "dynamicTestLinking": true,
+    "compilerSourceUnits": 283,
+    "compilerSeconds": 255.01,
+    "wallTime": "6:50.38",
+    "passed": 907,
+    "failed": 0,
+    "skipped": 0,
+    "suites": 85,
+    "fuzzRuns": 1000,
+    "invariants": {
+      "campaigns": 3,
+      "properties": 11,
+      "runsPerCampaign": 2000,
+      "depth": 30,
+      "callsPerCampaign": 60000,
+      "handlerReverts": 0
+    },
+    "logSha256": "3d038fe58eb471a2562ec839128ac42e6fa6a1d49db8654b25513837a39f8572"
+  },
+  "sourceAndArtifactComparison": {
+    "reviewFilesUnchanged": 100,
+    "supportingSolidityFilesUnchanged": 3,
+    "compilerConfigurationUnchanged": true,
+    "submodulePinsUnchanged": true,
+    "retainedArtifacts": 111,
+    "reviewArtifacts": 101,
+    "supportArtifacts": 10,
+    "matchingAbis": 111,
+    "matchingCreationBytecode": 111,
+    "matchingRuntimeBytecode": 111,
+    "exceptions": [],
+    "comparisonBasis": "Release checkout artifacts validated against source metadata and the pinned release commit; canonical audit artifacts compared before immutable substitution. This is source-build evidence, not deployed-bytecode identity."
+  },
+  "testAccounting": {
+    "baselineReportedResults": 958,
+    "packageReportedResults": 907,
+    "testFunctions": 904,
+    "invariantProperties": 11,
+    "removedEntryPoints": [
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.test_merkle_ConstructorAndMembershipSurface",
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.testFuzz_merkleGeneratedProofValidatesOnlyItsAccount",
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.testFuzz_merkleMalformedCredentialDataFailsClosed",
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.test_merkle_NonCanonicalCredentialEncodingsFailClosed",
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.test_merkle_SingleLeafAcceptsCanonicalEmptyProof",
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.test_merkle_RootUpdatesEmitAndRequireAdministrator",
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.test_merkleHook_ValidProofAllowsMemberAndRejectsNonmember",
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.test_merkleHook_RootUpdateRespectsPositiveTtl",
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.test_merkleHook_ZeroTtlUsesSameBlockCredentialThenRequiresFreshProof",
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.test_merkleHook_MalformedDataFailsClosed",
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.test_merkleHook_EmptyProofTracksSingleLeafRootUpdates",
+      "test/providers/RoleProviderFactories.t.sol:RoleProviderFactoriesTest.testFuzz_typedERC20FactoryCreatesExpectedProvider",
+      "test/providers/RoleProviderFactories.t.sol:RoleProviderFactoriesTest.testFuzz_typedERC721FactoryCreatesExpectedProvider",
+      "test/providers/RoleProviderFactories.t.sol:RoleProviderFactoriesTest.testFuzz_typedERC1155FactoryCreatesExpectedProvider",
+      "test/providers/RoleProviderFactories.t.sol:RoleProviderFactoriesTest.testFuzz_typedERC4626FactoryCreatesExpectedProvider",
+      "test/providers/RoleProviderFactories.t.sol:RoleProviderFactoriesTest.testFuzz_typedMerkleFactoryCreatesExpectedProvider",
+      "test/providers/RoleProviderFactories.t.sol:RoleProviderFactoriesTest.test_zeroMinimumsRevert",
+      "test/providers/RoleProviderFactories.t.sol:RoleProviderFactoriesTest.test_invalidTokenInterfacesRevert",
+      "test/providers/RoleProviderFactories.t.sol:RoleProviderFactoriesTest.test_skippingTokenInterfaceChecksCreatesUsableProviders",
+      "test/providers/RoleProviderFactories.t.sol:RoleProviderFactoriesTest.test_merkleZeroRootIsAllowed",
+      "test/providers/RoleProviderFactories.t.sol:RoleProviderFactoriesTest.test_merkleFactoryHasNoProviderAuthority",
+      "test/providers/RoleProviderHookIntegration.t.sol:RoleProviderHookIntegrationTest.test_pullProviderMatrix_RoutesCurrentCredentialsIntoDeposit",
+      "test/providers/RoleProviderHookIntegration.t.sol:RoleProviderHookIntegrationTest.test_pullProviderMatrix_ZeroTtlRechecksAndFollowsEligibility",
+      "test/providers/RoleProviderHookIntegration.t.sol:RoleProviderHookIntegrationTest.test_pullProviderMatrix_PositiveTtlDelaysRemoval",
+      "test/providers/RoleProviderHookIntegration.t.sol:RoleProviderHookIntegrationTest.test_pullProviderMatrix_FailedReadsFailClosedAndDoNotMaskLaterProviders",
+      "test/providers/RoleProviderHookIntegration.t.sol:RoleProviderHookIntegrationTest.test_erc4626ConversionFailureAlsoFailsClosed",
+      "test/providers/RoleProviderHookIntegration.t.sol:RoleProviderHookIntegrationTest.test_hookBlockOverridesAnEligibleProvider",
+      "test/providers/RoleProviderHookIntegration.t.sol:RoleProviderHookIntegrationTest.test_pushProviderMatrix_RoutesPackedCredentialsIntoDeposit",
+      "test/providers/RoleProviderHookIntegration.t.sol:RoleProviderHookIntegrationTest.test_pushProviderMatrix_ExpiredCredentialsRequireFreshOwnership",
+      "test/providers/RoleProviderHookIntegration.t.sol:RoleProviderHookIntegrationTest.test_pushProviderMatrix_MalformedCredentialDataFailsClosed",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.test_constructorRejectsAddressesWithoutCode",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.test_constructorRejectsZeroMinimums",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.test_constructorRejectsMissingTokenInterfaces",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.test_constructorRejectsInvalidERC165Implementations",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.test_constructorFailsClosedWhenInterfaceReadReverts",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.test_skippingInterfaceChecksCreatesUsableProviders",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.testFuzz_erc20CredentialTracksCurrentBalance",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.testFuzz_erc20ExactBoundaryAndBalanceMove",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.testFuzz_erc721CredentialTracksCollectionBalance",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.testFuzz_erc1155CredentialMatchesConfiguredBalance",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.testFuzz_erc1155CredentialMovesAndIgnoresOtherIds",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.testFuzz_erc4626CredentialMatchesConvertedAssets",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.testFuzz_erc4626ExactBoundaryAndShareMove",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.test_erc4626ZeroShareBalanceSkipsConversion",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.testFuzz_erc5192CredentialFollowsOwnershipAndLock",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.test_erc5192LockedRequirementIsOptional",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.test_erc5192MalformedDataAndTokenReadFailuresFailClosed",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.testFuzz_erc5484CredentialMatchesAllowedBurnAuthorization",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.test_erc5484CredentialFollowsOwnership",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.test_erc5484MalformedUndefinedAndReadFailuresFailClosed",
+      "test/providers/TokenRoleProviders.t.sol:TokenRoleProvidersTest.test_erc5484ConstructorRejectsInvalidBurnAuthMasks"
+    ],
+    "adaptedEntryPoints": [
+      "test/integration/Wildcat4626WrapperIntegration.t.sol:Wildcat4626WrapperIntegrationTest.test_wildcatDebtTokenCannotAuthorizeDepositsIntoItsOwnMarket",
+      "test/integration/Wildcat4626WrapperIntegration.t.sol:Wildcat4626WrapperIntegrationTest.test_wildcatDebtTokenInterestCanAuthorizeADifferentMarket",
+      "test/integration/Wildcat4626WrapperIntegration.t.sol:Wildcat4626WrapperIntegrationTest.test_wildcatWrapperInterestCanAuthorizeADifferentMarket",
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.test_managedProviderMatrix_RejectsZeroAdministrator",
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.test_managedProviderMatrix_RequestReplaceAndCancelTransfer",
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.test_managedProviderMatrix_TransferErrors",
+      "test/providers/ManagedRoleProviders.t.sol:ManagedRoleProvidersTest.test_managedProviderMatrix_AcceptMovesAuthorityAndPreservesConfiguration",
+      "test/providers/RoleProviderFactories.t.sol:RoleProviderFactoriesTest.test_invalidPrimaryAddressesRevert",
+      "test/providers/RoleProviderFactories.t.sol:RoleProviderFactoriesTest.test_hookConstructorsCreateAndAttachProviders"
+    ],
+    "removalReasons": {
+      "TokenRoleProvidersTest": 21,
+      "RoleProviderHookIntegrationTest": 9,
+      "ManagedRoleProvidersTestMerkleCases": 11,
+      "RoleProviderFactoriesTestExcludedProviders": 10
+    },
+    "matrixChanges": "Retain AccessList cases and their assertions; remove excluded provider cases and fixture helpers.",
+    "wrapperRegressions": "Three retained tests use a live-balance mock in place of excluded providers; real debt-token/vault reads, interest thresholds, assertions and reentrancy failures are preserved."
+  },
+  "coverage": {
+    "status": "partial",
+    "inputs": [
+      "test/sanctions",
+      "test/spherex",
+      "test/types",
+      "test/providers",
+      "test/root",
+      "test/vault",
+      "test/access/BaseAccessControls.t.sol",
+      "test/access/FixedTermHooks.t.sol",
+      "test/access/MarketConstraintHooks.t.sol",
+      "test/access/OpenTermHooks.t.sol",
+      "test/access/PeriodicTermHooks.t.sol",
+      "test/integration/HookDispatch.t.sol",
+      "test/integration/Wildcat4626WrapperIntegration.t.sol",
+      "test/invariants/MarketMatrixInvariant.t.sol",
+      "test/lens/MarketAccountingReader.t.sol",
+      "test/lens/MarketLensAggregator.t.sol",
+      "test/lens/MarketLensCore.t.sol",
+      "test/lens/MarketLensFacade.t.sol",
+      "test/lens/MarketLensOptionalData.t.sol",
+      "test/libraries/BoolUtils.t.sol",
+      "test/libraries/BoundedMarketState.t.sol",
+      "test/libraries/CompressedInitCode.t.sol",
+      "test/libraries/FIFOQueue.t.sol",
+      "test/libraries/FeeMath.t.sol",
+      "test/libraries/LibERC20.t.sol",
+      "test/libraries/LibFixedCall.t.sol",
+      "test/libraries/LibStoredInitCode.t.sol",
+      "test/libraries/MarketEvents.t.sol",
+      "test/libraries/MarketState.t.sol",
+      "test/libraries/MathUtils.t.sol",
+      "test/libraries/SafeCastLib.t.sol",
+      "test/libraries/SplitInitCode.t.sol",
+      "test/libraries/StringQuery.t.sol",
+      "test/libraries/Withdrawal.t.sol",
+      "test/libraries/WithdrawalRemainderState.t.sol",
+      "test/market/WildcatMarket.t.sol",
+      "test/market/WildcatMarketBorrowerTransfer.t.sol"
+    ],
+    "successfulRuns": 37,
+    "compilerMode": "Non-via-IR via profile coverage, with the temporary SphereX patch.",
+    "fuzzRuns": 1000,
+    "invariantRuns": 8,
+    "invariantDepth": 15,
+    "commandTemplate": "FOUNDRY_TEST=<input> <coverage wrapper> --fuzz-runs 1000 --report lcov --report-file <output>",
+    "wrapperModification": "Temporary copy of scripts/coverage.sh with FOUNDRY_FUZZ_RUNS=32 replaced by FOUNDRY_FUZZ_RUNS=1000 and the repository root supplied explicitly. All other compiler/coverage flags unchanged. The shipped wrapper still defaults to 32.",
+    "baselineSourceCommit": "0e10043568c2051ec368a8fe04282e9cb6333321",
+    "baseline": "Retained-source subset of the 37-run release-suite baseline measured before the rejected test-slimming experiment. All covered production source bytes match this release base.",
+    "coveredSourceFiles": 71,
+    "instrumentedIdentitySetsMatch": true,
+    "totals": {
+      "lines": {
+        "total": 5239,
+        "beforeHit": 4589,
+        "afterHit": 4589,
+        "beforePercent": 87.59,
+        "afterPercent": 87.59
+      },
+      "branches": {
+        "total": 836,
+        "beforeHit": 680,
+        "afterHit": 679,
+        "beforePercent": 81.34,
+        "afterPercent": 81.22
+      },
+      "functions": {
+        "total": 950,
+        "beforeHit": 870,
+        "afterHit": 870,
+        "beforePercent": 91.58,
+        "afterPercent": 91.58
+      }
+    },
+    "lostItems": [
+      {
+        "source": "src/access/BaseHooks.sol",
+        "metric": "branches",
+        "items": [
+          "327,11,0"
+        ]
+      }
+    ],
+    "sourceRestoredAfterEveryRun": true,
+    "limits": [
+      "Whole-suite accurate coverage remains compiler-blocked; the percentages apply only to the instrumented retained-source subset.",
+      "SphereX coverage uses temporarily patched source and bytecode.",
+      "The BaseHooks minimum-deposit regression remains unchanged and passes canonically; its own coverage graph is compiler-blocked. One reported branch at BaseHooks.sol:327 was lost after provider-scope pruning.",
+      "Coverage compilation does not qualify deployment bytecode or runtime limits."
+    ]
+  },
+  "compilerContextInvestigation": {
+    "mergeTreeMatchesFeatureHead": true,
+    "featureHead": "cb9cf2b5fceb56f8432c86004512143bfd8a1bbf",
+    "trigger": "Omitting lib/solady/src/utils/MerkleProofLib.sol from the explicit compiler inputs after excluding the Merkle provider.",
+    "releaseLensRuntimeBytes": 22364,
+    "initialPrunedLensRuntimeBytes": 22306,
+    "resolution": "Retain the library input via the audit-only live-balance mock import. The final canonical build reproduces all 111 retained release artifacts.",
+    "experiments": [
+      {
+        "inputGraph": "audit-plus-all-provider-sources",
+        "sourceUnits": 305,
+        "runtimeBytes": 22306,
+        "runtimeSha256": "5a83c7a2fd630fad51667a90365e5e401fb610e95fabcb636f01ee8a591356cc"
+      },
+      {
+        "inputGraph": "release-with-audit-script-pruning-only",
+        "sourceUnits": 308,
+        "runtimeBytes": 22364,
+        "runtimeSha256": "00c6294fd139364bcf9293366427fec00de2cdd9d01b94cc4b0f0df9d906c865"
+      },
+      {
+        "inputGraph": "release-with-provider-fixture-edits-only",
+        "sourceUnits": 309,
+        "runtimeBytes": 22364,
+        "runtimeSha256": "00c6294fd139364bcf9293366427fec00de2cdd9d01b94cc4b0f0df9d906c865"
+      },
+      {
+        "inputGraph": "audit-plus-merkle-proof-library-only",
+        "sourceUnits": 283,
+        "runtimeBytes": 22364,
+        "runtimeSha256": "00c6294fd139364bcf9293366427fec00de2cdd9d01b94cc4b0f0df9d906c865"
+      },
+      {
+        "inputGraph": "audit-plus-provider-sources-and-merkle-library",
+        "sourceUnits": 306,
+        "runtimeBytes": 22364,
+        "runtimeSha256": "00c6294fd139364bcf9293366427fec00de2cdd9d01b94cc4b0f0df9d906c865"
+      },
+      {
+        "inputGraph": "release-with-merkle-library-discovered-by-import",
+        "sourceUnits": 307,
+        "runtimeBytes": 22306,
+        "runtimeSha256": "5a83c7a2fd630fad51667a90365e5e401fb610e95fabcb636f01ee8a591356cc"
+      }
+    ]
+  },
+  "otherChecks": {
+    "forgeFmt": "passed: forge fmt --check src test script/common script/mock",
+    "solhint": {
+      "exitCode": 0,
+      "errors": 0,
+      "warnings": 41,
+      "scope": "Retained src/**/*.sol and test/**/*.sol; warnings are on lines unchanged from the release base."
+    },
+    "gitDiffCheck": "passed",
+    "localMarkdownTargets": "passed",
+    "slither": "Not rerun. Historical parser/SlithIR/SSA qualification and fork identity remain in test-review-2026-10-05.json; detectors were not reviewed here."
+  },
+  "evidence": {
+    "archive": "docs/releases/v2.5-audit-evidence.zip",
+    "sha256": "af4780e07870a337485cae321b5bb2dc9e5e1078aa841ee67ce215c739dd86e4",
+    "contents": "Canonical test output, resource timing, lint output, compiler-context experiments, coverage run index, merged comparison and all 37 baseline and 37 candidate LCOV records."
+  },
+  "releaseDecisions": [
+    "Finalize or explicitly accept the four TODO FOR MAINNET timing limits in PeriodicTermPolicy.sol.",
+    "Pin any production deployment set, reused dependencies, and ceremony independently of this source package.",
+    "Record the committed audit SHA in the quote handoff; do not merge audit-only pruning back into release."
+  ]
+}
