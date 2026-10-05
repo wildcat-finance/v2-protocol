@@ -36,6 +36,9 @@ A later tag does not extend an earlier review's source scope.
 
 Each record applies to its named source revision:
 
+- [Quote-package guide](./v2.5-audit-quote-package.md): the starting document in
+  [Wildcat v2.5 Audit Quote Package.zip](<../Wildcat v2.5 Audit Quote Package.zip>),
+  which bundles the quote, scope, comparison, and supporting records.
 - [Audit quote](./v2.5-audit-quote.md): the current 100-file package at
   `529f2db55d656b89db4b17ecf6685b7589d5d7dd`, its size, scope, and quote terms.
 - [V2.1-to-V2.5 source comparison](./v2.1-to-v2.5-change-summary.md): retained
