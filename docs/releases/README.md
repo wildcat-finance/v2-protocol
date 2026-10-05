@@ -36,7 +36,12 @@ A later tag does not extend an earlier review's source scope.
 
 Each record applies to its named source revision:
 
-- [Audit scope](./v2.5-audit-scope.md): the prior source freeze, subsequent
+- [Audit quote](./v2.5-audit-quote.md): the current 100-file package at
+  `529f2db55d656b89db4b17ecf6685b7589d5d7dd`, its size, scope, and quote terms.
+- [V2.1-to-V2.5 source comparison](./v2.1-to-v2.5-change-summary.md): retained
+  code, mechanical changes, and substantive changes against the V2.1 `main`
+  snapshot, with a [per-file comparison record](./v2.1-to-v2.5-comparison.json).
+- [Earlier audit scope](./v2.5-audit-scope.md): the prior source freeze, subsequent
   review delta, and requirements for a new audit packet.
 - [Contract inventory](./inventory/v2.5.json): the prior `7fad3de` audit source.
 - [Pre-freeze verification](./v2.5-verification.md): results for an earlier
@@ -46,4 +51,5 @@ Each record applies to its named source revision:
   subsequent test-maintenance checks.
 
 The prior inventory and pre-freeze receipt do not cover the later V2.5 changes.
-The audit-scope document records the remaining freeze and verification work.
+The current quote links to the complete package's scope and verification receipt
+on `audit/v2.5`; audit-only pruning stays on that branch.
