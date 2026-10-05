@@ -66,6 +66,7 @@ pragma solidity 0.8.25;
 //  sweep(...)
 //
 //  SANCTIONS AND SHARE TRANSFERS
+//  transferFrom(...)
 //  nukeFromOrbit(...)
 //  _beforeTokenTransfer(...)
 //  _isEscrowRelease(...)
@@ -733,6 +734,13 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   }
 
   // ░░▒▒▓▓██ [ SANCTIONS AND SHARE TRANSFERS ] ────────────────────────────────
+
+  // ┌─ transferFrom ─────
+  /// @notice transfer shares using an unsanctioned caller's allowance.
+  function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
+    _checkNotSanctioned(msg.sender);
+    return super.transferFrom(from, to, amount);
+  }
 
   // ┌─ nukeFromOrbit ─────
   /// @notice quarantine a sanctioned holder's direct market position and wrapper shares.
