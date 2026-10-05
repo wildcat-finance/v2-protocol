@@ -910,8 +910,8 @@ function validatePlan(plan, options = {}) {
       }
     }
 
-    // A deployment predicate is evaluated after its receipt, so it may refer
-    // to that transaction's own output. Transaction inputs remain prior-only.
+    // a deployment predicate is evaluated after its receipt, so it may refer
+    // to that transaction's own output. transaction inputs remain prior-only.
     for (const value of predicateReferenceFields(transaction)) {
       for (const reference of collectReferences(value)) {
         if (!availableOutputs.has(reference)) {
@@ -1438,7 +1438,7 @@ async function checkPredicate(rpc, predicate, outputs) {
           `0x${code.slice(-48, -8)}`.toLowerCase() !== secondary.toLowerCase()) {
         return { ok: false, detail: `split storage secondary link mismatch at ${target}` };
       }
-      // Commit every primary byte except the independently checked secondary address.
+      // commit every primary byte except the independently checked secondary address.
       committedCode = code.slice(0, -48) + "00".repeat(20) + code.slice(-8);
       const secondaryCode = await rpc("eth_getCode", [secondary, "latest"]);
       if (typeof secondaryCode !== "string" || !secondaryCode.startsWith("0x00") ||
@@ -1957,7 +1957,7 @@ async function executePlan(args) {
       try {
         await rpc("anvil_stopImpersonatingAccount", [executor]);
       } catch (_error) {
-        // The executor result is already durable; cleanup failure must not mask it.
+        // the executor result is already durable; cleanup failure must not mask it.
       }
     }
   }
@@ -2163,9 +2163,9 @@ function safeInputValue(value) {
 function renderSafe(args) {
   const plan = assertValidPlan(readJson(requiredArg(args, "plan")));
 
-  // Secondary output only: deployments are intentionally excluded because
+  // secondary output only: deployments are intentionally excluded because
   // Safe Transaction Builder MultiSend entries cannot express contract
-  // creation. Later call targets created by the plan are also unresolved, so
+  // creation. later call targets created by the plan are also unresolved, so
   // refs use the zero address plus explicit metadata and must be resolved
   // before importing or signing.
   const transactions = plan.transactions

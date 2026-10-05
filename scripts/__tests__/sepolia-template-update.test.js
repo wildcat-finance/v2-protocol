@@ -14,8 +14,8 @@ const plan = require("../../deployments/sepolia/plan-v2.5.6.json");
 const deployments = JSON.parse(execFileSync("git", ["show",
   `${rotation.inventoryBaselineCommit}:deployments/sepolia/deployments.json`], { encoding: "utf8" }));
 const artifacts = loadArtifacts(rotation);
-// This historical template-only packet reused the pre-2.5.7 market code.
-// Restore those artifact bytes from its pinned plan, rather than comparing
+// this historical template-only packet reused the pre-2.5.7 market code.
+// restore those artifact bytes from its pinned plan, rather than comparing
 // the old packet with today's deliberately changed market implementations.
 const baselinePlan = require("../../deployments/sepolia/plan-v2.5.5.json");
 for (const key of ["standardMarket", "revolvingMarket", "wrapperFactory"]) {

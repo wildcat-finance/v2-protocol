@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Human-driven stages for a fixed-authority Sepolia activation.
+# human-driven stages for a fixed-authority Sepolia activation.
 #
-# This script derives ceremony identity from the reviewed config and generated
-# plan. It never signs or broadcasts. The operator signs every transaction in
+# this script derives ceremony identity from the reviewed config and generated
+# plan. it never signs or broadcasts. the operator signs every transaction in
 # the locked deployment UI.
 set -euo pipefail
 
@@ -594,7 +594,7 @@ archive_evidence() {
   assert_archive_tool
   local evidence_dir
   evidence_dir="${CEREMONY_EVIDENCE_DIR:-$(current_session)}"
-  # Finalization changes tracked records. Archiving must also work after a later
+  # finalization changes tracked records. archiving must also work after a later
   # tooling commit, without replaying finalization or replacing the source identity.
   python3 scripts/archive-ceremony-evidence.py --config "$CONFIG" --session "$evidence_dir"
 }

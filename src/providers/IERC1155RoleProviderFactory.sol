@@ -15,7 +15,7 @@ pragma solidity 0.8.25;
 
 import '../access/IRoleProviderFactory.sol';
 
-/// @notice function Object() { [native code] } and CREATE2 inputs for an ERC1155 balance provider.
+/// @notice constructor and CREATE2 inputs for an ERC1155 balance provider.
 ///
 /// @param token              collection queried for balances.
 /// @param tokenId            only token ID that qualifies.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Rehearse a fixed-authority Sepolia activation against one pinned fork.
-# With no argument, execute the engine check headlessly. --ui leaves a chain
+# rehearse a fixed-authority Sepolia activation against one pinned fork.
+# with no argument, execute the engine check headlessly. --ui leaves a chain
 # 31337 fork running for the real-wallet locked-UI ceremony. --stop stops only
 # the recorded --ui Anvil process.
 set -euo pipefail
@@ -182,7 +182,7 @@ if [[ "$(jq -r '.activationScope // "factories"' "$SEPOLIA_REPLACEMENT_CONFIG")"
     --rpc-url "$RPC" --run-state "$run_state" --preflight "$preflight" \
     --out "$post_activation" --output-dir "$evidence_dir/finalized"
 elif [[ "$(jq -r '.schemaVersion' "$SEPOLIA_REPLACEMENT_CONFIG")" == '1.1.0' ]]; then
-  # Exercise the downstream handoff against the fork without changing live records.
+  # exercise the downstream handoff against the fork without changing live records.
   mkdir -p "$evidence_dir/finalized"
   cp deployments/sepolia/factory-inventory.json "$evidence_dir/finalized/factory-inventory.json"
   cp deployments/sepolia/deployments.json "$evidence_dir/finalized/deployments.json"

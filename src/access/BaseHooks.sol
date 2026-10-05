@@ -546,7 +546,8 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ░░▒▒▓▓██ [ CLAIM COLLECTION ] ─────────────────────────────────────────────
 
   // ┌─ onExecuteWithdrawal ─────
-  /// @dev queued claims stay ungated by default. don't reuse the queue's credential/window checks.
+  /// @dev compatibility callback; v2.5 markets never dispatch it. the default adds no claim restrictions.
+  ///      don't reuse the queue's credential/window checks.
   function onExecuteWithdrawal(
     address lender,
     uint32 expiry,
@@ -574,10 +575,11 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ░░▒▒▓▓██ [ CLOSURE ] ──────────────────────────────────────────────────────
 
   // ┌─ onCloseMarket ─────
-  /// @notice validate closure before applying the hook's closure effects.
+  /// @notice validate explicit closure before applying the hook's closure effects.
   ///
   /// @dev the term policy owns caller checks. open-term closure stays an unguarded no-op.
   ///      the market resets APR/reserves after this; don't invent an APR callback here.
+  ///      automatic closure from an enabled repayment date bypasses this callback and its effects.
   function onCloseMarket(MarketState calldata state, bytes calldata hooksData) external override {
     _validateCloseMarket(state, hooksData);
     _applyCloseMarket(state, hooksData);
@@ -592,7 +594,8 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ░░▒▒▓▓██ [ SANCTIONS ] ────────────────────────────────────────────────────
 
   // ┌─ onNukeFromOrbit ─────
-  /// @dev quarantine reaches the ordinary queue callback next, including its schedule checks.
+  /// @dev quarantine uses the ordinary queue path. its callback and schedule checks run only
+  ///      before an enabled repayment date.
   function onNukeFromOrbit(address lender, MarketState calldata state, bytes calldata hooksData) external override {
     _checkNukeFromOrbit(lender, state, hooksData);
   }

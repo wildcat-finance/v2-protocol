@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-command fork rehearsal setup for the v2.5 release.
+# one-command fork rehearsal setup for the v2.5 release.
 #
 #   FORK_NETWORK=sepolia FORK_RPC_URL=https://eth-sep.hinterlight.net \
 #     bash script/deploy/v2-5/rehearse.sh
@@ -8,18 +8,18 @@
 #   FORK_NETWORK=sepolia FORK_RPC_URL=https://eth-sep.hinterlight.net \
 #     bash script/deploy/v2-5/rehearse.sh --resume
 #
-# Default Sepolia mode: fork the network, seed deployments/anvil/, then leave
-# Anvil running without generating a package. The operator uses the same shared
+# default Sepolia mode: fork the network, seed deployments/anvil/, then leave
+# Anvil running without generating a package. the operator uses the same shared
 # stage commands as live Sepolia, and signs every transaction through deploy-ui.
 #
-# --full: impersonate and execute the complete flow headlessly. This proves the
+# --full: impersonate and execute the complete flow headlessly. this proves the
 # automation engine and state transitions, but is not release acceptance for
 # the user-driven Sepolia ceremony.
 #
 # --resume: restart a crashed Anvil process from the periodically persisted
 # state without reseeding deployments/anvil or regenerating the plan.
 #
-# Env:
+# env:
 #   FORK_NETWORK   sepolia | mainnet (required)
 #   FORK_RPC_URL   archive RPC to fork from (required; no implicit provider)
 #   FORK_FALLBACK_RPC_URL  optional second archive RPC. Anvil actively
@@ -141,7 +141,7 @@ else
   fi
 fi
 
-# A block-header lookup does not prove archive-state access. Probe far enough
+# a block-header lookup does not prove archive-state access. probe far enough
 # behind the selected head to reject endpoints that only expose current state.
 ARCHIVE_PROBE_BLOCK=$((FORK_BLOCK_NUMBER > 1024 ? FORK_BLOCK_NUMBER - 1024 : 0))
 preflight_rpc "primary" "$FORK_RPC_URL"
@@ -370,7 +370,7 @@ fi
 cast rpc anvil_setBalance "$OWNER" 0x8AC7230489E80000 --rpc-url "$RPC" >/dev/null
 
 if [[ "$RUN_MODE" == "--full" && "$FORK_NETWORK" == "mainnet" ]]; then
-  # Headless mode executes as the impersonated real owner.
+  # headless mode executes as the impersonated real owner.
   EXECUTOR="$OWNER"
 else
   # Sepolia uses the same authorized-helper shape as the live ceremony.

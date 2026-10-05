@@ -195,7 +195,7 @@ async function getSourceTemplates(args, provider) {
 
 function requireSourceCommitments(templates) {
   // an old export needs artifact hashes added explicitly. hashing a live decoder
-  // response would just approve whatever it happens to return.
+  // response would approve whatever it happens to return.
   const seen = new Set();
   for (const template of templates) {
     const address = normalizeAddress(template.hooksTemplate);

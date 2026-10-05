@@ -15,7 +15,7 @@ pragma solidity 0.8.25;
 
 import '../access/IRoleProviderFactory.sol';
 
-/// @notice function Object() { [native code] } and CREATE2 inputs for an ERC20 balance provider.
+/// @notice constructor and CREATE2 inputs for an ERC20 balance provider.
 ///
 /// @param token      contract queried for balances.
 /// @param minBalance nonzero threshold in token base units.

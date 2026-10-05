@@ -155,8 +155,8 @@ test("historical plan retains its inventory shape", () => {
       "utf8"
     )
   );
-  // Current-artifact validation belongs to the current release test. The
-  // historical wrapper init code intentionally differs after V2.5.7.
+  // current-artifact validation belongs to the current release test. the
+  // historical wrapper init code intentionally differs after v2.5.7.
   assertActivationPlan(plan, "sepolia", {
     reuseIdentityRegistry: true,
   });

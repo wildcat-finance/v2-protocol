@@ -19,7 +19,7 @@ import type {
   PlanTransaction,
 } from './types'
 
-// Completed steps are rechecked before every step through the wallet's RPC; a small cap keeps
+// completed steps are rechecked before every step through the wallet's RPC; a small cap keeps
 // that fast without flooding the provider.
 export const REVERIFY_CONCURRENCY = 4
 
@@ -51,7 +51,7 @@ export class CeremonyHaltError extends Error {
   constructor(
     message: string,
     readonly transactionId?: string,
-    // Run-state integrity failures stop the ceremony regardless of how the message reads.
+    // run-state integrity failures stop the ceremony regardless of how the message reads.
     readonly fatal = false,
   ) {
     super(message)
@@ -196,7 +196,7 @@ export class PlanExecutor {
         )
       }
     }
-    // Completed predicates are independent reads against the same outputs: check them
+    // completed predicates are independent reads against the same outputs: check them
     // concurrently, then report the first failure in plan order.
     const firstIncomplete = this.plan.transactions.findIndex(
       (transaction) => state[transaction.id]?.status !== 'verified',

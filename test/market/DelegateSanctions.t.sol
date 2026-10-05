@@ -1,6 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // DelegateSanctionsTest
+//  \ ^ /   Delegate sanctions across market and wrapper transfers.
+//    V
+//
+//  FIXTURES
+//  _deployFixtureDependencies()
+//  _newScenario(...)
+//
+//  DELEGATE SANCTIONS
+//  test_marketTransferFromRejectsSanctionedDelegateAcrossConfigurations()
+//  test_wrapperTransferFromRejectsSanctionedDelegateAcrossConfigurations()
+//  _assertDelegateSanctions(...)
+//
+//  BORROWER HANDOFF
+//  test_delegateSanctionsFollowCurrentBorrowerPrincipal()
+//
+//  TRANSFER HELPERS
+//  _delegateTransfer(...)
+//  _expectBlockedTransfer(...)
+// ═════
+
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { WildcatSanctionsSentinel } from 'src/WildcatSanctionsSentinel.sol';
 import { IERC20 } from 'src/interfaces/IERC20.sol';
@@ -12,6 +34,7 @@ import { HookDispatchSentinelMock } from '../mocks/HookDispatchMocks.sol';
 import { SanctionsListMock } from '../mocks/SanctionsMocks.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 
+// ┌─ DelegateSanctionsTest ────────────────────────────────────────────────────
 contract DelegateSanctionsTest is MarketFixture {
   address internal constant Holder = address(0xA11CE);
   address internal constant Recipient = address(0xB0B);
@@ -26,6 +49,9 @@ contract DelegateSanctionsTest is MarketFixture {
     IERC20 token;
   }
 
+  // ░░▒▒▓▓██ [ FIXTURES ] ─────────────────────────────────────────────────────
+
+  // ┌─ _deployFixtureDependencies ─────
   function _deployFixtureDependencies() internal override returns (Fixture memory fixture) {
     fixture = super._deployFixtureDependencies();
     SanctionsListMock sanctionsList = SanctionsListMock(_deployCode('test/mocks/SanctionsMocks.sol:SanctionsListMock'));
@@ -37,6 +63,7 @@ contract DelegateSanctionsTest is MarketFixture {
     );
   }
 
+  // ┌─ _newScenario ─────
   function _newScenario(
     HooksKind kind,
     bool revolving,
@@ -82,16 +109,21 @@ contract DelegateSanctionsTest is MarketFixture {
     }
   }
 
+  // ░░▒▒▓▓██ [ DELEGATE SANCTIONS ] ───────────────────────────────────────────
+
+  // ┌─ test_marketTransferFromRejectsSanctionedDelegateAcrossConfigurations ─────
   function test_marketTransferFromRejectsSanctionedDelegateAcrossConfigurations() external {
     _assertDelegateSanctions(false);
   }
 
+  // ┌─ test_wrapperTransferFromRejectsSanctionedDelegateAcrossConfigurations ─────
   function test_wrapperTransferFromRejectsSanctionedDelegateAcrossConfigurations() external {
     _assertDelegateSanctions(true);
   }
 
+  // ┌─ _assertDelegateSanctions ─────
   function _assertDelegateSanctions(bool wrapped) private {
-    // Exercise both market types and hook families, with transfer hooks on/off and finite/infinite approval.
+    // cover both market types and hook families, with transfer hooks on/off and finite/infinite approval.
     for (uint256 i; i < 16; i++) {
       bool infiniteApproval = i & 1 != 0;
       Scenario memory scenario = _newScenario(HooksKind(i >> 3), i & 2 != 0, i & 4 != 0, wrapped);
@@ -109,7 +141,7 @@ contract DelegateSanctionsTest is MarketFixture {
       assertEq(scenario.token.totalSupply(), 10 * Unit, 'blocked supply');
       assertEq(scenario.token.allowance(Holder, Delegate), infiniteApproval ? approval : 4 * Unit, 'blocked allowance');
 
-      // A blocked spender does not immobilize the unsanctioned holders' balances.
+      // blocking a spender leaves unsanctioned holders free to transfer.
       vm.prank(Recipient);
       assertTrue(scenario.token.transfer(Holder, Unit), 'holder transfer');
 
@@ -131,6 +163,9 @@ contract DelegateSanctionsTest is MarketFixture {
     }
   }
 
+  // ░░▒▒▓▓██ [ BORROWER HANDOFF ] ─────────────────────────────────────────────
+
+  // ┌─ test_delegateSanctionsFollowCurrentBorrowerPrincipal ─────
   function test_delegateSanctionsFollowCurrentBorrowerPrincipal() external {
     for (uint256 i; i < 4; i++) {
       bool wrapped = i & 1 != 0;
@@ -160,11 +195,15 @@ contract DelegateSanctionsTest is MarketFixture {
     }
   }
 
+  // ░░▒▒▓▓██ [ TRANSFER HELPERS ] ─────────────────────────────────────────────
+
+  // ┌─ _delegateTransfer ─────
   function _delegateTransfer(IERC20 token, address to) private {
     vm.prank(Delegate);
     assertTrue(token.transferFrom(Holder, to, Unit), 'delegate transfer');
   }
 
+  // ┌─ _expectBlockedTransfer ─────
   function _expectBlockedTransfer(IERC20 token, address to, uint256 amount, bool wrapped) private {
     vm.prank(Delegate);
     if (wrapped) {

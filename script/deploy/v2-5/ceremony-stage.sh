@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Canonical user-driven stages for the v2.5 Anvil rehearsal and live Sepolia ceremony.
+# canonical user-driven stages for the v2.5 Anvil rehearsal and live Sepolia ceremony.
 #
-# This script never signs, broadcasts, or executes a deployment transaction. It
+# this script never signs, broadcasts, or executes a deployment transaction. it
 # verifies completed run-state, prepares the next locked package, finalizes local
 # inventory, and mutates time only when the selected target is disposable Anvil.
 set -euo pipefail
@@ -13,7 +13,7 @@ readonly HELPER_RUNTIME_HASH='0x71813272287ef573f8a2f96101f1a9ba6982761ad9de14a3
 
 stage="${1:-}"
 if [[ "$stage" == 'advance-delay' ]]; then
-  # Compatibility for the accepted pre-generalization rehearsal command.
+  # compatibility for the accepted pre-generalization rehearsal command.
   stage='delay'
 fi
 case "$stage" in

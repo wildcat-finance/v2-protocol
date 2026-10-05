@@ -120,7 +120,7 @@ struct DeployMarketRuntimeParameters {
 /// @notice manage hooks templates and instances, then deploy standard Wildcat markets with them.
 ///
 /// @dev market constructors read their parameters back from transient storage. templates hold
-///      raw or compressed creation code, recovered before CREATE2 deployment.
+///      raw, compressed, or split creation code, recovered before CREATE2 deployment.
 contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooksFactory {
   using LibERC20 for address;
 
@@ -165,7 +165,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   /// @dev markets grouped by hooks instance, primarily for off-chain queries.
   mapping(address hooksInstance => address[] markets) internal _marketsByHooksInstance;
 
-  /// @dev fee configuration and name for each hooks template
+  /// @dev fee configuration and name for each hooks template.
   mapping(address hooksTemplate => HooksTemplate details) internal _templateDetails;
 
   mapping(address hooksInstance => address hooksTemplate) public override getHooksTemplateForInstance;

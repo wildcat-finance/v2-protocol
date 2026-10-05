@@ -1638,9 +1638,9 @@ function expectedCanonicalAliases(inventory, handoff) {
     aliases.set("HooksFactoryRevolving", revolvingFactory.address);
   if (wrapperFactory)
     aliases.set("Wildcat4626WrapperFactory", wrapperFactory.address);
-  // The handoff is a point-in-time release artifact, not current truth:
+  // the handoff is a point-in-time release artifact, not current truth:
   // lens deployments after its generation (e.g. the PTH v2.1 lens) are
-  // expected to be newer. Lens alias mismatches warn instead of erroring.
+  // expected to be newer. lens alias mismatches warn instead of erroring.
   return aliases;
 }
 

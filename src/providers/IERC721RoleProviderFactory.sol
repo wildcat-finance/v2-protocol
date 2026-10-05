@@ -15,7 +15,7 @@ pragma solidity 0.8.25;
 
 import '../access/IRoleProviderFactory.sol';
 
-/// @notice function Object() { [native code] } and CREATE2 inputs for an ERC721 balance provider.
+/// @notice constructor and CREATE2 inputs for an ERC721 balance provider.
 ///
 /// @param token              collection queried for balances.
 /// @param skipInterfaceCheck skips ERC165 and ERC721 checks, not later `balanceOf` failures.

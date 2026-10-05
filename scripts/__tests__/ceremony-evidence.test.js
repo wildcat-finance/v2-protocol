@@ -24,7 +24,7 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
   return Object.fromEntries(Object.entries(files).map(([name, bytes]) => [name, Buffer.from(bytes, "base64")]));
 }
 
-// Original, receipt-backed operator evidence supplies both inputs and byte-for-byte expectations.
+// original, receipt-backed operator evidence supplies both inputs and byte-for-byte expectations.
 const original = readArchive(path.join(root,
   "deployments/sepolia/ceremony-evidence/wildcat-v2.5.6-evidence-20261004T081346Z.zip"));
 

@@ -12,8 +12,8 @@ const REUSABLE = {
   "periodic-term-hooks-init-code-storage": "PeriodicTermHooks_initCodeStorage",
 };
 
-// Only these unchanged, independently deployed components may be carried into
-// a new factory generation. Original receipts remain owned by the pinned handoff.
+// only these unchanged, independently deployed components may be carried into
+// a new factory generation. original receipts remain owned by the pinned handoff.
 function loadReusedDeployments(rotation) {
   const specs = rotation.reusedDeployments || [];
   const records = new Map();

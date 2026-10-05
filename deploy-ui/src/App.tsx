@@ -111,7 +111,7 @@ function plainDescription(description: string, planId: string): string {
   return description.replace(' the v2.5 ', ' ').replace(/\.$/, '')
 }
 
-// Plan IDs follow `verb-subject[-qualifier]` and stay stable across ceremonies, while
+// plan IDs follow `verb-subject[-qualifier]` and stay stable across ceremonies, while
 // descriptions are rewritten by every new generator, so step labels come from the ID.
 export function stepLabel(planId: string, description: string): string {
   if (planId.startsWith('remove-superseded-controller')) return friendlyLabel(description, planId)
@@ -427,7 +427,7 @@ function ProgressSegments({
 }
 
 function FingerprintBand({ digest }: { digest: string }) {
-  // Twelve well-separated hues from the digest bytes after the spoken fingerprint.
+  // twelve well-separated hues from the digest bytes after the spoken fingerprint.
   const bytes = digest.slice(14, 30).match(/.{2}/g) ?? []
   return (
     <span className="fp-band" aria-hidden="true">
@@ -1227,7 +1227,7 @@ export default function App() {
         setRunState(stored)
         storedActionCount = Object.keys(stored).length
       } catch {
-        // Keep the last React snapshot if the stored evidence itself cannot be decoded.
+        // keep the last React snapshot if the stored evidence itself cannot be decoded.
       }
     }
     if (isRpcUnavailableError(error)) {
@@ -1292,7 +1292,7 @@ export default function App() {
         setRailWidth(clampRailWidth(saved, window.innerWidth))
       }
     } catch {
-      // Resizing still works for this page view when browser storage is unavailable.
+      // resizing still works for this page view when browser storage is unavailable.
     }
   }, [])
 
@@ -1577,7 +1577,7 @@ export default function App() {
     try {
       window.localStorage.setItem('wildcat-deploy:rail-width', String(width))
     } catch {
-      // The current page still keeps the selected width.
+      // the current page still keeps the selected width.
     }
   }
 
@@ -1661,7 +1661,7 @@ export default function App() {
       setPrepared(await planEngine.prepareNext())
     } catch (error) {
       if (handleError(error) === 'notice') {
-        // Never re-arm a transaction that failed; re-verify and prepare it again.
+        // never re-arm a transaction that failed; re-verify and prepare it again.
         setPrepared(null)
         setReverifyRun((value) => value + 1)
       }

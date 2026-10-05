@@ -161,7 +161,7 @@ def archive_evidence(config_path, session):
         archive.writestr("manifest.json", json.dumps(manifest, indent=2) + "\n")
     checksum = sha256(output.read_bytes())
     checksum_path = Path(str(output) + ".sha256")
-    # A basename remains valid when the ZIP and checksum are moved together.
+    # a basename remains valid when the ZIP and checksum are moved together.
     checksum_path.write_text(f"{checksum}  {output.name}\n")
     print(f"Ceremony evidence ZIP: {output.as_posix()}")
     print(f"SHA-256: {checksum}")
