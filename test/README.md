@@ -30,7 +30,7 @@ yarn test:fixed
 # Deployment-profile confirmation
 FOUNDRY_PROFILE=deploy forge test
 
-# Focused coverage (currently blocked; see Coverage boundary)
+# Focused coverage (see Coverage boundary for limits)
 FOUNDRY_TEST=test/sanctions yarn coverage --match-contract SanctionsTest
 ```
 
@@ -64,7 +64,8 @@ Those counts are a historical baseline, not a growth limit.
   only when behavior intentionally differs.
 - Tests that warp inside one call must read time with
   `vm.getBlockTimestamp()`. Tests needing a non-default initial timestamp must
-  establish it in their fixture.
+  establish it in their fixture. The compiler can treat `block.timestamp` as
+  constant within a call, even when a cheatcode changes the clock.
 - Every bug fix needs the smallest regression that fails without it. Prefer
   assertions over logs and explicit revert expectations over
   `testFail_*` naming.
@@ -77,6 +78,13 @@ history, cure/reset behavior, closure and final withdrawal allocation against
 independent models. Keep the original assertions and the configured run/depth
 budgets when changing lifecycle code.
 
+`LifecycleFixture` deploys the complete `LifecycleHandler` through `_deployCode`.
+This runs its real constructor without embedding the handler's creation code in
+each concrete suite. Keep the explicit handler import so focused builds produce
+the artifact. Its inheritance from `MarketMatrixHandler` and its constructor's
+creation of the immutable `LifecycleReference` remain: the campaigns need both
+the shared actions and the independent timeline model.
+
 Normal production fixtures choose raw storage for fitting artifacts and split
 storage for larger ones. Explicit compressed controls preserve the comparison
 and factory hash-check regressions. Size checks and strict deployment harnesses
@@ -85,11 +93,6 @@ does not qualify a production artifact for deployment.
 
 ## Coverage boundary
 
-Focused coverage is currently blocked: `scripts/coverage-spherex.patch` no
-longer applies after the source-layout cleanup. The wrapper stops at its
-preflight check before changing source. Refreshing and validating that patch
-is separate tooling work; the command above is not currently a passing check.
-
 `scripts/coverage.sh`:
 
 1. Applies `scripts/coverage-spherex.patch` temporarily.
@@ -97,11 +100,91 @@ is separate tooling work; the command above is not currently a passing check.
 3. Restores the source on every exit path.
 4. Verifies the source stayed clean.
 
-Set `FOUNDRY_TEST` to a narrow test directory. Whole-suite accurate coverage is
-not supported. Production graphs containing `HooksFactoryRevolving` exceed the
-non-via-IR compiler's stack limits.
+Set `FOUNDRY_TEST` to a narrow test directory or a single `.t.sol` file. The
+coverage profile has an empty source root, so narrowing test discovery also
+narrows the compilation graph. A `--match-contract` filter alone does not do
+that. For example:
+
+```sh
+FOUNDRY_TEST=test/libraries/FeeMath.t.sol yarn coverage \
+  --report lcov --report-file /tmp/fee-math.lcov
+```
+
+The wrapper uses 32 fuzz runs and invariant budgets of 8 runs at depth 15.
+These smaller coverage budgets supplement the canonical suite; they do not
+replace its 1,000 fuzz runs or 2,000 invariant runs at depth 30.
+
+Whole-suite accurate coverage is not supported. The 2026-10-05 check found:
+
+- Non-via-IR stack limits in `HooksFactoryRevolving`, `BaseHooks.t.sol`, and
+  `LifecycleOracle` block their importing graphs.
+- Some focused fixtures load artifacts by string with `vm.getCode`. A narrow
+  graph can omit those artifacts even though the complete canonical suite
+  builds them. `MarketTransitionLayoutTest`, for example, needs the
+  `OpenTermHooks` artifact through `MarketFixture`.
+- `AprValidationTest` includes a production artifact-size assertion that fails
+  under coverage's different compiler settings. Keep the canonical size gate;
+  coverage compilation does not qualify deployment sizes.
+- A whole-suite `--ir-minimum` attempt also failed with a Yul stack error. That
+  mode additionally warns about inaccurate source maps.
+
+The refreshed SphereX patch passed application and restoration checks on
+successful and failed runs. Coverage for `SphereXProtectedRegisteredBase`
+refers to its temporarily patched source and bytecode, not a deployment build.
 
 This does not affect the default via-IR build, canonical tests, invariants, or
 deployment-profile tests. Foundry may still print a non-fatal
 `unresolved symbol locals` diagnostic for the SphereX modifier during normal
 compilation.
+
+## Review checkpoint: 2026-10-05
+
+The [test review receipt](../docs/releases/test-review-2026-10-05.json) pins
+source `8ae329c5519aede7aeabd7a51082e79cb227396e`, tool versions, commands,
+coverage inputs and results. It records a local test baseline, not a deployment
+or audit attestation.
+
+- A forced fixed-seed run passed 958 reported tests across 87 suites. Compilation
+  took 288.33 seconds; total wall time was 442.89 seconds. The three stateful
+  campaigns each completed 2,000 runs and 60,000 calls without handler reverts.
+  Forge groups the market matrix's nine invariant properties into one campaign;
+  the source contains 955 test functions and 11 invariant properties.
+- No inherited test entry points or entry points in shared fixtures were found.
+  Test-side creation bytecode totals 2,539,755 bytes. The deepest fixture chain
+  has five ancestors; it composes lifecycle capabilities rather than inheriting
+  test functions. Direct creation of the large lifecycle handler in four suites
+  was identified as a compile-cost candidate.
+- Fourteen tests combined warps with direct `block.timestamp` reads. They passed
+  this run, but did not follow the time-read rule above.
+- Six complete test families and 31 additional individual-file runs produced
+  usable coverage. Their union is partial: missing factory and lifecycle
+  instrumentation must not be presented as a whole-protocol percentage or as
+  proof those behaviors have no tests.
+- The qualified Slither fork is distinct from an unpatched global installation,
+  even though both report version 0.11.6. Use the
+  [function-library-resolution fork](https://github.com/wildcat-finance/slither/tree/fix/function-library-resolution)
+  and its qualification instructions; pin the runtime revision, not only the
+  version string. The parser, SlithIR and SSA check passed with partial analysis
+  disabled and assembly included. Security detectors were not run or triaged.
+
+The earlier three-to-four-minute baseline used a smaller suite, different
+compiler settings and a different CPU. These measurements do not establish a
+like-for-like performance regression.
+
+### Maintenance follow-up
+
+The receipt's `maintenanceFollowUp` section pins the subsequent test changes by
+file hash and records their checks. All 14 flagged tests now use
+`vm.getBlockTimestamp()`, as do two additional setup/helper cases found by
+extending the scan beyond test entry points. No function body in that scan
+still combines a direct timestamp read with a time-warp call.
+
+Artifact deployment removed 228,451 bytes of repeated creation code across the
+four lifecycle suites. The handler, reference model and all 129 production
+artifacts kept identical creation/runtime bytecode and ABI. The full run again
+passed 958 reported tests across 87 suites, with unchanged invariant budgets
+and per-action call counts. Compilation took 261.27 seconds; total wall time was
+414.02 seconds. The 15 affected test entry points also passed with Foundry's
+default initial timestamp of 1, including the setup branch that advances an
+early clock. The baseline coverage figures above were not refreshed by this
+maintenance run.

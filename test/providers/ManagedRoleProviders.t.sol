@@ -272,7 +272,7 @@ contract ManagedRoleProvidersTest is TestKernel {
     assertEq(provider.getCredential(Bob), 0, 'non-member pull credential');
     assertEq(provider.validateCredential(Bob, hex'1234'), 0, 'non-member validated credential');
 
-    vm.warp(block.timestamp + 1 days);
+    vm.warp(vm.getBlockTimestamp() + 1 days);
     assertEq(provider.getCredential(Alice), uint32(getTimestamp()), 'refreshed timestamp');
     provider.removeMember(Alice);
     assertEq(provider.getCredential(Alice), 0, 'removed credential');
@@ -571,7 +571,7 @@ contract ManagedRoleProvidersTest is TestKernel {
     _deposit(cached, Alice, '');
     cachedProvider.removeMember(Alice);
     _deposit(cached, Alice, '');
-    vm.warp(block.timestamp + 2);
+    vm.warp(vm.getBlockTimestamp() + 2);
     _expectDepositDenied(cached, Alice, '');
   }
 
@@ -631,7 +631,7 @@ contract ManagedRoleProvidersTest is TestKernel {
 
     provider.updateRoot(_hashPair(_leaf(Bob), sibling));
     _deposit(fixture, Alice, hooksData);
-    vm.warp(block.timestamp + 2);
+    vm.warp(vm.getBlockTimestamp() + 2);
     _expectDepositDenied(fixture, Alice, hooksData);
   }
 
@@ -647,7 +647,7 @@ contract ManagedRoleProvidersTest is TestKernel {
 
     provider.updateRoot(_hashPair(_leaf(Bob), sibling));
     _deposit(fixture, Alice, '');
-    vm.warp(block.timestamp + 1);
+    vm.warp(vm.getBlockTimestamp() + 1);
     _expectDepositDenied(fixture, Alice, hooksData);
   }
 

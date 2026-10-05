@@ -19,6 +19,10 @@ source unit and ABI-bearing declaration to a release commit.
   changes that require a new review boundary.
 - The [pre-freeze receipt](./v2.5-verification.md) is dated evidence for an
   earlier candidate. It must not be used as current verification.
+- The [2026-10-05 test review](./test-review-2026-10-05.json) records canonical
+  test results, compilation timing, partial coverage and Slither compatibility
+  at its named source revision. [Test guidance](../../test/README.md) explains
+  the coverage limits and maintenance follow-ups.
 - Final source, compiler settings, inventory and the deployment ceremony need
   a new freeze and receipt before release.
 - The release page describes changes from V2.1.

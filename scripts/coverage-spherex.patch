@@ -1,21 +1,25 @@
-Coverage-only patch: inline the returnsIfNotActivatedPre modifier so forge
-coverage's analyzer can parse SphereXProtectedRegisteredBase (it cannot
-resolve a modifier that takes the function's named return value as an
-argument). Semantically identical but NOT bytecode-identical, so this is
-never committed to the source file. Usage:
+Coverage-only workaround for Foundry's unresolved named-return modifier argument.
+Inline returnsIfNotActivatedPre without changing its engine lookup or disabled
+engine behavior. This changes bytecode and must never enter a deployment build.
 
-  git apply scripts/coverage-spherex.patch
-  <run focused forge coverage — see test/README.md for flags>
-  git checkout -- src/spherex/SphereXProtectedRegisteredBase.sol
+Run through scripts/coverage.sh, which applies this patch temporarily and restores
+the source on exit. See test/README.md for the supported coverage boundary.
 
-diff --git a/src/spherex/SphereXProtectedRegisteredBase.sol b/src/spherex/SphereXProtectedRegisteredBase.sol
-index fec029b..192be8d 100644
 --- a/src/spherex/SphereXProtectedRegisteredBase.sol
 +++ b/src/spherex/SphereXProtectedRegisteredBase.sol
-@@ -69,15 +69,6 @@ abstract contract SphereXProtectedRegisteredBase {
-     _;
+@@ -19,7 +19,6 @@
+ //  PROTECTED CALL FLOW
+ //  sphereXGuardExternal()
+ //  _sphereXValidateExternalPre()
+-//  returnsIfNotActivatedPre(...)
+ //  _getStorageSlotsAndPreparePostCalldata(...)
+ //  _sphereXValidateExternalPost(...)
+ //  returnsIfNotActivatedPost(...)
+@@ -132,16 +131,6 @@
+     return _castFunctionToPointerOutput(_getStorageSlotsAndPreparePostCalldata)(_getSelector());
    }
  
+-  // ┌─ returnsIfNotActivatedPre ─────
 -  modifier returnsIfNotActivatedPre(ModifierLocals memory locals) {
 -    locals.engine = sphereXEngine();
 -    if (locals.engine == address(0)) {
@@ -25,25 +29,25 @@ index fec029b..192be8d 100644
 -    _;
 -  }
 -
-   modifier returnsIfNotActivatedPost(ModifierLocals memory locals) {
-     if (locals.engine == address(0)) {
-       return;
-@@ -150,9 +141,16 @@ abstract contract SphereXProtectedRegisteredBase {
-    */
-   function _getStorageSlotsAndPreparePostCalldata(
-     int256 num
--  ) internal returnsIfNotActivatedPre(locals) returns (ModifierLocals memory locals) {
-+  ) internal returns (ModifierLocals memory locals) {
-+    // Inlined from the `returnsIfNotActivatedPre` modifier this function
-+    // previously used: `forge coverage` cannot analyze a modifier that takes
-+    // the function's named return value as an argument.
+   // ┌─ _getStorageSlotsAndPreparePostCalldata ─────
+   /// @dev run before the protected external body. sharing engine communication reduces code size.
+   ///      sphereXValidatePre chooses `locals.storageSlots`; snapshot them into `locals.valuesBefore`.
+@@ -150,11 +139,15 @@
+   /// @param num function identifier.
+   function _getStorageSlotsAndPreparePostCalldata(int256 num)
+     internal
+-    returnsIfNotActivatedPre(locals)
+     returns (ModifierLocals memory locals)
+   {
+-    assembly {
+-      // returnsIfNotActivatedPre already resolved locals.engine.
++    // coverage cannot resolve a modifier argument that names this function's return value.
 +    locals.engine = sphereXEngine();
 +    if (locals.engine == address(0)) {
 +      return locals;
 +    }
-     assembly {
--      // Read engine from `locals.engine` - this is filled by `returnsIfNotActivatedPre`
-+      // Read engine from `locals.engine` - this is filled by the guard above
++    assembly {
++      // the guard above already resolved locals.engine.
        let engineAddress := mload(add(locals, 0x60))
  
-       // Get free memory pointer - this will be used for the calldata
+       // reuse the pre-call buffer for storageSlots and the later post-call calldata.
