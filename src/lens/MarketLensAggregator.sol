@@ -12,7 +12,6 @@ pragma solidity 0.8.25;
 //  FACTORY DISCOVERY
 //  getActiveHooksFactories()
 //  _isHooksFactory(...)
-//  _asFactory(...)
 //  _containsAddress(...)
 //  _shrinkAddressArray(...)
 //
@@ -42,7 +41,6 @@ pragma solidity 0.8.25;
 //  _collectHooksTemplatesByFactory(...)
 //  _containsHooksTemplateAddress(...)
 //  _shrinkHooksTemplateArray(...)
-//  _shrinkFactoryScopedHooksTemplateArray(...)
 //
 //  TEMPLATE MARKETS
 //  getMarketsForHooksTemplateCount(...)
@@ -127,11 +125,6 @@ contract MarketLensAggregator is IMarketLensAggregator {
     }
   }
 
-  // ┌─ _asFactory ─────
-  function _asFactory(address hooksFactoryAddress) internal pure returns (IHooksFactory) {
-    return IHooksFactory(hooksFactoryAddress);
-  }
-
   // ┌─ _containsAddress ─────
   function _containsAddress(address[] memory arr, uint256 length, address value) internal pure returns (bool) {
     for (uint256 i; i < length; i++) {
@@ -164,7 +157,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
     view
     returns (HooksDataForBorrower memory data)
   {
-    data.fill(archController, _asFactory(hooksFactoryAddress), borrower);
+    data.fill(archController, IHooksFactory(hooksFactoryAddress), borrower);
   }
 
   // ┌─ getAggregatedHooksDataForBorrower ─────
@@ -196,7 +189,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
     view
     returns (HooksInstanceData[] memory arr)
   {
-    IHooksFactory factory = _asFactory(hooksFactoryAddress);
+    IHooksFactory factory = IHooksFactory(hooksFactoryAddress);
     address[] memory hooksInstances = factory.getHooksInstancesForBorrower(borrower);
     arr = new HooksInstanceData[](hooksInstances.length);
     for (uint256 i; i < hooksInstances.length; i++) {
@@ -229,24 +222,6 @@ contract MarketLensAggregator is IMarketLensAggregator {
     returns (HooksInstanceData[] memory arr)
   {
     uint256 numFactories = factories.length;
-    if (numFactories == 0) {
-      return new HooksInstanceData[](0);
-    }
-    if (numFactories == 1) {
-      IHooksFactory factory = IHooksFactory(factories[0]);
-      try factory.getHooksInstancesForBorrower(borrower) returns (address[] memory hooksInstances) {
-        arr = new HooksInstanceData[](hooksInstances.length);
-        for (uint256 i; i < hooksInstances.length; i++) {
-          address hooksInstance = hooksInstances[i];
-          HooksInstanceKind kind = HooksConfigDataLib.kindForHooks(hooksInstance);
-          arr[i].fill(hooksInstance, factory, borrower, kind);
-        }
-        return arr;
-      } catch {
-        return new HooksInstanceData[](0);
-      }
-    }
-
     address[][] memory hooksInstancesByFactory = new address[][](numFactories);
     uint256 totalInstances = 0;
 
@@ -264,7 +239,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
       address[] memory hooksInstances = hooksInstancesByFactory[i];
       for (uint256 j; j < hooksInstances.length; j++) {
         address hooksAddress = hooksInstances[j];
-        if (!_containsHooksInstanceAddress(arr, uniqueCount, hooksAddress)) {
+        if (numFactories == 1 || !_containsHooksInstanceAddress(arr, uniqueCount, hooksAddress)) {
           HooksInstanceKind kind = HooksConfigDataLib.kindForHooks(hooksAddress);
           arr[uniqueCount].fill(hooksAddress, factory, borrower, kind);
           uniqueCount++;
@@ -330,7 +305,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
     view
     returns (HooksTemplateData memory data)
   {
-    data.fill(_asFactory(hooksFactoryAddress), hooksTemplate, borrower);
+    data.fill(IHooksFactory(hooksFactoryAddress), hooksTemplate, borrower);
   }
 
   // ┌─ getHooksTemplatesForBorrower ─────
@@ -355,7 +330,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
     view
     returns (HooksTemplateData[] memory data)
   {
-    IHooksFactory factory = _asFactory(hooksFactoryAddress);
+    IHooksFactory factory = IHooksFactory(hooksFactoryAddress);
     data = new HooksTemplateData[](hooksTemplates.length);
     for (uint256 i; i < hooksTemplates.length; i++) {
       data[i].fill(factory, hooksTemplates[i], borrower);
@@ -376,7 +351,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
     view
     returns (HooksTemplateData[] memory data)
   {
-    IHooksFactory factory = _asFactory(hooksFactoryAddress);
+    IHooksFactory factory = IHooksFactory(hooksFactoryAddress);
     address[] memory hooksTemplates = factory.getHooksTemplates();
     return getHooksTemplatesForBorrower(hooksFactoryAddress, borrower, hooksTemplates);
   }
@@ -416,7 +391,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
       }
     }
 
-    return _shrinkFactoryScopedHooksTemplateArray(data, count);
+    return data;
   }
 
   // ┌─ getAggregatedAllHooksTemplatesForBorrowerWithFactories ─────
@@ -432,22 +407,6 @@ contract MarketLensAggregator is IMarketLensAggregator {
     returns (HooksTemplateData[] memory data)
   {
     uint256 numFactories = factories.length;
-    if (numFactories == 0) {
-      return new HooksTemplateData[](0);
-    }
-    if (numFactories == 1) {
-      IHooksFactory factory = IHooksFactory(factories[0]);
-      try factory.getHooksTemplates() returns (address[] memory hooksTemplates) {
-        data = new HooksTemplateData[](hooksTemplates.length);
-        for (uint256 i; i < hooksTemplates.length; i++) {
-          data[i].fill(factory, hooksTemplates[i], borrower);
-        }
-        return data;
-      } catch {
-        return new HooksTemplateData[](0);
-      }
-    }
-
     (address[][] memory templatesByFactory, uint256 totalTemplates) = _collectHooksTemplatesByFactory(factories);
 
     data = new HooksTemplateData[](totalTemplates);
@@ -457,7 +416,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
       address[] memory hooksTemplates = templatesByFactory[i];
       for (uint256 j; j < hooksTemplates.length; j++) {
         address hooksTemplate = hooksTemplates[j];
-        if (!_containsHooksTemplateAddress(data, uniqueCount, hooksTemplate)) {
+        if (numFactories == 1 || !_containsHooksTemplateAddress(data, uniqueCount, hooksTemplate)) {
           data[uniqueCount].fill(factory, hooksTemplate, borrower);
           uniqueCount++;
         }
@@ -516,21 +475,6 @@ contract MarketLensAggregator is IMarketLensAggregator {
     return arr;
   }
 
-  // ┌─ _shrinkFactoryScopedHooksTemplateArray ─────
-  function _shrinkFactoryScopedHooksTemplateArray(
-    FactoryScopedHooksTemplateData[] memory arr,
-    uint256 newLength
-  )
-    internal
-    pure
-    returns (FactoryScopedHooksTemplateData[] memory)
-  {
-    assembly {
-      mstore(arr, newLength)
-    }
-    return arr;
-  }
-
   // ░░▒▒▓▓██ [ TEMPLATE MARKETS ] ─────────────────────────────────────────────
 
   // ┌─ getMarketsForHooksTemplateCount ─────
@@ -547,7 +491,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
     view
     returns (uint256)
   {
-    return _asFactory(hooksFactoryAddress).getMarketsForHooksTemplateCount(hooksTemplate);
+    return IHooksFactory(hooksFactoryAddress).getMarketsForHooksTemplateCount(hooksTemplate);
   }
 
   // ┌─ getAggregatedMarketsForHooksTemplateCount ─────
@@ -579,7 +523,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
     view
     returns (MarketData[] memory data)
   {
-    address[] memory markets = _asFactory(hooksFactoryAddress).getMarketsForHooksTemplate(hooksTemplate, start, end);
+    address[] memory markets = IHooksFactory(hooksFactoryAddress).getMarketsForHooksTemplate(hooksTemplate, start, end);
     return MarketDataLib.fillMarketsData(markets);
   }
 
@@ -607,7 +551,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
     view
     returns (MarketDataV2_5[] memory data)
   {
-    address[] memory markets = _asFactory(hooksFactoryAddress).getMarketsForHooksTemplate(hooksTemplate, start, end);
+    address[] memory markets = IHooksFactory(hooksFactoryAddress).getMarketsForHooksTemplate(hooksTemplate, start, end);
     return MarketDataLib.fillMarketsDataV2(markets);
   }
 
@@ -625,7 +569,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
     view
     returns (MarketData[] memory data)
   {
-    address[] memory markets = _asFactory(hooksFactoryAddress).getMarketsForHooksTemplate(hooksTemplate);
+    address[] memory markets = IHooksFactory(hooksFactoryAddress).getMarketsForHooksTemplate(hooksTemplate);
     return MarketDataLib.fillMarketsData(markets);
   }
 
@@ -647,7 +591,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
     view
     returns (MarketDataV2_5[] memory data)
   {
-    address[] memory markets = _asFactory(hooksFactoryAddress).getMarketsForHooksTemplate(hooksTemplate);
+    address[] memory markets = IHooksFactory(hooksFactoryAddress).getMarketsForHooksTemplate(hooksTemplate);
     return MarketDataLib.fillMarketsDataV2(markets);
   }
 
@@ -678,19 +622,6 @@ contract MarketLensAggregator is IMarketLensAggregator {
   {
     address[] memory factories = getActiveHooksFactories();
     uint256 numFactories = factories.length;
-    if (numFactories == 0) {
-      return new address[](0);
-    }
-    if (numFactories == 1) {
-      try IHooksFactory(factories[0]).getMarketsForHooksTemplate(hooksTemplate) returns (
-        address[] memory singleFactoryMarkets
-      ) {
-        return singleFactoryMarkets;
-      } catch {
-        return new address[](0);
-      }
-    }
-
     address[][] memory marketsByFactory = new address[][](numFactories);
     uint256 totalMarkets = 0;
 
@@ -709,7 +640,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
       address[] memory factoryMarkets = marketsByFactory[i];
       for (uint256 j; j < factoryMarkets.length; j++) {
         address marketAddress = factoryMarkets[j];
-        if (!_containsAddress(markets, uniqueCount, marketAddress)) {
+        if (numFactories == 1 || !_containsAddress(markets, uniqueCount, marketAddress)) {
           markets[uniqueCount++] = marketAddress;
         }
       }

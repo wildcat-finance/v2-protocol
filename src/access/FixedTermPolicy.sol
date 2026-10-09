@@ -28,9 +28,7 @@ pragma solidity 0.8.25;
 //
 //  CLOSURE
 //  _validateCloseMarket(...)
-//  _validateFixedCloseMarket()
 //  _applyCloseMarket(...)
-//  _applyFixedCloseMarket()
 //
 //  INTEREST
 //  _applyAprUpdate(...)
@@ -265,13 +263,8 @@ abstract contract FixedTermPolicy is BaseHooks {
   // ░░▒▒▓▓██ [ CLOSURE ] ──────────────────────────────────────────────────────
 
   // ┌─ _validateCloseMarket ─────
-  function _validateCloseMarket(MarketState calldata, bytes calldata) internal view virtual override {
-    _validateFixedCloseMarket();
-  }
-
-  // ┌─ _validateFixedCloseMarket ─────
   /// @dev either early-close permission is enough. keep the existing OR rule.
-  function _validateFixedCloseMarket() internal view {
+  function _validateCloseMarket(MarketState calldata, bytes calldata) internal view virtual override {
     HookedMarket storage market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();
     if (block.timestamp < market.fixedTermEndTime) {
@@ -282,13 +275,8 @@ abstract contract FixedTermPolicy is BaseHooks {
   }
 
   // ┌─ _applyCloseMarket ─────
-  function _applyCloseMarket(MarketState calldata, bytes calldata) internal virtual override {
-    _applyFixedCloseMarket();
-  }
-
-  // ┌─ _applyFixedCloseMarket ─────
   /// @dev validation must run first. an allowed early close brings maturity forward to now.
-  function _applyFixedCloseMarket() internal {
+  function _applyCloseMarket(MarketState calldata, bytes calldata) internal virtual override {
     HookedMarket storage market = _hookedMarkets[msg.sender];
     if (block.timestamp < market.fixedTermEndTime) {
       uint32 previousFixedTermEndTime = market.fixedTermEndTime;

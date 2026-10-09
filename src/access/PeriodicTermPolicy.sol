@@ -37,9 +37,7 @@ pragma solidity 0.8.25;
 //
 //  CLOSURE
 //  _validateCloseMarket(...)
-//  _validatePeriodicCloseMarket()
 //  _applyCloseMarket(...)
-//  _applyPeriodicCloseMarket()
 //  _scheduledMarketClosed(...)
 //  _effectiveHookedMarket(...)
 // ═════
@@ -564,22 +562,12 @@ abstract contract PeriodicTermPolicy is BaseHooks {
 
   // ┌─ _validateCloseMarket ─────
   function _validateCloseMarket(MarketState calldata, bytes calldata) internal view virtual override {
-    _validatePeriodicCloseMarket();
-  }
-
-  // ┌─ _validatePeriodicCloseMarket ─────
-  function _validatePeriodicCloseMarket() internal view {
     if (!_hookedMarkets[msg.sender].isHooked) revert NotHookedMarket();
   }
 
   // ┌─ _applyCloseMarket ─────
-  function _applyCloseMarket(MarketState calldata, bytes calldata) internal virtual override {
-    _applyPeriodicCloseMarket();
-  }
-
-  // ┌─ _applyPeriodicCloseMarket ─────
   /// @dev validation must run first. close the schedule, cancel any proposal, then emit closure.
-  function _applyPeriodicCloseMarket() internal {
+  function _applyCloseMarket(MarketState calldata, bytes calldata) internal virtual override {
     _hookedMarkets[msg.sender].isClosed = true;
     // a closed market can't execute the proposal. don't leave it sitting there forever.
     if (_pendingAprChanges[msg.sender].proposalTimestamp != 0) {
