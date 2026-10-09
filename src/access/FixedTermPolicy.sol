@@ -9,9 +9,6 @@ pragma solidity 0.8.25;
 //  MARKET SETUP
 //  _getParameterConstraints()
 //  _initializeMarket(...)
-//  _readUint32Cd(...)
-//  _readUint128Cd(...)
-//  _readBoolCd(...)
 //
 //  ACCESS CONFIGURATION
 //  _readAccessConfig(...)
@@ -128,7 +125,7 @@ abstract contract FixedTermPolicy is BaseHooks {
     returns (HooksConfig marketHooksConfig)
   {
     if (hooksData.length < 32) revert FixedTermNotProvided();
-    uint32 fixedTermEndTime = _readUint32Cd(hooksData);
+    uint32 fixedTermEndTime = _readWordCd(hooksData, 0).toUint32();
     if (fixedTermEndTime < block.timestamp || (fixedTermEndTime - block.timestamp) > MaximumLoanTerm) {
       revert InvalidFixedTerm();
     }
@@ -138,7 +135,11 @@ abstract contract FixedTermPolicy is BaseHooks {
     emit FixedTermUpdated(marketAddress, administrator_, 0, fixedTermEndTime);
 
     (AccessConfig memory access, bool depositHookEnabled, HooksConfig effective) = _configureMarketAccess(
-      administrator_, marketAddress, parameters.hooks, _readUint128Cd(hooksData, 0x20), _readBoolCd(hooksData, 0x40)
+      administrator_,
+      marketAddress,
+      parameters.hooks,
+      _readWordCd(hooksData, 0x20).toUint128(),
+      _readBoolCd(hooksData, 0x40)
     );
     _depositHookEnabled[marketAddress] = depositHookEnabled;
     _hookedMarkets[marketAddress] = HookedMarket({
@@ -153,31 +154,6 @@ abstract contract FixedTermPolicy is BaseHooks {
       transfersDisabled: access.transfersDisabled
     });
     return effective;
-  }
-
-  // ┌─ _readUint32Cd ─────
-  function _readUint32Cd(bytes calldata data) internal pure returns (uint32 value) {
-    uint _value;
-    assembly {
-      _value := calldataload(data.offset)
-    }
-    return _value.toUint32();
-  }
-
-  // ┌─ _readUint128Cd ─────
-  function _readUint128Cd(bytes calldata data, uint offset) internal pure returns (uint128 value) {
-    uint _value;
-    assembly {
-      _value := calldataload(add(data.offset, offset))
-    }
-    return _value.toUint128();
-  }
-
-  // ┌─ _readBoolCd ─────
-  function _readBoolCd(bytes calldata data, uint offset) internal pure returns (bool value) {
-    assembly {
-      value := and(calldataload(add(data.offset, offset)), 1)
-    }
   }
 
   // ░░▒▒▓▓██ [ ACCESS CONFIGURATION ] ─────────────────────────────────────────

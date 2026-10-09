@@ -10,6 +10,8 @@ pragma solidity 0.8.25;
 //  constructor(...)
 //  _onCreateMarket(...)
 //  _initializeMarket(...)
+//  _readWordCd(...)
+//  _readBoolCd(...)
 //  _configureMarketAccess(...)
 //  _onMarketConfigured(...)
 //  _requireHookedMarket(...)
@@ -201,6 +203,21 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     internal
     virtual
     returns (HooksConfig);
+
+  // ┌─ _readWordCd ─────
+  /// @dev preserve the policy payload's raw calldata reads, including optional/trailing words.
+  ///      callers apply their own checked narrowing; this deliberately does not ABI-decode bytes.
+  function _readWordCd(bytes calldata data, uint256 offset) internal pure returns (uint256 value) {
+    assembly {
+      value := calldataload(add(data.offset, offset))
+    }
+  }
+
+  // ┌─ _readBoolCd ─────
+  /// @dev policy flags use the low bit, including for noncanonical boolean words.
+  function _readBoolCd(bytes calldata data, uint256 offset) internal pure returns (bool) {
+    return _readWordCd(data, offset) & 1 != 0;
+  }
 
   // ┌─ _configureMarketAccess ─────
   /// @dev capture access requirements before forcing or merging callback flags. an enabled

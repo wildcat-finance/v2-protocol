@@ -9,9 +9,6 @@ pragma solidity 0.8.25;
 //  MARKET SETUP
 //  _initializeMarket(...)
 //  _validatePeriodicTerm(...)
-//  _readUint32Cd(...)
-//  _readUint96Cd(...)
-//  _readBoolCd(...)
 //
 //  ACCESS CONFIGURATION
 //  _readAccessConfig(...)
@@ -173,9 +170,9 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     returns (HooksConfig marketHooksConfig)
   {
     if (hooksData.length < 0x60) revert PeriodicWindowNotProvided();
-    uint32 firstWithdrawalWindowStart = _readUint32Cd(hooksData, 0);
-    uint32 periodDuration = _readUint32Cd(hooksData, 0x20);
-    uint32 withdrawalWindowDuration = _readUint32Cd(hooksData, 0x40);
+    uint32 firstWithdrawalWindowStart = _readWordCd(hooksData, 0).toUint32();
+    uint32 periodDuration = _readWordCd(hooksData, 0x20).toUint32();
+    uint32 withdrawalWindowDuration = _readWordCd(hooksData, 0x40).toUint32();
     _validatePeriodicTerm(firstWithdrawalWindowStart, periodDuration, withdrawalWindowDuration, block.timestamp);
     emit PeriodicTermUpdated(
       marketAddress,
@@ -185,7 +182,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
       withdrawalWindowDuration
     );
 
-    uint96 minimumDeposit = _readUint96Cd(hooksData, 0x60);
+    uint96 minimumDeposit = _readWordCd(hooksData, 0x60).toUint96();
     (AccessConfig memory access, bool depositHookEnabled, HooksConfig effective) = _configureMarketAccess(
       administrator_, marketAddress, parameters.hooks, minimumDeposit, _readBoolCd(hooksData, 0x80)
     );
@@ -229,31 +226,6 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     // `firstWithdrawalWindowStart` can push the first window too far out.
     if (firstWithdrawalWindowStart > currentTimestamp + MaximumInitialWithdrawalWindowDelay) {
       revert InitialWithdrawalWindowTooFarInFuture();
-    }
-  }
-
-  // ┌─ _readUint32Cd ─────
-  function _readUint32Cd(bytes calldata data, uint offset) internal pure returns (uint32 value) {
-    uint _value;
-    assembly {
-      _value := calldataload(add(data.offset, offset))
-    }
-    return _value.toUint32();
-  }
-
-  // ┌─ _readUint96Cd ─────
-  function _readUint96Cd(bytes calldata data, uint offset) internal pure returns (uint96 value) {
-    uint _value;
-    assembly {
-      _value := calldataload(add(data.offset, offset))
-    }
-    return _value.toUint96();
-  }
-
-  // ┌─ _readBoolCd ─────
-  function _readBoolCd(bytes calldata data, uint offset) internal pure returns (bool value) {
-    assembly {
-      value := and(calldataload(add(data.offset, offset)), 1)
     }
   }
 
