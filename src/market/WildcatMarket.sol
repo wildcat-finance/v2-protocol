@@ -44,6 +44,7 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   using SafeCastLib for uint256;
   using LibERC20 for address;
   using BoolUtils for bool;
+  using MarketLifecycleLib for MarketState;
 
   // ░░▒▒▓▓██ [ DEPOSITS ] ─────────────────────────────────────────────────────
 
@@ -237,11 +238,8 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
       currentlyHeld -= excessDebt;
     }
     hooks.onCloseMarket(state);
-    state.annualInterestBips = 0;
-    state.isClosed = true;
-    state.reserveRatioBips = 10000;
-    // stop delinquency accrual too. further interest would leave the last lender short.
-    state.timeDelinquent = 0;
+    // stop interest and delinquency accrual. further interest would leave the last lender short.
+    state.closeFundedState();
 
     // track the actual liquidity left; don't assume rounding makes every batch fit.
     uint256 availableLiquidity = currentlyHeld.satSub(state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
@@ -250,10 +248,9 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
     if (state.pendingWithdrawalExpiry != 0) {
       uint32 expiry = state.pendingWithdrawalExpiry;
       WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
-      if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
-        (, uint128 normalizedAmountPaid) = _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
-        availableLiquidity -= normalizedAmountPaid;
-      }
+      // a fully paid batch returns (0, 0) without writes or events.
+      (, uint128 normalizedAmountPaid) = _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
+      availableLiquidity -= normalizedAmountPaid;
       batch.releaseRemainder(state);
       _withdrawalData.batches[expiry] = batch;
 

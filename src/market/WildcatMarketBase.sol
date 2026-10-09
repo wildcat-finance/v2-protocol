@@ -54,7 +54,6 @@ pragma solidity 0.8.25;
 //  BATCH FUNDING
 //  _commitTransitionBatch(...)
 //  _closeOrQueueWithdrawalBatch(...)
-//  _processExpiredWithdrawalBatch(...)
 //  _payTransitionBatch(...)
 //  _applyWithdrawalBatchPayment(...)
 //  _applyWithdrawalBatchPaymentView(...)
@@ -894,36 +893,6 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
     } else {
       _withdrawalData.unpaidBatches.push(expiry);
     }
-  }
-
-  // ┌─ _processExpiredWithdrawalBatch ─────
-  /// @dev fund the expired batch with available liquidity. close it if fully funded;
-  ///      otherwise retain the unpaid portion in FIFO. reserve the paid assets and burn the
-  ///      corresponding shares at the current scale factor so they stop earning interest.
-  function _processExpiredWithdrawalBatch(MarketState memory state, uint256 currentTotalAssets) internal {
-    uint32 expiry = state.pendingWithdrawalExpiry;
-    WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
-
-    if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
-      uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(state, currentTotalAssets);
-      if (availableLiquidity > 0) {
-        _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
-      }
-    }
-
-    batch.releaseRemainder(state);
-
-    emit_WithdrawalBatchExpired(expiry, batch.scaledTotalAmount, batch.scaledAmountBurned, batch.normalizedAmountPaid);
-
-    if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
-      _withdrawalData.unpaidBatches.push(expiry);
-    } else {
-      emit_WithdrawalBatchClosed(expiry);
-    }
-
-    state.pendingWithdrawalExpiry = 0;
-
-    _withdrawalData.batches[expiry] = batch;
   }
 
   // ┌─ _payTransitionBatch ─────
