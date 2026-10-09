@@ -11,7 +11,6 @@ pragma solidity 0.8.25;
 //
 //  STATE AND BATCH VIEWS
 //  asReturnsMarketState(...)
-//  asReturnsPointers(...)
 //
 //  TRANSITION ALLOCATION
 //  asTransitionAllocator(...)
@@ -19,7 +18,6 @@ pragma solidity 0.8.25;
 
 import { MarketParameters } from '../interfaces/WildcatStructsAndEnums.sol';
 import { MarketState } from '../libraries/MarketState.sol';
-import { WithdrawalBatch } from '../libraries/Withdrawal.sol';
 import { LifecycleTransition } from './MarketLifecycle.sol';
 
 // ┌─ FunctionTypeCasts ────────────────────────────────────────────────────────
@@ -48,18 +46,6 @@ library FunctionTypeCasts {
     internal
     pure
     returns (function() internal view returns (MarketState memory) fnOut)
-  {
-    assembly {
-      fnOut := fnIn
-    }
-  }
-
-  // ┌─ asReturnsPointers ─────
-  /// @dev reuse the MarketState and WithdrawalBatch return buffers.
-  function asReturnsPointers(function() internal view returns (MarketState memory, uint32, WithdrawalBatch memory) fnIn)
-    internal
-    pure
-    returns (function() internal view returns (uint256, uint32, uint256) fnOut)
   {
     assembly {
       fnOut := fnIn

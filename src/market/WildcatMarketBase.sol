@@ -417,15 +417,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
 
   // ┌─ onlyBorrower ─────
   modifier onlyBorrower() {
-    address _borrower = borrower();
-    assembly {
-      // equivalent to
-      // if (msg.sender != borrower) revert NotApprovedBorrower();
-      if xor(caller(), _borrower) {
-        mstore(0, 0x02171e6a)
-        revert(0x1c, 0x04)
-      }
-    }
+    if (msg.sender != borrower()) revertWithSelector(NotApprovedBorrower_ErrorSelector);
     _;
   }
 

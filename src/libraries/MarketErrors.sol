@@ -24,7 +24,6 @@ uint256 constant AprReductionNotReduction_ErrorSelector = 0x116a7bf1;
 uint256 constant ExecutePendingAprReductionNotEnabled_ErrorSelector = 0x52025ce9;
 uint256 constant MarketAlreadyClosed_ErrorSelector = 0x449e5f50;
 uint256 constant NotApprovedBorrower_ErrorSelector = 0x02171e6a;
-uint256 constant NotApprovedLender_ErrorSelector = 0xe50a45ce;
 uint256 constant BadLaunchCode_ErrorSelector = 0xa97ab167;
 uint256 constant ReserveRatioBipsTooHigh_ErrorSelector = 0x8ec83073;
 uint256 constant AnnualInterestBipsTooHigh_ErrorSelector = 0xcf1f916f;
