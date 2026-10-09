@@ -33,7 +33,6 @@ pragma solidity 0.8.25;
 //  _checkTransfer(...)
 //  isMarketTransferDisabled(...)
 //  isMarketTransferRecipientAllowed(...)
-//  _defaultTransferRecipientAllowed(...)
 //  _featureTransferRecipientAllowed(...)
 //
 //  BORROWING
@@ -453,22 +452,9 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     returns (bool)
   {
     AccessConfig memory access = _requireHookedMarket(marketAddress);
-    return _defaultTransferRecipientAllowed(marketAddress, recipient, access)
+    return !access.transfersDisabled
+      && _isMarketTransferRecipientAllowed(marketAddress, recipient, access.transferRequiresAccess)
       && _featureTransferRecipientAllowed(marketAddress, recipient);
-  }
-
-  // ┌─ _defaultTransferRecipientAllowed ─────
-  function _defaultTransferRecipientAllowed(
-    address market,
-    address recipient,
-    AccessConfig memory access
-  )
-    internal
-    view
-    returns (bool)
-  {
-    return
-      !access.transfersDisabled && _isMarketTransferRecipientAllowed(market, recipient, access.transferRequiresAccess);
   }
 
   // ┌─ _featureTransferRecipientAllowed ─────
