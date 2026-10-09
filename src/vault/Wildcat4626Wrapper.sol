@@ -86,6 +86,11 @@ pragma solidity 0.8.25;
 //  _isLimitOperational(...)
 //
 //  MARKET READERS
+//  _scaleFactor()
+//  _scaledBalance()
+//  _borrowerPrincipal()
+//  _borrower()
+//  _marketBalance()
 //  _tryReadMarketAddress(...)
 //  _tryReadMarketWord(...)
 //  _tryReadMarketWord(...)
@@ -233,9 +238,9 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     if (msg.sender != wrappedMarket.wrapperFactory()) {
       revert NotWrapperFactory();
     }
-    address currentBorrower = wrappedMarket.borrower();
+    address currentBorrower = _borrower();
     if (currentBorrower == address(0)) revert ZeroAddress();
-    if (wrappedMarket.borrowerPrincipal() == address(0)) {
+    if (_borrowerPrincipal() == address(0)) {
       revert ZeroAddress();
     }
     address sentinel = wrappedMarket.sentinel();
@@ -289,7 +294,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ///
   /// @dev retained as a compatibility getter; sweep authorization reads the same live value.
   function marketOwner() public view returns (address) {
-    return wrappedMarket.borrower();
+    return _borrower();
   }
 
   // ┌─ asset ─────
@@ -303,7 +308,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ///
   /// @dev direct market-token transfers increase this without minting shares.
   function totalAssets() public view override returns (uint256) {
-    return wrappedMarket.balanceOf(address(this));
+    return _marketBalance();
   }
 
   // ░░▒▒▓▓██ [ DEPOSITS ] ─────────────────────────────────────────────────────
@@ -336,7 +341,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     uint256 limit = _remainingCapacityAssets();
     if (assets > limit) revert CapExceeded();
 
-    uint256 scaleFactor = wrappedMarket.scaleFactor();
+    uint256 scaleFactor = _scaleFactor();
     // match the market transfer's floor-scaled credit exactly.
     shares = _convertToSharesDown(assets, scaleFactor);
     if (shares == 0) revert ZeroShares();
@@ -368,7 +373,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256 assets) {
     _requireOperational(msg.sender, address(0));
     if (shares == 0) revert ZeroShares();
-    uint256 scaleFactor = wrappedMarket.scaleFactor();
+    uint256 scaleFactor = _scaleFactor();
     assets = _remainingCapacityAssets();
     if (assets == 0 || shares > _convertToSharesDown(assets, scaleFactor)) {
       revert CapExceeded();
@@ -389,9 +394,9 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     _requireMarketTokenRecipientAllowed();
 
     address assetAddress = address(wrappedMarket);
-    uint256 scaledBefore = wrappedMarket.scaledBalanceOf(address(this));
+    uint256 scaledBefore = _scaledBalance();
     assetAddress.safeTransferFrom(msg.sender, address(this), assets);
-    uint256 scaledAfter = wrappedMarket.scaledBalanceOf(address(this));
+    uint256 scaledAfter = _scaledBalance();
 
     uint256 mintedShares = scaledAfter - scaledBefore;
     if (mintedShares != shares) revert SharesMismatch(shares, mintedShares);
@@ -416,7 +421,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @notice return assets required to mint `shares`, rounded up.
   function previewMint(uint256 shares) public view override returns (uint256) {
     if (shares == 0) return 0;
-    uint256 scaleFactor = wrappedMarket.scaleFactor();
+    uint256 scaleFactor = _scaleFactor();
     return _convertToAssetsUp(shares, scaleFactor);
   }
 
@@ -449,7 +454,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ///      without sanctions checks (execution paths already enforce them).
   function _remainingCapacityAssets() internal view returns (uint256) {
     uint256 marketCap = wrappedMarket.maxTotalSupply();
-    uint256 held = wrappedMarket.balanceOf(address(this));
+    uint256 held = _marketBalance();
     if (held >= marketCap) return 0;
     return marketCap - held;
   }
@@ -496,7 +501,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     _requireOperational(msg.sender, receiver);
     if (assets == 0) revert ZeroAssets();
 
-    uint256 scaleFactor = wrappedMarket.scaleFactor();
+    uint256 scaleFactor = _scaleFactor();
     // match the market transfer's floor-scaled debit exactly.
     shares = _convertToSharesDown(assets, scaleFactor);
     if (shares == 0) revert ZeroShares();
@@ -528,7 +533,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @notice return the ERC-4626 preview of shares for `assets`, rounded up.
   function previewWithdraw(uint256 assets) public view override returns (uint256) {
     if (assets == 0) return 0;
-    uint256 scaleFactor = wrappedMarket.scaleFactor();
+    uint256 scaleFactor = _scaleFactor();
     return _convertToSharesUp(assets, scaleFactor);
   }
 
@@ -556,7 +561,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
       _spendAllowance(owner_, msg.sender, shares);
     }
 
-    uint256 scaleFactor = wrappedMarket.scaleFactor();
+    uint256 scaleFactor = _scaleFactor();
     // ceiling conversion makes the floor-rounded market transfer move exactly `shares`.
     assets = _convertToAssetsUp(shares, scaleFactor);
     if (assets == 0) revert ZeroAssets();
@@ -567,12 +572,12 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   // ┌─ _releaseAssets ─────
   /// @dev burn before transferring, then verify the exact scaled debit and remaining backing.
   function _releaseAssets(uint256 assets, address receiver, address owner_, uint256 shares) private {
-    uint256 scaledBefore = wrappedMarket.scaledBalanceOf(address(this));
+    uint256 scaledBefore = _scaledBalance();
 
     _burn(owner_, shares);
     address assetAddress = address(wrappedMarket);
     assetAddress.safeTransfer(receiver, assets);
-    uint256 scaledAfter = wrappedMarket.scaledBalanceOf(address(this));
+    uint256 scaledAfter = _scaledBalance();
 
     uint256 burnedShares = scaledBefore - scaledAfter;
     if (burnedShares != shares) revert SharesMismatch(shares, burnedShares);
@@ -604,7 +609,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @dev this is a pure exchange-rate quote; it ignores sanctions, capacity, and transfer policy.
   function convertToShares(uint256 assets) public view override returns (uint256) {
     if (assets == 0) return 0;
-    uint256 scaleFactor = wrappedMarket.scaleFactor();
+    uint256 scaleFactor = _scaleFactor();
     return _convertToSharesDown(assets, scaleFactor);
   }
 
@@ -614,7 +619,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @dev this is a pure exchange-rate quote; it ignores sanctions and wrapper solvency.
   function convertToAssets(uint256 shares) public view override returns (uint256) {
     if (shares == 0) return 0;
-    uint256 scaleFactor = wrappedMarket.scaleFactor();
+    uint256 scaleFactor = _scaleFactor();
     return _convertToAssetsDown(shares, scaleFactor);
   }
 
@@ -623,7 +628,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ///
   /// @dev exactly the market scale factor.
   function assetsPerShareRay() external view returns (uint256) {
-    return wrappedMarket.scaleFactor();
+    return _scaleFactor();
   }
 
   // ┌─ sharesPerAssetRay ─────
@@ -631,7 +636,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ///
   /// @dev the floored ray inverse of the market scale factor.
   function sharesPerAssetRay() external view returns (uint256) {
-    return MathUtils.mulDiv(RAY, RAY, wrappedMarket.scaleFactor());
+    return MathUtils.mulDiv(RAY, RAY, _scaleFactor());
   }
 
   // ┌─ _convertToSharesDown ─────
@@ -671,26 +676,26 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ///
   /// @return amount token units sent to `to`.
   function sweep(address token, address to) external nonReentrant returns (uint256 amount) {
-    if (msg.sender != wrappedMarket.borrower()) {
+    if (msg.sender != _borrower()) {
       revert NotMarketOwner();
     }
     if (token == address(0) || to == address(0)) revert ZeroAddress();
     _checkNotSanctioned(to);
 
     if (token == address(wrappedMarket)) {
-      uint256 scaledBefore = wrappedMarket.scaledBalanceOf(address(this));
+      uint256 scaledBefore = _scaledBalance();
       uint256 expectedScaled = totalSupply();
       if (scaledBefore <= expectedScaled) revert ZeroAssets();
 
       uint256 strandedScaled = scaledBefore - expectedScaled;
-      uint256 scaleFactor = wrappedMarket.scaleFactor();
+      uint256 scaleFactor = _scaleFactor();
       // ceiling conversion sweeps exactly the scaled surplus, not backing for live shares.
       amount = _convertToAssetsUp(strandedScaled, scaleFactor);
       if (amount == 0) revert ZeroAssets();
 
       token.safeTransfer(to, amount);
 
-      uint256 scaledAfter = wrappedMarket.scaledBalanceOf(address(this));
+      uint256 scaledAfter = _scaledBalance();
       uint256 sweptScaled = scaledBefore - scaledAfter;
       if (sweptScaled != strandedScaled) revert SharesMismatch(strandedScaled, sweptScaled);
     } else {
@@ -736,7 +741,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     uint256 shares = balanceOf(account);
     if (shares == 0) return;
 
-    address escrow = sanctionsSentinel.createEscrow(wrappedMarket.borrowerPrincipal(), account, address(this));
+    address escrow = sanctionsSentinel.createEscrow(_borrowerPrincipal(), account, address(this));
     _authorizedEscrows[escrow] = true;
     _transfer(account, escrow, shares);
     emit SanctionedAccountSharesSentToEscrow(account, escrow, shares);
@@ -746,7 +751,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @dev enforces solvency and sanctions on share moves. a sanctioned holder may only move to its
   ///      deterministic escrow; an authorized escrow gets one release under its original principal.
   function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
-    address principal = wrappedMarket.borrowerPrincipal();
+    address principal = _borrowerPrincipal();
     bool fromIsSanctioned = _isSanctioned(from, principal);
     bool toIsSanctioned = _isSanctioned(to, principal);
     bool isEscrowRelease = _isEscrowRelease(from, to);
@@ -806,7 +811,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   // ┌─ _isSanctioned ─────
   function _isSanctioned(address account) internal view returns (bool) {
     if (account == address(0)) return false;
-    return _isSanctioned(account, wrappedMarket.borrowerPrincipal());
+    return _isSanctioned(account, _borrowerPrincipal());
   }
 
   // ┌─ _isSanctioned ─────
@@ -838,16 +843,16 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   // ┌─ _requireOperational ─────
   function _requireOperational(address principal) internal view {
     _checkNotSanctioned(address(this), principal);
-    _requireSolvent(wrappedMarket.scaledBalanceOf(address(this)));
+    _requireSolvent(_scaledBalance());
   }
 
   // ┌─ _requireOperational ─────
   function _requireOperational(address account, address secondAccount) internal view {
-    address principal = wrappedMarket.borrowerPrincipal();
+    address principal = _borrowerPrincipal();
     _checkNotSanctioned(account, principal);
     _checkNotSanctioned(secondAccount, principal);
     _checkNotSanctioned(address(this), principal);
-    _requireSolvent(wrappedMarket.scaledBalanceOf(address(this)));
+    _requireSolvent(_scaledBalance());
   }
 
   // ┌─ _requireSolvent ─────
@@ -880,6 +885,31 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   }
 
   // ░░▒▒▓▓██ [ MARKET READERS ] ───────────────────────────────────────────────
+
+  // ┌─ _scaleFactor ─────
+  function _scaleFactor() private view returns (uint256) {
+    return wrappedMarket.scaleFactor();
+  }
+
+  // ┌─ _scaledBalance ─────
+  function _scaledBalance() private view returns (uint256) {
+    return wrappedMarket.scaledBalanceOf(address(this));
+  }
+
+  // ┌─ _borrowerPrincipal ─────
+  function _borrowerPrincipal() private view returns (address) {
+    return wrappedMarket.borrowerPrincipal();
+  }
+
+  // ┌─ _borrower ─────
+  function _borrower() private view returns (address) {
+    return wrappedMarket.borrower();
+  }
+
+  // ┌─ _marketBalance ─────
+  function _marketBalance() private view returns (uint256) {
+    return wrappedMarket.balanceOf(address(this));
+  }
 
   // ┌─ _tryReadMarketAddress ─────
   function _tryReadMarketAddress(bytes4 selector) internal view returns (bool success, address value) {
