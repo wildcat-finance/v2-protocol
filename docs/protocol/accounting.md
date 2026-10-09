@@ -105,7 +105,7 @@ delinquency fees do not.
 Base interest and delinquency fees increase `scaleFactor`. Protocol fees are
 calculated from base interest and added to `accruedProtocolFees`. They do not
 increase the lender scale factor. See
-[`FeeMath.updateScaleFactorAndFees`](../../src/libraries/FeeMath.sol).
+[`WildcatMarketBase._updateScaleFactorAndFees`](../../src/market/WildcatMarketBase.sol).
 
 Each accrual interval rounds its protocol fee to the underlying asset's atomic
 unit. Fractional remainders do not carry into the next update. More frequent

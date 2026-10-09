@@ -6,18 +6,13 @@ pragma solidity 0.8.25;
 //  \ ^ /   Base interest, protocol fees, and delinquency accrual.
 //    V
 //
-//  ACCRUAL
-//  updateScaleFactorAndFees(...)
-//
 //  BASE INTEREST
 //  calculateBaseInterest(...)
-//  calculateLinearInterestFromBips(...)
 //
 //  PROTOCOL FEES
 //  applyProtocolFee(...)
 //
 //  DELINQUENCY
-//  updateDelinquency(...)
 //  updateTimeDelinquentAndGetPenaltyTime(...)
 // ═════
 
@@ -30,48 +25,6 @@ using MathUtils for uint256;
 
 // ┌─ FeeMath ──────────────────────────────────────────────────────────────────
 library FeeMath {
-  // ░░▒▒▓▓██ [ ACCRUAL ] ──────────────────────────────────────────────────────
-
-  // ┌─ updateScaleFactorAndFees ─────
-  /// @dev accrue base interest, delinquency fees, and protocol fees into memory state.
-  ///      return the base and penalty rates plus normalized protocol fees for the interval.
-  ///      an explicit `timestamp` lets callers split accrual at a batch expiry.
-  ///
-  /// @param state                  market scale parameters.
-  /// @param delinquencyFeeBips     delinquency fee rate, in bips.
-  /// @param delinquencyGracePeriod grace period before delinquency fees apply, in seconds.
-  /// @param timestamp              accrual endpoint, in seconds.
-  ///
-  /// @return baseInterestRay base interest accrued to lenders, in ray.
-  /// @return delinquencyFeeRay accrued delinquency penalty rate, in ray.
-  /// @return protocolFee fee charged on base interest, in normalized tokens.
-  function updateScaleFactorAndFees(
-    MarketState memory state,
-    uint256 delinquencyFeeBips,
-    uint256 delinquencyGracePeriod,
-    uint256 timestamp
-  )
-    internal
-    pure
-    returns (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee)
-  {
-    baseInterestRay = state.calculateBaseInterest(timestamp);
-
-    if (state.protocolFeeBips > 0) {
-      protocolFee = state.applyProtocolFee(baseInterestRay);
-    }
-
-    delinquencyFeeRay = state.updateDelinquency(timestamp, delinquencyFeeBips, delinquencyGracePeriod);
-
-    uint256 prevScaleFactor = state.scaleFactor;
-    uint256 scaleFactorDelta = prevScaleFactor.rayMul(baseInterestRay + delinquencyFeeRay);
-
-    // the uint112 scale-factor horizon is finite. keep the checked revert, not truncation.
-    // accepted boundary; see MarketState and Known Issues.
-    state.scaleFactor = (prevScaleFactor + scaleFactorDelta).toUint112();
-    state.lastInterestAccruedTimestamp = uint32(timestamp);
-  }
-
   // ░░▒▒▓▓██ [ BASE INTEREST ] ────────────────────────────────────────────────
 
   // ┌─ calculateBaseInterest ─────
@@ -87,21 +40,6 @@ library FeeMath {
     baseInterestRay = MathUtils.calculateLinearInterestFromBips(
       state.annualInterestBips, timestamp - state.lastInterestAccruedTimestamp
     );
-  }
-
-  // ┌─ calculateLinearInterestFromBips ─────
-  /// @dev calculate linear interest over the elapsed interval.
-  ///
-  /// @param rateBip   annual interest rate, in bips.
-  /// @param timeDelta seconds since the last accrual.
-  ///
-  /// @return result linear interest over `timeDelta`, in ray.
-  function calculateLinearInterestFromBips(uint256 rateBip, uint256 timeDelta) internal pure returns (uint256 result) {
-    uint256 rate = rateBip.bipToRay();
-    uint256 accumulatedInterestRay = rate * timeDelta;
-    unchecked {
-      return accumulatedInterestRay / SECONDS_IN_365_DAYS;
-    }
   }
 
   // ░░▒▒▓▓██ [ PROTOCOL FEES ] ────────────────────────────────────────────────
@@ -125,28 +63,6 @@ library FeeMath {
   }
 
   // ░░▒▒▓▓██ [ DELINQUENCY ] ──────────────────────────────────────────────────
-
-  // ┌─ updateDelinquency ─────
-  /// @dev advance or decay the delinquency timer and return the fee rate accrued over the
-  ///      interval's penalized seconds, in ray.
-  function updateDelinquency(
-    MarketState memory state,
-    uint256 timestamp,
-    uint256 delinquencyFeeBips,
-    uint256 delinquencyGracePeriod
-  )
-    internal
-    pure
-    returns (uint256 delinquencyFeeRay)
-  {
-    uint256 timeWithPenalty = updateTimeDelinquentAndGetPenaltyTime(
-      state, delinquencyGracePeriod, timestamp - state.lastInterestAccruedTimestamp
-    );
-
-    if (timeWithPenalty > 0 && delinquencyFeeBips > 0) {
-      delinquencyFeeRay = calculateLinearInterestFromBips(delinquencyFeeBips, timeWithPenalty);
-    }
-  }
 
   // ┌─ updateTimeDelinquentAndGetPenaltyTime ─────
   /// @notice update `timeDelinquent` and return the interval's penalized seconds.

@@ -19,13 +19,22 @@ pragma solidity 0.8.25;
 //  DELINQUENCY
 //  $updateDelinquency(...)
 //  $updateTimeDelinquentAndGetPenaltyTime(...)
+//
+//  REFERENCE ACCRUAL
+//  _updateScaleFactorAndFees(...)
+//  _updateDelinquency(...)
 // ═════
 
 import { FeeMath } from 'src/libraries/FeeMath.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
+import { MathUtils } from 'src/libraries/MathUtils.sol';
+import { SafeCastLib } from 'src/libraries/SafeCastLib.sol';
 
 // ┌─ FeeMathExternal ──────────────────────────────────────────────────────────
 library FeeMathExternal {
+  using MathUtils for uint256;
+  using SafeCastLib for uint256;
+
   // ░░▒▒▓▓██ [ ACCRUAL ] ──────────────────────────────────────────────────────
 
   // ┌─ $updateScaleFactorAndFees ─────
@@ -41,7 +50,7 @@ library FeeMathExternal {
   {
     newState = state;
     (baseInterestRay, delinquencyFeeRay, protocolFee) =
-      FeeMath.updateScaleFactorAndFees(state, delinquencyFeeBips, delinquencyGracePeriod, timestamp);
+      _updateScaleFactorAndFees(state, delinquencyFeeBips, delinquencyGracePeriod, timestamp);
   }
 
   // ░░▒▒▓▓██ [ BASE INTEREST ] ────────────────────────────────────────────────
@@ -60,7 +69,7 @@ library FeeMathExternal {
 
   // ┌─ $calculateLinearInterestFromBips ─────
   function $calculateLinearInterestFromBips(uint256 rateBip, uint256 timeDelta) external pure returns (uint256 result) {
-    return FeeMath.calculateLinearInterestFromBips(rateBip, timeDelta);
+    return MathUtils.calculateLinearInterestFromBips(rateBip, timeDelta);
   }
 
   // ░░▒▒▓▓██ [ PROTOCOL FEES ] ────────────────────────────────────────────────
@@ -92,7 +101,7 @@ library FeeMathExternal {
     returns (MarketState memory newState, uint256 delinquencyFeeRay)
   {
     newState = state;
-    delinquencyFeeRay = FeeMath.updateDelinquency(state, timestamp, delinquencyFeeBips, delinquencyGracePeriod);
+    delinquencyFeeRay = _updateDelinquency(state, timestamp, delinquencyFeeBips, delinquencyGracePeriod);
   }
 
   // ┌─ $updateTimeDelinquentAndGetPenaltyTime ─────
@@ -107,5 +116,58 @@ library FeeMathExternal {
   {
     newState = state;
     timeWithPenalty = FeeMath.updateTimeDelinquentAndGetPenaltyTime(state, delinquencyGracePeriod, timeDelta);
+  }
+
+  // ░░▒▒▓▓██ [ REFERENCE ACCRUAL ] ────────────────────────────────────────────
+
+  // ┌─ _updateScaleFactorAndFees ─────
+  /// @dev standalone accrual model built from the live FeeMath primitives. markets accrue through
+  ///      WildcatMarketBase._updateScaleFactorAndFees, which also applies the post-repayment-date
+  ///      full penalty.
+  function _updateScaleFactorAndFees(
+    MarketState memory state,
+    uint256 delinquencyFeeBips,
+    uint256 delinquencyGracePeriod,
+    uint256 timestamp
+  )
+    private
+    pure
+    returns (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee)
+  {
+    baseInterestRay = state.calculateBaseInterest(timestamp);
+
+    if (state.protocolFeeBips > 0) {
+      protocolFee = state.applyProtocolFee(baseInterestRay);
+    }
+
+    delinquencyFeeRay = _updateDelinquency(state, timestamp, delinquencyFeeBips, delinquencyGracePeriod);
+
+    uint256 prevScaleFactor = state.scaleFactor;
+    uint256 scaleFactorDelta = prevScaleFactor.rayMul(baseInterestRay + delinquencyFeeRay);
+
+    // the uint112 scale-factor horizon is finite. keep the checked revert, not truncation.
+    state.scaleFactor = (prevScaleFactor + scaleFactorDelta).toUint112();
+    state.lastInterestAccruedTimestamp = uint32(timestamp);
+  }
+
+  // ┌─ _updateDelinquency ─────
+  /// @dev advance or decay the delinquency timer and return the fee rate for its penalized seconds.
+  function _updateDelinquency(
+    MarketState memory state,
+    uint256 timestamp,
+    uint256 delinquencyFeeBips,
+    uint256 delinquencyGracePeriod
+  )
+    private
+    pure
+    returns (uint256 delinquencyFeeRay)
+  {
+    uint256 timeWithPenalty = FeeMath.updateTimeDelinquentAndGetPenaltyTime(
+      state, delinquencyGracePeriod, timestamp - state.lastInterestAccruedTimestamp
+    );
+
+    if (timeWithPenalty > 0 && delinquencyFeeBips > 0) {
+      delinquencyFeeRay = MathUtils.calculateLinearInterestFromBips(delinquencyFeeBips, timeWithPenalty);
+    }
   }
 }
