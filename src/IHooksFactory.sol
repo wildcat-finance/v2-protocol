@@ -54,8 +54,6 @@ pragma solidity 0.8.25;
 //  getHooksInstancesCountForBorrower(...)
 //
 //  MARKET DEPLOYMENT
-//  deployMarket(...)
-//  deployMarketAndHooks(...)
 //  computeMarketAddress(...)
 //
 //  CONSTRUCTOR PARAMETERS
@@ -68,6 +66,10 @@ pragma solidity 0.8.25;
 //  getMarketsForHooksInstance(...)
 //  getMarketsForHooksInstance(...)
 //  getMarketsForHooksInstanceCount(...)
+//
+//  STANDARD MARKET DEPLOYMENT
+//  deployMarket(...)
+//  deployMarketAndHooks(...)
 // ═════
 
 import './access/IHooks.sol';
@@ -338,15 +340,16 @@ interface IHooksFactoryEventsAndErrors {
   event MarketHooksData(address indexed market, bytes hooksData);
 }
 
-// ┌─ IHooksFactory ────────────────────────────────────────────────────────────
-/// @title Wildcat hooks factory
+// ┌─ IHooksFactoryBase ────────────────────────────────────────────────────────
+/// @title Wildcat hooks factory base
 ///
-/// @notice register hooks templates, deploy reusable hooks instances, and deploy markets.
+/// @notice register hooks templates, deploy reusable hooks instances, and track their markets.
 ///
-/// @dev borrower accounts are indexed under their resolved principal, while the market stores the
-///      calling account as its operational borrower. market salts still bind to that caller;
-///      hooks-instance salts use the resolved administrator and its nonce.
-interface IHooksFactory is IHooksFactoryEventsAndErrors {
+/// @dev shared by the standard and revolving factories, which add their own market deployment
+///      functions. borrower accounts are indexed under their resolved principal, while the market
+///      stores the calling account as its operational borrower. market salts still bind to that
+///      caller; hooks-instance salts use the resolved administrator and its nonce.
+interface IHooksFactoryBase is IHooksFactoryEventsAndErrors {
   // ░░▒▒▓▓██ [ SETUP ] ────────────────────────────────────────────────────────
 
   // ┌─ registerWithArchController ─────
@@ -535,41 +538,6 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
 
   // ░░▒▒▓▓██ [ MARKET DEPLOYMENT ] ────────────────────────────────────────────
 
-  // ┌─ deployMarket ─────
-  /// @notice deploy a market using the existing hooks instance in `parameters.hooks`.
-  ///
-  /// @dev the caller becomes the operational borrower and its resolved principal is stored on the
-  ///      market. fee arguments must exactly match current template terms, and the first 20 bytes
-  ///      of `salt` must equal the caller.
-  ///
-  /// @param hooksData opaque data forwarded to the hooks instance's `onCreateMarket` callback.
-  function deployMarket(
-    DeployMarketInputs calldata parameters,
-    bytes calldata hooksData,
-    bytes32 salt,
-    address originationFeeAsset,
-    uint256 originationFeeAmount
-  )
-    external
-    returns (address market);
-
-  // ┌─ deployMarketAndHooks ─────
-  /// @notice deploy a principal-administered hooks instance and a market using it.
-  ///
-  /// @dev both deployments are atomic. the caller may be a registered borrower account, but the
-  ///      hooks instance is administered and indexed under its resolved principal.
-  function deployMarketAndHooks(
-    address hooksTemplate,
-    bytes calldata hooksConstructorArgs,
-    DeployMarketInputs calldata parameters,
-    bytes calldata hooksData,
-    bytes32 salt,
-    address originationFeeAsset,
-    uint256 originationFeeAmount
-  )
-    external
-    returns (address market, address hooks);
-
   // ┌─ computeMarketAddress ─────
   /// @notice return the CREATE2 market address for `salt` and this factory's initcode.
   ///
@@ -625,4 +593,47 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   // ┌─ getMarketsForHooksInstanceCount ─────
   /// @notice return the number of markets attached to `hooksInstance`.
   function getMarketsForHooksInstanceCount(address hooksInstance) external view returns (uint256);
+}
+
+// ┌─ IHooksFactory ────────────────────────────────────────────────────────────
+/// @title Wildcat hooks factory
+///
+/// @notice deploy standard Wildcat markets with registered hooks templates and instances.
+interface IHooksFactory is IHooksFactoryBase {
+  // ░░▒▒▓▓██ [ MARKET DEPLOYMENT ] ────────────────────────────────────────────
+
+  // ┌─ deployMarket ─────
+  /// @notice deploy a market using the existing hooks instance in `parameters.hooks`.
+  ///
+  /// @dev the caller becomes the operational borrower and its resolved principal is stored on the
+  ///      market. fee arguments must exactly match current template terms, and the first 20 bytes
+  ///      of `salt` must equal the caller.
+  ///
+  /// @param hooksData opaque data forwarded to the hooks instance's `onCreateMarket` callback.
+  function deployMarket(
+    DeployMarketInputs calldata parameters,
+    bytes calldata hooksData,
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
+  )
+    external
+    returns (address market);
+
+  // ┌─ deployMarketAndHooks ─────
+  /// @notice deploy a principal-administered hooks instance and a market using it.
+  ///
+  /// @dev both deployments are atomic. the caller may be a registered borrower account, but the
+  ///      hooks instance is administered and indexed under its resolved principal.
+  function deployMarketAndHooks(
+    address hooksTemplate,
+    bytes calldata hooksConstructorArgs,
+    DeployMarketInputs calldata parameters,
+    bytes calldata hooksData,
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
+  )
+    external
+    returns (address market, address hooks);
 }
