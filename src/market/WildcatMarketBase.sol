@@ -219,9 +219,9 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
     if ((date == 0)
         .and(period != 0)
         .or((date != 0).and((date <= block.timestamp).or(date + period > type(uint32).max)))) {
-      revert_InvalidRepaymentTerms();
+      revertWithSelector(InvalidRepaymentTerms_ErrorSelector);
     }
-    if (parameters.hooks.useOnExecuteWithdrawal()) revert_UnsupportedExecuteWithdrawalHook();
+    if (parameters.hooks.useOnExecuteWithdrawal()) revertWithSelector(UnsupportedExecuteWithdrawalHook_ErrorSelector);
     _repaymentTerms = uint64(date | (period << 32));
 
     asset = parameters.asset;
@@ -483,7 +483,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   ///      again; a principal change since request makes the caller request a fresh transfer.
   function acceptBorrowerTransfer() external nonReentrant sphereXGuardExternal {
     address newBorrower = pendingBorrower();
-    if (msg.sender != newBorrower) revert_NotPendingBorrower();
+    if (msg.sender != newBorrower) revertWithSelector(NotPendingBorrower_ErrorSelector);
 
     address expectedPrincipal = pendingBorrowerPrincipal();
     address newBorrowerPrincipal = _validateBorrowerTransferTarget(newBorrower, expectedPrincipal);
@@ -502,7 +502,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   /// @notice clear the pending borrower transfer without changing current authority.
   function cancelBorrowerTransfer() external onlyBorrower nonReentrant sphereXGuardExternal {
     address cancelledPendingBorrower = pendingBorrower();
-    if (cancelledPendingBorrower == address(0)) revert_NoPendingBorrowerTransfer();
+    if (cancelledPendingBorrower == address(0)) revertWithSelector(NoPendingBorrowerTransfer_ErrorSelector);
     address cancelledPendingBorrowerPrincipal = pendingBorrowerPrincipal();
     _setAddress(PENDING_BORROWER_STORAGE_SLOT, address(0));
     _setAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT, address(0));
@@ -591,7 +591,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   function _checkBorrowerNotSanctioned(address operationalBorrower, address principal) internal view {
     address flaggedIdentity = _flaggedBorrowerIdentity(operationalBorrower, principal);
     if (flaggedIdentity != address(0)) {
-      revert_BorrowerTransferWhileSanctioned(flaggedIdentity);
+      revertWithSelectorAndArgument(BorrowerTransferWhileSanctioned_ErrorSelector, uint256(uint160(flaggedIdentity)));
     }
   }
 
@@ -1262,7 +1262,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   /// @dev loads an account and reverts if it is currently sanctioned for this borrower principal.
   function _getAccount(address accountAddress) internal view returns (Account memory account) {
     account = _accounts[accountAddress];
-    if (_isSanctioned(accountAddress)) revert_AccountBlocked();
+    if (_isSanctioned(accountAddress)) revertWithSelector(AccountBlocked_ErrorSelector);
   }
 
   // ┌─ _isSanctioned ─────
