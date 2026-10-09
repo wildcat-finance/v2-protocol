@@ -15,6 +15,7 @@ pragma solidity 0.8.25;
 //  scaledTransferRounding()
 //  name()
 //  symbol()
+//  _returnPackedString(...)
 //  archController()
 //  registeredWrapper()
 //
@@ -373,30 +374,18 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   // ┌─ name ─────
   /// @notice return the market-token name set at deployment.
   function name() external view returns (string memory) {
-    bytes32 nameWord0 = PACKED_NAME_WORD_0;
-    bytes32 nameWord1 = PACKED_NAME_WORD_1;
-
-    assembly {
-      // ABI string layout:
-      // 0x00: Offset to the string
-      // 0x20: Length of the string
-      // 0x40: First word of the string
-      // 0x60: Second word of the string
-      // the first immutable word also holds the length byte. that leaves at most 63 string bytes.
-      mstore(0, 0x20)
-      mstore(0x20, 0)
-      mstore(0x3f, nameWord0)
-      mstore(0x5f, nameWord1)
-      return(0, 0x80)
-    }
+    _returnPackedString(PACKED_NAME_WORD_0, PACKED_NAME_WORD_1);
   }
 
   // ┌─ symbol ─────
   /// @notice return the market-token symbol set at deployment.
   function symbol() external view returns (string memory) {
-    bytes32 symbolWord0 = PACKED_SYMBOL_WORD_0;
-    bytes32 symbolWord1 = PACKED_SYMBOL_WORD_1;
+    _returnPackedString(PACKED_SYMBOL_WORD_0, PACKED_SYMBOL_WORD_1);
+  }
 
+  // ┌─ _returnPackedString ─────
+  /// @dev end the call with the ABI string packed into two immutable words.
+  function _returnPackedString(bytes32 word0, bytes32 word1) internal pure {
     assembly {
       // ABI string layout:
       // 0x00: Offset to the string
@@ -406,8 +395,8 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
       // the first immutable word also holds the length byte. that leaves at most 63 string bytes.
       mstore(0, 0x20)
       mstore(0x20, 0)
-      mstore(0x3f, symbolWord0)
-      mstore(0x5f, symbolWord1)
+      mstore(0x3f, word0)
+      mstore(0x5f, word1)
       return(0, 0x80)
     }
   }
