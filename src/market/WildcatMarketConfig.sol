@@ -70,7 +70,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   /// @param _maxTotalSupply new normalized deposit cap.
   function setMaxTotalSupply(uint256 _maxTotalSupply) external onlyBorrower nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
-    if (state.isClosed) revert_CapacityChangeOnClosedMarket();
+    if (state.isClosed) revertWithSelector(CapacityChangeOnClosedMarket_ErrorSelector);
 
     hooks.onSetMaxTotalSupply(_maxTotalSupply, state);
     uint256 previousMaxTotalSupply = state.maxTotalSupply;
@@ -118,7 +118,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
     sphereXGuardExternal
   {
     MarketState memory state = _getUpdatedState();
-    if (state.isClosed) revert_AprChangeOnClosedMarket();
+    if (state.isClosed) revertWithSelector(AprChangeOnClosedMarket_ErrorSelector);
 
     uint256 initialReserveRatioBips = state.reserveRatioBips;
 
@@ -135,9 +135,9 @@ contract WildcatMarketConfig is WildcatMarketBase {
   ///      hook enforces proposal timing and withdrawal conditions; non-periodic markets revert.
   function executePendingAnnualInterestBipsReduction() external nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
-    if (state.isClosed) revert_AprChangeOnClosedMarket();
+    if (state.isClosed) revertWithSelector(AprChangeOnClosedMarket_ErrorSelector);
     if (!hooks.useOnExecutePendingAnnualInterestBipsReduction()) {
-      revert_ExecutePendingAprReductionNotEnabled();
+      revertWithSelector(ExecutePendingAprReductionNotEnabled_ErrorSelector);
     }
 
     uint16 currentAnnualInterestBips = state.annualInterestBips;
@@ -145,7 +145,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
       IPeriodicTermAprReductionHooks(hooks.hooksAddress()).executePendingAnnualInterestBipsReduction(state);
 
     if (_annualInterestBips >= currentAnnualInterestBips) {
-      revert_AprReductionNotReduction();
+      revertWithSelector(AprReductionNotReduction_ErrorSelector);
     }
 
     uint16 currentReserveRatioBips = state.reserveRatioBips;
@@ -168,25 +168,25 @@ contract WildcatMarketConfig is WildcatMarketBase {
     uint256 previousAnnualInterestBips = state.annualInterestBips;
     uint256 previousReserveRatioBips = state.reserveRatioBips;
     if (_annualInterestBips > BIP) {
-      revert_AnnualInterestBipsTooHigh();
+      revertWithSelector(AnnualInterestBipsTooHigh_ErrorSelector);
     }
 
     if (_reserveRatioBips > BIP) {
-      revert_ReserveRatioBipsTooHigh();
+      revertWithSelector(ReserveRatioBipsTooHigh_ErrorSelector);
     }
-    if (_isInRepayment() && _reserveRatioBips != BIP) revert_RepaymentReserveRequired();
+    if (_isInRepayment() && _reserveRatioBips != BIP) revertWithSelector(RepaymentReserveRequired_ErrorSelector);
 
     uint256 currentTotalAssets = totalAssets();
     if (_reserveRatioBips <= initialReserveRatioBips) {
       if (state.liquidityRequired() > currentTotalAssets) {
-        revert_InsufficientReservesForOldLiquidityRatio();
+        revertWithSelector(InsufficientReservesForOldLiquidityRatio_ErrorSelector);
       }
     }
     state.reserveRatioBips = _reserveRatioBips;
     state.annualInterestBips = _annualInterestBips;
     if (_reserveRatioBips > initialReserveRatioBips) {
       if (state.liquidityRequired() > currentTotalAssets) {
-        revert_InsufficientReservesForNewLiquidityRatio();
+        revertWithSelector(InsufficientReservesForNewLiquidityRatio_ErrorSelector);
       }
     }
 
@@ -218,12 +218,12 @@ contract WildcatMarketConfig is WildcatMarketBase {
   ///
   /// @param _protocolFeeBips new protocol share of base interest, in bips.
   function setProtocolFeeBips(uint16 _protocolFeeBips) external nonReentrant sphereXGuardExternal {
-    if (msg.sender != factory) revert_NotFactory();
-    if (_protocolFeeBips > 1_000) revert_ProtocolFeeTooHigh();
+    if (msg.sender != factory) revertWithSelector(NotFactory_ErrorSelector);
+    if (_protocolFeeBips > 1_000) revertWithSelector(ProtocolFeeTooHigh_ErrorSelector);
     MarketState memory state = _getUpdatedState();
-    if (state.isClosed) revert_ProtocolFeeChangeOnClosedMarket();
+    if (state.isClosed) revertWithSelector(ProtocolFeeChangeOnClosedMarket_ErrorSelector);
     if (_protocolFeeBips > 0 && feeRecipient == address(0)) {
-      revert_ProtocolFeeRecipientRequired();
+      revertWithSelector(ProtocolFeeRecipientRequired_ErrorSelector);
     }
     if (_protocolFeeBips != state.protocolFeeBips) {
       uint256 previousProtocolFeeBips = state.protocolFeeBips;
@@ -243,8 +243,8 @@ contract WildcatMarketConfig is WildcatMarketBase {
   ///
   /// @param wrapper canonical wrapper address to store.
   function registerWrapper(address wrapper) external {
-    if (msg.sender != wrapperFactory) revert_NotWrapperFactory();
-    if (registeredWrapper() != address(0)) revert_WrapperAlreadyRegistered();
+    if (msg.sender != wrapperFactory) revertWithSelector(NotWrapperFactory_ErrorSelector);
+    if (registeredWrapper() != address(0)) revertWithSelector(WrapperAlreadyRegistered_ErrorSelector);
     _setAddress(REGISTERED_WRAPPER_STORAGE_SLOT, wrapper);
     emit WrapperRegistered(wrapper);
   }
@@ -283,9 +283,9 @@ contract WildcatMarketConfig is WildcatMarketBase {
   /// @param accountAddress sanctioned lender to quarantine.
   function nukeFromOrbit(address accountAddress) external nonReentrant sphereXGuardExternal {
     if (accountAddress != address(0) && accountAddress == registeredWrapper()) {
-      revert_CannotNukeWrapper();
+      revertWithSelector(CannotNukeWrapper_ErrorSelector);
     }
-    if (!_isSanctioned(accountAddress)) revert_BadLaunchCode();
+    if (!_isSanctioned(accountAddress)) revertWithSelector(BadLaunchCode_ErrorSelector);
     MarketState memory state = _getUpdatedState();
     hooks.onNukeFromOrbit(accountAddress, state);
     _blockAccount(state, accountAddress);

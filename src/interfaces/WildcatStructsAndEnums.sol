@@ -38,6 +38,8 @@ import { HooksConfig } from '../types/HooksConfig.sol';
 /// @param hooks                    hook address and enabled callback flags installed on the market.
 /// @param borrowerPrincipal        registered legal principal used as the sanctions namespace.
 /// @param borrowerIdentityRegistry registry that resolves operational borrowers to principals.
+/// @param repaymentDate            full-repayment start, in Unix seconds; zero disables scheduled repayment.
+/// @param repaymentPeriod          seconds from repaymentDate through the inclusive deadline; zero is valid.
 struct MarketParameters {
   address asset;
   uint8 decimals;
@@ -78,6 +80,8 @@ struct MarketParameters {
 /// @param reserveRatioBips        share of outstanding supply kept as liquid reserves, in bips.
 /// @param delinquencyGracePeriod  delinquent time before the penalty rate applies, in seconds.
 /// @param hooks                   requested hook instance and callback flags; hooks may return a modified config.
+/// @param repaymentDate           full-repayment start, in Unix seconds; zero disables scheduled repayment.
+/// @param repaymentPeriod         seconds from repaymentDate through the inclusive deadline; zero is valid.
 struct DeployMarketInputs {
   address asset;
   string namePrefix;
@@ -93,56 +97,6 @@ struct DeployMarketInputs {
   uint32 repaymentPeriod;
 }
 
-/// @notice controller configuration and market-term bounds for controller-based deployment.
-///
-/// @param archController                 protocol registry that authorizes the controller and its markets.
-/// @param borrower                       operational borrower assigned to deployed markets.
-/// @param sentinel                       sanctions sentinel assigned to deployed markets.
-/// @param marketInitCodeStorage          contract holding the market creation bytecode.
-/// @param marketInitCodeHash             keccak256 hash of the market creation bytecode.
-/// @param minimumDelinquencyGracePeriod  lower grace-period bound, in seconds.
-/// @param maximumDelinquencyGracePeriod  upper grace-period bound, in seconds.
-/// @param minimumReserveRatioBips        lower reserve-ratio bound, in bips.
-/// @param maximumReserveRatioBips        upper reserve-ratio bound, in bips.
-/// @param minimumDelinquencyFeeBips      lower delinquency-fee bound, in bips.
-/// @param maximumDelinquencyFeeBips      upper delinquency-fee bound, in bips.
-/// @param minimumWithdrawalBatchDuration lower withdrawal-batch duration, in seconds.
-/// @param maximumWithdrawalBatchDuration upper withdrawal-batch duration, in seconds.
-/// @param minimumAnnualInterestBips      lower base-APR bound, in bips.
-/// @param maximumAnnualInterestBips      upper base-APR bound, in bips.
-/// @param sphereXEngine                  transaction-checking engine assigned to deployed markets.
-struct MarketControllerParameters {
-  address archController;
-  address borrower;
-  address sentinel;
-  address marketInitCodeStorage;
-  uint256 marketInitCodeHash;
-  uint32 minimumDelinquencyGracePeriod;
-  uint32 maximumDelinquencyGracePeriod;
-  uint16 minimumReserveRatioBips;
-  uint16 maximumReserveRatioBips;
-  uint16 minimumDelinquencyFeeBips;
-  uint16 maximumDelinquencyFeeBips;
-  uint32 minimumWithdrawalBatchDuration;
-  uint32 maximumWithdrawalBatchDuration;
-  uint16 minimumAnnualInterestBips;
-  uint16 maximumAnnualInterestBips;
-  address sphereXEngine;
-}
-
-/// @notice protocol charges applied to markets deployed from a hooks template.
-///
-/// @param feeRecipient         recipient of origination fees and accrued protocol fees.
-/// @param originationFeeAsset  token charged once at market deployment.
-/// @param originationFeeAmount amount of `originationFeeAsset` charged at deployment.
-/// @param protocolFeeBips      protocol share of base interest, charged on top, in bips.
-struct ProtocolFeeConfiguration {
-  address feeRecipient;
-  address originationFeeAsset;
-  uint80 originationFeeAmount;
-  uint16 protocolFeeBips;
-}
-
 /// @notice inclusive term bounds enforced by market-constraint hooks.
 ///
 /// @param minimumDelinquencyGracePeriod  lower grace-period bound, in seconds.
@@ -155,6 +109,8 @@ struct ProtocolFeeConfiguration {
 /// @param maximumWithdrawalBatchDuration upper withdrawal-batch duration, in seconds.
 /// @param minimumAnnualInterestBips      lower base-APR bound, in bips.
 /// @param maximumAnnualInterestBips      upper base-APR bound, in bips.
+/// @param maximumRepaymentPeriod         upper repayment-period bound, in seconds.
+/// @param maximumRepaymentDateDelay      upper repayment-date delay from creation, in seconds.
 struct MarketParameterConstraints {
   uint32 minimumDelinquencyGracePeriod;
   uint32 maximumDelinquencyGracePeriod;
