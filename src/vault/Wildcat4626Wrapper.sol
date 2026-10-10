@@ -886,6 +886,9 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
 
   // ░░▒▒▓▓██ [ MARKET READERS ] ───────────────────────────────────────────────
 
+  // shared typed reads reduce deployment bytecode with the pinned compiler. check compiled size
+  // before inlining these calls at their use sites; the ABI decoding stays with Solidity.
+
   // ┌─ _scaleFactor ─────
   function _scaleFactor() private view returns (uint256) {
     return wrappedMarket.scaleFactor();

@@ -3,16 +3,16 @@ pragma solidity 0.8.25;
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  |\ /|   WILDCAT v2.5 // MarketErrors
-//  \ ^ /   Market custom-error selectors, raised through `revertWithSelector`.
+//  \ ^ /   Market error selectors for the shared revert helpers.
 //    V
-//
-//  every value is `bytes4(keccak256("Name()"))` for the matching error declared in
-//  IMarketEventsAndErrors or WildcatMarketBase. raise with
-//  `revertWithSelector(Name_ErrorSelector)` or, for the one error with an argument,
-//  `revertWithSelectorAndArgument(Name_ErrorSelector, arg)` from Errors.sol.
 // ═════
 
 import './Errors.sol';
+
+// selectors are the first four bytes of keccak256 over the full error signature declared in
+// IMarketEventsAndErrors or WildcatMarketBase.
+// use `revertWithSelector` for no-argument errors. `BorrowerTransferWhileSanctioned(address)`
+// uses `revertWithSelectorAndArgument` with the flagged address encoded as a uint256.
 
 uint256 constant MaxSupplyExceeded_ErrorSelector = 0x8a164f63;
 uint256 constant NotWrapperFactory_ErrorSelector = 0x3780ab27;

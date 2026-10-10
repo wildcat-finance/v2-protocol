@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  |\ /|   WILDCAT v2.5 // FeeMathExternal
-//  \ ^ /   External adapters for accrual, protocol fees, and delinquency.
+//  \ ^ /   FeeMath test adapters and the legacy accrual reference model.
 //    V
 //
 //  ACCRUAL
@@ -31,6 +31,8 @@ import { MathUtils } from 'src/libraries/MathUtils.sol';
 import { SafeCastLib } from 'src/libraries/SafeCastLib.sol';
 
 // ┌─ FeeMathExternal ──────────────────────────────────────────────────────────
+/// @dev expose the live fee primitives and retain the legacy accrual model for comparison.
+///      market accrual lives in `WildcatMarketBase`, including repayment-date penalties.
 library FeeMathExternal {
   using MathUtils for uint256;
   using SafeCastLib for uint256;

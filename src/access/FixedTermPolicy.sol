@@ -239,7 +239,7 @@ abstract contract FixedTermPolicy is BaseHooks {
   // ░░▒▒▓▓██ [ CLOSURE ] ──────────────────────────────────────────────────────
 
   // ┌─ _validateCloseMarket ─────
-  /// @dev either early-close permission is enough. keep the existing OR rule.
+  /// @dev before maturity, either `allowTermReduction` or `allowClosureBeforeTerm` permits closure.
   function _validateCloseMarket(MarketState calldata, bytes calldata) internal view virtual override {
     HookedMarket storage market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();

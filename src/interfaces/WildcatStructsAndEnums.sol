@@ -38,6 +38,8 @@ import { HooksConfig } from '../types/HooksConfig.sol';
 /// @param hooks                    hook address and enabled callback flags installed on the market.
 /// @param borrowerPrincipal        registered legal principal used as the sanctions namespace.
 /// @param borrowerIdentityRegistry registry that resolves operational borrowers to principals.
+/// @param repaymentDate            full-repayment start, in Unix seconds; zero disables scheduled repayment.
+/// @param repaymentPeriod          seconds from repaymentDate through the inclusive deadline; zero is valid.
 struct MarketParameters {
   address asset;
   uint8 decimals;
@@ -78,6 +80,8 @@ struct MarketParameters {
 /// @param reserveRatioBips        share of outstanding supply kept as liquid reserves, in bips.
 /// @param delinquencyGracePeriod  delinquent time before the penalty rate applies, in seconds.
 /// @param hooks                   requested hook instance and callback flags; hooks may return a modified config.
+/// @param repaymentDate           full-repayment start, in Unix seconds; zero disables scheduled repayment.
+/// @param repaymentPeriod         seconds from repaymentDate through the inclusive deadline; zero is valid.
 struct DeployMarketInputs {
   address asset;
   string namePrefix;
@@ -105,6 +109,8 @@ struct DeployMarketInputs {
 /// @param maximumWithdrawalBatchDuration upper withdrawal-batch duration, in seconds.
 /// @param minimumAnnualInterestBips      lower base-APR bound, in bips.
 /// @param maximumAnnualInterestBips      upper base-APR bound, in bips.
+/// @param maximumRepaymentPeriod         upper repayment-period bound, in seconds.
+/// @param maximumRepaymentDateDelay      upper repayment-date delay from creation, in seconds.
 struct MarketParameterConstraints {
   uint32 minimumDelinquencyGracePeriod;
   uint32 maximumDelinquencyGracePeriod;

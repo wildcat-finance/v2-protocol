@@ -211,8 +211,9 @@ contract MarketLensAggregator is IMarketLensAggregator {
   // ┌─ getAggregatedHooksInstancesForBorrowerWithFactories ─────
   /// @notice combine borrower-indexed instances from a supplied factory list.
   ///
-  /// @dev factory enumeration failures are skipped. duplicate instances use the first factory that
-  ///      reported them, and malformed instance metadata can still revert the complete call.
+  /// @dev skip factory enumeration failures. with multiple factory entries, deduplicate by address
+  ///      and use the first factory's metadata. a single factory's order and duplicates are preserved.
+  ///      malformed instance metadata can still revert the complete call.
   function getAggregatedHooksInstancesForBorrowerWithFactories(
     address borrower,
     address[] memory factories
@@ -395,9 +396,10 @@ contract MarketLensAggregator is IMarketLensAggregator {
   }
 
   // ┌─ getAggregatedAllHooksTemplatesForBorrowerWithFactories ─────
-  /// @notice combine templates from a supplied factory list, deduplicated by template address.
+  /// @notice combine templates from a supplied factory list.
   ///
-  /// @dev the first factory reporting a duplicate supplies its metadata and fee readiness.
+  /// @dev with multiple factory entries, deduplicate by address and take metadata and fee readiness
+  ///      from the first factory. a single factory's order and duplicates are preserved.
   function getAggregatedAllHooksTemplatesForBorrowerWithFactories(
     address borrower,
     address[] memory factories
@@ -614,7 +616,8 @@ contract MarketLensAggregator is IMarketLensAggregator {
   }
 
   // ┌─ _getAggregatedMarketsForHooksTemplate ─────
-  /// @dev collects markets best-effort and deduplicates them by address in first-seen order.
+  /// @dev skip factory enumeration failures. with multiple factories, deduplicate by address in
+  ///      first-seen order. a single factory's order and duplicates are preserved.
   function _getAggregatedMarketsForHooksTemplate(address hooksTemplate)
     internal
     view

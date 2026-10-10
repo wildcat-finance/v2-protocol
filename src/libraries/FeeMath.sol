@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  |\ /|   WILDCAT v2.5 // FeeMath
-//  \ ^ /   Base interest, protocol fees, and delinquency accrual.
+//  \ ^ /   Base interest, protocol fees, and delinquency timing.
 //    V
 //
 //  BASE INTEREST

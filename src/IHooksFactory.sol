@@ -349,6 +349,7 @@ interface IHooksFactoryEventsAndErrors {
 ///      functions. borrower accounts are indexed under their resolved principal, while the market
 ///      stores the calling account as its operational borrower. market salts still bind to that
 ///      caller; hooks-instance salts use the resolved administrator and its nonce.
+///      use `IHooksFactoryBase.fn` for shared function selectors and `abi.encodeCall` references.
 interface IHooksFactoryBase is IHooksFactoryEventsAndErrors {
   // ░░▒▒▓▓██ [ SETUP ] ────────────────────────────────────────────────────────
 

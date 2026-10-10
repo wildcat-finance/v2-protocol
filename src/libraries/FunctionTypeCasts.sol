@@ -9,7 +9,7 @@ pragma solidity 0.8.25;
 //  DEPLOYMENT PARAMETERS
 //  asReturnsMarketParameters(...)
 //
-//  STATE AND BATCH VIEWS
+//  STATE VIEWS
 //  asReturnsMarketState(...)
 //
 //  TRANSITION ALLOCATION
@@ -38,7 +38,7 @@ library FunctionTypeCasts {
     }
   }
 
-  // ░░▒▒▓▓██ [ STATE AND BATCH VIEWS ] ────────────────────────────────────────
+  // ░░▒▒▓▓██ [ STATE VIEWS ] ──────────────────────────────────────────────────
 
   // ┌─ asReturnsMarketState ─────
   /// @dev reuse the returned MarketState buffer instead of allocating another.

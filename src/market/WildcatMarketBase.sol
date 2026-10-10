@@ -384,15 +384,16 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ _returnPackedString ─────
-  /// @dev end the call with the ABI string packed into two immutable words.
+  /// @dev return a string from two packed words. this exits the external call, not just the helper.
   function _returnPackedString(bytes32 word0, bytes32 word1) internal pure {
     assembly {
       // ABI string layout:
-      // 0x00: Offset to the string
-      // 0x20: Length of the string
-      // 0x40: First word of the string
-      // 0x60: Second word of the string
-      // the first immutable word also holds the length byte. that leaves at most 63 string bytes.
+      // 0x00: offset to the string
+      // 0x20: length of the string
+      // 0x40: first word of the string
+      // 0x60: second word of the string
+      // word0 holds the length byte and 31 string bytes; word1 holds the remaining 32 bytes.
+      // the stores overwrite the free memory pointer and zero slot. return without resuming Solidity.
       mstore(0, 0x20)
       mstore(0x20, 0)
       mstore(0x3f, word0)

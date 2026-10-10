@@ -204,8 +204,8 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     returns (HooksConfig);
 
   // ┌─ _readWordCd ─────
-  /// @dev preserve the policy payload's raw calldata reads, including optional/trailing words.
-  ///      callers apply their own checked narrowing; this deliberately does not ABI-decode bytes.
+  /// @dev read a raw word without checking `data.length`; reads can reach calldata beyond the slice.
+  ///      callers check required lengths and narrow values. optional words keep the raw read behavior.
   function _readWordCd(bytes calldata data, uint256 offset) internal pure returns (uint256 value) {
     assembly {
       value := calldataload(add(data.offset, offset))

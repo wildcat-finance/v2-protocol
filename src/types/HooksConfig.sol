@@ -582,12 +582,12 @@ library LibHooksConfig {
   // ░░▒▒▓▓██ [ CALL DISPATCH ] ────────────────────────────────────────────────
 
   // ┌─ _prepareHookCalldata ─────
-  /// @dev every market callback has the shape `(static args..., MarketState state, bytes extraData)`.
+  /// @dev callbacks encoded here have the shape `(static args..., MarketState state, bytes extraData)`.
   ///      callers write the `headWords` static argument words at `mload(0x40) + 0x20` before calling.
   ///      this writes the selector before them, copies `state` after them, then appends the
   ///      `extraData` head, length, and the caller's trailing calldata past `baseCalldataSize`.
-  ///      the buffer sits past the free memory pointer and is never reserved, so nothing may
-  ///      allocate memory between the caller's head writes and this call.
+  ///      `baseCalldataSize` must not exceed `calldatasize()`. the free memory pointer stays unchanged;
+  ///      don't allocate from the first head write until the hook call consumes the buffer.
   ///
   /// @return calldataPointer start of the ABI-encoded call, at the selector.
   /// @return calldataSize    total call size, including the selector.

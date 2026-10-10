@@ -332,8 +332,7 @@ abstract contract HooksFactoryBase is SphereXProtectedRegisteredBase, Reentrancy
     address[] storage markets = _marketsByHooksTemplate[hooksTemplate];
     uint256 marketCount = markets.length;
     marketEndIndex = MathUtils.min(marketEndIndex, marketCount);
-    // CAF-13 fix: reject ranges that would underflow after clamping, but allow
-    // boundary-empty pages to no-op for fixed-size operational pagination.
+    // reject reversed bounds after clamping. equal bounds allow an empty last page (CAF-13).
     if (marketStartIndex > marketEndIndex) revert InvalidPaginationRange();
     if (marketStartIndex == marketEndIndex) return;
     uint256 count = marketEndIndex - marketStartIndex;
@@ -625,7 +624,7 @@ abstract contract HooksFactoryBase is SphereXProtectedRegisteredBase, Reentrancy
     string memory name = string.concat(parameters.namePrefix, parameters.asset.name());
     string memory symbol = string.concat(parameters.symbolPrefix, parameters.asset.symbol());
 
-    // everything except sphereXEngine, which getMarketParameters reads live.
+    // store the canonical constructor payload. getMarketParameters supplies the live sphereXEngine.
     MarketParameters memory marketParameters;
     marketParameters.asset = parameters.asset;
     marketParameters.decimals = decimals;
@@ -821,7 +820,8 @@ abstract contract HooksFactoryBase is SphereXProtectedRegisteredBase, Reentrancy
   }
 
   // ┌─ _slice ─────
-  /// @dev return `values` in `[start, min(end, length))`. an empty or out-of-bounds range is empty.
+  /// @dev return `values` in `[start, min(end, length))`; return empty when `start` reaches or exceeds
+  ///      the clamped end.
   function _slice(address[] storage values, uint256 start, uint256 end) internal view returns (address[] memory arr) {
     end = MathUtils.min(end, values.length);
     if (start >= end) return new address[](0);
