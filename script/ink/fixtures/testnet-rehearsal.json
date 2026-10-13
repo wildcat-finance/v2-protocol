@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "chainId": 763373,
+  "mode": "rehearsal",
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "expectedNonce": 0,
+  "deployFeeRecipient": true,
+  "feeRecipient": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "protocolFeeBips": 1000,
+  "sanctionsSnapshot": "script/ink/fixtures/sanctions.json"
+}

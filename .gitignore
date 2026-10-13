@@ -11,3 +11,7 @@ hh-cache
 artifacts
 coverage/
 .env
+ink-out/
+ink-cache/
+deployments/ink/config/
+deployments/ink/runs/

@@ -20,7 +20,8 @@ remappings = [
   'solady/=lib/solady/src/',
   'sol-utils/=lib/sol-utils/src/',
   'openzeppelin/=lib/openzeppelin-contracts/',
-  'ethereum-access-token/=lib/ethereum-access-token/contracts/'
+  'ethereum-access-token/=lib/ethereum-access-token/contracts/',
+  'erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/'
 ]
 
 evm_version = 'cancun'
@@ -49,6 +50,29 @@ out='unoptimized-ir-out'
 cache_path='unoptimized-ir-cache'
 optimizer=false
 extra_output_files=["irOptimized", "ir"]
+
+# keep V2.1's compiler settings; Plasma used 200 optimizer runs.
+# only Ink scripts/tests; no V2.5 tooling or relaxed code-size limit.
+[profile.ink]
+script='script/ink'
+test='test/ink'
+out='ink-out'
+cache_path='ink-cache'
+via_ir=true
+optimizer=true
+optimizer_runs=50_000
+solc='0.8.25'
+evm_version='cancun'
+bytecode_hash='none'
+ffi=false
+extra_output=['storageLayout']
+fs_permissions=[
+  { access='read', path='./' },
+  { access='read-write', path='./deployments/ink/runs/' }
+]
+
+[profile.ink.lint]
+lint_on_build=false
 
 
 [profile.default.fuzz]
