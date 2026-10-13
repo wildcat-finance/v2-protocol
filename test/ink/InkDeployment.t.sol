@@ -49,7 +49,7 @@ contract InkDeploymentTest is Test, HandoffInk {
         c.expectedNonce = vm.getNonce(DEPLOYER);
         c.deployFeeRecipient = true;
         c.feeRecipient = address(0xFEE);
-        c.protocolFeeBips = 1000;
+        c.protocolFeeBips = 500;
         c.sanctions = new address[](2);
         c.sanctions[0] = address(0xBAD1);
         c.sanctions[1] = address(0xBAD2);
@@ -91,14 +91,24 @@ contract InkDeploymentTest is Test, HandoffInk {
         Config memory c = config(TESTNET);
         Deployment memory d = _deploy(c);
         assertEq(records.length, 14);
+        MockArchControllerOwner helper = MockArchControllerOwner(d.testnetOwner);
+        assertEq(helper.version(), "2");
+        assertEq(address(helper.archController()), d.archController);
+        address[] memory executors = helper.getAuthorizedAccounts();
+        assertEq(executors.length, 1);
+        assertEq(executors[0], DEPLOYER);
+        assertTrue(helper.authorizedAccounts(DEPLOYER));
+        assertFalse(helper.authorizedAccounts(address(this)));
+        assertFalse(helper.authorizedAccounts(c.feeRecipient));
+        assertEq(records[records.length - 1].constructorArgs, abi.encode(d.archController, executors));
         vm.prank(address(0xCA11));
-        MockArchControllerOwner(d.testnetOwner).registerBorrower(BORROWER);
+        helper.registerBorrower(BORROWER);
         assertTrue(WildcatArchController(d.archController).isRegisteredBorrower(BORROWER));
         assertEq(ChainalysisProxy(d.sanctionsAdapter).owner(), DEPLOYER);
         assertEq(WildcatCopyOfChainalysisList(d.sanctionsList).owner(), DEPLOYER);
         vm.prank(address(0xCA11));
-        vm.expectRevert("not authorized");
-        MockArchControllerOwner(d.testnetOwner).returnOwnership();
+        vm.expectRevert(MockArchControllerOwner.NotAuthorized.selector);
+        helper.returnOwnership();
     }
 
     function test_externalFeeDestinationIsExplicitAndNoForwarderIsDeployed() public {
@@ -143,8 +153,13 @@ contract InkDeploymentTest is Test, HandoffInk {
     }
 
     function _market(Deployment memory d, bool fixedTerm) internal returns (WildcatMarket market, MockERC20 token) {
-        vm.prank(DEPLOYER);
-        WildcatArchController(d.archController).registerBorrower(BORROWER);
+        if (d.testnetOwner == address(0)) {
+            vm.prank(DEPLOYER);
+            WildcatArchController(d.archController).registerBorrower(BORROWER);
+        } else {
+            vm.prank(BORROWER);
+            MockArchControllerOwner(d.testnetOwner).registerBorrower(BORROWER);
+        }
         token = new MockERC20("Ink rehearsal only", "TEST", 18);
         vm.startPrank(BORROWER);
         HooksFactory factory = HooksFactory(d.hooksFactory);
@@ -169,7 +184,15 @@ contract InkDeploymentTest is Test, HandoffInk {
     }
 
     function test_openTermAndWrapperWithActiveSphereXAndSanctions() public {
-        Config memory c = config(MAINNET);
+        _checkOpenTermAndWrapper(MAINNET);
+    }
+
+    function test_testnetOpenTermAndWrapperWithActiveSphereXAndSanctions() public {
+        _checkOpenTermAndWrapper(TESTNET);
+    }
+
+    function _checkOpenTermAndWrapper(uint256 chain) internal {
+        Config memory c = config(chain);
         Deployment memory d = _deploy(c);
         (WildcatMarket market, MockERC20 token) = _market(d, false);
         Wildcat4626Wrapper wrapper =
@@ -211,7 +234,15 @@ contract InkDeploymentTest is Test, HandoffInk {
     }
 
     function test_fixedTermMarketCanDeployAndDepositWithActiveSphereX() public {
-        Deployment memory d = _deploy(config(MAINNET));
+        _checkFixedTermMarket(MAINNET);
+    }
+
+    function test_testnetFixedTermMarketCanDeployAndDepositWithActiveSphereX() public {
+        _checkFixedTermMarket(TESTNET);
+    }
+
+    function _checkFixedTermMarket(uint256 chain) internal {
+        Deployment memory d = _deploy(config(chain));
         (WildcatMarket market, MockERC20 token) = _market(d, true);
         token.mint(LENDER, 1e18);
         vm.startPrank(LENDER);

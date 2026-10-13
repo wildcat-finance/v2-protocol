@@ -180,10 +180,12 @@ abstract contract InkDeployment is Script {
         );
 
         if (c.chainId == TESTNET) {
+            address[] memory initialExecutors = new address[](1);
+            initialExecutors[0] = c.deployer;
             d.testnetOwner = _create(
                 "MockArchControllerOwner",
                 "MockArchControllerOwner.sol:MockArchControllerOwner",
-                abi.encode(d.archController, d.hooksFactory)
+                abi.encode(d.archController, initialExecutors)
             );
             arch.transferOwnership(d.testnetOwner);
         }
@@ -297,7 +299,12 @@ abstract contract InkDeployment is Script {
         }
         if (c.chainId == TESTNET) {
             require(d.testnetOwner.code.length > 0, "Ink: missing testnet owner");
-            require(MockArchControllerOwner(d.testnetOwner).authorizedAccounts(c.deployer), "Ink: helper operator");
+            MockArchControllerOwner helper = MockArchControllerOwner(d.testnetOwner);
+            require(address(helper.archController()) == d.archController, "Ink: helper arch");
+            require(keccak256(bytes(helper.version())) == keccak256("2"), "Ink: helper version");
+            address[] memory executors = helper.getAuthorizedAccounts();
+            require(executors.length == 1 && helper.getAuthorizedAccountsCount() == 1, "Ink: helper executor count");
+            require(executors[0] == c.deployer && helper.authorizedAccounts(c.deployer), "Ink: helper executor");
         } else {
             require(d.testnetOwner == address(0), "Ink: testnet helper on mainnet");
         }

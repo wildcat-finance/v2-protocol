@@ -5,7 +5,9 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, relative, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CORE, PLASMA, sha256, keccak, readJson, validateConfig, rpcClient, checkEndpoint, validatePlan, planHash, collectEvidence } from './inventory.mjs';
+import { randomUUID } from 'node:crypto';
+import { CORE, PLASMA, TESTNET_OWNER_SOURCE, sha256, keccak, readJson, validateTestnetOwnerSource, validateConfig, rpcClient, checkEndpoint, validatePlan, planHash, collectEvidence } from './inventory.mjs';
+import { EXPLORERS, validateVerificationInventory, verificationPlan, checkVerificationState, verificationEnvironment, redactVerificationResult, verifyContracts } from './verification.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 process.chdir(root);
@@ -24,10 +26,11 @@ function writeNew(path, data) { writeFileSync(path, JSON.stringify(data, null, 2
 function sources() {
   assert.equal(tool('git', ['rev-parse', 'v2.1.0^{}']), CORE, 'unexpected V2.1 tag');
   tool('git', ['merge-base', '--is-ancestor', CORE, 'HEAD']);
-  for (const path of [...tool('git', ['ls-tree', '-r', '--name-only', CORE, 'src']).split('\n'), 'script/mock/MockArchControllerOwner.sol']) {
+  for (const path of tool('git', ['ls-tree', '-r', '--name-only', CORE, 'src']).split('\n')) {
     const baseline = execFileSync('git', ['show', CORE + ':' + path], { cwd: root });
     assert(readFileSync(path).equals(baseline), 'V2.1 core changed: ' + path);
   }
+  validateTestnetOwnerSource(readFileSync(TESTNET_OWNER_SOURCE.path));
   const dependencies = tool('git', ['ls-tree', CORE, 'lib/']).split('\n').map(line => {
     const [, commit, path] = line.match(/^160000 commit (\w+)\t(.+)$/);
     assert.equal(tool('git', ['-C', path, 'rev-parse', 'HEAD']), commit, 'dependency pin changed: ' + path);
@@ -42,7 +45,7 @@ function sources() {
   assert.equal(plasmaPatterns.length, 130);
   assert.deepEqual(inkPatterns, plasmaPatterns, 'SphereX pattern set drifted');
   const files = tool('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', 'src', 'script/ink', 'script/mock/MockArchControllerOwner.sol', 'test/ink', 'foundry.toml', '.gitmodules']).split('\0').filter(Boolean).sort();
-  return { core: CORE, dependencies, files: files.map(path => ({ path, sha256: sha256(readFileSync(path)) })) };
+  return { core: CORE, testnetOwner: TESTNET_OWNER_SOURCE, dependencies, files: files.map(path => ({ path, sha256: sha256(readFileSync(path)) })) };
 }
 function build() {
   const result = spawnSync('forge', ['build', '--offline'], { cwd: root, env, stdio: 'inherit' });
@@ -107,9 +110,55 @@ function walletFlags(flags, c) {
   return result;
 }
 
+async function verifyRun(run) {
+  const { raw, value: inventory } = readJson(join(run, 'inventory.json'));
+  validateVerificationInventory(inventory);
+  const report = {
+    schemaVersion: 1, inventoryHash: sha256(raw), chainId: inventory.chainId, mode: inventory.mode,
+    provider: 'blockscout', checkedAt: new Date().toISOString(), explorer: EXPLORERS[inventory.chainId],
+  };
+  if (inventory.mode === 'rehearsal') {
+    report.status = 'skipped-rehearsal';
+    report.reason = 'Anvil deployments are not on the public explorer; collect checked their code and receipts locally.';
+  } else {
+    try {
+      const url = process.env.INK_RPC_URL;
+      assert(url, 'set INK_RPC_URL for the deployed chain');
+      const rpc = rpcClient(url);
+      await checkEndpoint(inventory, rpc, url);
+      build();
+      // script/docs may have changed since deployment; the creation payload must still match exactly.
+      const plan = verificationPlan(inventory, target => {
+        const name = target.split(':')[1];
+        return readJson('ink-out/' + name + '.sol/' + name + '.json').value;
+      });
+      report.checkpoint = await checkVerificationState(inventory, plan, rpc, url);
+      const apiKey = process.env.INK_BLOCKSCOUT_API_KEY;
+      const verifyEnv = verificationEnvironment(env, apiKey);
+      Object.assign(report, await verifyContracts(inventory.chainId, plan, args =>
+        redactVerificationResult(spawnSync('forge', args, { cwd: root, env: verifyEnv, encoding: 'utf8', timeout: 180000, maxBuffer: 4 * 1024 * 1024 }), apiKey), console.log));
+      const block = await rpc('eth_getBlockByNumber', ['0x' + report.checkpoint.number.toString(16), false]);
+      assert.equal(block?.hash?.toLowerCase(), report.checkpoint.hash.toLowerCase(), 'verification checkpoint reorged during explorer submission');
+    } catch (error) {
+      report.status = 'incomplete';
+      report.error = error.message;
+    }
+  }
+  report.finishedAt = new Date().toISOString();
+  const output = join(run, 'verification-' + Date.now() + '-' + randomUUID().slice(0, 8) + '.json');
+  writeNew(output, report);
+  console.log('source verification ' + report.status + ': ' + relative(root, output));
+  assert(report.status !== 'incomplete', 'inventory is preserved; source verification incomplete. retry: node script/ink/ink.mjs verify ' + relative(root, run) + ' (do not redeploy)');
+}
+
 async function main() {
   const [command, arg, ...args] = process.argv.slice(2);
-  assert(['check', 'simulate', 'prepare', 'run', 'resume', 'collect'].includes(command), 'usage: ink.mjs check | simulate CONFIG RUN | prepare CONFIG RUN | run RUN [--broadcast --account ALIAS] | resume RUN ... | collect RUN [CONFIRMATIONS]');
+  assert(['check', 'simulate', 'prepare', 'run', 'resume', 'collect', 'verify'].includes(command), 'usage: ink.mjs check | simulate CONFIG RUN | prepare CONFIG RUN | run RUN [--broadcast --account ALIAS] | resume RUN ... | collect RUN [CONFIRMATIONS] | verify RUN');
+  if (command === 'verify') {
+    assert(arg && args.length === 0, 'verify requires RUN');
+    await verifyRun(runPath(arg));
+    return;
+  }
   if (command === 'check') {
     assert(arg === undefined && args.length === 0, 'check takes no arguments');
     sources();
@@ -230,11 +279,14 @@ async function main() {
     startNonce: candidate.startNonce, endNonce: candidate.endNonce,
     transactionPlanHash: plan.planHash, candidateHash: plan.candidateHash,
     build: p.artifacts, configHash: p.configHash, snapshotHash: p.snapshotHash, sanctionsSource: s,
+    testnetOwnerSource: deployed.MockArchControllerOwner ? p.sources.testnetOwner : null,
     sphereXPatternsHash: candidate.sphereXPatternsHash, feeRecipient: candidate.feeRecipient,
     verificationBlock: { number: Number(BigInt(evidence.checkpoint.number)), hash: evidence.checkpoint.hash }, confirmations,
     authorities: {
       archOwner: deployed.MockArchControllerOwner ?? c.deployer,
       testnetOwnerBootstrapAuthorizedAccount: deployed.MockArchControllerOwner ? c.deployer : null,
+      testnetOwnerVersion: deployed.MockArchControllerOwner ? TESTNET_OWNER_SOURCE.version : null,
+      testnetOwnerAuthorizedAccounts: deployed.MockArchControllerOwner ? [c.deployer] : [],
       archSphereXAdmin: c.deployer, archSphereXOperator: c.deployer,
       engineAdmin: c.deployer, engineOperator: c.deployer, engineSenderAdder: deployed.WildcatArchController,
       sanctionsAdapterOwner: c.deployer, sanctionsListUpdater: c.deployer,
@@ -244,5 +296,6 @@ async function main() {
     contracts: evidence.contracts, receipts: evidence.receipts,
   });
   console.log('confirmed ' + c.mode + ' bootstrap: ' + relative(root, inventoryPath));
+  await verifyRun(run);
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; });

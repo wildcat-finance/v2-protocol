@@ -1,90 +1,265 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.17;
+pragma solidity 0.8.25;
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MockArchControllerOwner
+//  \ ^ /   Testnet authority delegation and reviewed protocol actions.
+//    V
+//
+//  CONTROLLER QUERY
+//  archController()
+//
+//  LEGACY FEES
+//  setProtocolFeeConfiguration(...)
+//
+//  SETUP
+//  constructor(...)
+//
+//  EXECUTOR AUTHORITY
+//  onlyAuthorized()
+//  authorizeAccount(...)
+//  _authorizeAccount(...)
+//  deauthorizeAccount(...)
+//  getAuthorizedAccounts()
+//  getAuthorizedAccountsCount()
+//  returnOwnership()
+//
+//  BORROWER REGISTRATION
+//  registerBorrower(...)
+//  registerBorrowers(...)
+//
+//  PROTOCOL ACTIONS
+//  executeProtocolAction(...)
+//  setProtocolFeeConfiguration(...)
+//  _executeProtocolAction(...)
+//  _requireProtocolTarget(...)
+// ═════
 
 import 'src/WildcatArchController.sol';
-import 'src/HooksFactory.sol';
 
+// ┌─ IArchControllerBound ─────────────────────────────────────────────────────
+interface IArchControllerBound {
+  // ░░▒▒▓▓██ [ CONTROLLER QUERY ] ─────────────────────────────────────────────
+
+  // ┌─ archController ─────
+  function archController() external view returns (address);
+}
+
+// ┌─ ILegacyWildcatMarketControllerFactory ────────────────────────────────────
+interface ILegacyWildcatMarketControllerFactory is IArchControllerBound {
+  // ░░▒▒▓▓██ [ LEGACY FEES ] ──────────────────────────────────────────────────
+
+  // ┌─ setProtocolFeeConfiguration ─────
+  function setProtocolFeeConfiguration(
+    address feeRecipient,
+    address originationFeeAsset,
+    uint80 originationFeeAmount,
+    uint16 protocolFeeBips
+  )
+    external;
+}
+
+// ┌─ MockArchControllerOwner ──────────────────────────────────────────────────
+/// @dev testnet helper for the one ArchController and the protocol contracts
+///      that use `ArchController.owner()` for admin calls.
 contract MockArchControllerOwner {
-  WildcatArchController internal immutable archController;
-  HooksFactory internal immutable hooksFactory;
+  error AccountAlreadyAuthorized();
+  error AccountNotAuthorized();
+  error CannotRemoveFinalAuthorizedAccount();
+  error InvalidInitialExecutors();
+  error InvalidProtocolAction();
+  error InvalidProtocolTarget();
+  error NotAuthorized();
+  error ZeroAddress();
 
-  mapping(address => bool) public authorizedAccounts;
+  event AccountAuthorized(address indexed authorizer, address indexed account);
+  event AccountDeauthorized(address indexed authorizer, address indexed account);
+  event ProtocolActionExecuted(address indexed executor, address indexed target, bytes4 indexed selector);
 
-  constructor(address _archController, address _hooksFactory) {
-    archController = WildcatArchController(_archController);
-    hooksFactory = HooksFactory(_hooksFactory);
-    authorizedAccounts[msg.sender] = true;
+  string public constant version = '2';
+
+  WildcatArchController public immutable archController;
+
+  mapping(address account => bool isAuthorized) public authorizedAccounts;
+  mapping(address account => uint256 indexPlusOne) internal _authorizedAccountIndexPlusOne;
+  address[] internal _authorizedAccountList;
+
+  // ░░▒▒▓▓██ [ SETUP ] ────────────────────────────────────────────────────────
+
+  // ┌─ constructor ─────
+  constructor(address archController_, address[] memory initialExecutors) {
+    if (archController_ == address(0) || archController_.code.length == 0) {
+      revert ZeroAddress();
+    }
+    if (initialExecutors.length == 0) revert InvalidInitialExecutors();
+
+    archController = WildcatArchController(archController_);
+    for (uint256 i; i < initialExecutors.length; i++) {
+      address account = initialExecutors[i];
+      if (account == address(0)) revert ZeroAddress();
+      if (authorizedAccounts[account]) revert AccountAlreadyAuthorized();
+      _authorizeAccount(msg.sender, account);
+    }
   }
 
+  // ░░▒▒▓▓██ [ EXECUTOR AUTHORITY ] ───────────────────────────────────────────
+
+  // ┌─ onlyAuthorized ─────
   modifier onlyAuthorized() {
-    require(authorizedAccounts[msg.sender], 'not authorized');
+    if (!authorizedAccounts[msg.sender]) revert NotAuthorized();
     _;
   }
 
+  // ┌─ authorizeAccount ─────
   function authorizeAccount(address account) external onlyAuthorized {
-    authorizedAccounts[account] = true;
+    if (account == address(0)) revert ZeroAddress();
+    if (authorizedAccounts[account]) revert AccountAlreadyAuthorized();
+    _authorizeAccount(msg.sender, account);
   }
 
+  // ┌─ _authorizeAccount ─────
+  function _authorizeAccount(address authorizer, address account) internal {
+    authorizedAccounts[account] = true;
+    _authorizedAccountIndexPlusOne[account] = _authorizedAccountList.length + 1;
+    _authorizedAccountList.push(account);
+    emit AccountAuthorized(authorizer, account);
+  }
+
+  // ┌─ deauthorizeAccount ─────
+  function deauthorizeAccount(address account) external onlyAuthorized {
+    if (!authorizedAccounts[account]) revert AccountNotAuthorized();
+    uint256 length = _authorizedAccountList.length;
+    if (length == 1) revert CannotRemoveFinalAuthorizedAccount();
+
+    uint256 index = _authorizedAccountIndexPlusOne[account] - 1;
+    uint256 lastIndex = length - 1;
+    if (index != lastIndex) {
+      address lastAccount = _authorizedAccountList[lastIndex];
+      _authorizedAccountList[index] = lastAccount;
+      _authorizedAccountIndexPlusOne[lastAccount] = index + 1;
+    }
+    _authorizedAccountList.pop();
+    delete _authorizedAccountIndexPlusOne[account];
+    delete authorizedAccounts[account];
+    emit AccountDeauthorized(msg.sender, account);
+  }
+
+  // ┌─ getAuthorizedAccounts ─────
+  function getAuthorizedAccounts() external view returns (address[] memory) {
+    return _authorizedAccountList;
+  }
+
+  // ┌─ getAuthorizedAccountsCount ─────
+  function getAuthorizedAccountsCount() external view returns (uint256) {
+    return _authorizedAccountList.length;
+  }
+
+  // ┌─ returnOwnership ─────
+  /// @dev let an authorized executor take ownership back directly. retained for recovery
+  ///      and legacy scripts.
   function returnOwnership() external onlyAuthorized {
     archController.transferOwnership(msg.sender);
   }
 
+  // ░░▒▒▓▓██ [ BORROWER REGISTRATION ] ────────────────────────────────────────
+
+  // ┌─ registerBorrower ─────
+  /// @dev borrower registration is intentionally permissionless on testnet; the
+  ///      SDK/frontend onboarding path still uses it. the helper needs to own
+  ///      the ArchController for this to work.
   function registerBorrower(address borrower) external {
     archController.registerBorrower(borrower);
   }
 
+  // ┌─ registerBorrowers ─────
   function registerBorrowers(address[] calldata borrowers) external {
     for (uint256 i; i < borrowers.length; i++) {
       archController.registerBorrower(borrowers[i]);
     }
   }
-  function addHooksTemplate(
-    address hooksTemplate,
-    string calldata name,
+
+  // ░░▒▒▓▓██ [ PROTOCOL ACTIONS ] ─────────────────────────────────────────────
+
+  // ┌─ executeProtocolAction ─────
+  /// @dev run a reviewed owner action without handing ArchController ownership to an EOA.
+  function executeProtocolAction(
+    address target,
+    bytes calldata data
+  )
+    external
+    onlyAuthorized
+    returns (bytes memory result)
+  {
+    result = _executeProtocolAction(target, data, msg.sender);
+  }
+
+  // ┌─ setProtocolFeeConfiguration ─────
+  /// @dev keep the old V2 fee call working; the legacy controller factory still
+  ///      needs it.
+  function setProtocolFeeConfiguration(
+    ILegacyWildcatMarketControllerFactory factory,
     address feeRecipient,
     address originationFeeAsset,
     uint80 originationFeeAmount,
     uint16 protocolFeeBips
-  ) external {
-    hooksFactory.addHooksTemplate(
-      hooksTemplate,
-      name,
-      feeRecipient,
-      originationFeeAsset,
-      originationFeeAmount,
-      protocolFeeBips
+  )
+    external
+    onlyAuthorized
+  {
+    _executeProtocolAction(
+      address(factory),
+      abi.encodeCall(
+        ILegacyWildcatMarketControllerFactory.setProtocolFeeConfiguration,
+        (feeRecipient, originationFeeAsset, originationFeeAmount, protocolFeeBips)
+      ),
+      msg.sender
     );
   }
 
-  function updateHooksTemplateFees(
-    address hooksTemplate,
-    address feeRecipient,
-    address originationFeeAsset,
-    uint80 originationFeeAmount,
-    uint16 protocolFeeBips
-  ) external onlyAuthorized {
-    hooksFactory.updateHooksTemplateFees(
-      hooksTemplate,
-      feeRecipient,
-      originationFeeAsset,
-      originationFeeAmount,
-      protocolFeeBips
-    );
+  // ┌─ _executeProtocolAction ─────
+  function _executeProtocolAction(
+    address target,
+    bytes memory data,
+    address executor
+  )
+    internal
+    returns (bytes memory result)
+  {
+    if (data.length < 4) revert InvalidProtocolAction();
+    _requireProtocolTarget(target);
+
+    bytes4 selector;
+    assembly {
+      selector := mload(add(data, 0x20))
+    }
+
+    bool success;
+    (success, result) = target.call(data);
+    if (!success) {
+      assembly {
+        revert(add(result, 0x20), mload(result))
+      }
+    }
+    emit ProtocolActionExecuted(executor, target, selector);
   }
 
-  function disableHooksTemplate(address hooksTemplate) external onlyAuthorized {
-    hooksFactory.disableHooksTemplate(hooksTemplate);
+  // ┌─ _requireProtocolTarget ─────
+  function _requireProtocolTarget(address target) internal view {
+    if (target == address(this) || target.code.length == 0) revert InvalidProtocolTarget();
+    if (target == address(archController)) return;
+
+    address engine = archController.sphereXEngine();
+    if (engine != address(0) && target == engine) return;
+
+    (bool success, bytes memory data) = target.staticcall(abi.encodeCall(IArchControllerBound.archController, ()));
+    if (!success || data.length != 0x20) revert InvalidProtocolTarget();
+
+    uint256 encodedArchController;
+    assembly {
+      encodedArchController := mload(add(data, 0x20))
+    }
+    if (encodedArchController != uint256(uint160(address(archController)))) {
+      revert InvalidProtocolTarget();
+    }
   }
 }
-
-//     // function setProtocolFeeConfiguration(
-//     //     WildcatMarketControllerFactory factory,
-//     //     address feeRecipient,
-//     //     address originationFeeAsset,
-//     //     uint80 originationFeeAmount,
-//     //     uint16 protocolFeeBips
-//     // ) external {
-//     //     require(authorizedAccounts[msg.sender], "not authorized");
-//     //     factory.setProtocolFeeConfiguration(feeRecipient, originationFeeAsset, originationFeeAmount, protocolFeeBips);
-//     // }
-// }

@@ -5,11 +5,21 @@ import { createHash } from 'node:crypto';
 
 export const CORE = 'c7be4039f8f383a9dda4e45f63331c17d63f9ed9';
 export const PLASMA = '1bc514b1b0b903b1e94ca8046741fa8c9d367294';
+export const TESTNET_OWNER_SOURCE = Object.freeze({
+  commit: '05165ad4c4020c1400048680b85b3585f84e8527',
+  path: 'script/mock/MockArchControllerOwner.sol',
+  sha256: 'af9c73d6b6fed19f2027c625011e82a64946feed3fe481177cadeb84bf80693a',
+  version: '2',
+});
 const address = /^0x[0-9a-fA-F]{40}$/;
 const hash = /^0x[0-9a-fA-F]{64}$/;
 const bytes = /^0x(?:[0-9a-fA-F]{2})*$/;
 export const lower = x => String(x).toLowerCase();
 export const sha256 = data => createHash('sha256').update(data).digest('hex');
+export function validateTestnetOwnerSource(source) {
+  // the helper is a verbatim backport; the Ink clone needn't contain V2.5 history.
+  assert.equal(sha256(source), TESTNET_OWNER_SOURCE.sha256, 'testnet owner source changed');
+}
 export function keccak(data) {
   const input = Buffer.isBuffer(data) ? '0x' + data.toString('hex') : data;
   assert(bytes.test(input), 'invalid hash input');
