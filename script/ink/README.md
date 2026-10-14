@@ -1,8 +1,12 @@
 # Ink v2.0 deployment runbook
 
-start with the [standalone checklist](./CHECKLIST.md): choose Anvil rehearsal or live Ink Sepolia. this runbook covers the deployment model and background details.
+start with the [standalone checklist](./CHECKLIST.md) for a fresh Anvil rehearsal or live Ink Sepolia deployment. already stopped at sanctions seeding? use [the live continuation section](./CHECKLIST.md#continuation-defer-rejected-sanctions-seeding) directly. this runbook covers the deployment model and background details.
 
 deploys a fresh v2.0 protocol and v2.1 ERC-4626 wrapper factory on Ink and Ink Sepolia. [InkDeployment.sol](./InkDeployment.sol) is the deployment helper; [DeployInk.s.sol](./DeployInk.s.sol) has two thin entrypoints.
+
+an interrupted Ink Sepolia bootstrap can explicitly defer seeding after its first three CREATEs. `prepare-continuation CONFIG RUN PARENT` archives the parent evidence and checks its current receipts, code and nonce. [ContinueInk.s.sol](./ContinueInk.s.sol) reuses those contracts, regenerates the remaining deployment from the next nonce, and keeps the normal helper handoff/public registration. the [checklist continuation section](./CHECKLIST.md#continuation-defer-rejected-sanctions-seeding) covers execution.
+
+this is a new plan, not an edit to the old broadcast. it has a separate Forge cache, records changed addresses, and collects both old and new receipts. its status is `confirmed-contracts-sanctions-pending`, never `confirmed-bootstrap`; the original snapshot is retained for later seeding. it doesn't enable a mainnet empty-list mode or relax ordinary resume checks. explorer verification accepts the receipt-backed pending inventory without claiming sanctions were loaded.
 
 ## source and build boundary
 

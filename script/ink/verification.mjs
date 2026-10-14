@@ -28,7 +28,13 @@ const bytes = /^0x(?:[0-9a-fA-F]{2})*$/;
 
 export function validateVerificationInventory(inventory) {
   assert.equal(inventory.schemaVersion, 1);
-  assert.equal(inventory.status, 'confirmed-bootstrap', 'collect receipt-backed inventory before verification');
+  assert(['confirmed-bootstrap', 'confirmed-contracts-sanctions-pending'].includes(inventory.status), 'collect receipt-backed inventory before verification');
+  if (inventory.status === 'confirmed-contracts-sanctions-pending') {
+    assert.equal(inventory.chainId, 763373, 'deferred seeding is testnet-only');
+    assert.equal(inventory.sanctions?.status, 'deferred');
+    assert.equal(inventory.sanctions.observedCount, 0);
+    assert.equal(inventory.launchReady, false);
+  }
   assert(Number.isSafeInteger(inventory.chainId) && Object.hasOwn(EXPLORERS, inventory.chainId), 'unsupported Ink chain');
   assert(['live', 'rehearsal'].includes(inventory.mode), 'explicit inventory mode required');
   assert(address.test(inventory.deployer) && BigInt(inventory.deployer) !== 0n, 'invalid deployer');

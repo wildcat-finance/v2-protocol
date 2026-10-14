@@ -17,7 +17,7 @@ import {MockArchControllerOwner} from "script/mock/MockArchControllerOwner.sol";
 import {SphereXPatterns} from "./SphereXPatterns.sol";
 
 /// @dev offchain Foundry script. the EOA sends every CREATE and configuration call.
-/// interrupted broadcasts resume the exact saved Forge transactions, not a get-or-deploy cache.
+/// resume keeps the saved plan. an explicit continuation gets its own plan and cache.
 abstract contract InkDeployment is Script {
     uint256 internal constant MAINNET = 57073;
     uint256 internal constant TESTNET = 763373;
@@ -122,6 +122,13 @@ abstract contract InkDeployment is Script {
             }
             WildcatCopyOfChainalysisList(d.sanctionsList).addToSanctionsList(batch);
         }
+        _deployRemaining(c, d);
+        vm.stopBroadcast();
+        _verify(c, d);
+    }
+
+    // broadcast must already be active. both paths keep the same bindings and testnet handoff.
+    function _deployRemaining(Config memory c, Deployment memory d) internal {
         d.sanctionsAdapter = _create("SanctionsAdapter", "ChainalysisProxy.sol:ChainalysisProxy", "");
         ChainalysisProxy(d.sanctionsAdapter).setSanctionsRegistry(d.sanctionsList);
         d.sanctionsSentinel = _create(
@@ -189,8 +196,6 @@ abstract contract InkDeployment is Script {
             );
             arch.transferOwnership(d.testnetOwner);
         }
-        vm.stopBroadcast();
-        _verify(c, d);
     }
 
     function _create(string memory name, string memory artifact, bytes memory args) internal returns (address) {
@@ -221,6 +226,11 @@ abstract contract InkDeployment is Script {
     }
 
     function _verify(Config memory c, Deployment memory d) internal view {
+        _verify(c, d, true);
+    }
+
+    function _verify(Config memory c, Deployment memory d, bool sanctionsSeeded) internal view {
+        require(sanctionsSeeded || c.chainId == TESTNET, "Ink: deferred seeding is testnet-only");
         require(block.chainid == c.chainId, "Ink: verify chain");
         WildcatArchController arch = WildcatArchController(d.archController);
         HooksFactory factory = HooksFactory(d.hooksFactory);
@@ -284,8 +294,8 @@ abstract contract InkDeployment is Script {
         );
         WildcatCopyOfChainalysisList list = WildcatCopyOfChainalysisList(d.sanctionsList);
         require(list.owner() == c.deployer, "Ink: list updater");
-        require(list.getSanctionedAddressesCount() == c.sanctions.length, "Ink: snapshot count");
-        for (uint256 i; i < c.sanctions.length; ++i) {
+        require(list.getSanctionedAddressesCount() == (sanctionsSeeded ? c.sanctions.length : 0), "Ink: snapshot count");
+        for (uint256 i; sanctionsSeeded && i < c.sanctions.length; ++i) {
             require(
                 list.isSanctioned(c.sanctions[i]) && sentinel.isFlaggedByChainalysis(c.sanctions[i]),
                 "Ink: snapshot entry"
@@ -321,6 +331,10 @@ abstract contract InkDeployment is Script {
     }
 
     function _writeCandidate(Config memory c, Deployment memory d, string memory output) internal {
+        _writeCandidate(c, d, output, true);
+    }
+
+    function _writeCandidate(Config memory c, Deployment memory d, string memory output, bool sanctionsSeeded) internal {
         string memory entries;
         for (uint256 i; i < records.length; ++i) {
             Record memory r = records[i];
@@ -340,6 +354,7 @@ abstract contract InkDeployment is Script {
         vm.serializeUint(candidateKey, "schemaVersion", 1);
         vm.serializeUint(candidateKey, "contractCount", records.length);
         vm.serializeString(candidateKey, "status", "unconfirmed-candidate");
+        vm.serializeBool(candidateKey, "sanctionsSeeded", sanctionsSeeded);
         vm.serializeUint(candidateKey, "chainId", c.chainId);
         vm.serializeAddress(candidateKey, "deployer", c.deployer);
         vm.serializeUint(candidateKey, "startNonce", c.expectedNonce);

@@ -155,6 +155,11 @@ export function planHash(broadcast) {
 
 export async function collectEvidence(c, candidate, broadcast, rpc, confirmations = 1) {
   const txs = validatePlan(c, candidate, broadcast);
+  return collectTransactionEvidence(c, candidate, txs, rpc, confirmations);
+}
+
+// callers validate their plan first. the continuation also uses this for the mined prefix.
+export async function collectTransactionEvidence(c, candidate, txs, rpc, confirmations = 1) {
   assert(Number.isSafeInteger(confirmations) && confirmations >= 1, 'confirmations must be positive');
   const checkpoint = await rpc('eth_getBlockByNumber', ['latest', false]);
   assert(checkpoint && hash.test(checkpoint.hash), 'missing verification block');

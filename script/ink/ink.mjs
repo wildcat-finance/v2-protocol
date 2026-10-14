@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { CORE, PLASMA, TESTNET_OWNER_SOURCE, sha256, keccak, readJson, validateTestnetOwnerSource, validateConfig, rpcClient, checkEndpoint, validatePlan, planHash, collectEvidence } from './inventory.mjs';
 import { EXPLORERS, validateVerificationInventory, verificationPlan, checkVerificationState, verificationEnvironment, redactVerificationResult, verifyContracts } from './verification.mjs';
+import { readParent, archiveParent, validateParent, checkPrefix, combinedPlan, checkResumeRpc } from './continuation.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 process.chdir(root);
@@ -90,9 +91,23 @@ function checkPrepared(run) {
   assert.deepEqual(sources(), p.sources, 'source changed since preparation; use a new run');
   env.INK_CONFIG = local(p.config);
   env.INK_CANDIDATE = join(run, 'candidate.json');
-  return { p, ...now };
+  let parent;
+  if (p.continuation) {
+    assert.equal(p.continuation.kind, 'defer-sanctions-seeding');
+    parent = readParent(join(run, 'parent'), true);
+    assert.deepEqual(parent.hashes, p.continuation.hashes, 'archived parent changed');
+    validateParent(parent, now.c, now.snapshotHash);
+    env.INK_PARENT_CANDIDATE = join(run, 'parent/candidate.json');
+  }
+  return { p, ...now, parent };
 }
-function broadcastPath(c) { return join(root, 'broadcast/DeployInk.s.sol', String(c.chainId), 'run-latest.json'); }
+function scriptFile(p) { return p.continuation ? 'ContinueInk.s.sol' : 'DeployInk.s.sol'; }
+function broadcastPath(c, p) { return join(root, 'broadcast', scriptFile(p), String(c.chainId), 'run-latest.json'); }
+function checkedPlan(c, candidate, broadcast, parent) {
+  if (parent) return combinedPlan(parent, c, candidate, broadcast);
+  validatePlan(c, candidate, broadcast);
+  return { config: c, candidate, broadcast };
+}
 function walletFlags(flags, c) {
   const result = [];
   for (let i = 0; i < flags.length; ++i) {
@@ -153,7 +168,7 @@ async function verifyRun(run) {
 
 async function main() {
   const [command, arg, ...args] = process.argv.slice(2);
-  assert(['check', 'simulate', 'prepare', 'run', 'resume', 'collect', 'verify'].includes(command), 'usage: ink.mjs check | simulate CONFIG RUN | prepare CONFIG RUN | run RUN [--broadcast --account ALIAS] | resume RUN ... | collect RUN [CONFIRMATIONS] | verify RUN');
+  assert(['check', 'simulate', 'prepare', 'prepare-continuation', 'run', 'resume', 'collect', 'verify'].includes(command), 'usage: ink.mjs check | simulate CONFIG RUN | prepare CONFIG RUN | prepare-continuation CONFIG RUN PARENT | run RUN [--broadcast --account ALIAS] | resume RUN ... | collect RUN [CONFIRMATIONS] | verify RUN');
   if (command === 'verify') {
     assert(arg && args.length === 0, 'verify requires RUN');
     await verifyRun(runPath(arg));
@@ -192,23 +207,29 @@ async function main() {
   const url = process.env.INK_RPC_URL;
   assert(url, 'set INK_RPC_URL; it is never stored in inventory');
   const rpc = rpcClient(url);
-  if (command === 'prepare') {
-    assert.equal(args.length, 1, 'prepare requires CONFIG RUN');
+  if (command === 'prepare' || command === 'prepare-continuation') {
+    const continuation = command === 'prepare-continuation';
+    assert.equal(args.length, continuation ? 2 : 1, continuation ? 'prepare-continuation requires CONFIG RUN PARENT' : 'prepare requires CONFIG RUN');
     const config = local(arg), run = runPath(args[0]);
     assert(!existsSync(run), 'run directory already exists');
     const info = configAt(config);
+    const parent = continuation ? readParent(local(args[1])) : undefined;
+    if (parent) validateParent(parent, info.c, info.snapshotHash);
     const source = sources();
     const dirty = tool('git', ['status', '--porcelain', '--untracked-files=all', '--', 'src', 'script/ink', 'script/mock/MockArchControllerOwner.sol', 'test/ink', 'foundry.toml', '.gitmodules']) !== '';
     assert(info.c.mode !== 'live' || !dirty, 'live preparation requires committed, clean deployment source');
     await checkEndpoint(info.c, rpc, url);
     assert.equal(Number(BigInt(await rpc('eth_getTransactionCount', [info.c.deployer, 'pending']))), info.c.expectedNonce, 'deployer nonce mismatch');
     const artifacts = build();
+    if (parent) assert.deepEqual(artifacts, parent.data['prepared.json'].artifacts, 'continuation must keep the parent contract build');
+    const prefix = parent ? await checkPrefix(parent, info.c, info.snapshotHash, rpc) : undefined;
     const checkpoint = await rpc('eth_getBlockByNumber', ['latest', false]);
     const fork = info.c.mode === 'rehearsal' ? (await rpc('anvil_nodeInfo')).forkConfig : undefined;
     mkdirSync(dirname(run), { recursive: true });
     mkdirSync(run);
     writeFileSync(join(run, 'config.original.json'), readFileSync(config), { flag: 'wx', mode: 0o600 });
     writeFileSync(join(run, 'snapshot.original.json'), readFileSync(local(info.c.sanctionsSnapshot)), { flag: 'wx', mode: 0o600 });
+    if (parent) archiveParent(parent, run);
     writeNew(join(run, 'prepared.json'), {
       schemaVersion: 1, config: relative(root, config), configHash: info.configHash, snapshotHash: info.snapshotHash,
       sources: source, sourceCommit: tool('git', ['rev-parse', 'HEAD']), sourceTreeDirty: dirty, artifacts,
@@ -216,14 +237,19 @@ async function main() {
       checkpoint: { number: checkpoint.number, hash: checkpoint.hash },
       // forkUrl may contain RPC credentials; don't archive it.
       fork: fork ? { forkBlockNumber: fork.forkBlockNumber, forkBlockHash: fork.forkBlockHash, forkChainId: fork.forkChainId } : null,
+      ...(parent ? { continuation: {
+        kind: 'defer-sanctions-seeding', parentRun: relative(root, local(args[1])), parentAttempt: parent.attempt,
+        hashes: parent.hashes, prefixEvidence: prefix,
+      } } : {}),
     });
     console.log('prepared ' + relative(root, run) + ' (' + info.c.mode + '; no transactions sent)');
     return;
   }
   const run = runPath(arg);
-  const { p, c, s } = checkPrepared(run);
+  const { p, c, s, parent } = checkPrepared(run);
   await checkEndpoint(c, rpc, url);
-  const target = 'script/ink/DeployInk.s.sol:' + (c.chainId === 57073 ? 'DeployInkMainnet' : 'DeployInkTestnet');
+  const target = parent ? 'script/ink/ContinueInk.s.sol:ContinueInkTestnet'
+    : 'script/ink/DeployInk.s.sol:' + (c.chainId === 57073 ? 'DeployInkMainnet' : 'DeployInkTestnet');
   if (command === 'run' || command === 'resume') {
     assert.deepEqual(build(), p.artifacts, 'build commitments changed');
     const flags = walletFlags(args, c);
@@ -234,21 +260,29 @@ async function main() {
       const candidate = readJson(env.INK_CANDIDATE).value;
       assert.equal(candidate.configHash, p.configHash);
       assert.equal(candidate.snapshotHash, p.snapshotHash);
-      validatePlan(c, candidate, readJson(broadcastPath(c)).value);
-      assert.equal(planHash(readJson(broadcastPath(c)).value), saved.planHash, 'Forge run-latest belongs to another run');
+      checkedPlan(c, candidate, readJson(broadcastPath(c, p)).value, parent);
+      assert.equal(planHash(readJson(broadcastPath(c, p)).value), saved.planHash, 'Forge run-latest belongs to another run');
+      if (parent) checkResumeRpc(join(root, 'ink-cache', scriptFile(p), String(c.chainId), 'run-latest.json'), url);
       flags.push('--resume');
-    } else assert(!existsSync(env.INK_CANDIDATE), 'candidate already exists: resume saved transactions or prepare a new run');
+    } else {
+      assert(!existsSync(env.INK_CANDIDATE), 'candidate already exists: resume saved transactions or prepare a new run');
+      if (parent) await checkPrefix(parent, c, p.snapshotHash, rpc);
+    }
     const result = spawnSync('forge', ['script', target, '--offline', '--rpc-url', url, '--sender', c.deployer, ...flags], { cwd: root, env, stdio: 'inherit' });
-    if (flags.includes('--broadcast') && existsSync(env.INK_CANDIDATE) && existsSync(broadcastPath(c))) {
+    if (flags.includes('--broadcast') && existsSync(env.INK_CANDIDATE) && existsSync(broadcastPath(c, p))) {
       const candidate = readJson(env.INK_CANDIDATE).value;
       assert.equal(candidate.configHash, p.configHash);
       assert.equal(candidate.snapshotHash, p.snapshotHash);
-      const broadcast = readJson(broadcastPath(c)).value;
-      validatePlan(c, candidate, broadcast);
+      const broadcast = readJson(broadcastPath(c, p)).value;
+      checkedPlan(c, candidate, broadcast, parent);
       const saved = { planHash: planHash(broadcast), candidateHash: sha256(readFileSync(env.INK_CANDIDATE)) };
       const planPath = join(run, 'transaction-plan.json');
       if (!existsSync(planPath)) writeNew(planPath, saved);
       else assert.deepEqual(readJson(planPath).value, saved, 'resume changed the plan/candidate');
+      if (parent && !existsSync(join(run, 'address-changes.json'))) writeNew(join(run, 'address-changes.json'), candidate.contracts.map(r => ({
+        name: r.name, previous: parent.data['candidate.json'].contracts.find(old => old.name === r.name).address,
+        address: r.address, reused: candidate.contracts.indexOf(r) < 3,
+      })));
       // keep attempts append-only. omit Forge cache and RPC config, which may contain secrets.
       writeNew(join(run, 'broadcast-' + Date.now() + '.json'), { chain: broadcast.chain, transactions: broadcast.transactions, receipts: broadcast.receipts });
     }
@@ -265,19 +299,25 @@ async function main() {
   assert.equal(candidate.snapshotHash, p.snapshotHash);
   const plan = readJson(join(run, 'transaction-plan.json')).value;
   assert.equal(plan.candidateHash, sha256(readFileSync(env.INK_CANDIDATE)), 'candidate changed');
-  const broadcast = readJson(broadcastPath(c)).value;
+  const broadcast = readJson(broadcastPath(c, p)).value;
   assert.equal(plan.planHash, planHash(broadcast), 'Forge run-latest belongs to another run');
-  const evidence = await collectEvidence(c, candidate, broadcast, rpc, confirmations);
-  const verification = spawnSync('forge', ['script', 'script/ink/DeployInk.s.sol:VerifyInk', '--offline', '--rpc-url', url, '--fork-block-number', String(BigInt(evidence.checkpoint.number))], { cwd: root, env, stdio: 'inherit' });
+  const combined = checkedPlan(c, candidate, broadcast, parent);
+  const evidence = await collectEvidence(combined.config, combined.candidate, combined.broadcast, rpc, confirmations);
+  const verifier = parent ? 'script/ink/ContinueInk.s.sol:VerifyInkContinuation' : 'script/ink/DeployInk.s.sol:VerifyInk';
+  const verification = spawnSync('forge', ['script', verifier, '--offline', '--rpc-url', url, '--fork-block-number', String(BigInt(evidence.checkpoint.number))], { cwd: root, env, stdio: 'inherit' });
   assert.equal(verification.status, 0, 'post-broadcast binding/authority verification failed');
   assert.equal((await rpc('eth_getBlockByNumber', [evidence.checkpoint.number, false])).hash, evidence.checkpoint.hash, 'verification block reorged');
   const deployed = Object.fromEntries(candidate.contracts.map(r => [r.name, r.address]));
   writeNew(inventoryPath, {
-    schemaVersion: 1, status: 'confirmed-bootstrap', mode: c.mode, chainId: c.chainId,
+    schemaVersion: 1, status: parent ? 'confirmed-contracts-sanctions-pending' : 'confirmed-bootstrap', mode: c.mode, chainId: c.chainId,
     launchReady: false, launchGate: 'External sanctions updater/source freshness and consumer rollout are not verified here.',
     deployer: c.deployer, sourceCommit: p.sourceCommit, sourceTreeDirty: p.sourceTreeDirty, sourceManifestHash: sha256(JSON.stringify(p.sources)),
     startNonce: candidate.startNonce, endNonce: candidate.endNonce,
     transactionPlanHash: plan.planHash, candidateHash: plan.candidateHash,
+    ...(parent ? {
+      continuation: { ...p.continuation, combinedPlanHash: planHash(combined.broadcast), originalStartNonce: combined.candidate.startNonce },
+      sanctions: { status: 'deferred', observedCount: 0, snapshotAddressCount: s.addresses.length },
+    } : {}),
     build: p.artifacts, configHash: p.configHash, snapshotHash: p.snapshotHash, sanctionsSource: s,
     testnetOwnerSource: deployed.MockArchControllerOwner ? p.sources.testnetOwner : null,
     sphereXPatternsHash: candidate.sphereXPatternsHash, feeRecipient: candidate.feeRecipient,
@@ -295,7 +335,7 @@ async function main() {
     },
     contracts: evidence.contracts, receipts: evidence.receipts,
   });
-  console.log('confirmed ' + c.mode + ' bootstrap: ' + relative(root, inventoryPath));
+  console.log('confirmed ' + c.mode + (parent ? ' contracts; sanctions pending: ' : ' bootstrap: ') + relative(root, inventoryPath));
   await verifyRun(run);
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; });

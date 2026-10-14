@@ -1,6 +1,8 @@
 # Ink deployment checklist
 
-choose one path: [Anvil rehearsal](#anvil-rehearsal) or [live Ink Sepolia](#live-ink-sepolia). the live path is standalone; don't run the Anvil steps against a public chain.
+fresh deployment: [Anvil rehearsal](#anvil-rehearsal) or [live Ink Sepolia](#live-ink-sepolia). the live path is standalone; don't run the Anvil steps against a public chain.
+
+already stopped at sanctions seeding? go straight to [the live continuation](#continuation-defer-rejected-sanctions-seeding), not the fresh-deployment steps.
 
 ## Anvil rehearsal
 
@@ -345,9 +347,69 @@ check: inventory `confirmed-bootstrap`, `live`, `763373`, **13 contracts**; Arch
 - broadcast interrupted and `transaction-plan.json` exists: `node script/ink/ink.mjs resume "$INK_RUN" --broadcast --account "$INK_ACCOUNT"`, then `collect`. keep the original run, source/config, signer and Forge cache.
 - missing plan, reverted transaction, nonce drift or changed source: stop and reconcile. never start a fresh deployment over a partial broadcast.
 
+### continuation: defer rejected sanctions seeding
+
+only for Ink Sepolia stopped after the first three CREATEs. this keeps all other calls, including the helper handoff and public borrower registration. the list stays empty; the 137-address snapshot remains a pending task, not a successful seed.
+
+- [ ] use the original `v2-protocol-ink` checkout on `release/ink`, not the diagnostic clone. rehearse the continuation first; commit the reviewed changes before live preparation.
+- [ ] keep the old run, broadcast and cache. don't resume the old seeding plan after starting this continuation.
+- [ ] reuse the live relay on port `8549` (start it with step 2 if needed). leave Anvil alone. load this checkout's `.env` and select the interrupted live run explicitly:
+
+```sh
+set -a
+source .env
+set +a
+export FOUNDRY_PROFILE=ink
+export INK_RPC_URL=http://127.0.0.1:8549
+export INK_PARENT_RUN=deployments/ink/runs/sepolia-live-20261013T234116Z
+export INK_RUN="deployments/ink/runs/sepolia-continuation-$(date -u +%Y%m%dT%H%M%SZ)"
+export INK_CONFIG="deployments/ink/config/$(basename "$INK_RUN").json"
+(
+  set -eC
+  test "$(git branch --show-current)" = release/ink
+  : "${INK_ACCOUNT:?set INK_ACCOUNT in .env}"
+  jq -e '.mode == "live" and .chainId == 763373 and .expectedNonce == 1' \
+    "$INK_PARENT_RUN/config.original.json" > /dev/null
+  jq --arg snapshot "$INK_PARENT_RUN/snapshot.original.json" \
+    '.expectedNonce += 3 | .sanctionsSnapshot = $snapshot' \
+    "$INK_PARENT_RUN/config.original.json" > "$INK_CONFIG"
+)
+```
+
+- [ ] run separately, stopping on any failure. preparation checks the live endpoint, three existing contracts and nonce `4`; `run` broadcasts the remaining **21 transactions**:
+
+```sh
+node script/ink/ink.mjs prepare-continuation "$INK_CONFIG" "$INK_RUN" "$INK_PARENT_RUN"
+```
+
+```sh
+node script/ink/ink.mjs run "$INK_RUN" --broadcast --account "$INK_ACCOUNT"
+```
+
+```sh
+node script/ink/ink.mjs collect "$INK_RUN"
+```
+
+if `collect` says `insufficient confirmations`, wait for 12 blocks including the last receipt block, then retry only `collect`.
+
+- [ ] check the results:
+
+```sh
+jq '{status, sanctions, contracts: (.contracts | length), receipts: (.receipts | length), endNonce, authorities}' "$INK_RUN/inventory.json"
+jq -s 'sort_by(.finishedAt) | last | {status, counts, error}' "$INK_RUN"/verification-*.json
+```
+
+check: `confirmed-contracts-sanctions-pending`, `sanctions.observedCount: 0`, helper owns ArchController. without the fee forwarder: **13 contracts, 24 receipts, end nonce 25**. explorer report: `complete`, **10 verified**, **0 failed**, **3 bytecode-only** stores.
+
+- [ ] check `address-changes.json`: first three reused; all ten later addresses changed. use this inventory for downstream configuration.
+
+recovery: interrupted broadcast → `node script/ink/ink.mjs resume "$INK_RUN" --broadcast --account "$INK_ACCOUNT"`, then `collect`. explorer failure with inventory saved → `node script/ink/ink.mjs verify "$INK_RUN"`. keep this continuation's RPC/cache; don't repeat preparation or resume the parent run.
+
+an empty list makes the protocol report everyone unsanctioned. Forta screening is external; this script does not verify its coverage or treat it as a replacement for the protocol's sanctions/escrow behavior. resolve the operator review before attempting the deferred seed.
+
 ### 6. optional: authorize the handoff address on testnet
 
-only after step 5 succeeds. set `INK_FOUNDATION_SAFE` in `.env` to the intended EOA or deployed Safe. this adds a peer executor; **it can administer the helper and remove other executors**. it doesn't transfer helper ownership—the helper has no owner—and doesn't move SphereX/sanctions roles. keep the deployer authorized.
+only after collection and verification succeed, including for a continuation. set `INK_FOUNDATION_SAFE` in `.env` to the intended EOA or deployed Safe. this adds a peer executor; **it can administer the helper and remove other executors**. it doesn't transfer helper ownership—the helper has no owner—and doesn't move SphereX/sanctions roles. keep the deployer authorized.
 
 ```sh
 (
@@ -358,7 +420,7 @@ only after step 5 succeeds. set `INK_FOUNDATION_SAFE` in `.env` to the intended 
   : "${INK_FOUNDATION_SAFE:?set INK_FOUNDATION_SAFE in .env}"
   test "$(cast chain-id --rpc-url http://127.0.0.1:8549)" = 763373
   export INK_RPC_URL=http://127.0.0.1:8549
-  jq -e '.mode == "live" and .chainId == 763373 and .status == "confirmed-bootstrap"' "$INK_RUN/inventory.json"
+  jq -e '.mode == "live" and .chainId == 763373 and (.status == "confirmed-bootstrap" or .status == "confirmed-contracts-sanctions-pending")' "$INK_RUN/inventory.json"
   ink_owner="$(jq -er '.contracts[] | select(.name == "MockArchControllerOwner") | .address' "$INK_RUN/inventory.json")"
   if [ "$(cast call "$ink_owner" 'authorizedAccounts(address)(bool)' "$INK_FOUNDATION_SAFE" --rpc-url "$INK_RPC_URL")" != true ]; then
     cast send "$ink_owner" 'authorizeAccount(address)' "$INK_FOUNDATION_SAFE" \
