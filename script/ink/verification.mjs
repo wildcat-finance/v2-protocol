@@ -1,10 +1,23 @@
 import assert from 'node:assert/strict';
+import { parseEnv } from 'node:util';
 import { checkEndpoint, keccak, lower } from './inventory.mjs';
 
 export const EXPLORERS = Object.freeze({
   57073: 'https://explorer.inkonchain.com',
   763373: 'https://explorer-sepolia.inkonchain.com',
 });
+
+export function verificationApiUrl(chainId) {
+  assert(Object.hasOwn(EXPLORERS, chainId), 'unsupported Ink chain');
+  return 'https://api.blockscout.com/v2/api?chainid=' + chainId;
+}
+
+export function verificationApiKey(env, dotenv = '') {
+  const key = env.INK_BLOCKSCOUT_API_KEY ?? parseEnv(dotenv).INK_BLOCKSCOUT_API_KEY;
+  assert(typeof key === 'string' && /^proapi_\S+$/.test(key),
+    'set INK_BLOCKSCOUT_API_KEY to a Blockscout Pro key in .env or the environment');
+  return key;
+}
 
 const targets = Object.freeze({
   WildcatArchController: 'src/WildcatArchController.sol:WildcatArchController',
@@ -122,7 +135,7 @@ export function verificationArgs(chainId, record) {
   assert(Object.hasOwn(EXPLORERS, chainId), 'unsupported Ink chain');
   assert.equal(record.kind, 'contract', 'initcode stores are not Solidity contract instances');
   const args = ['verify-contract', record.address, record.target,
-    '--chain', String(chainId), '--verifier', 'blockscout', '--verifier-url', EXPLORERS[chainId] + '/api/',
+    '--chain', String(chainId), '--verifier', 'blockscout', '--verifier-url', verificationApiUrl(chainId),
     '--compiler-version', 'v' + record.compiler, '--num-of-optimizations', '50000', '--via-ir', '--evm-version', 'cancun',
     '--watch', '--retries', '5', '--delay', '5'];
   if (record.constructorArgs !== '0x') args.push('--constructor-args', record.constructorArgs);
@@ -133,9 +146,10 @@ export function verificationEnvironment(env, apiKey) {
   const result = { ...env, FOUNDRY_PROFILE: 'ink' };
   // the explorer gets only its own API key. RPC and unrelated verifier credentials aren't needed.
   for (const key of ['ETHERSCAN_API_KEY', 'VERIFIER_API_KEY', 'VERIFIER_URL', 'ETH_RPC_URL', 'ETH_RPC_HEADERS', 'ETH_RPC_JWT_SECRET', 'CHAIN']) delete result[key];
-  // empty values also stop Forge's dotenv loader from restoring an unrelated key.
+  // Forge's verify-contract config gives VERIFIER_API_KEY precedence, even when empty.
+  // set both so submission and status polling use the same key, without dotenv fallback.
   result.ETHERSCAN_API_KEY = apiKey || '';
-  result.VERIFIER_API_KEY = '';
+  result.VERIFIER_API_KEY = apiKey || '';
   return result;
 }
 

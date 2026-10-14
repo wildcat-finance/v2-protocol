@@ -44,7 +44,7 @@ export function validateConfig(c, s) {
   assert(['rehearsal', 'live'].includes(c.mode), 'explicit rehearsal/live mode required');
   assert(validAddress(c.deployer) && validAddress(c.feeRecipient), 'deployer/fee recipient required');
   assert(Number.isSafeInteger(c.expectedNonce) && c.expectedNonce >= 0, 'invalid nonce');
-  assert(Number.isInteger(c.protocolFeeBips) && c.protocolFeeBips >= 0 && c.protocolFeeBips <= 10000, 'invalid fee');
+  assert(Number.isInteger(c.protocolFeeBips) && c.protocolFeeBips >= 0 && c.protocolFeeBips <= 1000, 'invalid fee');
   assert.equal(typeof c.deployFeeRecipient, 'boolean');
   assert.equal(typeof c.sanctionsSnapshot, 'string');
   assert.equal(s.schemaVersion, 1);
@@ -67,19 +67,27 @@ export function rpcClient(url) {
   assert(['http:', 'https:'].includes(parsed.protocol), 'HTTP(S) RPC required');
   let id = 0;
   return async (method, params = []) => {
+    let reason = 'network failure';
     try {
       const response = await fetch(url, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
+        // Forge blocks Node between reads; an idle socket can expire before Node sees it close.
+        method: 'POST', headers: { 'content-type': 'application/json', connection: 'close' },
         body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params }),
         signal: AbortSignal.timeout(30000),
       });
+      reason = 'HTTP ' + response.status;
       assert(response.ok, 'HTTP ' + response.status);
+      reason = 'invalid JSON response';
       const data = await response.json();
+      reason = Number.isSafeInteger(data?.error?.code) ? 'JSON-RPC ' + data.error.code : 'invalid JSON-RPC response';
       assert(!data.error && Object.hasOwn(data, 'result'), 'JSON-RPC failure');
       return data.result;
-    } catch {
+    } catch (error) {
+      if (error?.name === 'TimeoutError') reason = 'timeout after 30s';
+      const code = error?.cause?.code;
+      if (['ECONNRESET', 'ECONNREFUSED', 'EPIPE', 'ETIMEDOUT', 'ENOTFOUND', 'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT'].includes(code)) reason = code;
       // RPC URLs and upstream errors can contain credentials; don't echo them.
-      throw new Error('RPC request failed: ' + method);
+      throw new Error('RPC request failed: ' + method + ' (' + reason + ')');
     }
   };
 }

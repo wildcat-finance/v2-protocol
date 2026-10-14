@@ -11,6 +11,7 @@ hh-cache
 artifacts
 coverage/
 .env
+keystores/
 ink-out/
 ink-cache/
 deployments/ink/config/

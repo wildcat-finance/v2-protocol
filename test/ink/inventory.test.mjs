@@ -38,6 +38,13 @@ test('requires the exact pinned V2.5 testnet helper source', () => {
   validateTestnetOwnerSource(source);
   assert.throws(() => validateTestnetOwnerSource(Buffer.concat([source, Buffer.from('\n')])), /source changed/);
 });
+test('fee validation matches the factory limit', () => {
+  const { config, snapshot } = fixture();
+  for (const fee of [0, 500, 1000]) validateConfig({ ...config, protocolFeeBips: fee }, snapshot);
+  for (const fee of [-1, 1001, 10000]) {
+    assert.throws(() => validateConfig({ ...config, protocolFeeBips: fee }, snapshot), /invalid fee/);
+  }
+});
 test('testnet inventory requires a receipt-backed helper; mainnet excludes it', async () => {
   const f = fixture(763373);
   await checkEndpoint(f.config, f.rpc, 'http://127.0.0.1:8545');

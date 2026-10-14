@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// offchain deployment evidence. no onchain inventory or V2.5 ceremony machinery.
+// receipt-backed deployment records for Ink V2.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
@@ -7,7 +7,7 @@ import { resolve, relative, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { CORE, PLASMA, TESTNET_OWNER_SOURCE, sha256, keccak, readJson, validateTestnetOwnerSource, validateConfig, rpcClient, checkEndpoint, validatePlan, planHash, collectEvidence } from './inventory.mjs';
-import { EXPLORERS, validateVerificationInventory, verificationPlan, checkVerificationState, verificationEnvironment, redactVerificationResult, verifyContracts } from './verification.mjs';
+import { EXPLORERS, verificationApiUrl, verificationApiKey, validateVerificationInventory, verificationPlan, checkVerificationState, verificationEnvironment, redactVerificationResult, verifyContracts } from './verification.mjs';
 import { readParent, archiveParent, validateParent, checkPrefix, combinedPlan, checkResumeRpc } from './continuation.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -139,6 +139,9 @@ async function verifyRun(run) {
     try {
       const url = process.env.INK_RPC_URL;
       assert(url, 'set INK_RPC_URL for the deployed chain');
+      const dotenvPath = join(root, '.env');
+      const apiKey = verificationApiKey(process.env, existsSync(dotenvPath) ? readFileSync(dotenvPath, 'utf8') : '');
+      report.apiUrl = verificationApiUrl(inventory.chainId);
       const rpc = rpcClient(url);
       await checkEndpoint(inventory, rpc, url);
       build();
@@ -148,7 +151,6 @@ async function verifyRun(run) {
         return readJson('ink-out/' + name + '.sol/' + name + '.json').value;
       });
       report.checkpoint = await checkVerificationState(inventory, plan, rpc, url);
-      const apiKey = process.env.INK_BLOCKSCOUT_API_KEY;
       const verifyEnv = verificationEnvironment(env, apiKey);
       Object.assign(report, await verifyContracts(inventory.chainId, plan, args =>
         redactVerificationResult(spawnSync('forge', args, { cwd: root, env: verifyEnv, encoding: 'utf8', timeout: 180000, maxBuffer: 4 * 1024 * 1024 }), apiKey), console.log));

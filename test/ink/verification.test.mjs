@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { resolve } from 'node:path';
 import { keccak, sha256 } from '../../script/ink/inventory.mjs';
 import {
-  EXPLORERS, validateVerificationInventory, verificationPlan, checkVerificationState,
+  verificationApiUrl, verificationApiKey, validateVerificationInventory, verificationPlan, checkVerificationState,
   verificationArgs, verificationEnvironment, redactVerificationResult, verifyContracts,
 } from '../../script/ink/verification.mjs';
 
@@ -71,12 +71,36 @@ test('builds explicit Blockscout commands for both chains with recorded construc
     const plan = verificationPlan(f.inventory, f.loadArtifact);
     assert.equal(plan.length, chainId === 763373 ? 14 : 13);
     const args = verificationArgs(chainId, plan[0]);
-    for (const [flag, value] of [['--chain', String(chainId)], ['--verifier', 'blockscout'], ['--verifier-url', EXPLORERS[chainId] + '/api/'], ['--compiler-version', 'v0.8.25+commit.b61c2a91'], ['--num-of-optimizations', '50000'], ['--evm-version', 'cancun'], ['--constructor-args', plan[0].constructorArgs]]) {
+    for (const [flag, value] of [['--chain', String(chainId)], ['--verifier', 'blockscout'], ['--verifier-url', 'https://api.blockscout.com/v2/api?chainid=' + chainId], ['--compiler-version', 'v0.8.25+commit.b61c2a91'], ['--num-of-optimizations', '50000'], ['--evm-version', 'cancun'], ['--constructor-args', plan[0].constructorArgs]]) {
       assert.equal(args[args.indexOf(flag) + 1], value);
     }
     assert(args.includes('--watch') && args.includes('--via-ir'));
     assert(!args.includes('--broadcast') && !args.includes('--rpc-url') && !args.includes('--compilation-profile'));
   }
+});
+
+test('Pro verification selects the chain without putting the key in command arguments', () => {
+  for (const chainId of [57073, 763373]) {
+    const url = new URL(verificationApiUrl(chainId));
+    assert.equal(url.origin, 'https://api.blockscout.com');
+    assert.equal(url.pathname, '/v2/api');
+    assert.deepEqual([...url.searchParams], [['chainid', String(chainId)]]);
+  }
+  assert.throws(() => verificationApiUrl(1), /unsupported Ink chain/);
+});
+
+test('loads the Pro key from dotenv with explicit environment precedence', () => {
+  const dotenv = 'export INK_BLOCKSCOUT_API_KEY="proapi_from_file"\nINK_RPC_TOKEN=unrelated\n';
+  assert.equal(verificationApiKey({}, dotenv), 'proapi_from_file');
+  assert.equal(verificationApiKey({ INK_BLOCKSCOUT_API_KEY: 'proapi_exported' }, dotenv), 'proapi_exported');
+  for (const key of [undefined, '', 'legacy-sensitive-value', 'proapi_']) {
+    assert.throws(() => verificationApiKey({ INK_BLOCKSCOUT_API_KEY: key }), error => {
+      assert.match(error.message, /Blockscout Pro key/);
+      assert(!error.message.includes('legacy-sensitive-value'));
+      return true;
+    });
+  }
+  assert.throws(() => verificationApiKey({ INK_BLOCKSCOUT_API_KEY: '' }, dotenv), /Blockscout Pro key/);
 });
 
 test('rejects unconfirmed, incomplete, duplicate, and wrong-network inventory', () => {
@@ -171,11 +195,11 @@ test('timeouts and spawn failures never count as verified', async () => {
   assert.equal(result.status, 'incomplete');
 });
 
-test('the optional Ink API key is environment-only and redacted from saved output', () => {
+test('the Ink API key is environment-only and redacted from saved output', () => {
   const env = verificationEnvironment({ PATH: '/bin', ETHERSCAN_API_KEY: 'unrelated', VERIFIER_API_KEY: 'unrelated', VERIFIER_URL: 'other', ETH_RPC_URL: 'secret-url' }, 'ink-test-key');
   assert.equal(env.ETHERSCAN_API_KEY, 'ink-test-key');
   assert.equal(env.FOUNDRY_PROFILE, 'ink');
-  assert.equal(env.VERIFIER_API_KEY, '');
+  assert.equal(env.VERIFIER_API_KEY, 'ink-test-key');
   assert.equal(env.VERIFIER_URL, undefined);
   assert.equal(env.ETH_RPC_URL, undefined);
   assert.equal(verificationEnvironment(env).ETHERSCAN_API_KEY, '');
