@@ -49,7 +49,7 @@ another interaction in the same block. A positive TTL lets a cached credential
 survive membership, balance, ownership, or root changes until expiry. Removing
 a provider makes its cached credential unusable on the next check.
 
-The `type(uint32).max` cap is also the V2.x generation's absolute timestamp
+The `type(uint32).max` cap is also the v2.x generation's absolute timestamp
 horizon, not an indefinite-expiry encoding after that date. Once
 `block.timestamp` exceeds 2106-02-07 06:28:15 UTC, a new or refreshed pull or
 push credential cannot satisfy the current-time check. Markets and lender
@@ -103,7 +103,7 @@ Probe optional capabilities; do not infer them from `IRoleProvider`.
 
 ## Lens and indexer boundary
 
-The V2.5 lens returns each attached provider's address, TTL, pull and push
+The v2.5 lens returns each attached provider's address, TTL, pull and push
 indices, and optional managed-provider administration. It does not guess a
 provider kind or add provider-specific configuration to the lens ABI.
 

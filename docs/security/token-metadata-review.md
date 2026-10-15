@@ -140,7 +140,7 @@ base. Its metadata patch must be integrated into the selected release source.
 ## Existing fixes and history
 
 F-05's factory/lens disagreement about legacy `bytes32` metadata is already
-fixed in the baseline V2.5 candidate. The factory's strict decoder and the new
+fixed in the baseline v2.5 candidate. The factory's strict decoder and the new
 bounded cosmetic lens decoder both understand that legacy representation.
 The associated malformed-response and high-bit final-byte corrections are
 also present. They should not be reported as still-unfixed metadata cases.

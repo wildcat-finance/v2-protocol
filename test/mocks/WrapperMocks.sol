@@ -17,7 +17,7 @@ pragma solidity 0.8.25;
 //  MARKET REGISTRATION
 //  setRegisteredMarket(...)
 //
-//  V1 WRAPPER CREATION
+//  v1 WRAPPER CREATION
 //  seedWrapper(...)
 //  createWrapper(...)
 //
@@ -149,7 +149,7 @@ contract WrapperV1FactoryMock {
   mapping(address market => address wrapper) public wrapperForMarket;
   uint256 public createCalls;
 
-  // ░░▒▒▓▓██ [ V1 WRAPPER CREATION ] ──────────────────────────────────────────
+  // ░░▒▒▓▓██ [ v1 WRAPPER CREATION ] ──────────────────────────────────────────
 
   // ┌─ seedWrapper ─────
   function seedWrapper(address market, address wrapper) external {

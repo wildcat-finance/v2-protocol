@@ -155,7 +155,7 @@ interface IWildcatMarketToken is IERC20Metadata {
 ///         ownership.
 ///
 /// @dev conversions use the market scale factor, not `totalAssets() / totalSupply()`. execution is
-///      only compatible with markets whose transfers round scaled amounts down. pre-V2.5 markets
+///      only compatible with markets whose transfers round scaled amounts down. pre-v2.5 markets
 ///      round half-up and trip `SharesMismatch`, so wrappers must come through the generation-aware
 ///      `Wildcat4626WrapperFactory`.
 contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {

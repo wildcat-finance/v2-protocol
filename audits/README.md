@@ -7,9 +7,9 @@ deployments by implication.
 This index does not include internal reviews, automated scans, working papers,
 or audit preparation material.
 
-## V2
+## v2
 
-- **alpeh_v:** [Wildcat V2 Security Review](https://hackmd.io/@geistermeister/BJk4Ekt90),
+- **alpeh_v:** [Wildcat v2 Security Review](https://hackmd.io/@geistermeister/BJk4Ekt90),
   conducted from 2024-08-12 to 2024-08-23.
 
   - Starting source: [`f30ea6d`](https://github.com/wildcat-finance/v2-protocol/commit/f30ea6d)

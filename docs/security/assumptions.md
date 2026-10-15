@@ -52,7 +52,7 @@ An enabled callback can reject its corresponding market action. Market
 liveness therefore depends on the selected hook implementation and
 configuration.
 
-New V2.5 markets do not permit execution hooks to veto collection. Markets with
+New v2.5 markets do not permit execution hooks to veto collection. Markets with
 repayment terms also bypass queue hooks from their date and closure hooks for
 automatic completion. Token transfers, sanctions dependencies and other enabled
 callbacks retain their own failure boundaries. See

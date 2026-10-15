@@ -1,6 +1,6 @@
 # Known limitations and accepted behavior
 
-This page records deliberate V2.5 behavior that can look like a vulnerability
+This page records deliberate v2.5 behavior that can look like a vulnerability
 without the surrounding assumptions. It covers the active source, not every
 historical deployment. Use deployment provenance to decide which generation a
 market actually runs.
@@ -63,11 +63,11 @@ See [accounting](../protocol/accounting.md#delinquency) and
 
 ### Timestamp horizon
 
-V2.x encodes absolute Unix timestamps in `uint32` across market accrual
+v2.x encodes absolute Unix timestamps in `uint32` across market accrual
 checkpoints, withdrawal-batch expiries, repayment terms, default records, hook
 deadlines, and lender credentials.
 The final representable timestamp is `type(uint32).max`, or
-2106-02-07 06:28:15 UTC. This is an accepted lifetime bound for the V2.x
+2106-02-07 06:28:15 UTC. This is an accepted lifetime bound for the v2.x
 generation, not a rollover scheme.
 
 A new withdrawal batch can be created only while
@@ -82,7 +82,7 @@ interval, credentials can no longer be refreshed, and no new withdrawal batch
 can be created.
 
 A successor deployment does not migrate immutable markets or lender balances.
-Every V2.x market must be closed or migrated, with lender positions fully
+Every v2.x market must be closed or migrated, with lender positions fully
 exited, before the earliest applicable timestamp cutoff and with sufficient
 operational margin to finish withdrawal execution. A market can require an
 earlier retirement under the scale-factor bound below.
@@ -193,7 +193,7 @@ the same timestamp do not accrue twice. This is the intended interest model.
 
 A market's fee recipient is immutable. Template fee-recipient changes apply to
 new markets, while a fee-rate push changes only the rate of an existing market.
-V2.5 rejects a positive fee-rate push to a market whose immutable recipient is
+v2.5 rejects a positive fee-rate push to a market whose immutable recipient is
 zero.
 
 Factory fee-update pages skip markets whose `isClosed()` view is true, including
@@ -212,7 +212,7 @@ for quantified examples and the distinction from protocol-fee rounding.
 
 The selected hook address and enabled callback set are immutable. Mutable hook
 state or administration can still make an enabled callback reject its market
-action. New V2.5 markets never dispatch execution hooks; dated repayment also
+action. New v2.5 markets never dispatch execution hooks; dated repayment also
 bypasses queue hooks and automatic-closure hooks. For other enabled paths, a
 bad hook implementation can permanently disable the action. A defect in a
 protocol-supplied hook template is still reportable.
@@ -269,7 +269,7 @@ payments fail. See the [zero-transfer review](./zero-value-transfer-review.md).
 
 ## Reused singleton behavior
 
-The V2.5 release plan reuses the deployed ArchController and sanctions
+The v2.5 release plan reuses the deployed ArchController and sanctions
 contracts. The following runtime limitations remain relevant:
 
 - Malformed ArchController pagination ranges can panic after clamping. Callers
@@ -277,19 +277,19 @@ contracts. The following runtime limitations remain relevant:
 - Privileged ArchController registration accepts raw addresses without proving
   code or every expected relationship. Ceremony tooling and operators must
   validate code, interfaces, and factory relationships before registration.
-- SphereX-protected registered contracts cache their engine. V2.5 factories
+- SphereX-protected registered contracts cache their engine. v2.5 factories
   source the engine assigned to new markets directly from the ArchController,
   but rotations must still keep the old engine operational and migrate
   registered contracts in bounded batches.
 
-V2 bytecode also requires EIP-1153 transient storage. Deployment is restricted
+v2 bytecode also requires EIP-1153 transient storage. Deployment is restricted
 to chains where every execution path supports `TSTORE` and `TLOAD`.
 
 ## Dormant borrower-account factory surface
 
 The identity registry trusts an approved account factory to bind an account to
 the principal it reports. That binding has no principal-side revocation path.
-The current V2.5 deployment baseline does not include an account factory. Before
+The current v2.5 deployment baseline does not include an account factory. Before
 activating one, its registration flow must authenticate principal consent, bind
 the intended account code, and handle replay and front-running. Treat approval
 of such a factory as a new security boundary, not an ordinary configuration
@@ -297,10 +297,10 @@ change.
 
 ## Legacy deployments
 
-These limitations apply to older deployed generations, not canonical new V2.5
+These limitations apply to older deployed generations, not canonical new v2.5
 markets:
 
-- A pre-V2.5 market does not register its canonical ERC-4626 wrapper. Its
+- A pre-v2.5 market does not register its canonical ERC-4626 wrapper. Its
   borrower must retain a sanctions override for the pooled wrapper address.
 - Hooks deployed before the CAF-04, CAF-05, CAF-10, and CAF-11 remediations
   retain their original entry/withdrawal combinations, push-credential timing,

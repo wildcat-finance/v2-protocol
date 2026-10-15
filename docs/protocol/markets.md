@@ -12,14 +12,14 @@ Markets are configured with the following values:
 - `name`: borrower-provided prefix plus the asset name
 - `symbol`: borrower-provided prefix plus the asset symbol
 - `borrower`: the operational address that can borrow and change market
-  parameters. In supported V2.5 markets, it is always equal to
+  parameters. In supported v2.5 markets, it is always equal to
   `borrowerPrincipal`.
 - `borrowerPrincipal`: the registered legal principal for the market and its
   lender-facing sanctions namespace. Separate storage supports the account-aware
-  identity model planned for V2.6.
+  identity model planned for v2.6.
 - `borrowerIdentityRegistry`: resolves and validates borrower transfer targets.
-  V2.5 supports direct registered principals. Account resolution exists in
-  source but is not supported until V2.6.
+  v2.5 supports direct registered principals. Account resolution exists in
+  source but is not supported until v2.6.
 - `feeRecipient`: the immutable recipient of protocol fees. A market with a zero
   recipient cannot adopt a positive protocol fee later.
 - `sentinel`: the Chainalysis wrapper used for sanctions checks
@@ -45,7 +45,7 @@ Markets are configured with the following values:
 
 ## Market types
 
-V2.5 has two market implementations sharing the behavior described here:
+v2.5 has two market implementations sharing the behavior described here:
 
 ### Standard
 
@@ -73,13 +73,13 @@ A revolving market accrues no interest while it is closed or empty.
 Collateral obligations, delinquency, withdrawals, and closure work the same in
 both implementations.
 
-V2.5 uses explicit rounding directions for every scaled and normalized
+v2.5 uses explicit rounding directions for every scaled and normalized
 conversion. See [Rounding](./scaling-and-rounding.md#rounding).
 
 ## Token transfers and sanctions
 
 Market-token transfers check the sender and recipient against the sanctions
-sentinel in the current borrower principal's namespace. As of V2.5.7,
+sentinel in the current borrower principal's namespace. As of v2.5.7,
 `transferFrom` also checks the caller, including callers with an existing finite
 or unlimited approval. A rejected transfer preserves balances and allowance.
 The principal's sanctions overrides still apply.
@@ -123,13 +123,13 @@ lifecycle state.
 
 ## Borrower identity and transfer
 
-V2.5 stores the operational borrower separately from the registered principal.
+v2.5 stores the operational borrower separately from the registered principal.
 Supported factories and deployments keep `borrower == borrowerPrincipal` at
 origination and after a transfer.
 
 The source also contains an account-aware path. It lets a recognized contract
 account operate a market for a separately recorded principal. That path is
-planned for V2.6 and is not supported in V2.5.
+planned for v2.6 and is not supported in v2.5.
 
 Only the operational borrower can call borrower-only market functions. A
 Borrower Account can enforce its own delegate policy before calling the market;

@@ -1,6 +1,6 @@
 # Repayment and default
 
-New V2.5 standard and revolving markets support optional scheduled repayment
+New v2.5 standard and revolving markets support optional scheduled repayment
 and a permanent default marker. Fixed maturity and periodic withdrawal windows
 remain hook policies. They do not set the market's repayment date.
 
@@ -104,7 +104,7 @@ market's deadline inclusive.
 
 ## Grace Tracker default
 
-Every new V2.5 market uses its Grace Tracker, `state.timeDelinquent`, to trigger
+Every new v2.5 market uses its Grace Tracker, `state.timeDelinquent`, to trigger
 default when it exceeds `delinquencyGracePeriod + 90 days`. This implements the
 tracker-based rule confirmed on 2026-10-15. It replaces the earlier source
 candidate's separate consecutive-delinquency clock.
@@ -135,7 +135,7 @@ replace that timestamp. The market stores no separate default countdown.
 The correction changes no public ABI, hook-state tuple, or event payload.
 Consumers of the committed `defaultedAt` marker keep the same read path; any
 off-chain prediction must use the decaying tracker rather than a consecutive
-delinquency run. This V2.5 source rule does not rewrite older markets' terms
+delinquency run. This v2.5 source rule does not rewrite older markets' terms
 or historical default calculations.
 
 ## Automatic closure and collection
@@ -162,7 +162,7 @@ when replay discovers that the market was fully funded and closed at an earlier
 boundary. Use `updateState()` to commit that state and the zero-repayment batch
 processor to finish allocation.
 
-Withdrawal execution never calls a hook in new V2.5 markets, with or without
+Withdrawal execution never calls a hook in new v2.5 markets, with or without
 repayment terms. Funding, batch accounting and sanctions escrow still govern
 collection. The constructor rejects the execution-hook flag.
 

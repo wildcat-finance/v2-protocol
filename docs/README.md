@@ -63,4 +63,4 @@ this audit snapshot does not attest deployed state.
 - [Audit scope](./releases/v2.5-audit-scope.md): source identity, exclusions,
   security properties, and verification
 - [Release notes](./releases/README.md): source boundaries and compatibility
-  changes from V2.0 and V2.1
+  changes from v2.0 and v2.1

@@ -1,13 +1,13 @@
 # Events
 
-V2.5 changes several factory, market, access-control, and authority event ABIs.
-Historical V2 and V2.1 deployments keep their original ABI families.
+v2.5 changes several factory, market, access-control, and authority event ABIs.
+Historical v2.0 and v2.1 deployments keep their original ABI families.
 
 Choose an ABI from the emitting address and its deployment generation. Do not
 infer it from a package version, template name, or apparent contract shape.
 
 This is a curated integration reference. It covers events whose signature,
-emitter, or order matters when reconstructing V2.5 state. It is not a complete
+emitter, or order matters when reconstructing v2.5 state. It is not a complete
 catalogue. Generate the full catalogue from the final release ABIs and pin it to
 the release source commit.
 
@@ -263,7 +263,7 @@ A pending borrower has no market authority. Keep the operational borrower and
 legal principal in separate fields. See
 [`borrower-identity.md`](../protocol/borrower-identity.md) for the state machine.
 Borrower-account factory and principal-transfer events exist in source for
-forward compatibility. No account factory is part of the current V2.5 release
+forward compatibility. No account factory is part of the current v2.5 release
 surface.
 
 Hook access state is reconstructed from three related families:
@@ -282,7 +282,7 @@ credential. Effective access still depends on:
 - Credential timestamp.
 - Hook-local blocking state.
 
-For V2.5, only `AccessListRoleProviderFactory` is part of the supported
+For v2.5, only `AccessListRoleProviderFactory` is part of the supported
 provider-factory surface:
 
 ```solidity
@@ -305,7 +305,7 @@ match. A provider without trusted factory provenance is still valid protocol
 input. Its type is unknown.
 
 Other provider factories exist in source, but are not scheduled or supported in
-the current V2.5 release surface. They are intentionally omitted here. Their
+the current v2.5 release surface. They are intentionally omitted here. Their
 source status belongs in [`role-providers.md`](./role-providers.md).
 
 ## Market accounting and configuration
@@ -379,7 +379,7 @@ recovery event and is not a `Borrow` operation. See
 
 ## Wrappers, withdrawals, and sanctions
 
-Canonical V2.5 wrapper creation emits:
+Canonical v2.5 wrapper creation emits:
 
 1. `NukeProtectionRegistered(account)` from the market.
 2. `NukeProtectionRequested(market, account, featureFactory)` from the market factory.
