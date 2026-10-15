@@ -191,9 +191,9 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
 
   uint64 internal immutable _repaymentTerms;
 
-  /// @notice integration accounts permanently excluded from `nukeFromOrbit`.
+  /// @notice integration accounts permanently exempt from lender sanctions checks and nuking.
   ///
-  /// @dev protection grants no deposit, transfer, or withdrawal permissions.
+  /// @dev hook admission and term restrictions still apply.
   mapping(address account => bool protected) public isNukeProtected;
 
   // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
@@ -1215,7 +1215,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   // ░░▒▒▓▓██ [ SANCTIONS ] ────────────────────────────────────────────────────
 
   // ┌─ _getAccount ─────
-  /// @dev loads an account and reverts if it is currently sanctioned for this borrower principal.
+  /// @dev loads an account and reverts if it is sanctioned and unprotected for this borrower principal.
   function _getAccount(address accountAddress) internal view returns (Account memory account) {
     account = _accounts[accountAddress];
     if (_isSanctioned(accountAddress)) revertWithSelector(AccountBlocked_ErrorSelector);
@@ -1223,9 +1223,11 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
 
   // ┌─ _isSanctioned ─────
   /// @dev checks whether `account` is sanctioned in this market's current principal namespace.
+  ///      protected integrations stay operational and enforce sanctions on their own participants.
   ///      if an account is flagged mistakenly, the principal can override their
   ///      status on the sentinel and allow them to interact with the market.
   function _isSanctioned(address account) internal view returns (bool result) {
+    if (isNukeProtected[account]) return false;
     address _borrowerPrincipal = borrowerPrincipal();
     address _sentinel = address(sentinel);
     assembly {

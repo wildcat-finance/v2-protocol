@@ -1,9 +1,9 @@
 # Nuke protection
 
 v2.5 markets use `isNukeProtected(account)` to protect pooled lender contracts,
-such as ERC-4626 wrappers, from sanctions quarantine. Nuking a pool as one
-lender would quarantine the backing of all its users. A protected address
-causes `nukeFromOrbit` to revert with `CannotNukeProtectedAccount` before
+such as ERC-4626 wrappers, from sanctions quarantine and account freezes. Nuking
+a pool as one lender would quarantine the backing of all its users. A protected
+address causes `nukeFromOrbit` to revert with `CannotNukeProtectedAccount` before
 sanctions queries, hooks, or withdrawal accounting.
 
 ## Authority and permanence
@@ -33,8 +33,9 @@ that the account has code. It then calls the market's registration function.
 
 The approved factory must authenticate the instance's immutable implementation,
 configuration, and market binding. Code presence alone does not establish
-provenance. Approval trusts the factory's immutable behavior; an unrestricted
-relay for arbitrary addresses would defeat this boundary.
+provenance. Approval also relies on each feature enforcing sanctions on its
+individual participants. An unrestricted relay for arbitrary addresses would
+defeat this boundary.
 
 New feature factories must register each instance in its deployment
 transaction and revert creation if registration fails. Registration follows
@@ -56,9 +57,15 @@ policy are described in the [wrapper guide](./erc-4626-wrapper.md).
 
 ## Scope
 
-Protection only blocks `nukeFromOrbit`. Deposit, transfer, withdrawal, and
-wrapper sanctions checks still apply. A sanctioned wrapper can still fail
-its operational checks; integration-specific exits remain its responsibility.
+The market and its canonical wrapper exempt protected accounts from their
+lender sanctions checks. A listed integration can deposit, transfer, queue and
+collect withdrawals without a borrower override. Its withdrawals pay the
+integration directly rather than sanctions escrow. Ordinary lenders and wrapper
+holders remain subject to sanctions enforcement.
+
+Protection applies only on the registering market and its wrapper. Hook policy,
+solvency, accounting, and raw borrower/principal sanctions checks still apply.
+The sentinel's reported status is unchanged.
 
 Consumers need the updated market and factory ABIs; `MarketState` and hook
 callback tuples are unchanged by this feature. See

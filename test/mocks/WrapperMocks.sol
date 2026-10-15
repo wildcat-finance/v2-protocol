@@ -44,6 +44,7 @@ pragma solidity 0.8.25;
 //
 //  WRAPPER MARKET SETUP
 //  constructor(...)
+//  registerNukeProtectedAccount(...)
 //  registerWrapper(...)
 //  setScaleFactor(...)
 //  setMaxTotalSupply(...)
@@ -318,6 +319,7 @@ contract WrapperMarketMock is IWildcatMarketToken, IMarketTransferPolicy {
   bytes32 public lastNukeCalldataHash;
   address public registeredWrapper;
 
+  mapping(address account => bool) public isNukeProtected;
   mapping(address account => uint256) internal _scaledBalances;
   mapping(address owner => mapping(address spender => uint256)) public override allowance;
   uint256 internal _scaledTotalSupply;
@@ -337,6 +339,12 @@ contract WrapperMarketMock is IWildcatMarketToken, IMarketTransferPolicy {
     borrowerPrincipal = borrowerPrincipal_;
     sentinel = sentinel_;
     wrapperFactory = wrapperFactory_;
+  }
+
+  // ┌─ registerNukeProtectedAccount ─────
+  function registerNukeProtectedAccount(address account) external {
+    require(msg.sender == wrapperFactory, 'NOT_WRAPPER_FACTORY');
+    isNukeProtected[account] = true;
   }
 
   // ┌─ registerWrapper ─────

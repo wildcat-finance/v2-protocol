@@ -33,10 +33,11 @@ pragma solidity 0.8.25;
 //
 //  DEPENDENCY AND SANCTIONS GUARDS
 //  test_maxLimitsFailClosedOnPrincipalAndSanctionsDependencyFailures()
+//  test_protectionReadsFailClosedForLimitsAndExecution()
 //  test_maxLimitsFailClosedOnMarketAccountingDependencyFailures()
 //  test_lowLevelReadersValidateWordsAddressesPoliciesAndEscrows()
 //  test_sanctionsGateLimitsEntryPointsAndShareTransfers()
-//  test_wrapperSanctionsAndInsolvencyFailClosedUntilRecovered()
+//  test_unprotectedWrapperSanctionsAndProtectedInsolvencyFailClosed()
 //  _expectSanctioned(...)
 //  _assertAllLimitsZero(...)
 //  _assertEntryLimitsZero(...)
@@ -652,6 +653,39 @@ contract Wildcat4626WrapperTest is TestKernel {
     vm.clearMockedCalls();
   }
 
+  // ┌─ test_protectionReadsFailClosedForLimitsAndExecution ─────
+  function test_protectionReadsFailClosedForLimitsAndExecution() external {
+    Fixture memory fixture = _newFixture();
+    _deposit(fixture, Holder, 10 * Unit);
+    fixture.market.registerNukeProtectedAccount(address(fixture.wrapper));
+    address[2] memory accounts = [Holder, address(fixture.wrapper)];
+    for (uint256 i; i < accounts.length; ++i) {
+      bytes memory protectionCall = abi.encodeWithSignature('isNukeProtected(address)', accounts[i]);
+      for (uint256 failure; failure < 3; ++failure) {
+        if (failure == 2) {
+          vm.mockCallRevert(address(fixture.market), protectionCall, hex'feedface');
+        } else {
+          vm.mockCall(address(fixture.market), protectionCall, failure == 0 ? bytes(hex'01') : abi.encode(uint256(2)));
+        }
+        _assertAllLimitsZero(fixture);
+        vm.prank(Holder);
+        vm.expectRevert();
+        fixture.wrapper.redeem(Unit, Holder, Holder);
+        vm.clearMockedCalls();
+      }
+
+      fixture.sentinel.setSanctioned(accounts[i], true);
+      vm.mockCall(address(fixture.market), protectionCall, bytes.concat(abi.encode(true), hex'deadbeef'));
+      assertEq(fixture.wrapper.maxRedeem(Holder), 10 * Unit, 'canonical protection word with trailing data');
+      vm.prank(Holder);
+      fixture.wrapper.transfer(Receiver, Unit);
+      vm.prank(Receiver);
+      fixture.wrapper.transfer(Holder, Unit);
+      vm.clearMockedCalls();
+      fixture.sentinel.setSanctioned(accounts[i], false);
+    }
+  }
+
   // ┌─ test_maxLimitsFailClosedOnMarketAccountingDependencyFailures ─────
   function test_maxLimitsFailClosedOnMarketAccountingDependencyFailures() external {
     Fixture memory fixture = _newFixture();
@@ -921,8 +955,8 @@ contract Wildcat4626WrapperTest is TestKernel {
     assertEq(fixture.wrapper.balanceOf(Receiver), 0, 'zero transfer balance');
   }
 
-  // ┌─ test_wrapperSanctionsAndInsolvencyFailClosedUntilRecovered ─────
-  function test_wrapperSanctionsAndInsolvencyFailClosedUntilRecovered() external {
+  // ┌─ test_unprotectedWrapperSanctionsAndProtectedInsolvencyFailClosed ─────
+  function test_unprotectedWrapperSanctionsAndProtectedInsolvencyFailClosed() external {
     Fixture memory sanctionedFixture = _newFixture();
     _deposit(sanctionedFixture, Holder, 10 * Unit);
     sanctionedFixture.sentinel.setSanctioned(address(sanctionedFixture.wrapper), true);
@@ -935,13 +969,16 @@ contract Wildcat4626WrapperTest is TestKernel {
     vm.prank(Holder);
     sanctionedFixture.wrapper.redeem(Unit, Holder, Holder);
 
-    sanctionedFixture.sentinel.setSanctioned(address(sanctionedFixture.wrapper), false);
+    sanctionedFixture.market.registerNukeProtectedAccount(address(sanctionedFixture.wrapper));
+    assertEq(sanctionedFixture.wrapper.maxRedeem(Holder), 10 * Unit, 'protection restores redemption');
     vm.prank(Holder);
     sanctionedFixture.wrapper.redeem(10 * Unit, Holder, Holder);
     assertEq(sanctionedFixture.wrapper.totalSupply(), 0, 'wrapper recovery');
 
     Fixture memory insolventFixture = _newFixture();
     _deposit(insolventFixture, Holder, 10 * Unit);
+    insolventFixture.market.registerNukeProtectedAccount(address(insolventFixture.wrapper));
+    insolventFixture.sentinel.setSanctioned(address(insolventFixture.wrapper), true);
     vm.prank(address(insolventFixture.wrapper));
     insolventFixture.market.transfer(Receiver, Unit);
     assertEq(insolventFixture.wrapper.maxDeposit(Holder), 0, 'insolvent max deposit');

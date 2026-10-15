@@ -256,7 +256,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   // ░░▒▒▓▓██ [ NUKE PROTECTION ] ──────────────────────────────────────────────
 
   // ┌─ registerNukeProtectedAccount ─────
-  /// @notice permanently exclude an approved integration account from `nukeFromOrbit`.
+  /// @notice permanently exempt an approved integration account from lender sanctions checks and nuking.
   ///
   /// @dev only the immutable market factory may call. it checks approval and deployed code;
   ///      the approved feature factory must authenticate the instance and its market binding.

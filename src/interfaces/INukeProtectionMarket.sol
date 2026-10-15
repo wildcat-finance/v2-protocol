@@ -26,7 +26,7 @@ interface INukeProtectionMarket {
   // ░░▒▒▓▓██ [ NUKE PROTECTION ] ──────────────────────────────────────────────
 
   // ┌─ isNukeProtected ─────
-  /// @notice return whether `account` is permanently excluded from `nukeFromOrbit`.
+  /// @notice return whether `account` is permanently exempt from lender sanctions checks and nuking.
   function isNukeProtected(address account) external view returns (bool);
 
   // ┌─ registerNukeProtectedAccount ─────

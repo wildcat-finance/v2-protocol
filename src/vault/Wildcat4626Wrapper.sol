@@ -103,6 +103,7 @@ import { IERC20 } from 'openzeppelin/contracts/token/ERC20/IERC20.sol';
 import { IERC20Metadata } from 'openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol';
 import { IMarketTransferPolicy } from '../access/IMarketTransferPolicy.sol';
 import { IWildcatSanctionsSentinel } from '../interfaces/IWildcatSanctionsSentinel.sol';
+import { INukeProtectionMarket } from '../interfaces/INukeProtectionMarket.sol';
 import { ReentrancyGuard } from '../ReentrancyGuard.sol';
 import { MathUtils, RAY } from '../libraries/MathUtils.sol';
 import { LibERC20 } from '../libraries/LibERC20.sol';
@@ -186,10 +187,10 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @dev the caller is not the market's current operational borrower.
   error NotMarketOwner();
 
-  /// @dev the requested account is currently sanctioned in the live borrower namespace.
+  /// @dev the requested account is sanctioned and unprotected in the live borrower namespace.
   error SanctionedAccount(address account);
 
-  /// @dev the requested account is not currently sanctioned in the live borrower namespace.
+  /// @dev the requested account is unsanctioned in the live borrower namespace or protected by the market.
   error AccountNotSanctioned(address account);
 
   /// @dev the wrapper cannot quarantine its own wrapper-share balance.
@@ -669,7 +670,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @notice sweep an ERC-20 balance to `to` for the market's current operational borrower.
   ///
   /// @dev other tokens sweep in full. the market token only sweeps scaled backing above share
-  ///      supply and verifies that exact surplus moved. `to` must not be sanctioned.
+  ///      supply and verifies that exact surplus moved. `to` must be unsanctioned or protected.
   ///
   /// @param token ERC-20 to recover. use the market token to recover only scaled backing surplus.
   /// @param to    recipient of the recovered tokens.
@@ -711,7 +712,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   // ░░▒▒▓▓██ [ SANCTIONS AND SHARE TRANSFERS ] ────────────────────────────────
 
   // ┌─ transferFrom ─────
-  /// @notice transfer shares using an unsanctioned caller's allowance.
+  /// @notice transfer shares using allowance; unprotected callers must pass sanctions checks.
   function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
     _checkNotSanctioned(msg.sender);
     return super.transferFrom(from, to, amount);
@@ -748,8 +749,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   }
 
   // ┌─ _beforeTokenTransfer ─────
-  /// @dev enforces solvency and sanctions on share moves. a sanctioned holder may only move to its
-  ///      deterministic escrow; an authorized escrow gets one release under its original principal.
+  /// @dev enforces solvency and sanctions on share moves. an unprotected sanctioned holder may only
+  ///      move to its deterministic escrow; an authorized escrow gets one release under its original principal.
   function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
     address principal = _borrowerPrincipal();
     bool fromIsSanctioned = _isSanctioned(from, principal);
@@ -815,8 +816,10 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   }
 
   // ┌─ _isSanctioned ─────
+  /// @dev share custody uses the same market-local protection as direct lender positions.
   function _isSanctioned(address account, address principal) internal view returns (bool isSanctioned_) {
-    return account != address(0) && sanctionsSentinel.isSanctioned(principal, account);
+    if (account == address(0) || INukeProtectionMarket(address(wrappedMarket)).isNukeProtected(account)) return false;
+    return sanctionsSentinel.isSanctioned(principal, account);
   }
 
   // ┌─ _tryIsSanctioned ─────
@@ -831,6 +834,9 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   {
     if (account == address(0)) return (true, false);
     uint256 word;
+    (success, word) = _tryReadMarketWord(INukeProtectionMarket.isNukeProtected.selector, account);
+    if (!success || word > 1) return (false, false);
+    if (word == 1) return (true, false);
     (success, word) = _tryStaticcallWord(
       address(sanctionsSentinel), abi.encodeCall(IWildcatSanctionsSentinel.isSanctioned, (principal, account))
     );
