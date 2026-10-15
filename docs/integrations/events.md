@@ -30,10 +30,11 @@ in this order:
 3. The ArchController registers it and emits
    `WildcatArchController.MarketAdded`.
 4. The factory writes its associations and emits the market deployment bundle.
-5. For wrapper-compatible markets, the wrapper factory deploys the canonical
-   wrapper. The market emits `NukeProtectionRegistered`, followed by the market
-   factory's `NukeProtectionRequested`, the market's `WrapperRegistered`, and
-   the wrapper factory's `WrapperDeployed`.
+
+Optional wrapper creation is a separate permissionless call. It can happen
+after the market has been funded. The market emits `NukeProtectionRegistered`,
+followed by the market factory's `NukeProtectionRequested`, the market's
+`WrapperRegistered`, and the wrapper factory's `WrapperDeployed`.
 
 `MarketAdded` proves registration. It does not contain enough data to initialize
 a market entity. Upsert the address, then finish initialization from the later

@@ -46,7 +46,6 @@ pragma solidity 0.8.25;
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { HooksFactory } from 'src/HooksFactory.sol';
 import { HooksFactoryRevolving } from 'src/HooksFactoryRevolving.sol';
-import { Wildcat4626WrapperFactory } from 'src/vault/Wildcat4626WrapperFactory.sol';
 import 'src/IHooksFactory.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';
 import { WildcatBorrowerIdentityRegistry } from 'src/WildcatBorrowerIdentityRegistry.sol';
@@ -67,7 +66,6 @@ contract BorrowerAccountOriginationTest is TestKernel {
 
   struct Fixture {
     WildcatArchController archController;
-    Wildcat4626WrapperFactory wrapperFactory;
     WildcatBorrowerIdentityRegistry registry;
     BorrowerIdentityAccountFactoryMock accountFactory;
     HooksFactory standardFactory;
@@ -86,12 +84,6 @@ contract BorrowerAccountOriginationTest is TestKernel {
   // ┌─ _newFixture ─────
   function _newFixture() internal returns (Fixture memory fixture) {
     fixture.archController = _deployArchController();
-    fixture.wrapperFactory = Wildcat4626WrapperFactory(
-      _deployCode(
-        'src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory',
-        abi.encode(address(fixture.archController), address(0))
-      )
-    );
     fixture.registry = _deployRegistry(address(fixture.archController));
     fixture.accountFactory = _deployAccountFactory(fixture.registry);
     fixture.asset = MockERC20(
@@ -145,7 +137,7 @@ contract BorrowerAccountOriginationTest is TestKernel {
         abi.encode(
           address(fixture.archController),
           SanctionsSentinel,
-          address(fixture.wrapperFactory),
+          address(this),
           marketInitCodeStorage,
           marketInitCodeHash,
           address(fixture.registry)
@@ -164,7 +156,7 @@ contract BorrowerAccountOriginationTest is TestKernel {
         abi.encode(
           address(fixture.archController),
           SanctionsSentinel,
-          address(fixture.wrapperFactory),
+          address(this),
           marketInitCodeStorage,
           marketInitCodeHash,
           address(fixture.registry)
@@ -177,7 +169,6 @@ contract BorrowerAccountOriginationTest is TestKernel {
   function _configureFactory(Fixture memory fixture, address factory) internal {
     fixture.archController.registerControllerFactory(factory);
     IHooksFactory(factory).registerWithArchController();
-    IHooksFactory(factory).setNukeProtectionFactoryApproval(address(fixture.wrapperFactory), true);
     IHooksFactory(factory)
       .addHooksTemplate(
         fixture.hooksTemplate,

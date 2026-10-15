@@ -63,7 +63,6 @@ pragma solidity 0.8.25;
 
 import { HooksFactory } from 'src/HooksFactory.sol';
 import { HooksFactoryRevolving } from 'src/HooksFactoryRevolving.sol';
-import { Wildcat4626WrapperFactory } from 'src/vault/Wildcat4626WrapperFactory.sol';
 import { HooksTemplate } from 'src/IHooksFactory.sol';
 import { IHooksFactory } from 'src/IHooksFactory.sol';
 import { IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';
@@ -105,7 +104,6 @@ contract HooksFactoriesTest is TestKernel {
   struct Fixture {
     WildcatArchController archController;
     WildcatBorrowerIdentityRegistry registry;
-    Wildcat4626WrapperFactory wrapperFactory;
     IHooksFactory standardFactory;
     IHooksFactory revolvingFactory;
     address standardMarketStorage;
@@ -121,6 +119,7 @@ contract HooksFactoriesTest is TestKernel {
   mapping(address => bytes32) internal _artifactHashes;
 
   address internal constant SanctionsSentinel = address(0x5A);
+  address internal constant WrapperFactory = address(0x4626);
   address internal constant FeeRecipient = address(0xFEE);
   address internal constant FeeAsset = address(0xA55E7);
   address internal constant Outsider = address(0xBAD);
@@ -130,12 +129,6 @@ contract HooksFactoriesTest is TestKernel {
   // ┌─ _newFixture ─────
   function _newFixture() internal returns (Fixture memory fixture) {
     fixture.archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
-    fixture.wrapperFactory = Wildcat4626WrapperFactory(
-      _deployCode(
-        'src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory',
-        abi.encode(address(fixture.archController), address(0))
-      )
-    );
     fixture.registry = WildcatBorrowerIdentityRegistry(
       _deployCode(
         'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry',
@@ -174,7 +167,7 @@ contract HooksFactoriesTest is TestKernel {
     bytes memory arguments = abi.encode(
       address(fixture.archController),
       SanctionsSentinel,
-      address(fixture.wrapperFactory),
+      WrapperFactory,
       marketStorage,
       marketHash,
       address(fixture.registry)
@@ -186,7 +179,6 @@ contract HooksFactoriesTest is TestKernel {
     );
     fixture.archController.registerControllerFactory(address(factory));
     factory.registerWithArchController();
-    factory.setNukeProtectionFactoryApproval(address(fixture.wrapperFactory), true);
   }
 
   // ┌─ _storeInitCode ─────
@@ -215,7 +207,7 @@ contract HooksFactoriesTest is TestKernel {
       assertEq(factory.name(), revolving ? 'WildcatHooksFactoryRevolving' : 'WildcatHooksFactory');
       assertEq(factory.archController(), address(fixture.archController));
       assertEq(factory.sanctionsSentinel(), SanctionsSentinel);
-      assertEq(factory.wrapperFactory(), address(fixture.wrapperFactory));
+      assertEq(factory.wrapperFactory(), WrapperFactory);
       assertEq(factory.borrowerIdentityRegistry(), address(fixture.registry));
       assertEq(
         factory.marketInitCodeStorage(), revolving ? fixture.revolvingMarketStorage : fixture.standardMarketStorage

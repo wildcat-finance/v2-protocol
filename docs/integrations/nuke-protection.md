@@ -1,7 +1,7 @@
 # Protection for pooled lender contracts
 
-The V2.5 design decision as of 2026-10-15 is automatic canonical-wrapper
-creation for compatible markets. Protocol `2.5.8` is prepared on
+The V2.5 design decision as of 2026-10-15 is permissionless, optional canonical-wrapper
+creation with permanent protection and no first-deposit deadline. Protocol `2.5.8` is prepared on
 `fix/nuke_and_grace`; this describes source behavior, not a deployed upgrade.
 
 V2.5 markets keep permanent `isNukeProtected(account)` entries for approved
@@ -35,11 +35,30 @@ Both standard and revolving market factories expose
 own approvals. The ArchController itself is unchanged; hooks do not decide
 whether an account is protected.
 
+Deployment scripts configure initial approvals through the same current
+ArchController owner authority used for later additions. Deploying a market
+factory does not create a separate deployer role or automatically approve its
+configured wrapper factory.
+
 An approved feature factory calls
 `registerNukeProtectedAccount(market, account)` on the market's factory. The
 relay checks the caller's approval, its own record that it deployed the market,
 and that the account has deployed code. It then calls
 `market.registerNukeProtectedAccount(account)`.
+
+Approval makes a feature factory eligible to request protection; it does not
+protect the factory address or its instances by itself. The feature factory's
+deployment flow must register each qualifying instance in the same transaction
+that creates it, and revert creation if registration fails. The canonical
+wrapper factory does this whenever anyone calls `createWrapper(market)`; a
+future TranchingManager factory or other approved feature factory must do the
+same. There is no separate per-instance Foundation approval or operator step.
+
+The feature factory calls the relay after the instance's constructor returns,
+before returning the instance to its caller. The relay requires deployed code,
+so the instance cannot register from inside its own constructor. Approval of a
+factory does not insert this call into its code; atomic registration is part
+of the implementation that must be reviewed before approval.
 
 Contract code alone does not establish provenance. Approval trusts the reviewed
 feature factory to enforce the instance's implementation, constructor
@@ -73,33 +92,31 @@ This deliberately retains trust in future factory approvals: an incorrectly
 approved factory could introduce inappropriate exemptions into existing markets.
 Reviewing immutable factory code and instance configuration is the boundary for
 new additions. Irrevocable market entries address the separate risk of later
-administrative removal. Integrations should register before accepting pooled
-funds so that their initial backing is protected, but market funding is not a
-protocol-level deadline.
+administrative removal. New integrations must register during instance creation
+so that their initial backing is protected. The relay also permits authenticated
+existing instances to be registered; market funding is not a protocol-level
+deadline.
 
 ## Canonical wrapper setup
 
-Both market factories create the canonical wrapper in the market-deployment
-transaction, after the discovery event bundle. The wrapper factory deploys it,
-requests protection through the market factory, and calls `registerWrapper`
-to record its canonical identity. Failure of any step reverts the entire
-market deployment. Automatic wrapper creation is a separate deployment choice,
-not a prerequisite for open-ended protection registration. The wrapper factory
-can still create and register a wrapper later for an eligible market that has
-no canonical wrapper, even if that market is already funded.
+Market creation does not deploy a wrapper or call the wrapper factory. Anyone
+may call `createWrapper(market)` separately, including after the market has
+been funded for months. The wrapper factory deploys the wrapper, requests
+protection through the market factory, and calls `registerWrapper` to record
+its canonical identity. These steps are atomic within the wrapper transaction.
+If approval is missing, wrapper creation rolls back; the existing market and
+its lender positions are unaffected.
 
-The compatibility check uses the final hook address returned by the creation
-callback and installed on the market. Markets whose hooks disable transfers or
-do not expose both valid boolean queries of `IMarketTransferPolicy` remain
-deployable without a wrapper. The
-factory bounds each probe's returned data to one word. A false recipient
-eligibility result still proves that query is supported; the probe account
-does not itself need lender credentials. For compatible markets, actual
-wrapper-creation failures are not swallowed.
+Wrapper creation checks the market's installed hook for the complete
+`IMarketTransferPolicy` interface and enabled transfers. Markets with disabled
+transfers or unsupported wrapper policy remain deployable and usable without
+a wrapper. These compatibility checks belong to the wrapper factory, not
+market creation.
 
-The wrapper factory must be approved on each market factory before compatible
-markets can be deployed. `registeredWrapper()` remains the canonical identity
-used by transfer policy and discovery; nuke protection
+The wrapper factory must be approved on a market factory before it can create
+protected wrappers for that factory's markets. This approval is not a
+prerequisite for deploying or funding markets. `registeredWrapper()` remains
+the canonical identity used by transfer policy and discovery; nuke protection
 comes from the local mapping. The wrapper's own self-nuke guard still uses
 `CannotNukeWrapper`.
 
@@ -114,7 +131,7 @@ remain separate from these privileges.
 
 This change targets new V2.5 deployments. It does not migrate existing contracts.
 Deploy the updated wrapper factory, market artifacts, and market factories;
-approve the wrapper factory on every market factory before enabling creation.
+approve the wrapper factory on each intended market factory before wrapper creation.
 For later feature versions, review and deploy the immutable feature factory,
 then approve its exact address on each intended market factory.
 
@@ -140,9 +157,10 @@ Consumers must regenerate the market and factory ABIs. The market emits
 `NukeProtectionRegistered(account)`; the factory emits
 `NukeProtectionRequested(market, account, featureFactory)` and
 `NukeProtectionFactoryApproval(featureFactory, approved)`. Deposits do not close
-registration. Clients must
-discover the wrapper after compatible market creation instead of submitting
-a second deployment transaction or presenting wrapper deployment as optional.
+registration. Clients retain the optional, separate wrapper-deployment flow
+and discover existing wrappers through the canonical market/factory getters.
+Removing the temporary automatic-deployment implementation changes no public
+market or factory ABI.
 
 `MarketState` and hook callback tuples are unchanged. The new mapping is separate
 storage. The independent grace/default correction is outside this
@@ -151,5 +169,7 @@ change.
 The [initial verification receipt](../releases/v2.5.8-nuke-verification.json)
 records the superseded candidate that included the first-deposit cutoff.
 The [open-registration receipt](../releases/v2.5.8-open-registration-verification.json)
-records the corrected source and its checks. Neither qualifies the pending
-grace/default correction or a future deployment package.
+records removal of that cutoff while automatic wrapper creation was still
+enabled. The [optional-wrapper receipt](../releases/v2.5.8-optional-wrapper-verification.json)
+records removal of automatic deployment. These checks do not qualify the
+pending grace/default correction or a future deployment package.

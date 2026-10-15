@@ -277,9 +277,9 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
     address[] memory markets = new address[](6);
     for (uint256 i; i < 6; i++) {
       MatrixCell memory cell = _cell(_options(MatrixMarketKind(i / 3), MatrixHooksKind(i % 3), 1 days), uint96(i));
-      markets[i] = address(cell.market);
-      address wrapper = cell.market.registeredWrapper();
       _fundAndBorrow(cell);
+      markets[i] = address(cell.market);
+      address wrapper = stack.wrapperFactory.createWrapper(markets[i]);
       MarketDataV2_5 memory data = _assertReads(cell, false);
       assertEq(data.registeredWrapper, wrapper, 'actual registered wrapper');
       assertEq(abi.encode(lens.getMarketDataV2(markets[i])), abi.encode(data), 'facade single');

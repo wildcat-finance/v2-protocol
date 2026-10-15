@@ -1539,7 +1539,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
         MatrixBorrower,
         uint96(430 + i)
       );
-      Wildcat4626Wrapper wrapper = Wildcat4626Wrapper(cell.market.registeredWrapper());
+      Wildcat4626Wrapper wrapper = Wildcat4626Wrapper(stack.wrapperFactory.createWrapper(address(cell.market)));
       assertTrue(cell.market.isNukeProtected(address(wrapper)), 'wrapper registration includes protection');
       assertEq(cell.market.registeredWrapper(), address(wrapper), 'market wrapper registration');
       assertEq(

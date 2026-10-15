@@ -47,8 +47,6 @@ pragma solidity 0.8.25;
 //
 //  MARKET DEPLOYMENT
 //  _deployMarket(...)
-//  _createWrapperIfSupported(...)
-//  _readTransferPolicyFlag(...)
 //  _packString(...)
 //  _emitMarketDeployment(...)
 //  computeMarketAddress(...)
@@ -85,8 +83,6 @@ import './access/IHooksAdministrator.sol';
 import './interfaces/IBorrowerIdentityRegistry.sol';
 import './types/RoleProvider.sol';
 import './interfaces/INukeProtectionMarket.sol';
-import './interfaces/IWildcat4626WrapperFactory.sol';
-import './access/IMarketTransferPolicy.sol';
 
 /// @dev deployment values outside `DeployMarketInputs`, grouped to stay within the stack limit.
 struct DeployMarketRuntimeParameters {
@@ -215,8 +211,8 @@ abstract contract HooksFactoryBase is SphereXProtectedRegisteredBase, Reentrancy
 
   // ┌─ registerNukeProtectedAccount ─────
   /// @inheritdoc IHooksFactoryBase
-  /// @dev the wrapper factory calls back here during guarded market deployment.
-  ///      only this factory's markets are targets, and their setter makes no external calls.
+  /// @dev only this factory's markets are targets. their setter adds permanent protection
+  ///      without external calls or changes to market accounting.
   function registerNukeProtectedAccount(address market, address account) external {
     if (!isApprovedNukeProtectionFactory[msg.sender]) revert NotApprovedNukeProtectionFactory();
     if (!isMarket[market]) revert NukeProtectionMarketNotFound();
@@ -706,38 +702,6 @@ abstract contract HooksFactoryBase is SphereXProtectedRegisteredBase, Reentrancy
     _marketsByHooksInstance[hooksInstance].push(market);
 
     _emitMarketDeployment(market, name, symbol, marketParameters, runtimeParams, hooksData);
-    _createWrapperIfSupported(market, marketParameters.hooks.hooksAddress());
-  }
-
-  // ┌─ _createWrapperIfSupported ─────
-  /// @dev create and register the canonical wrapper atomically with a compatible market.
-  ///      hooks without the complete transfer-policy interface remain valid without wrapping.
-  function _createWrapperIfSupported(address market, address hooksInstance) private {
-    (bool supported, bool transfersDisabled) =
-      _readTransferPolicyFlag(hooksInstance, abi.encodeCall(IMarketTransferPolicy.isMarketTransferDisabled, (market)));
-    if (!supported || transfersDisabled) return;
-    (supported,) = _readTransferPolicyFlag(
-      hooksInstance, abi.encodeCall(IMarketTransferPolicy.isMarketTransferRecipientAllowed, (market, wrapperFactory))
-    );
-    if (supported) IWildcat4626WrapperFactory(wrapperFactory).createWrapper(market);
-  }
-
-  // ┌─ _readTransferPolicyFlag ─────
-  /// @dev copy one word only; absent, short, or noncanonical boolean responses are unsupported.
-  function _readTransferPolicyFlag(
-    address hooksInstance,
-    bytes memory callData
-  )
-    private
-    view
-    returns (bool supported, bool value)
-  {
-    assembly {
-      supported := staticcall(gas(), hooksInstance, add(callData, 0x20), mload(callData), 0, 0x20)
-      let word := mload(0)
-      supported := and(supported, and(gt(returndatasize(), 0x1f), lt(word, 2)))
-      value := iszero(iszero(word))
-    }
   }
 
   // ┌─ _packString ─────

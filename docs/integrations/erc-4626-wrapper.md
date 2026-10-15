@@ -163,8 +163,8 @@ shares remain fully backed, but cannot be recovered.
 
 Notes:
 
-- Compatible V2.5 markets create their canonical wrapper automatically during
-  market deployment; eligible markets without a wrapper can also register one later,
+- V2.5 wrapper creation is permissionless and separate from market deployment.
+  Eligible markets without a wrapper can register one after funding, with no age cutoff;
   see [nuke protection](./nuke-protection.md).
   The built-in access hooks always allow a
   market's nonzero `registeredWrapper()` to receive market tokens when transfers
@@ -340,8 +340,8 @@ diverge.
   factory through `market.wrapperFactory()`.
 - The factory deploys and records the wrapper, requests permanent nuke protection
   through the market's factory, then calls `market.registerWrapper(wrapper)`.
-  The market factory must have approved this wrapper factory and the market
-  must not have had a successful deposit. All steps are atomic.
+  The market factory must have approved this wrapper factory. Existing deposits
+  do not prevent registration. All wrapper-creation steps are atomic.
 - Registration is one-time. The factory emits
   `WrapperDeployed(market, wrapper)`.
 

@@ -13,12 +13,11 @@ pragma solidity 0.8.25;
 //  test_registrationRequiresApprovedFactoryOwnMarketAndAuthenticatedContract()
 //  test_protectedFeaturesCannotBeNukedAndOrdinarySanctionsStillApplyAcrossMatrix()
 //  test_newFactoryCanProtectFundedMarketsMonthsAfterBothDepositEntrypoints()
-//  test_wrapperSetupIsAtomicAndTransferDisabledMarketsSkipIt()
+//  test_marketCreationDoesNotRequireWrapperApprovalAndLaterWrappingIsAtomic()
 //  test_marketsWithoutCompleteWrapperPoliciesRemainDeployable()
-//  test_automaticWrapperUsesTheFinalInstalledHooks()
+//  test_permissionlessWrapperUsesTheFinalInstalledHooks()
 //  test_depositCallbacksRespectApprovalAndRegistrationRollsBackWithDeposit()
 //  _assertWrapperLogs(...)
-//  deployCell(...)
 // ═════
 
 import { IHooksFactory, IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';
@@ -138,8 +137,8 @@ contract NukeProtectionTest is ProductionMatrixFixture {
     for (uint256 i; i < 6; i++) {
       MatrixCell memory cell = _cell(stack, i);
       address instance = featureFactory.createFeature(address(cell.market));
-      address wrapper = cell.market.registeredWrapper();
-      assertTrue(wrapper != address(0), 'wrapper created with market');
+      assertEq(cell.market.registeredWrapper(), address(0), 'market deployment does not create a wrapper');
+      address wrapper = stack.wrapperFactory.createWrapper(address(cell.market));
       assertEq(stack.wrapperFactory.wrapperForMarket(address(cell.market)), wrapper);
       assertTrue(cell.market.isNukeProtected(wrapper));
       _authorize(stack, cell, instance);
@@ -229,24 +228,39 @@ contract NukeProtectionTest is ProductionMatrixFixture {
     }
   }
 
-  // ┌─ test_wrapperSetupIsAtomicAndTransferDisabledMarketsSkipIt ─────
-  function test_wrapperSetupIsAtomicAndTransferDisabledMarketsSkipIt() external {
+  // ┌─ test_marketCreationDoesNotRequireWrapperApprovalAndLaterWrappingIsAtomic ─────
+  function test_marketCreationDoesNotRequireWrapperApprovalAndLaterWrappingIsAtomic() external {
     ProductionStack memory stack = _deployProductionStack();
     for (uint256 i; i < 2; i++) {
       IHooksFactory factory = _factoryFor(stack, MatrixMarketKind(i));
       factory.setNukeProtectionFactoryApproval(address(stack.wrapperFactory), false);
-      // The whole deployment rolls back, allowing the same CREATE2 salt to be retried.
+      MatrixCell memory cell = _cell(stack, i * 3);
+      assertTrue(factory.isMarket(address(cell.market)));
+      assertEq(cell.market.registeredWrapper(), address(0), 'no automatic wrapper');
+      assertEq(stack.wrapperFactory.wrapperForMarket(address(cell.market)), address(0));
+      _authorize(stack, cell, MatrixAlice);
+      _deposit(stack, cell, MatrixAlice, Deposit);
+      vm.warp(vm.getBlockTimestamp() + 90 days);
+
+      // Missing approval affects only the explicit wrapper transaction, not the market.
+      uint64 nonceBefore = vm.getNonce(address(stack.wrapperFactory));
+      vm.prank(MatrixBob);
       vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedNukeProtectionFactory.selector);
-      this.deployCell(stack, i * 3);
+      stack.wrapperFactory.createWrapper(address(cell.market));
+      assertEq(vm.getNonce(address(stack.wrapperFactory)), nonceBefore, 'failed deployment rolls back');
+      assertEq(cell.market.registeredWrapper(), address(0), 'failed registration rolls back');
+      assertEq(stack.wrapperFactory.wrapperForMarket(address(cell.market)), address(0));
+
       factory.setNukeProtectionFactoryApproval(address(stack.wrapperFactory), true);
       vm.recordLogs();
-      MatrixCell memory cell = _cell(stack, i * 3);
+      vm.prank(MatrixBob); // Neither borrower nor foundation permission is needed to create the instance.
+      address wrapper = stack.wrapperFactory.createWrapper(address(cell.market));
       Vm.Log[] memory logs = vm.getRecordedLogs();
-      address wrapper = cell.market.registeredWrapper();
       assertTrue(wrapper != address(0));
-      assertTrue(factory.isMarket(address(cell.market)));
+      assertEq(cell.market.registeredWrapper(), wrapper);
       assertEq(stack.wrapperFactory.wrapperForMarket(address(cell.market)), wrapper);
       assertTrue(cell.market.isNukeProtected(wrapper));
+      assertEq(cell.market.scaledBalanceOf(MatrixAlice), Deposit, 'wrapping setup preserves the lender position');
       _assertWrapperLogs(logs, address(factory), address(cell.market), wrapper, address(stack.wrapperFactory));
 
       MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, MatrixMarketKind(i));
@@ -291,8 +305,8 @@ contract NukeProtectionTest is ProductionMatrixFixture {
     }
   }
 
-  // ┌─ test_automaticWrapperUsesTheFinalInstalledHooks ─────
-  function test_automaticWrapperUsesTheFinalInstalledHooks() external {
+  // ┌─ test_permissionlessWrapperUsesTheFinalInstalledHooks ─────
+  function test_permissionlessWrapperUsesTheFinalInstalledHooks() external {
     ProductionStack memory stack = _deployProductionStack();
     for (uint256 i; i < 2; i++) {
       IHooksFactory factory = _factoryFor(stack, MatrixMarketKind(i));
@@ -317,7 +331,7 @@ contract NukeProtectionTest is ProductionMatrixFixture {
       vm.mockCall(requested, abi.encodeWithSelector(IHooks.onCreateMarket.selector), abi.encode(installedConfig));
       MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce, requestedConfig);
       assertEq(cell.market.hooks().hooksAddress(), installed);
-      address wrapper = cell.market.registeredWrapper();
+      address wrapper = stack.wrapperFactory.createWrapper(address(cell.market));
       assertTrue(wrapper != address(0), 'final hook policy permits wrapping');
       assertTrue(cell.market.isNukeProtected(wrapper));
     }
@@ -390,37 +404,28 @@ contract NukeProtectionTest is ProductionMatrixFixture {
     uint256 stage;
     for (uint256 i; i < logs.length; i++) {
       bytes32 topic = logs[i].topics[0];
-      if (topic == keccak256('MarketRepaymentTerms(address,uint256,uint256)')) {
-        assertEq(logs[i].emitter, factory);
-        stage = 1;
-      } else if (topic == keccak256('NukeProtectionRegistered(address)')) {
-        assertEq(stage, 1, 'market discovery precedes protection');
+      if (topic == keccak256('NukeProtectionRegistered(address)')) {
+        assertEq(stage, 0, 'protection is recorded first');
         assertEq(logs[i].emitter, market);
         assertEq(address(uint160(uint256(logs[i].topics[1]))), wrapper);
-        stage = 2;
+        stage = 1;
       } else if (topic == keccak256('NukeProtectionRequested(address,address,address)')) {
-        assertEq(stage, 2);
+        assertEq(stage, 1);
         assertEq(logs[i].emitter, factory);
         assertEq(address(uint160(uint256(logs[i].topics[1]))), market);
         assertEq(address(uint160(uint256(logs[i].topics[2]))), wrapper);
         assertEq(address(uint160(uint256(logs[i].topics[3]))), wrapperFactory);
-        stage = 3;
+        stage = 2;
       } else if (topic == keccak256('WrapperRegistered(address)')) {
-        assertEq(stage, 3);
+        assertEq(stage, 2);
         assertEq(logs[i].emitter, market);
-        stage = 4;
+        stage = 3;
       } else if (topic == keccak256('WrapperDeployed(address,address)')) {
-        assertEq(stage, 4);
+        assertEq(stage, 3);
         assertEq(logs[i].emitter, wrapperFactory);
-        stage = 5;
+        stage = 4;
       }
     }
-    assertEq(stage, 5, 'complete wrapper setup event sequence');
-  }
-
-  // ┌─ deployCell ─────
-  /// @dev an external boundary lets expectRevert cover the entire deployment fixture.
-  function deployCell(ProductionStack memory stack, uint256 i) external {
-    _cell(stack, i);
+    assertEq(stage, 4, 'complete wrapper setup event sequence');
   }
 }

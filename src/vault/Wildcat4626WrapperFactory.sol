@@ -155,8 +155,8 @@ contract Wildcat4626WrapperFactory {
   /// @dev callable by anyone. local floor-rounding markets must be registered, globally
   ///      transferable, expose the full transfer-policy interface, and name this contract as their
   ///      wrapper factory.
-  ///      the market factory must approve this factory for nuke protection, and the
-  ///      market must not have had a successful deposit yet. registration is atomic.
+  ///      the market factory must approve this factory for nuke protection.
+  ///      creation and registration are atomic and remain available after market funding.
   ///      undeclared markets are forwarded to V1; unknown declared rounding is rejected.
   ///
   /// @return wrapper generation-appropriate newly deployed wrapper.
