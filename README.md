@@ -3,12 +3,14 @@
 Wildcat Protocol v2.5 provides undercollateralized credit markets with rebasing
 lender balances, batched withdrawals, and configurable access and term hooks.
 This branch contains the contracts, tests, and technical documentation for a
-focused v2.5 security review.
+full review of the source listed in the audit scope.
 
-Start with the [audit scope](./docs/releases/v2.5-audit-scope.md). This package
-derives from release commit `bfe1412141f263ba6b056c60c3f4654a461598dd`.
-Role-provider scope is limited to AccessList, its factory, and the shared
-managed-provider base. Retained protocol source is unchanged from that commit.
+Start with the [audit scope](./docs/releases/v2.5-audit-scope.md), then the
+[market model](./docs/protocol/markets.md) and
+[security assumptions](./docs/security/assumptions.md). This branch began at
+release commit `bfe1412141f263ba6b056c60c3f4654a461598dd` and includes the
+subsequent [v2.5.8 changes](./docs/releases/README.md#v258). Role-provider scope
+is limited to AccessList, its factory, and the shared managed-provider base.
 
 Deployment ceremonies, UI code, historical deployment artifacts, and excluded
 provider implementations remain in the
@@ -45,7 +47,7 @@ For optional linting and inventory generation, follow the
 ## Documentation
 
 - [Technical documentation](./docs/README.md)
-- [Audit scope and verification](./docs/releases/v2.5-audit-scope.md)
+- [Audit scope and evidence boundaries](./docs/releases/v2.5-audit-scope.md)
 - [Release notes and compatibility](./docs/releases/README.md)
 - [External security reviews](./audits/README.md)
 - [Security reporting](./SECURITY.md)

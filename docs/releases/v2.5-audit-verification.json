@@ -283,11 +283,6 @@
     "localMarkdownTargets": "passed",
     "slither": "Not rerun. Historical parser/SlithIR/SSA qualification and fork identity remain in test-review-2026-10-05.json; detectors were not reviewed here."
   },
-  "evidence": {
-    "archive": "docs/releases/v2.5-audit-evidence.zip",
-    "sha256": "af4780e07870a337485cae321b5bb2dc9e5e1078aa841ee67ce215c739dd86e4",
-    "contents": "Canonical test output, resource timing, lint output, compiler-context experiments, coverage run index, merged comparison and all 37 baseline and 37 candidate LCOV records."
-  },
   "releaseDecisions": [
     "Finalize or explicitly accept the four TODO FOR MAINNET timing limits in PeriodicTermPolicy.sol.",
     "Pin any production deployment set, reused dependencies, and ceremony independently of this source package.",

@@ -10,10 +10,10 @@
 Plain `forge test` needs no timestamp, seed, profile, or environment setup.
 
 This audit branch narrows provider scope to AccessList and the shared managed
-base. The [audit receipt](../docs/releases/v2.5-audit-verification.json) records
-its 907 results; the historical 958-result release run included the excluded
-providers. The [scope](../docs/releases/v2.5-audit-scope.md) accounts for the
-removed tests and retained integration assertions.
+base. The [scope](../docs/releases/v2.5-audit-scope.md) records current test
+counts, exclusions, and retained integration assertions. The
+[October 5 audit receipt](../docs/releases/v2.5-audit-verification.json) covers
+the initial pruned snapshot, before later fixes and regressions.
 
 The default, fixed-seed, and `deploy` runs use optimizer runs `1` and the
 exact Yul sequence pinned in [`foundry.toml`](../foundry.toml). The suite
@@ -145,8 +145,9 @@ fork and an unpatched installation can both report version `0.11.6`.
 
 ## Recorded results
 
-Use the [audit-package receipt](../docs/releases/v2.5-audit-verification.json)
-for this branch's results and coverage comparison on retained source only.
+The [October 5 audit receipt](../docs/releases/v2.5-audit-verification.json)
+preserves the initial pruned snapshot's results and partial coverage comparison.
+It does not verify subsequent source changes.
 
 ### Release baseline
 

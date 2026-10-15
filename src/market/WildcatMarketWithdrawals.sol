@@ -267,9 +267,10 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   /// @notice claim newly available underlying assets for `accountAddress`.
   ///
   /// @dev anyone can call. the batch must have expired or been released by closure. assets go to
-  ///      the account, or its sanctions escrow if currently sanctioned. reverts if nothing new is claimable.
+  ///      escrow only if the account is sanctioned and unprotected; otherwise the account receives them.
+  ///      reverts if nothing new is claimable.
   ///
-  /// @param accountAddress lender that owns the claim and receives unsanctioned assets.
+  /// @param accountAddress lender that owns the claim.
   /// @param expiry         batch key and scheduled expiry timestamp.
   ///
   /// @return underlying assets transferred to the account or its sanctions escrow.
@@ -322,7 +323,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   }
 
   // ┌─ _executeWithdrawal ─────
-  /// @dev settle only the newly paid part of a pro-rata claim. route sanctioned accounts through escrow.
+  /// @dev settle only the newly paid part of a pro-rata claim. only sanctioned, unprotected accounts use escrow.
   function _executeWithdrawal(
     MarketState memory state,
     address accountAddress,

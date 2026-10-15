@@ -1,6 +1,6 @@
 {
-  "schemaVersion": "1.0.0",
-  "observedOn": "2026-10-05",
+  "schemaVersion": "1.1.0",
+  "observedOn": "2026-10-15",
   "repository": "wildcat-finance/v2-protocol",
   "auditBranch": "audit/v2.5",
   "releaseBase": {
@@ -9,611 +9,741 @@
     "featureHead": "cb9cf2b5fceb56f8432c86004512143bfd8a1bbf",
     "mergeTreeMatchesFeatureHead": true
   },
-  "packageIdentity": "Bind the package to the full audit commit when committed. This manifest verifies the prepared file bytes and does not claim a future commit SHA.",
+  "packageIdentity": "Prepared tracked file bytes, including staged edits, are identified by the hashes below. The HEAD is a base revision, not a claim that these uncommitted contents already belong to it. Bind the final package to its full audit commit after review and commit.",
+  "sourceState": {
+    "headCommit": "875fd6b20b7fd9605cbdcff681f742b059c45974",
+    "headSourceTree": "a159ddca4b79bcfe44cc78b555124fb9f13575b1",
+    "modifiedReviewFiles": [
+      "src/market/WildcatMarketWithdrawals.sol"
+    ]
+  },
   "reviewScope": {
-    "fileCount": 100,
-    "nonBlankNonCommentLines": 13103,
+    "fileCount": 102,
+    "nonBlankNonCommentLines": 11507,
+    "normalizedSourceLines": 9101,
     "lineCountingMethod": "Physical lines with Solidity strings retained and line/block comments removed; excludes blank lines, includes declarations, braces and imports.",
+    "lineCountingTool": {
+      "package": "solidity-code-metrics",
+      "version": "0.0.28",
+      "slocVersion": "0.3.2",
+      "parserVersion": "0.18.0",
+      "normalization": "Tool-defined function-header collapse followed by nonblank/noncomment JavaScript-mode SLOC counting. Counts are formatting-sensitive, include interfaces and shared declarations, and are not logical statement counts.",
+      "command": "npx --yes --package solidity-code-metrics@0.0.28 solidity-code-metrics 'src/**/*.sol' script/common/PreparedInitCodeStorage.sol"
+    },
     "files": [
       {
         "path": "src/HooksFactory.sol",
-        "sha256": "f677aaa199e20617ca468b0ee1859441e2aa843018045e3ed52308451e20c1c6",
-        "gitBlob": "6257535d9dca174d9e7ed10a83e41cfff005a0ca",
-        "nonBlankNonCommentLines": 702
+        "sha256": "6c0d849e7520fbbed9ce28670b3edd4e0974e0bbda007c62fbcfd961dabf4d8f",
+        "gitBlob": "4bb7d848409cf985962153205f3015f7b26c1167",
+        "nonBlankNonCommentLines": 81,
+        "normalizedSourceLines": 57
+      },
+      {
+        "path": "src/HooksFactoryBase.sol",
+        "sha256": "abc860dd6c62430eca212618f097cfed313d094d2ba1e61337b4910be76a91aa",
+        "gitBlob": "d6550628567d5f26c9ef6478cad86cfb48fc3889",
+        "nonBlankNonCommentLines": 578,
+        "normalizedSourceLines": 475
       },
       {
         "path": "src/HooksFactoryRevolving.sol",
-        "sha256": "1d62f36208c14a5bff84fcc931266925b96ecd514ad26343cefa7b099d70eb8c",
-        "gitBlob": "b04e90b8da59670cec8079983cdc3d3e1c3635c8",
-        "nonBlankNonCommentLines": 734
+        "sha256": "6c0bbbbd61173d056598d938d1612dcc699c2f383643f93b99226f0098ed014c",
+        "gitBlob": "865ec314b29157868fd8d07dec6279f199023013",
+        "nonBlankNonCommentLines": 116,
+        "normalizedSourceLines": 90
       },
       {
         "path": "src/IHooksFactory.sol",
-        "sha256": "076883c7e5009aa1c1b88ceae360c5c96b333b22aa69763964384dbe9096075f",
-        "gitBlob": "a288cc29a6449a7eec34180a277c1ed6ef522abd",
-        "nonBlankNonCommentLines": 271
+        "sha256": "0f55aad3596128e39a40b1b537cd3dac9b3d039d4113b3ea5f1cf5238fcc5dbd",
+        "gitBlob": "a90270b838aa23aded79cda77a415c5eec24f705",
+        "nonBlankNonCommentLines": 281,
+        "normalizedSourceLines": 167
       },
       {
         "path": "src/IHooksFactoryRevolving.sol",
-        "sha256": "e535fca2e240028c75b5a0c651f7d9be087aa011b12985a5b6e8799bdb884271",
-        "gitBlob": "ae01495f6917469c901a7c8a8c5384697c2a7202",
-        "nonBlankNonCommentLines": 112
+        "sha256": "d4e719d4160d37998a220a28ccd9fdc79e3d63b98497acad967ff53f2f521e55",
+        "gitBlob": "6ef0c3e452f3f334f54ff77fe70461cdc489fd72",
+        "nonBlankNonCommentLines": 32,
+        "normalizedSourceLines": 9
       },
       {
         "path": "src/ReentrancyGuard.sol",
         "sha256": "a6fe2e086dc7ff1a6238d9d88086ebb43979e73e79cbac7b62efc53d2cc40def",
         "gitBlob": "94564cdc2911795db04daec0264d5a436f880f3b",
-        "nonBlankNonCommentLines": 40
+        "nonBlankNonCommentLines": 40,
+        "normalizedSourceLines": 40
       },
       {
         "path": "src/WildcatArchController.sol",
         "sha256": "e4a8e11abe22fd6dec5e5c6400b1e229f8744154293ee4fd254ee1f2cff58b85",
         "gitBlob": "fe5385ee719d0ea9ab3895b369d69dedf129c604",
-        "nonBlankNonCommentLines": 282
+        "nonBlankNonCommentLines": 282,
+        "normalizedSourceLines": 266
       },
       {
         "path": "src/WildcatBorrowerIdentityRegistry.sol",
-        "sha256": "605a6337c0075d0485051f337c929c74f6550225f589443269a4637f252717f8",
-        "gitBlob": "55611ca07535bc65b7118b7ce5c33178813c9099",
-        "nonBlankNonCommentLines": 263
+        "sha256": "852d1bcd9688826313869f5be1052630dfca194c28caf133d65e65583423cc24",
+        "gitBlob": "d7228e9571e385f3882b43a6dac9f8c6ac487c83",
+        "nonBlankNonCommentLines": 226,
+        "normalizedSourceLines": 185
       },
       {
         "path": "src/WildcatSanctionsEscrow.sol",
         "sha256": "3412cb9a4fa99c45ecfef0c9203dc0f9fa4aeb980257efea87790819f2c9b85c",
         "gitBlob": "0b24065c5f2c92552ee57a676f92a8a38613ff92",
-        "nonBlankNonCommentLines": 33
+        "nonBlankNonCommentLines": 33,
+        "normalizedSourceLines": 33
       },
       {
         "path": "src/WildcatSanctionsSentinel.sol",
         "sha256": "de12c2c46f16fe583abd6db0659209a2b6319fe9ac075894994b5d489a107867",
         "gitBlob": "4bc4c816d37a28afe06a77ddd694ce7f8903f60b",
-        "nonBlankNonCommentLines": 100
+        "nonBlankNonCommentLines": 100,
+        "normalizedSourceLines": 83
       },
       {
         "path": "src/access/BaseAccessControls.sol",
-        "sha256": "8c084111d2ad90d2896acdbaabbfbb925c358a49d8225474bf2617d1e4c77275",
-        "gitBlob": "e00a4b218d3d8290f87744319d58b1c017f4acd5",
-        "nonBlankNonCommentLines": 603
+        "sha256": "3942df2173edffb73d97097c1b9e1fb72a61dd6d23a23571cc5a2c34873f44e3",
+        "gitBlob": "ef2d53d9341e3ad6e6910034b6685b6a7abf5b65",
+        "nonBlankNonCommentLines": 582,
+        "normalizedSourceLines": 506
       },
       {
         "path": "src/access/BaseHooks.sol",
-        "sha256": "aaa422ee95083d4041d50bf05ab41b9c4d91dac5d80f2886af0222a776f4fb71",
-        "gitBlob": "6efbe4836c94718723b4f9d5a9c9a2d6b6ef8145",
-        "nonBlankNonCommentLines": 413
+        "sha256": "22782347ac857d49c14df1454363cdf6bdbacc808a573e5ff391c1faaf8d2f22",
+        "gitBlob": "07b05ba88f08f92fd8663efba33d8dad469b2b57",
+        "nonBlankNonCommentLines": 410,
+        "normalizedSourceLines": 218
       },
       {
         "path": "src/access/FixedTermHooks.sol",
         "sha256": "548b68787f70d1b836c4baff9e6b8db135620f6153a6c139b07fa3e5847af94e",
         "gitBlob": "37d40aadeca0d8dbeb25d2b2284fb85f6d75562b",
-        "nonBlankNonCommentLines": 37
+        "nonBlankNonCommentLines": 37,
+        "normalizedSourceLines": 33
       },
       {
         "path": "src/access/FixedTermPolicy.sol",
-        "sha256": "dbd9f613dea2a8b54a9798792be4ca258f1128b2f219b5c05466bff7b18bb32d",
-        "gitBlob": "61bbce42af77ac7d1748ee39f29a9bda8a46f65a",
-        "nonBlankNonCommentLines": 186
+        "sha256": "ec9926c2b70fc0120228af5e6ad3aced3da7cefc773ba149bf3e0a2034c7daa4",
+        "gitBlob": "35d7bc3d8d4a5cbb2e729f2c71bf4e4350cb1d0f",
+        "nonBlankNonCommentLines": 165,
+        "normalizedSourceLines": 128
       },
       {
         "path": "src/access/IHooks.sol",
         "sha256": "7f99b5009f683a387131ce3a842bfab38ea3dad32ea229bc245425df01c6a74b",
         "gitBlob": "2effeab76423a0bbf999a7f7f8feff7f2fa6d9f8",
-        "nonBlankNonCommentLines": 115
+        "nonBlankNonCommentLines": 115,
+        "normalizedSourceLines": 15
       },
       {
         "path": "src/access/IHooksAdministrator.sol",
         "sha256": "4fa9de7976e72dc056ec093d411b3bc770de32eb0af36d31e89df56220e8e6d7",
         "gitBlob": "93b32c0fd0a0d026fe555c5353e79fba9d538ecd",
-        "nonBlankNonCommentLines": 12
+        "nonBlankNonCommentLines": 12,
+        "normalizedSourceLines": 4
       },
       {
         "path": "src/access/IManagedRoleProvider.sol",
         "sha256": "1a61e9417fc56e568db747af0693bbb84cc0d95e3b2bbc0b3b928c2b408c56ef",
         "gitBlob": "ad1e8f3d912b29c45474ab4c09bccee3a0a3cc58",
-        "nonBlankNonCommentLines": 19
+        "nonBlankNonCommentLines": 19,
+        "normalizedSourceLines": 14
       },
       {
         "path": "src/access/IMarketTransferPolicy.sol",
         "sha256": "56d055bc35bbc572e184519f83c173d946526906f7530a31054003f3aa51c6c8",
         "gitBlob": "f7c3adc1794e1b8652edb70fc25ece769ff1a471",
-        "nonBlankNonCommentLines": 5
+        "nonBlankNonCommentLines": 5,
+        "normalizedSourceLines": 3
       },
       {
         "path": "src/access/IRoleProvider.sol",
         "sha256": "23d731ed4416293210649efa4908ae3903bd34be3b2a317c70dde88562289810",
         "gitBlob": "20ff6b28ec919699af930e02395c3b7220286216",
-        "nonBlankNonCommentLines": 6
+        "nonBlankNonCommentLines": 6,
+        "normalizedSourceLines": 3
       },
       {
         "path": "src/access/IRoleProviderFactory.sol",
         "sha256": "cbbb179277132e59b80e63362082b02a20b8ec71abcad2d8aef73ba9763f7e36",
         "gitBlob": "5f491b2e391fce67d4c173faace8e2bc1f02e62c",
-        "nonBlankNonCommentLines": 4
+        "nonBlankNonCommentLines": 4,
+        "normalizedSourceLines": 3
       },
       {
         "path": "src/access/MarketConstraintHooks.sol",
         "sha256": "6a5834b62f8ad6fc19754417e567a82a5b7497e4566a56c9be5dccbe943af416",
         "gitBlob": "d0fab8af34d8508259b431bb1a0f0bea5c2d5cc5",
-        "nonBlankNonCommentLines": 220
+        "nonBlankNonCommentLines": 220,
+        "normalizedSourceLines": 183
       },
       {
         "path": "src/access/OpenTermHooks.sol",
         "sha256": "7ba4a55d0fbfeda3d447df618646f1060ae31a63b0657f22d9e3782194a5b1aa",
         "gitBlob": "4795210d3dfd2b14fe7daa95ef7109d5f305ce47",
-        "nonBlankNonCommentLines": 37
+        "nonBlankNonCommentLines": 37,
+        "normalizedSourceLines": 33
       },
       {
         "path": "src/access/OpenTermPolicy.sol",
-        "sha256": "b7497e793b201d927258b0676a5cc0f67233bb6a8a32987c7dc9e71eb1c4971c",
-        "gitBlob": "41b5db678b2aacdc0bdfab07a0fc5caba0024f01",
-        "nonBlankNonCommentLines": 64
+        "sha256": "96ed6e8d5dce61881dbf2eca3ed721921633ae7a550ac7cfab4a3e32dc0361f7",
+        "gitBlob": "378b267a72ceb76b5c901ea0393546ca8a476760",
+        "nonBlankNonCommentLines": 56,
+        "normalizedSourceLines": 46
       },
       {
         "path": "src/access/PeriodicTermHooks.sol",
         "sha256": "7441d234e75446e4c126e004ac07f5d15d783b8c8d94f108f3abac16840dbe18",
         "gitBlob": "dde184117e01eea129ef1f80613e54b15c48412e",
-        "nonBlankNonCommentLines": 44
+        "nonBlankNonCommentLines": 44,
+        "normalizedSourceLines": 40
       },
       {
         "path": "src/access/PeriodicTermPolicy.sol",
-        "sha256": "68d97270e05b2bb8382972a1d491a3f1c969c2de9c9d0d297fe7753e06807aad",
-        "gitBlob": "19f07d71377968de167013f6890084ffaf964c84",
-        "nonBlankNonCommentLines": 361
+        "sha256": "07a00c075f3396214874a2f5ea5c94bf8178bf31b7044e84b16c86face82ca1e",
+        "gitBlob": "59ed744f9b70dfe79e648216f3499b90977180d2",
+        "nonBlankNonCommentLines": 336,
+        "normalizedSourceLines": 263
       },
       {
         "path": "src/access/ProviderStructs.sol",
         "sha256": "2e627535aaa82b64edf5148f0b6312e8ee6b9abe2eafd9fad42fe7d0dd953805",
         "gitBlob": "c5861a70f56d23ff96359efd7b37d44758f9958b",
-        "nonBlankNonCommentLines": 15
+        "nonBlankNonCommentLines": 15,
+        "normalizedSourceLines": 15
       },
       {
         "path": "src/access/types/FixedTermHookTypes.sol",
         "sha256": "a2af767ce260f9e2bba54417c3c8dcef875a5c278b9226b880b8e78942d3a890",
         "gitBlob": "4db9ba523e6903a1781539d769649b6eba0bdc7e",
-        "nonBlankNonCommentLines": 12
+        "nonBlankNonCommentLines": 12,
+        "normalizedSourceLines": 12
       },
       {
         "path": "src/access/types/OpenTermHookTypes.sol",
         "sha256": "0337b180754d83ec44f6d92aa1f09b388b815903459e8c9013fbf02847344acf",
         "gitBlob": "fe6db69161d7974288ba2353df35c9c6e1f5cfb6",
-        "nonBlankNonCommentLines": 8
+        "nonBlankNonCommentLines": 8,
+        "normalizedSourceLines": 8
       },
       {
         "path": "src/access/types/PeriodicTermHookTypes.sol",
         "sha256": "f7acf7e9fc89f1ee9c4e6b45928f1a8222e72adf5899c385c30498e371bba109",
         "gitBlob": "b03da2fe62036549059f9bc94ce26eb5caf9256c",
-        "nonBlankNonCommentLines": 27
+        "nonBlankNonCommentLines": 27,
+        "normalizedSourceLines": 26
       },
       {
         "path": "src/interfaces/IBorrowerIdentityRegistry.sol",
         "sha256": "796d81f4e6c37cc9ffb0268c83d4efac7137b3197a9c1f1c0e82218a9c09e823",
         "gitBlob": "48044014dc24db38285a24a426c76fc7a55a6615",
-        "nonBlankNonCommentLines": 67
+        "nonBlankNonCommentLines": 67,
+        "normalizedSourceLines": 39
       },
       {
         "path": "src/interfaces/IChainalysisSanctionsList.sol",
         "sha256": "63314bf0903d7f3ca08d70ae261ea97005604ddc12880eaeb5c987d34132e2b0",
         "gitBlob": "a565dafab71d991a9b09af03493deaa80dfbc784",
-        "nonBlankNonCommentLines": 4
+        "nonBlankNonCommentLines": 4,
+        "normalizedSourceLines": 3
       },
       {
         "path": "src/interfaces/IERC20.sol",
         "sha256": "ae909a4bedea1484bbad0340c01433a03c66cc6bae92efe5e80c2bead03210de",
         "gitBlob": "4c6c281a77d157147673fb1fb7bec7a88b5c854e",
-        "nonBlankNonCommentLines": 16
+        "nonBlankNonCommentLines": 16,
+        "normalizedSourceLines": 5
       },
       {
         "path": "src/interfaces/IMarketEventsAndErrors.sol",
-        "sha256": "fc8a50444aad33a6ed7f43f6b93eccf40a43ebea1e2903a45fb8627c4a096eee",
-        "gitBlob": "c04789797912e8efb7d01917f51043c3c8277244",
-        "nonBlankNonCommentLines": 121
+        "sha256": "70cebb7ed4b8201724102115c6f32ca5f953a2a117a7412e5b2f339c38848405",
+        "gitBlob": "049d19b0a0d9b35e4054df08d47cd047695c4c6a",
+        "nonBlankNonCommentLines": 122,
+        "normalizedSourceLines": 122
+      },
+      {
+        "path": "src/interfaces/INukeProtectionMarket.sol",
+        "sha256": "36bda6811e66c037ff946804566a2d4aef4c42889492af694d2bea0269ca7901",
+        "gitBlob": "75cb9644e6234184ebaa096387600fa72bd92581",
+        "nonBlankNonCommentLines": 6,
+        "normalizedSourceLines": 3
       },
       {
         "path": "src/interfaces/ISphereXProtectedRegisteredBase.sol",
         "sha256": "6fd110e56a5ff15aba8965e436c107cd83991aa2a242debbdb703e89bb9dfd5c",
         "gitBlob": "450932e4012a23405c895a56abf94f9c3f0403d6",
-        "nonBlankNonCommentLines": 9
+        "nonBlankNonCommentLines": 9,
+        "normalizedSourceLines": 6
       },
       {
         "path": "src/interfaces/IWildcatArchController.sol",
-        "sha256": "67e3b39d7c25d14a7b597b5a3ea6dbc7ba653061db47702fa97763e83917783c",
-        "gitBlob": "f518f33c642cf312c2a2e726dc108e03040ebb83",
-        "nonBlankNonCommentLines": 64
+        "sha256": "9f7d839d6cca52013edc330f66fe13af2a544efc3f6df8606d4425d1da11279f",
+        "gitBlob": "44562a710b5c3c3d5c1f907514e786afa20ff4c7",
+        "nonBlankNonCommentLines": 64,
+        "normalizedSourceLines": 25
       },
       {
         "path": "src/interfaces/IWildcatMarketRevolving.sol",
         "sha256": "f1edca11f19fdcaa00d5664aece7a6368dde51052fbfc318685d3a4ea71a4912",
         "gitBlob": "0cd39b1da5a9824ddb03484e3d8602ebab5b4d45",
-        "nonBlankNonCommentLines": 6
+        "nonBlankNonCommentLines": 6,
+        "normalizedSourceLines": 4
       },
       {
         "path": "src/interfaces/IWildcatSanctionsEscrow.sol",
         "sha256": "b6b025951d84d61a5d90e002b75456767bc2919237769cc080b52a619a9471e3",
         "gitBlob": "f131d19c55eae0105a72cd2d925b204a5b0284e1",
-        "nonBlankNonCommentLines": 12
+        "nonBlankNonCommentLines": 12,
+        "normalizedSourceLines": 5
       },
       {
         "path": "src/interfaces/IWildcatSanctionsSentinel.sol",
         "sha256": "bc85b0cad1049e03de4ea8627eee126495aac540c6f287795297698bd75c3230",
         "gitBlob": "2c34a094ee7e8a1c23f4f1ec658c3b2dcce0a04c",
-        "nonBlankNonCommentLines": 29
+        "nonBlankNonCommentLines": 29,
+        "normalizedSourceLines": 11
       },
       {
         "path": "src/interfaces/WildcatStructsAndEnums.sol",
-        "sha256": "e2eb8a88335bf059c6f5c4915f5464d52f2fefdc8d3e4b953958fa344d239e83",
-        "gitBlob": "97a3e00f13f43a5bc50a79ac418263e80b57c425",
-        "nonBlankNonCommentLines": 81
+        "sha256": "7a55eaa37edeb8f89f72e5511f55706e8eb6bd73f5e3fd8b8e61f304bbedccf4",
+        "gitBlob": "88f52413d959461ae032f9c46278b7c9acab8204",
+        "nonBlankNonCommentLines": 57,
+        "normalizedSourceLines": 57
       },
       {
         "path": "src/lens/FactoryScopedHooksTemplateData.sol",
         "sha256": "1e6afccf4a3552ad715b47e3ecfe805bbdf5b414222a850e19d3e6e6bf8a21e4",
         "gitBlob": "01efb032ced9e0ad509ce49a3990e8600676f14c",
-        "nonBlankNonCommentLines": 6
+        "nonBlankNonCommentLines": 6,
+        "normalizedSourceLines": 6
       },
       {
         "path": "src/lens/HooksConfigData.sol",
-        "sha256": "f4601a87a75df2a61cf8ffa1cc0cbe94857a15ce6e37123224bb728d5724355e",
-        "gitBlob": "6ac035600cddcc34ebfc2d326d473f749958845f",
-        "nonBlankNonCommentLines": 187
+        "sha256": "f317bee10b1df456241b4889d1160e47125046878fb26e6cc91a8fe5154f720c",
+        "gitBlob": "f7912389a935b8cf3a66c24ecff8c912c88f00e3",
+        "nonBlankNonCommentLines": 184,
+        "normalizedSourceLines": 177
       },
       {
         "path": "src/lens/HooksDataForBorrower.sol",
         "sha256": "c9c9e7cd5383534a4a2d2110c42956fb0cbc37b055ee9f9ba8f6e7b502fbd087",
         "gitBlob": "bc8789fdf111d066f2c4db0d1ecfe9b4cb07528e",
-        "nonBlankNonCommentLines": 38
+        "nonBlankNonCommentLines": 38,
+        "normalizedSourceLines": 30
       },
       {
         "path": "src/lens/HooksInstanceData.sol",
         "sha256": "1ca8d82400be2b9bf61c43869f114b0cd47963e2ad9346f4fa7ce6866385d11e",
         "gitBlob": "9e6ef4cfffb1dfed3cf206da3a2494b42a7a84a5",
-        "nonBlankNonCommentLines": 110
+        "nonBlankNonCommentLines": 110,
+        "normalizedSourceLines": 97
       },
       {
         "path": "src/lens/HooksTemplateData.sol",
-        "sha256": "7954ef23993c0824731ebfc5c1649c513c880717bc1ce6f522b26b7cfda87634",
-        "gitBlob": "b236bae4f04e9c86b30520918e6e2c2ca54c9dc9",
-        "nonBlankNonCommentLines": 70
+        "sha256": "4903aaa50aa3b65e52d663c4de993ee8216baff011d9ca21ab71140fee63434f",
+        "gitBlob": "a0a4a2be28970edb17a35ed20dc06100a0474ae6",
+        "nonBlankNonCommentLines": 70,
+        "normalizedSourceLines": 54
       },
       {
         "path": "src/lens/LenderAccountData.sol",
         "sha256": "e9156ad04609740b3433c05742cab53fa1f9c4a2c953274cf2af5d8d25596901",
         "gitBlob": "652aaef29ba1452219a266776106c11c69a09f28",
-        "nonBlankNonCommentLines": 67
+        "nonBlankNonCommentLines": 67,
+        "normalizedSourceLines": 56
       },
       {
         "path": "src/lens/MarketAccountingReader.sol",
         "sha256": "d85a7e3ef76712be5faa9def3bf57a1012ba759c7a3d460b552a254e07dde9d7",
         "gitBlob": "6fff7290b9bd8cd68bb5dc420b01adee36546e00",
-        "nonBlankNonCommentLines": 28
+        "nonBlankNonCommentLines": 28,
+        "normalizedSourceLines": 28
       },
       {
         "path": "src/lens/MarketData.sol",
-        "sha256": "be2623af324000aab66f9eb7ee30fc951a3d110c937f5fae6c06e3670d1dd59d",
-        "gitBlob": "723607d27b49d1f6fe5b718b161c29f051fe71f7",
-        "nonBlankNonCommentLines": 260
+        "sha256": "55a909a83cd3aa658df43967bf40a15e37d4e6a3d6aa290cc0bc56d84b4cb46a",
+        "gitBlob": "b803fa7f41073f22fcc987160e6ab38cf2cdd944",
+        "nonBlankNonCommentLines": 260,
+        "normalizedSourceLines": 256
       },
       {
         "path": "src/lens/MarketLens.sol",
         "sha256": "abfdd2ab6dbac97f1b8d58d39c82f2abfb3a24a822688c526153e0b6b3c85479",
         "gitBlob": "fad9ad81843881efa6cbfd3d7d8cb6e16f2eed5a",
-        "nonBlankNonCommentLines": 411
+        "nonBlankNonCommentLines": 411,
+        "normalizedSourceLines": 196
       },
       {
         "path": "src/lens/MarketLensAggregator.sol",
-        "sha256": "66b4c0f936dab61c96448af0a8a3ce587dec0c9084980cd15a9b7ec7b26c38db",
-        "gitBlob": "2d0a527dc4ed15acf048c04d0d5d71b8dcd36642",
-        "nonBlankNonCommentLines": 520
+        "sha256": "648ab37e592bd42745fef1e5d84a300be581074d2bb244e1f5c1a2ef9291f6f4",
+        "gitBlob": "e5ffb5e7fb9a819df1ea658adaa04f150dd29fae",
+        "nonBlankNonCommentLines": 460,
+        "normalizedSourceLines": 274
       },
       {
         "path": "src/lens/MarketLensCore.sol",
         "sha256": "930b47b45e5ae142fb3d47881d6a36155a1711d4376755b9e476931b08febd56",
         "gitBlob": "76b4b90e6a13244af9a9108147f091d164d4f0bf",
-        "nonBlankNonCommentLines": 174
+        "nonBlankNonCommentLines": 174,
+        "normalizedSourceLines": 100
       },
       {
         "path": "src/lens/MarketLensLive.sol",
         "sha256": "24b6a3491318b1ec0acc7ae62cbc260b4470c931ab18e8ab2155633b5f1828e9",
         "gitBlob": "93c5481f753855ce5c4943dfcb7dbc629872ece7",
-        "nonBlankNonCommentLines": 32
+        "nonBlankNonCommentLines": 32,
+        "normalizedSourceLines": 25
       },
       {
         "path": "src/lens/MarketLifecycleData.sol",
         "sha256": "f1533f1d3f8386ba95946ae34dd545ba96a9c28ed844fb8b6cee34f5ec9b92f9",
         "gitBlob": "583a7bb5f9dbddc2c4ff6dd0910b7b54507be8dd",
-        "nonBlankNonCommentLines": 57
+        "nonBlankNonCommentLines": 57,
+        "normalizedSourceLines": 49
       },
       {
         "path": "src/lens/MarketLiveData.sol",
-        "sha256": "679b8e7562324a8ffa9c992668fcb41baa2920392b82db8c2bd9df5b8c0692b3",
-        "gitBlob": "2929f997fe1e0b9d9f77717d8d092e8dca329258",
-        "nonBlankNonCommentLines": 77
+        "sha256": "a1a8df75afd3185f9e5ba530a666cdf89ca74efd9e296ef5f0ab75e25442ab19",
+        "gitBlob": "d63e1bef827356bcba0ffb42f76d65af20d49233",
+        "nonBlankNonCommentLines": 77,
+        "normalizedSourceLines": 77
       },
       {
         "path": "src/lens/OptionalData.sol",
         "sha256": "cbc8f305e198c124dcd451c75d47b16e9888908c2706a13176b2963e3a30f8c6",
         "gitBlob": "1e32d63bf39a817d077f119d28d29da18c84cd02",
-        "nonBlankNonCommentLines": 21
+        "nonBlankNonCommentLines": 21,
+        "normalizedSourceLines": 21
       },
       {
         "path": "src/lens/RoleProviderData.sol",
         "sha256": "2516fe20612beddc1f180d4d4d5aaadb67d5e2e8067b1334bd30542321b364e4",
         "gitBlob": "74fa09772109913e0807ec7df0eb1a5326f7c2a0",
-        "nonBlankNonCommentLines": 52
+        "nonBlankNonCommentLines": 52,
+        "normalizedSourceLines": 52
       },
       {
         "path": "src/lens/TokenData.sol",
         "sha256": "224671b658372faf7fdf7000247560b68ee1bd96636fc136013c73eb2f291fff",
         "gitBlob": "b9f7f18ae4bd82d7e5e4018a57b93391306b9f51",
-        "nonBlankNonCommentLines": 31
+        "nonBlankNonCommentLines": 31,
+        "normalizedSourceLines": 31
       },
       {
         "path": "src/lens/WithdrawalBatchData.sol",
         "sha256": "f9b8ccafc85d7025b0f82e2597919f659461658be7dcd4a1ddc3818d2656122a",
         "gitBlob": "cfa7bc2cba8a65b65dce16b0c208369f3d1f269d",
-        "nonBlankNonCommentLines": 98
+        "nonBlankNonCommentLines": 98,
+        "normalizedSourceLines": 82
       },
       {
         "path": "src/lens/interfaces/IMarketLensAggregator.sol",
-        "sha256": "5c358cbb58373cd8862b73a11ba9d1fc4bcac05f2499ecd848f1b8f51235764d",
-        "gitBlob": "3ebf9ada387f53f69d7916f3d60a7a1e2e2d1f1d",
-        "nonBlankNonCommentLines": 145
+        "sha256": "61ba4ebd648b2b2a64d75946f4944efedab5abafeb23e202a0ae0b4621a282cd",
+        "gitBlob": "8d5e6cb8f4859af0a276649e423509693024504c",
+        "nonBlankNonCommentLines": 145,
+        "normalizedSourceLines": 8
       },
       {
         "path": "src/lens/interfaces/IMarketLensCore.sol",
-        "sha256": "243d46629803c383a6a5523f6a54f65366ae28c9d1a59b6ed2ac5bd4b0766383",
-        "gitBlob": "791455cc50f7bbceb85ffb3b67ca46e121da909d",
-        "nonBlankNonCommentLines": 82
+        "sha256": "3aff2f7628472151e825e4480bcd0e8bd8c4e978b2f333a24e98ae7e59b50413",
+        "gitBlob": "7939dca49f6d540186b7913c0d3d574ae6e8128e",
+        "nonBlankNonCommentLines": 82,
+        "normalizedSourceLines": 7
       },
       {
         "path": "src/lens/interfaces/IMarketLensLive.sol",
         "sha256": "a8249b97b5a157d2d60c53dbb191d2c9019e58a4da387e912053319fafcad7b5",
         "gitBlob": "1dad7df82669644fb1ac42963262c9b985e29ccf",
-        "nonBlankNonCommentLines": 12
+        "nonBlankNonCommentLines": 12,
+        "normalizedSourceLines": 4
       },
       {
         "path": "src/libraries/BoolUtils.sol",
         "sha256": "125798a4dd26605534357af2a94f3754d757f2bd15ddc0977b176a85b43c817b",
         "gitBlob": "6232b5d0b67150c8d5dc688a3507b6d5e87ded35",
-        "nonBlankNonCommentLines": 18
+        "nonBlankNonCommentLines": 18,
+        "normalizedSourceLines": 18
       },
       {
         "path": "src/libraries/Errors.sol",
         "sha256": "3a1b6b4738e8ba8869d4a31c420c157d5fe046ec0d38345359e9a6775c8d46be",
         "gitBlob": "bfbbedc1f03feecea5f6794eb764ff2ade863d21",
-        "nonBlankNonCommentLines": 41
+        "nonBlankNonCommentLines": 41,
+        "normalizedSourceLines": 41
       },
       {
         "path": "src/libraries/FIFOQueue.sol",
         "sha256": "4ec0f6aa2366272b99f3fa3ed677005d6f93d904b69321dbb0d932a739271529",
         "gitBlob": "1cb37f550ba3124fad12b1a8a21a329547003e20",
-        "nonBlankNonCommentLines": 83
+        "nonBlankNonCommentLines": 83,
+        "normalizedSourceLines": 83
       },
       {
         "path": "src/libraries/FeeMath.sol",
-        "sha256": "6afa62bf9816e356ce80cc20b657906ba2734f29486b4e75950fc4d853a682c7",
-        "gitBlob": "017fc3705024688448e7d8f06445214e47861031",
-        "nonBlankNonCommentLines": 97
+        "sha256": "ce37e4418026f7d56d5500b8cece742536b0a5fc25b00e78c7dcffc16396b80d",
+        "gitBlob": "510fc2e8f0e015b15bbf1da82a78b0801ce08611",
+        "nonBlankNonCommentLines": 53,
+        "normalizedSourceLines": 29
       },
       {
         "path": "src/libraries/FunctionTypeCasts.sol",
-        "sha256": "7b73cd29d65ed7de8a966670d51fab30a9c00f5e306833822d3d33274a9a8602",
-        "gitBlob": "0e2b978a0356405f4164197022182228fffbafa6",
-        "nonBlankNonCommentLines": 43
+        "sha256": "e934069044ff233f00a9ac39b855df2c5a28ab1edfc5c7538361649c31981d1c",
+        "gitBlob": "5111cffbd1841c828e28ec82e2d1cf8de68c78bf",
+        "nonBlankNonCommentLines": 33,
+        "normalizedSourceLines": 21
       },
       {
         "path": "src/libraries/LibCompressedInitCode.sol",
         "sha256": "20c2b49b6477c22328b87856f2194867431040bf0953592d431b675974b5bf48",
         "gitBlob": "7480fe46234e3fc457788174a9dfa8b770bf2b45",
-        "nonBlankNonCommentLines": 48
+        "nonBlankNonCommentLines": 48,
+        "normalizedSourceLines": 48
       },
       {
         "path": "src/libraries/LibERC20.sol",
         "sha256": "92edb005ffb7ef262bb5ecee01c05c82822e6d2269ed8e184cbcbad8f19f64c9",
         "gitBlob": "14328577ce8652bdab9533b46410d9e37fb99a4d",
-        "nonBlankNonCommentLines": 109
+        "nonBlankNonCommentLines": 109,
+        "normalizedSourceLines": 109
       },
       {
         "path": "src/libraries/LibFixedCall.sol",
         "sha256": "28a4c78f07e3b5711820bb1ac0a9682481e42f4cc11352dd911ba3589099a3bb",
         "gitBlob": "bee2dc001ce0916df0f0827b1ad75d48f5fe4ec4",
-        "nonBlankNonCommentLines": 37
+        "nonBlankNonCommentLines": 37,
+        "normalizedSourceLines": 37
       },
       {
         "path": "src/libraries/LibSplitInitCode.sol",
         "sha256": "11368305ad5dc91c80032c7de8da7bd68ff8261f7129ff2b1e776b7ff64be05c",
         "gitBlob": "978b48d68b39113333b71762960b46dc4db4ce4d",
-        "nonBlankNonCommentLines": 90
+        "nonBlankNonCommentLines": 90,
+        "normalizedSourceLines": 90
       },
       {
         "path": "src/libraries/LibStoredInitCode.sol",
         "sha256": "57edbc5c5c9087cf2d4b278919c70bc2ed402b5aca1a0de60ee4022e8c55173e",
         "gitBlob": "08b3107084a8d42b6cb836e6419faf7bb7f2879c",
-        "nonBlankNonCommentLines": 185
+        "nonBlankNonCommentLines": 185,
+        "normalizedSourceLines": 133
       },
       {
         "path": "src/libraries/MarketErrors.sol",
-        "sha256": "5b2c617c800f27456028e32e4c5fc2a57e2fa07fdfa0650ade51e54d254fe08d",
-        "gitBlob": "5d3f071842a315f3f2cea88828f62074623846e7",
-        "nonBlankNonCommentLines": 310
+        "sha256": "3e3b8ae5cda840db3c118179a1d309fe672375d7b639c0b1af3188f4e49c239e",
+        "gitBlob": "ed89efd5b0b5e66faac8c7cb04fdd2b399ba128e",
+        "nonBlankNonCommentLines": 46,
+        "normalizedSourceLines": 46
       },
       {
         "path": "src/libraries/MarketEvents.sol",
         "sha256": "c102402cc8e2c879d2b5cc841b744ab57922244ee4ac2b8ee96baa2ccc4c7eed",
         "gitBlob": "5e894d88dfdf8c3e88c93d17b521b6863bbd37bc",
-        "nonBlankNonCommentLines": 239
+        "nonBlankNonCommentLines": 239,
+        "normalizedSourceLines": 206
       },
       {
         "path": "src/libraries/MarketLifecycle.sol",
-        "sha256": "fa3823c1fcc117df54c80a2a8621febb1f3ae776c5720457e5b04ea17e318dc8",
-        "gitBlob": "81c56d0fdc17f53753e270cd83edc297597d0687",
-        "nonBlankNonCommentLines": 82
+        "sha256": "5f37c7d5078e367627efb087c395509e00df78ad785b6542765b31c53b0979da",
+        "gitBlob": "8db5b584296c0f883d2c19587c622fbe00935217",
+        "nonBlankNonCommentLines": 59,
+        "normalizedSourceLines": 51
       },
       {
         "path": "src/libraries/MarketState.sol",
         "sha256": "c87dcd7720ac15cb98ee6bd3502d7a8a8609ed35054161c63442a4786b747604",
         "gitBlob": "cb19263145507c14fdac305b0379e5f70fa1e06a",
-        "nonBlankNonCommentLines": 98
+        "nonBlankNonCommentLines": 98,
+        "normalizedSourceLines": 83
       },
       {
         "path": "src/libraries/MathUtils.sol",
         "sha256": "91ca0d691b6ff6e4bd2326145fb43c50f5de32d468c115797e7cd290c9ea73d3",
         "gitBlob": "e43c248a4c07a1928651e9a44b6c0396a6352080",
-        "nonBlankNonCommentLines": 109
+        "nonBlankNonCommentLines": 109,
+        "normalizedSourceLines": 109
       },
       {
         "path": "src/libraries/SafeCastLib.sol",
         "sha256": "1cec2cb6646aff94baeef207894e84d27ea890a7e95cc815c4a5486abf573634",
         "gitBlob": "1a2c27897d40a7310a90eca41bb5316f33796284",
-        "nonBlankNonCommentLines": 106
+        "nonBlankNonCommentLines": 106,
+        "normalizedSourceLines": 106
       },
       {
         "path": "src/libraries/StringQuery.sol",
         "sha256": "7ae37099fe15def1f791104e7cd717756d3bb31400f989479b38f23ffd335163",
         "gitBlob": "6b857f198a0d2ba506b069f8a5c4d25ffcc6b043",
-        "nonBlankNonCommentLines": 107
+        "nonBlankNonCommentLines": 107,
+        "normalizedSourceLines": 94
       },
       {
         "path": "src/libraries/Withdrawal.sol",
         "sha256": "d853e731c2f6433e070d381fff1baf193c123f103e6e73f6c2f6ca59fa000fe5",
         "gitBlob": "e3ade75bf51dd3b18c2a337365d80b2bd0f62282",
-        "nonBlankNonCommentLines": 46
+        "nonBlankNonCommentLines": 46,
+        "normalizedSourceLines": 38
       },
       {
         "path": "src/market/WildcatMarket.sol",
-        "sha256": "b27dde965b23bf909f91f732ba6e2e118d0b9102b817a3a92c43d6ee593c6f18",
-        "gitBlob": "8e70c7c984a14147b27deb93c442026492336b67",
-        "nonBlankNonCommentLines": 175
+        "sha256": "26989277b43389812d5b5fa12297e862777f337aee4f5edf4ba02e067b83b65e",
+        "gitBlob": "442ed62d09d5265747deaf168cd75d7ac19563dd",
+        "nonBlankNonCommentLines": 171,
+        "normalizedSourceLines": 157
       },
       {
         "path": "src/market/WildcatMarketBase.sol",
-        "sha256": "1fdf8f15e4568b2e944358e64122f6c34cd4a693e6221ae688c1d6faffad7dac",
-        "gitBlob": "c46529307ccdf2d5135c8955d49ca8ad5e81c702",
-        "nonBlankNonCommentLines": 806
+        "sha256": "e0d32c9a4210202c46ea64424741dbd6fabfd6fe448a763d5c36146769ed7366",
+        "gitBlob": "5824f2a9d6f4245dc682bff68db9ef4b6b38c757",
+        "nonBlankNonCommentLines": 773,
+        "normalizedSourceLines": 725
       },
       {
         "path": "src/market/WildcatMarketConfig.sol",
-        "sha256": "8c93469c5f618bf339adbdfb93bcefe4385464d5cd3368b509c4d5613f0ddb27",
-        "gitBlob": "aeefc2a2111db77022b837df310c53ab1b4a3971",
-        "nonBlankNonCommentLines": 138
+        "sha256": "b577b64a3a323dcd61c778eddce8a8c5ea8fa643ca9a249d20dce66de8333253",
+        "gitBlob": "8e15ac2ce8864afb99da17bc1045e7ac9271b4c7",
+        "nonBlankNonCommentLines": 143,
+        "normalizedSourceLines": 124
       },
       {
         "path": "src/market/WildcatMarketRevolving.sol",
         "sha256": "ca6ef6fcb47327c3eb180bc3f3bfa0d220a78802133a1bcb871079fa0ec239fb",
         "gitBlob": "b363220e73894f385a0f459efb10bbeda3f5c7c2",
-        "nonBlankNonCommentLines": 104
+        "nonBlankNonCommentLines": 104,
+        "normalizedSourceLines": 88
       },
       {
         "path": "src/market/WildcatMarketToken.sol",
-        "sha256": "7e5d2f6cbb49ebd0e06f7f33588ed69d34aea5c9495b179ac752d76b275c5059",
-        "gitBlob": "577600553353ffaa9a793c41bf9158b59e2cacc9",
-        "nonBlankNonCommentLines": 59
+        "sha256": "8a0c8f3560de04f7567a767a1db8fb0be847cc688b789bfa9dd81531cd18923d",
+        "gitBlob": "2085ff5246b4edccb54935ce4ead5c88d934509e",
+        "nonBlankNonCommentLines": 59,
+        "normalizedSourceLines": 49
       },
       {
         "path": "src/market/WildcatMarketWithdrawals.sol",
-        "sha256": "040ed098f5bdddbdadef2970e33665ae718ae561791b6fec81feef8ed9f26e1f",
-        "gitBlob": "1bef7b49510793b1ab17215eb66703b22666a46e",
-        "nonBlankNonCommentLines": 250
+        "sha256": "9b55ced8e0224c95cfdeda256d05ffa80bdd2a8ad6fc3fbf89a98c087bd748d5",
+        "gitBlob": "b7b0601d69c2d6f6b6f6d3f6db5b712751a82220",
+        "nonBlankNonCommentLines": 250,
+        "normalizedSourceLines": 182
       },
       {
         "path": "src/providers/AccessListRoleProvider.sol",
         "sha256": "16d10d205b901895024634eb0eb27f8d43901c19ca8d8a8357bdfa7889b5b9be",
         "gitBlob": "1aceb4938240e0ae8304587969c88cce73b773b3",
-        "nonBlankNonCommentLines": 77
+        "nonBlankNonCommentLines": 77,
+        "normalizedSourceLines": 69
       },
       {
         "path": "src/providers/AccessListRoleProviderFactory.sol",
         "sha256": "61eea15f1cf5c202056c5dddabb5c633a7135a491470ced0dd114dcfdb2aeb5e",
         "gitBlob": "988287450093140406eb7ef913082d8ebf8fd9e9",
-        "nonBlankNonCommentLines": 64
+        "nonBlankNonCommentLines": 64,
+        "normalizedSourceLines": 39
       },
       {
         "path": "src/providers/IAccessListRoleProvider.sol",
         "sha256": "6e85df42f1823bec7b32d59eecacc9473bc90095b405b3124b2bc86b3a6f388f",
         "gitBlob": "2695c9f1f0c60062f100ab9191e3838bd3dd9134",
-        "nonBlankNonCommentLines": 19
+        "nonBlankNonCommentLines": 19,
+        "normalizedSourceLines": 11
       },
       {
         "path": "src/providers/IAccessListRoleProviderFactory.sol",
         "sha256": "106a25d353d10b02f07436efd8bca2e25a5bd539b1121f4199dd368d9e50b256",
         "gitBlob": "13c8701ee60bceb090dd4aa33c8793005d6a3d91",
-        "nonBlankNonCommentLines": 27
+        "nonBlankNonCommentLines": 27,
+        "normalizedSourceLines": 17
       },
       {
         "path": "src/providers/ManagedRoleProvider.sol",
         "sha256": "5142a6a48104bee65ece37ea55777b2e39cff49faa5e15db07ca95f87acd9ecf",
         "gitBlob": "c464db157ed72e061c7f9d5cc7ae384368d42aec",
-        "nonBlankNonCommentLines": 38
+        "nonBlankNonCommentLines": 38,
+        "normalizedSourceLines": 38
       },
       {
         "path": "src/spherex/ISphereXEngine.sol",
         "sha256": "bb8f953ca439da3427998dd3d3066c738e037cd89c492d24c05e9d67efb7554a",
         "gitBlob": "40cd031f1f70d0af6e84ca3ee8fce16f27b9381c",
-        "nonBlankNonCommentLines": 27
+        "nonBlankNonCommentLines": 27,
+        "normalizedSourceLines": 9
       },
       {
         "path": "src/spherex/SphereXConfig.sol",
         "sha256": "a3a621f66c7edd1e58da215c0e0a1bf943aa7cd4e742b75ce51da54fe83e3ede",
         "gitBlob": "8158d8f35ba12149a9d6306165163ae4a6ef3514",
-        "nonBlankNonCommentLines": 109
+        "nonBlankNonCommentLines": 109,
+        "normalizedSourceLines": 109
       },
       {
         "path": "src/spherex/SphereXProtectedErrors.sol",
         "sha256": "d97fb08b8e98df18a65513006174a52705a29a88eea42f76bffaf16f0cd21d95",
         "gitBlob": "d592d2782682d4765a0b8fe2a8752a569f08b417",
-        "nonBlankNonCommentLines": 31
+        "nonBlankNonCommentLines": 31,
+        "normalizedSourceLines": 31
       },
       {
         "path": "src/spherex/SphereXProtectedEvents.sol",
         "sha256": "39509960d081ec48ea26d17b903e8b0d46aaba1c160fc9ed3b0ed60f20c662ea",
         "gitBlob": "8956fc5f697c8c5157311e37372e12d3adb3ad5a",
-        "nonBlankNonCommentLines": 35
+        "nonBlankNonCommentLines": 35,
+        "normalizedSourceLines": 35
       },
       {
         "path": "src/spherex/SphereXProtectedRegisteredBase.sol",
         "sha256": "e2211a684a58d5c0a717acf97aa86e68cb4fbdcff9eff0bcad48a27e4b4b9831",
         "gitBlob": "4035b978f1cba121db526f5bbbc450f35e3acaf2",
-        "nonBlankNonCommentLines": 166
+        "nonBlankNonCommentLines": 166,
+        "normalizedSourceLines": 154
       },
       {
         "path": "src/types/HooksConfig.sol",
-        "sha256": "08a618146150f4fa8b91fb918bd0db7efd4c55251a0d79f656f5040dcc3effc4",
-        "gitBlob": "ed0938180537df4e87928415279f51165e93fd50",
-        "nonBlankNonCommentLines": 571
+        "sha256": "0aeefc327752b3379b12ef875af8850ac590e6f79427a36dfe27af332d418180",
+        "gitBlob": "ce5f0d86e49d9dd6da528e192fe717d359f362aa",
+        "nonBlankNonCommentLines": 376,
+        "normalizedSourceLines": 295
       },
       {
         "path": "src/types/LenderStatus.sol",
         "sha256": "d3cdd5474d250c0c64d50a6540ae37b6c963119ae69be68849e775d601b22041",
         "gitBlob": "da81591f494d5b676f06626c2dd84beb3fea0085",
-        "nonBlankNonCommentLines": 30
+        "nonBlankNonCommentLines": 30,
+        "normalizedSourceLines": 30
       },
       {
         "path": "src/types/RoleProvider.sol",
         "sha256": "a2b935f742369cca09e898143fb81f59f8e95e431b8977176bc4f9a7bd30bd15",
         "gitBlob": "0a402befb3f081eb799a26dfef70fc46b85fc368",
-        "nonBlankNonCommentLines": 128
+        "nonBlankNonCommentLines": 128,
+        "normalizedSourceLines": 95
       },
       {
         "path": "src/types/TransientBytesArray.sol",
         "sha256": "94ddd2452de25639c2f441291c719010cce9e2d1ed2cb2bd5cd083a47ced31f0",
         "gitBlob": "ea1e6b0eb1f037a3a4adb45347658018200c2589",
-        "nonBlankNonCommentLines": 98
+        "nonBlankNonCommentLines": 98,
+        "normalizedSourceLines": 91
       },
       {
         "path": "src/vault/Wildcat4626Wrapper.sol",
-        "sha256": "61bf1cb2c4fae7fec0d0782c61c174144aec5d600027a64f23a9385a265064eb",
-        "gitBlob": "a168c40cb23c4e07f62c51970144a117ace6fefa",
-        "nonBlankNonCommentLines": 576
+        "sha256": "daf24e03fefc3547d504c133c32b2bd6ba87df492eb6a6b275601c56e7212286",
+        "gitBlob": "f30d70b472354d219878ac10d1d6a6b68c087ab3",
+        "nonBlankNonCommentLines": 471,
+        "normalizedSourceLines": 433
       },
       {
         "path": "src/vault/Wildcat4626WrapperFactory.sol",
-        "sha256": "60ddd297ca2a9a93f8214897e927735f83bfb29ef5caf2621b2c7fa6f438fc68",
-        "gitBlob": "376479a39cc4ef93cb55ac13d84a5031eea85a1f",
-        "nonBlankNonCommentLines": 92
+        "sha256": "8618392b8edb2c43db48fbade238732b44ebdc6348ac0ba4654c5ee06912c78a",
+        "gitBlob": "8b52c0d97f91981ac10e632ce6d860c95abeda65",
+        "nonBlankNonCommentLines": 95,
+        "normalizedSourceLines": 87
       },
       {
         "path": "script/common/PreparedInitCodeStorage.sol",
         "sha256": "c04817738f3239da82efedf0a27a3d76cdcf6144b64e7082d9901c394e09a980",
         "gitBlob": "d278233e25cf0ae45b73c36de31046f896aaab7e",
-        "nonBlankNonCommentLines": 23
+        "nonBlankNonCommentLines": 23,
+        "normalizedSourceLines": 23
       }
     ]
   },
@@ -625,16 +755,18 @@
     {
       "path": "script/common/LibDeployment.sol",
       "sha256": "1f4344dfcee97b5666131a66e2402983488c216ff7f76a85b1aeb94d8f84f8e3"
-    },
+    }
+  ],
+  "modifiedSupportingSolidity": [
     {
       "path": "script/mock/MockArchControllerOwner.sol",
-      "sha256": "af9c73d6b6fed19f2027c625011e82a64946feed3fe481177cadeb84bf80693a"
+      "sha256": "e04175e9dfa4e68d99b6b54838e3094481319fc0a71c25336b7968168cc91b75"
     }
   ],
   "testAndReferenceFiles": [
     {
       "path": "test/README.md",
-      "sha256": "03f3b44d1e769542064dcc022868a5647e684b45856f3c38ce69f54efaf753a2"
+      "sha256": "ee55d71acd80ebaf3b7efbc36444cc3f657fafa9a233ddb87b01cc712bc3f776"
     },
     {
       "path": "test/access/AprValidation.t.sol",
@@ -682,11 +814,15 @@
     },
     {
       "path": "test/integration/BorrowerAccountCompatibility.t.sol",
-      "sha256": "38f8d8a951b6196c7ef8998e0fee1e0a39206a7cc3342d2640861aedc09611fa"
+      "sha256": "988d8895e489d95f1b1aa64f8c157d58fa610640683983070006e869383f7f43"
     },
     {
       "path": "test/integration/BorrowerAccountOrigination.t.sol",
       "sha256": "dfb91449340be85a724ee8012773d2e81a9729a548e17b0eae85b267f529b044"
+    },
+    {
+      "path": "test/integration/GraceTrackerDefault.t.sol",
+      "sha256": "b2eca20e9cfee0916ec9a780e8e097c4ed1cc65e87933280b5a7ab599b9b3047"
     },
     {
       "path": "test/integration/HookDispatch.t.sol",
@@ -697,20 +833,24 @@
       "sha256": "541278850f831b16f739d4090de2023fe93f970f9e80ba476343ee8ca8d02da3"
     },
     {
+      "path": "test/integration/NukeProtection.t.sol",
+      "sha256": "20b91b900aabec22459f4a054aa409fd8d601eceb80aeccf08cc4716a98916af"
+    },
+    {
       "path": "test/integration/ProductionEconomics.t.sol",
       "sha256": "9999aa0aa9b1f9782883497d44288eef575e7f76a40de4ef09b9fd6c98f905e1"
     },
     {
       "path": "test/integration/ProductionMatrixScenarios.t.sol",
-      "sha256": "1501196849d0bb306bcb782120bfe0f57f1fb73954c2967d7135ea99afa35642"
+      "sha256": "a312850065bff19071aac2d1e709d9a3f1884a33254605a1d8819a9d65e1186b"
     },
     {
       "path": "test/integration/RepaymentPrototype.t.sol",
-      "sha256": "5878dc615c29af8abdacf842476da232aa3c3ba7bf97edc12bf3c6a042c82c76"
+      "sha256": "31e6a8170fa0fc05dc5e07d6b9c31517a184c93926b51d1e8b7d9e1404087caf"
     },
     {
       "path": "test/integration/Wildcat4626WrapperIntegration.t.sol",
-      "sha256": "17721e4118e9d41ef38c637fbeb3696978098b4b4a4510644dc4921fa030b8f5"
+      "sha256": "0436cb30b28b4a5b44db4b32902a4eca371ef1bbf0f220f9ab843075c260552e"
     },
     {
       "path": "test/invariants/LifecycleAuthority.t.sol",
@@ -722,11 +862,11 @@
     },
     {
       "path": "test/invariants/LifecycleHandler.sol",
-      "sha256": "c3506737ed9163f90ad6629a7459d999b18e34867b5194753fd5888a97347301"
+      "sha256": "d4a1980796862865244d9bdc7efa10dd9c1fe9592c5f1d83d6275c94961b4344"
     },
     {
       "path": "test/invariants/LifecycleOracle.sol",
-      "sha256": "7a7ccc35936790e3267f4222fed4aedb68edee140d6253ad78531e3f08326e47"
+      "sha256": "00353603943d85bfb8e56bc18d5ef99cef7d64a2b252eea93710004c847cd4a9"
     },
     {
       "path": "test/invariants/LifecycleScenarios.t.sol",
@@ -750,7 +890,7 @@
     },
     {
       "path": "test/invariants/PenaltyLifecycleScenarios.t.sol",
-      "sha256": "a6527470657d2fd97bd13cc0f105bd744716ab7d638dca1f95c45befa937072f"
+      "sha256": "075d5bba7b723a93fdb3f1b957522966c80b505182ef259bfb298e7b7092708f"
     },
     {
       "path": "test/invariants/RepaymentLifecycleInvariant.t.sol",
@@ -826,7 +966,7 @@
     },
     {
       "path": "test/libraries/MarketEvents.t.sol",
-      "sha256": "fe6a71e2860c15afe6c2b0210e4bf2458b1a851023cb5df5297d7cd9b4ad205e"
+      "sha256": "4de9607c28d0882f720e7f14c9000b13fa0c4016b459cf54c12c96ef9c7b2e7d"
     },
     {
       "path": "test/libraries/MarketState.t.sol",
@@ -874,7 +1014,7 @@
     },
     {
       "path": "test/libraries/wrappers/FeeMathExternal.sol",
-      "sha256": "feecc3aeb415f92e3da987ecc05bb8041514f9692c74f039951a02ea12173e85"
+      "sha256": "202f2522661609d5a198e3dcf4aa91eeeb99c7889178d9587559b476dd1a04fb"
     },
     {
       "path": "test/libraries/wrappers/LibStoredInitCodeExternal.sol",
@@ -910,7 +1050,7 @@
     },
     {
       "path": "test/market/ProtocolFeeRoundingReview.t.sol",
-      "sha256": "cae899cac5e53b6ab62d2a8ba0ae8689f65a5b4ba0868c7c5919b2aa5b20f79a"
+      "sha256": "8703673970e8d016954cfd7eb25259f7217ec5e9fde7aa717284291f80aa7dea"
     },
     {
       "path": "test/market/RepayExpiryDelinquency.t.sol",
@@ -922,11 +1062,11 @@
     },
     {
       "path": "test/market/WildcatMarket.t.sol",
-      "sha256": "8a925a8406e82c6a2ab9c66e854b63367ad5b350a365ace9f74b1524c8cf8fe3"
+      "sha256": "27c9839a1aae7ef13801efa26d9e1bcfddbcd8a99786db15408c23d4a9b0ed02"
     },
     {
       "path": "test/market/WildcatMarketBorrowerTransfer.t.sol",
-      "sha256": "d2622ea8983dbd808404da6c1c5df816ccfbd20d650d931ae083ddc88c7be9ba"
+      "sha256": "18e3aa74866aceacfae24940682c7d4d7291b34262dd7789cf939dc671009023"
     },
     {
       "path": "test/market/WithdrawalCounters.t.sol",
@@ -982,7 +1122,7 @@
     },
     {
       "path": "test/mocks/HookDispatchMocks.sol",
-      "sha256": "84b7d32a4ce8c0a847d34085c229fa042526fadd5c7bcb29b16b4a144a0646f4"
+      "sha256": "ef6cc529de8ef2794e5da2ef8c41dd449459b6e35010a6fc229112562b765ef1"
     },
     {
       "path": "test/mocks/HooksConfigCaller.sol",
@@ -998,7 +1138,7 @@
     },
     {
       "path": "test/mocks/LensMocks.sol",
-      "sha256": "8a234915c358ea37be1035dc477248e4aa59baa9cbd5cae661fbbbf429b1a420"
+      "sha256": "86f9f5fb0135f9a364db267bbfd7b63f0c70bb8bc088f8b48ce5862bd88bbc87"
     },
     {
       "path": "test/mocks/LiveBalanceRoleProviderMock.sol",
@@ -1019,6 +1159,10 @@
     {
       "path": "test/mocks/MockRoleProviderFactory.sol",
       "sha256": "6f4a86b3c0df3d68c4e052cfc5540cbbb9ba5189c38b4645c8da8e6a39fcbb24"
+    },
+    {
+      "path": "test/mocks/NukeProtectionMocks.sol",
+      "sha256": "6dcb00da07a5504d965a1dcf5e707e13277dfc2e30c98abcbc73ce6f4e36b970"
     },
     {
       "path": "test/mocks/PeriodicAprMarketMock.sol",
@@ -1066,7 +1210,7 @@
     },
     {
       "path": "test/mocks/WrapperMocks.sol",
-      "sha256": "e2a61036ab885812229f6078051ff5bc1b706edaf21f6b8e48ecb6fa605acec4"
+      "sha256": "8bff108b09bf2010e9e1617e612b66bc685853a5d5bb8348748d1f266c457121"
     },
     {
       "path": "test/mocks/WrapperQueueAccountMock.sol",
@@ -1146,7 +1290,7 @@
     },
     {
       "path": "test/shared/ProductionMatrixFixture.sol",
-      "sha256": "6742bdec39303f18cc8ca87ff94847b6b88bf17e8dd6a5091c5d355b87614b3c"
+      "sha256": "6d5261da551a5385ca484bca910e70eac1c31dd0fd83448065d83f664eab447a"
     },
     {
       "path": "test/shared/TestKernel.sol",
@@ -1178,7 +1322,7 @@
     },
     {
       "path": "test/vault/Wildcat4626Wrapper.t.sol",
-      "sha256": "b5a907cddf291d8dd0018cf617037a62248f3e355f6fede03f745a5b9779ef4c"
+      "sha256": "973dc42c6b047727236940d8233f5f673c1d00422294a2bf4007227558fe2216"
     },
     {
       "path": "test/vault/Wildcat4626WrapperFactory.t.sol",
@@ -1187,48 +1331,80 @@
   ],
   "buildAndToolingFiles": [
     {
-      "path": "foundry.toml",
-      "sha256": "075d71aa8cb805cf47f2bdb5bc8a3c543c365ac1f99589e04ffb2482b9f361c3"
-    },
-    {
       "path": ".foundry-version",
       "sha256": "ddf1ecdfe0d62b1977a1afee6970e6ef28ad373b08f6e9d547a8e58655da7481"
     },
     {
-      "path": "remappings.txt",
-      "sha256": "65229b29cb7f7e8b85b166102ed6858909863de52330ce50effc11ce970e8dda"
+      "path": ".gitignore",
+      "sha256": "50718e21bd59273202554c930ae76c5e971845d97ca820bb87c8f054c0cbebd2"
     },
     {
       "path": ".gitmodules",
       "sha256": "70f5fda3eee73f500abaea3e1a41f6d30f423a7b2249e5a090e1817bf2b176d4"
     },
     {
+      "path": ".node-version",
+      "sha256": "73fb1b615e2043a933be1c0895cde4358036acc28d785692509b822aa53c761f"
+    },
+    {
+      "path": ".prettierrc",
+      "sha256": "c02d23727b6b368489a25e853dc4221e314f51a2a8525f092893502eef781b8d"
+    },
+    {
+      "path": ".solhint.json",
+      "sha256": "21ab5f8641e89c84ebe558b1f92326d3726330211b0e3b9a197d3655550cf2ee"
+    },
+    {
+      "path": ".solhintignore",
+      "sha256": "be486cf04ff7fd1c249ba63f3b8f0f521985878e9b34b0d829eca67641f7f85c"
+    },
+    {
+      "path": ".yarnrc",
+      "sha256": "7c7b0227c277ac86f3b1def687f542c61c44c6ea36820e74370200aee8926156"
+    },
+    {
+      "path": "deployments/write-standard-json.sh",
+      "sha256": "32f9a810a0c4a188c7f890c773f5f011d31c0c96b4313ba2901de71c8bc22510"
+    },
+    {
+      "path": "foundry.toml",
+      "sha256": "075d71aa8cb805cf47f2bdb5bc8a3c543c365ac1f99589e04ffb2482b9f361c3"
+    },
+    {
       "path": "package.json",
-      "sha256": "90eac6ce58c27a438b4c6c20aae9142d4fca766de0668f905cb91dcf7f0eebdf"
+      "sha256": "3214cda89a2d5510220a0fdad5f16edf14f1fe81602c83a285b0db7aa3480dd0"
     },
     {
-      "path": "yarn.lock",
-      "sha256": "0915ddc6fbb8607c4b6825b4aac5fba59962f38515c4e8f54bdcda9277a797ac"
-    },
-    {
-      "path": "scripts/coverage.sh",
-      "sha256": "d2f9c485cc571e3241b7f44e53772c2adda8ee84dedcbef96e9a79a734c14d0f"
-    },
-    {
-      "path": "scripts/coverage-spherex.patch",
-      "sha256": "4f66323793d54f88136317d4cf83f2ca4e299f5a32d0934e8afc643905957286"
-    },
-    {
-      "path": "scripts/research/fastlz-reference.py",
-      "sha256": "05e25e15aafb9358b04360ee52e62bfb88ca6ac6473285074c9067d7a6a82081"
+      "path": "remappings.txt",
+      "sha256": "65229b29cb7f7e8b85b166102ed6858909863de52330ce50effc11ce970e8dda"
     },
     {
       "path": "scripts/check-eip1153.js",
       "sha256": "bfa830a149ddae9f458790051e43217e3f3560dc64dd3e76c9f8f16e5c369c9e"
     },
     {
-      "path": "deployments/write-standard-json.sh",
-      "sha256": "32f9a810a0c4a188c7f890c773f5f011d31c0c96b4313ba2901de71c8bc22510"
+      "path": "scripts/coverage-root/README.md",
+      "sha256": "a417d976af747dc61d4d454d368b172ab3308d4c4ad79eb782da593009cca41e"
+    },
+    {
+      "path": "scripts/coverage-spherex.patch",
+      "sha256": "4f66323793d54f88136317d4cf83f2ca4e299f5a32d0934e8afc643905957286"
+    },
+    {
+      "path": "scripts/coverage.sh",
+      "sha256": "d2f9c485cc571e3241b7f44e53772c2adda8ee84dedcbef96e9a79a734c14d0f"
+    },
+    {
+      "path": "scripts/generate-contract-inventory.js",
+      "sha256": "e49cf851f52538fb46e4325fb7e3d30cb50be2b4fbcea46c4ad57bcfe35f21a7"
+    },
+    {
+      "path": "scripts/research/fastlz-reference.py",
+      "sha256": "05e25e15aafb9358b04360ee52e62bfb88ca6ac6473285074c9067d7a6a82081"
+    },
+    {
+      "path": "yarn.lock",
+      "sha256": "0915ddc6fbb8607c4b6825b4aac5fba59962f38515c4e8f54bdcda9277a797ac"
     }
   ],
   "submodules": {
@@ -1263,7 +1439,7 @@
     "src/providers/TokenInterfaces.sol"
   ],
   "ancillaryExclusions": {
-    "trackedFilesRemoved": 402,
+    "trackedFilesRemoved": 405,
     "areas": [
       "deploy-ui/",
       "deployments/ except write-standard-json.sh",
@@ -1273,11 +1449,43 @@
       "superseded audit inventories and verification records",
       "deployment environment example, TypeScript config and product issue template"
     ],
-    "evidenceOwner": "Original evidence and deployment programs remain byte-for-byte in the pinned release base."
+    "evidenceOwner": "Original evidence and deployment programs remain byte-for-byte in the pinned release base.",
+    "countingBasis": "Tracked paths present at the original release base and absent from the prepared tree, excluding the provider sources listed above."
   },
   "artifactHashEncoding": {
     "bytecode": "SHA-256 of compiled creation/runtime bytes before immutable substitution; metadata disabled.",
     "abi": "SHA-256 of ABI JSON with sorted object keys and compact separators; array order preserved."
+  },
+  "artifactBuild": {
+    "command": "forge build",
+    "profile": "default",
+    "foundryVersion": "1.8.3",
+    "compilerVersion": "0.8.25+commit.b61c2a91",
+    "evmVersion": "cancun",
+    "viaIR": true,
+    "optimizer": {
+      "runs": 1,
+      "details": {
+        "peephole": true,
+        "inliner": true,
+        "jumpdestRemover": true,
+        "orderLiterals": true,
+        "deduplicate": true,
+        "cse": true,
+        "constantOptimizer": true,
+        "yul": true,
+        "yulDetails": {
+          "stackAllocation": true,
+          "optimizerSteps": "dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul:fDnTOcmu"
+        },
+        "simpleCounterForLoopUncheckedIncrement": true
+      }
+    },
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": false
+    },
+    "sourceValidation": "Every artifact metadata source hash matches the prepared files and installed pinned dependencies. No deployed-bytecode comparison or fresh test run is asserted."
   },
   "compiledArtifacts": [
     {
@@ -1440,27 +1648,40 @@
       "artifact": "src/HooksFactory.sol:HooksFactory",
       "scope": "review",
       "creation": {
-        "bytes": 17281,
-        "sha256": "ad41f886885d7e1e6ceeb899efe7de4314d1564e08359182a15fbb9056c39a42"
+        "bytes": 17007,
+        "sha256": "24b2e0623a591eababf77f0b65247ca3a2d5de6befb6402849fbe2d7f907d3c5"
       },
       "runtime": {
-        "bytes": 16568,
-        "sha256": "0b2d6bcfd836435b324bc485f9b7d671bb337c77a8c51a356303c2afc87b6587"
+        "bytes": 16280,
+        "sha256": "48a2cc74f98e3258afa8a9cf977343b14d368177266a61d89592c5505300f950"
       },
-      "abiSha256": "69e3515ba8789c396be01f0b56333ad5e988e521bb0c18f407ce4dd9980c59ea"
+      "abiSha256": "1cce1acd2027f867afbda8b9d68fcfc7fa42267217da32881a02e2fa7e38c03d"
+    },
+    {
+      "artifact": "src/HooksFactoryBase.sol:HooksFactoryBase",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "3b0ec81f8eb053edad10792dff2a508e41142b94dc3a18e8a7adc449fbea752b"
     },
     {
       "artifact": "src/HooksFactoryRevolving.sol:HooksFactoryRevolving",
       "scope": "review",
       "creation": {
-        "bytes": 17831,
-        "sha256": "98e5f328656d5be988ea9baa1c0b29a924fc79cb30617981196348ac7ebf3462"
+        "bytes": 17545,
+        "sha256": "85323d48ad69be159179643644addce9ce8bbc47a49a54ff0d6701d805dc9158"
       },
       "runtime": {
-        "bytes": 17118,
-        "sha256": "e28b8fc6a55f847b445d0d9a6e774ad6248f9f8815ad5534da1d8baf66f77ea6"
+        "bytes": 16818,
+        "sha256": "58ab8433809783f174fb287874933def9e98b2d4384fd0a15fa0738cd304d12a"
       },
-      "abiSha256": "20458a2da52a4b873105d4ab293737890115e9db6b95c2af52b740c646d4d05c"
+      "abiSha256": "1733b6bf304c3d10a1eea88122aa11b38ce210dad1d51e31d04709efe776a775"
     },
     {
       "artifact": "src/IHooksFactory.sol:IHooksFactory",
@@ -1473,7 +1694,20 @@
         "bytes": 0,
         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "abiSha256": "f259e29efbd381cf25001b8d180a247258af60f670eaa67ddc696aafcd169fe4"
+      "abiSha256": "f30a826795930876b4421a6232af15fdf8fbdeb7c52143ef05034b0a1a66a02b"
+    },
+    {
+      "artifact": "src/IHooksFactory.sol:IHooksFactoryBase",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "014b40aed0cacd392eceed2b351b246817a263552a3ed8948f6806554975e897"
     },
     {
       "artifact": "src/IHooksFactory.sol:IHooksFactoryEventsAndErrors",
@@ -1486,7 +1720,7 @@
         "bytes": 0,
         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "abiSha256": "86f0b81461e398955209c0aadd75b9c63ec73bd691e93b1d7afe6466e5f88e7c"
+      "abiSha256": "9bb439fc2f2c2009b43b8be4fe0d9e4a421c72c8dd459a0f54546876184ce92c"
     },
     {
       "artifact": "src/IHooksFactoryRevolving.sol:IHooksFactoryRevolving",
@@ -1499,7 +1733,7 @@
         "bytes": 0,
         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "abiSha256": "62b333a6f2e514575085a1a9c57cd8e457449c96583fbee9df96f6e222a04644"
+      "abiSha256": "4b4d0c1c551742284e589aeeef807b9c3d8981162b483c66e1d92fd52f03f4ad"
     },
     {
       "artifact": "src/ReentrancyGuard.sol:ReentrancyGuard",
@@ -1531,12 +1765,12 @@
       "artifact": "src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry",
       "scope": "review",
       "creation": {
-        "bytes": 4342,
-        "sha256": "c0aa49b0e848320eeeff46267bb6d5aeb9f79b8a925ad64842918c82ac45745e"
+        "bytes": 4299,
+        "sha256": "d220efbba02d69f0986be79800342fdf7d2cba7e54c7461a8b2777438e439684"
       },
       "runtime": {
-        "bytes": 4164,
-        "sha256": "9e0306c046d7c65c76a123874fe4239c70dd6a7e7a0d09e122c6b4a720da2507"
+        "bytes": 4121,
+        "sha256": "8864a164b0c7edde393da39819aff65363554dddf55b7b5b49cb9fec5058a410"
       },
       "abiSha256": "e7e3fef29ba9e38ac58940517f10590297853e06a26ecfd747d19a425855f2d0"
     },
@@ -1570,12 +1804,12 @@
       "artifact": "src/access/BaseAccessControls.sol:BaseAccessControls",
       "scope": "review",
       "creation": {
-        "bytes": 7411,
-        "sha256": "8b24b287589198497d889fd5011e6f2a6253addd92ef0c44d15c3c69cc44c32c"
+        "bytes": 7362,
+        "sha256": "4251ef8c806d9b3531dda2cdab2207a88bce40a1949d02dfbeb5bc08f764096e"
       },
       "runtime": {
-        "bytes": 7255,
-        "sha256": "be79eab391b0260a08e700933991315ebc944c48cfb036b3e4bf35cb794fd416"
+        "bytes": 7206,
+        "sha256": "74eb505ee6cc0ee3d0ac7ced6140356c5eb9f2e5a80192579c7c817d4b676ea9"
       },
       "abiSha256": "0ec09b814b42ade99de4853c3465f717832328ce966e129624bdaa6cca015aed"
     },
@@ -1596,12 +1830,12 @@
       "artifact": "src/access/FixedTermHooks.sol:FixedTermHooks",
       "scope": "review",
       "creation": {
-        "bytes": 19470,
-        "sha256": "665dc5bd06d2ffc763bf600e2e363398a2f9b6378fa2737b214ebe94febc6cb2"
+        "bytes": 19396,
+        "sha256": "c2e440d7e1ae18ab4d39e1e1d0bdca491c089533cc7f8d31ba0f4e3c15eba5f1"
       },
       "runtime": {
-        "bytes": 16985,
-        "sha256": "5ab245dbed4cd7fb33d184463446bd4f7ac3831a54908d49712bff5beabd7ba3"
+        "bytes": 16911,
+        "sha256": "c17b777ad6eb6e9df601dbdc3157bb036a71f6862338c42868e364ea0ea4d87d"
       },
       "abiSha256": "709801749716c183bdcc5a111454a878420ee6ca5823dbe0ade733f81f51ad99"
     },
@@ -1739,12 +1973,12 @@
       "artifact": "src/access/OpenTermHooks.sol:OpenTermHooks",
       "scope": "review",
       "creation": {
-        "bytes": 17955,
-        "sha256": "975d5f1c2d4178390f10d1ee83e13a6974a4874a1bbf8941c44009658125f690"
+        "bytes": 17892,
+        "sha256": "2908d4bf774e290da1d704c238fac1620a7d15361e5c4e32839bbff7b63e51f8"
       },
       "runtime": {
-        "bytes": 15471,
-        "sha256": "bcf3e8d441b495df60cf54f275a776e372740c006885f836680e312c4ea4869d"
+        "bytes": 15408,
+        "sha256": "babe7cf6b870e6f93eb134d33e2d390b069a36a2c7607c7a99b4c1604a8c9a2d"
       },
       "abiSha256": "b0b2849fa7c9e63b59d27c1b6917de53029116ced190d3c83c16e208877c6e5e"
     },
@@ -1765,12 +1999,12 @@
       "artifact": "src/access/PeriodicTermHooks.sol:PeriodicTermHooks",
       "scope": "review",
       "creation": {
-        "bytes": 22708,
-        "sha256": "a3458328d8273943f7cb0534c3c4bba761ed976735c379624702e63537ef283b"
+        "bytes": 22630,
+        "sha256": "88a702abfdb4971a5099d67898bc38148f527406315d936a314b3a5b891718ed"
       },
       "runtime": {
-        "bytes": 20223,
-        "sha256": "a3c2fec1e339cc9c3e285a011776da54d5e6bcccd4e8e3a6eea4ff926939dec9"
+        "bytes": 20145,
+        "sha256": "61aeef2129e567f4e0bb3a8a5a4ee419f4d59d6fc6b156853ee3897e480289e1"
       },
       "abiSha256": "7546769419be9306f96c42481cdcc8b244e58e7bb751c27033b6122bce711ded"
     },
@@ -1850,7 +2084,20 @@
         "bytes": 0,
         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "abiSha256": "8ff8349a2abe60bd936df01fe36beacf1f3a356640f00424b638ffa19171bf34"
+      "abiSha256": "8810d2988f8f236c1cf6d5908c7a33c1d8d6dadedf8f20ee28f7193cf797c90b"
+    },
+    {
+      "artifact": "src/interfaces/INukeProtectionMarket.sol:INukeProtectionMarket",
+      "scope": "review",
+      "creation": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "runtime": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "abiSha256": "e947cb9df546f753d535ae8597441b22f9f6986cdb0843677b501345c9a42465"
     },
     {
       "artifact": "src/interfaces/ISphereXProtectedRegisteredBase.sol:ISphereXProtectedRegisteredBase",
@@ -1876,7 +2123,7 @@
         "bytes": 0,
         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "abiSha256": "0c4db0a5b0f13d5f8c004b871554680af83e84d388afe0e0ba81dd6da5804944"
+      "abiSha256": "b188407209e9f51047662fc9cd20eef2ed1dac0ea43219ad8d36132399f28cdd"
     },
     {
       "artifact": "src/interfaces/IWildcatMarketRevolving.sol:IWildcatMarketRevolving",
@@ -2038,12 +2285,12 @@
       "artifact": "src/lens/MarketLensAggregator.sol:MarketLensAggregator",
       "scope": "review",
       "creation": {
-        "bytes": 22632,
-        "sha256": "709ddc257341924441546c64702d03f79367a38cbcba0355b487af98400eab02"
+        "bytes": 22101,
+        "sha256": "d5c2879bf69f33993fe83d468925ffc24a34b7b588f18f86d9cdc8f658d704bd"
       },
       "runtime": {
-        "bytes": 22364,
-        "sha256": "00c6294fd139364bcf9293366427fec00de2cdd9d01b94cc4b0f0df9d906c865"
+        "bytes": 21833,
+        "sha256": "9d7ba9e90f058a4c2dc4d8c11cbd37b96d6cc5b3d2a5377d41e59cd07a463322"
       },
       "abiSha256": "6591d6cd41c8a2616636bb7655998a05e3b0f5e0c741d8310149c5ac96b937cb"
     },
@@ -2402,27 +2649,27 @@
       "artifact": "src/market/WildcatMarket.sol:WildcatMarket",
       "scope": "review",
       "creation": {
-        "bytes": 25623,
-        "sha256": "edb872026c8e2015c2dec0df0dda8028a34d695ec4be9d94593e7e3de43a7e1d"
+        "bytes": 25065,
+        "sha256": "625b9dc3926153e32823e0c32713948adeac2f6a8b1e0ce2d013b4071797f59f"
       },
       "runtime": {
-        "bytes": 23985,
-        "sha256": "6e6df41c13c1be0ac4f330cff1fae352849497d8b981d777513d15e7a136bd16"
+        "bytes": 23428,
+        "sha256": "5f390e2791237e188b8afbb2f74c8dfe52128660866c049fe68103e9e2aca8b5"
       },
-      "abiSha256": "e3e45bd8354e61a7c6f1e597fce2d93d16a13a79e68f6e32ba969fedadb84b43"
+      "abiSha256": "759f7aaa3eed008476bc78570cf99e50e213ca55492a32341b7d970773156946"
     },
     {
       "artifact": "src/market/WildcatMarketBase.sol:WildcatMarketBase",
       "scope": "review",
       "creation": {
-        "bytes": 11005,
-        "sha256": "9a86775ff40e59e0a1c1e563ad81a35b627408289124eebd56149023f3c26439"
+        "bytes": 10699,
+        "sha256": "115371125452936c55b542222946b27008fe546cc7a0571059377d52d0f6f9b3"
       },
       "runtime": {
-        "bytes": 9549,
-        "sha256": "f53116325445fd8f4ed8dacdeab780b88c5c86677bb53e2bc666ea4299021387"
+        "bytes": 9265,
+        "sha256": "02c42fdcd6750305edd8d3e1bdf1644348aecf47550eda9659ba67740673bbd4"
       },
-      "abiSha256": "493d88dbc626d4f33c8255927992986b9fcfcfc5c78c4975990ebcfe7cbf8348"
+      "abiSha256": "b31b8355bc23db752ac3ea258fa6f8edbb3f2e88b8040f5302fc52a2af7aa906"
     },
     {
       "artifact": "src/market/WildcatMarketConfig.sol:IPeriodicTermAprReductionHooks",
@@ -2441,53 +2688,53 @@
       "artifact": "src/market/WildcatMarketConfig.sol:WildcatMarketConfig",
       "scope": "review",
       "creation": {
-        "bytes": 16215,
-        "sha256": "ab29663358efcfbe1ad32132af9a3b16cba4d5c7d63ebbf42eccdcb56865daa5"
+        "bytes": 16003,
+        "sha256": "0dcb690f5746fe981835cc84235e7edfa6f4aa8ee6580e334437b6f332b16075"
       },
       "runtime": {
-        "bytes": 14738,
-        "sha256": "55a3d793876eedf825d2835fa646e7a5896af69bf98832d350f7c67fb675fb2c"
+        "bytes": 14527,
+        "sha256": "393b86a055a40955d023c39182e548ddbaeea86a8b5e4448bf857b6ef606c2c2"
       },
-      "abiSha256": "6364b754e58fcebe785460c2d73c57a00d543b956f7655c3d902acd10a85c5c9"
+      "abiSha256": "cf8bde7c92041f70e7b0fabae01323ca6dfd7d28b2e48d957460cf59a2fd1ade"
     },
     {
       "artifact": "src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving",
       "scope": "review",
       "creation": {
-        "bytes": 26243,
-        "sha256": "45314e544451974d893745fd76baa70c425e99a377fba57ece7ac1a4dc38d3e1"
+        "bytes": 25682,
+        "sha256": "738b774dc528e0fde012dee330f0cb2f6c217195bda7e4f031f52d1926d5a97d"
       },
       "runtime": {
-        "bytes": 24541,
-        "sha256": "87b622830f21dbd151b9722d0d607e96edfea4b5a0233902a778385d44a3ab86"
+        "bytes": 23981,
+        "sha256": "654ff1f65c69e74f20bb1b417fa78a0f365f9298be9d28a88b33d4a1ae79b593"
       },
-      "abiSha256": "f831ab8b9e04e2b2b3f36ff7aa676b6732f03a12279c80c39ceb6d0a439ce348"
+      "abiSha256": "c6106e040545ca8eecf39c9ef4417861bb2fe36e79592c2351f9fe9af334312c"
     },
     {
       "artifact": "src/market/WildcatMarketToken.sol:WildcatMarketToken",
       "scope": "review",
       "creation": {
-        "bytes": 14561,
-        "sha256": "f0d8feda7a06caf3841fedb4492ae85fd146112d928fd9380391ce224298ef8e"
+        "bytes": 14347,
+        "sha256": "5c7be0d4003009bc0a1cd7d67561e8c4abe034184844a2373804a14ac76f041e"
       },
       "runtime": {
-        "bytes": 13133,
-        "sha256": "31327d00b82c8a0d72f464f13fa094ebe7b1a29d3e1697cd567b66566095cb72"
+        "bytes": 12927,
+        "sha256": "7bcc61ba72770be8b63f07a7a5df9944858c84644b3152c3885213de4c686510"
       },
-      "abiSha256": "dabb8b1755b478cd854c18cdff692c9cad51452d8c4f26fdb27efa7a531b3e54"
+      "abiSha256": "f4c178a7ef4005aff95d842c4137f7006842500d18f0406dd36310c4a8f8f8be"
     },
     {
       "artifact": "src/market/WildcatMarketWithdrawals.sol:WildcatMarketWithdrawals",
       "scope": "review",
       "creation": {
-        "bytes": 18033,
-        "sha256": "fec6bd5babd95a5398b6c4ac79e5981477ffe096c7e0e9b595fced453e891887"
+        "bytes": 17791,
+        "sha256": "1573b1d99be1ee78d9789f6f8f09f3dd6be85ecf122d829adad8d6978138e0cc"
       },
       "runtime": {
-        "bytes": 16556,
-        "sha256": "3146f81e6816ba8851a3c8be7c0f3bc410067a5dbe59c4688a4dc977ef7eeef7"
+        "bytes": 16322,
+        "sha256": "dff9e8edf3cdef26caedf6172163f0f82c6cb7f7834a65f3a9738f7a8a81cd25"
       },
-      "abiSha256": "74c09904e305e425e39f4ea7ed4604c8ca8c4d23bfad5179b4dfed6ab614f283"
+      "abiSha256": "ad258d89af34e374cc8fa563fafd65cca9f7e48907115d9e618ad2df969f6a81"
     },
     {
       "artifact": "src/providers/AccessListRoleProvider.sol:AccessListRoleProvider",
@@ -2662,12 +2909,12 @@
       "artifact": "src/vault/Wildcat4626Wrapper.sol:Wildcat4626Wrapper",
       "scope": "review",
       "creation": {
-        "bytes": 10232,
-        "sha256": "f1008e85276d9598dd7951b6ecc104480530b2518dfe0c3520f1b944d46fa42e"
+        "bytes": 10705,
+        "sha256": "194e2cc1f472a855a3a0169ef345bdc49c6189227ef8b5c12d338934abd82e05"
       },
       "runtime": {
-        "bytes": 8687,
-        "sha256": "4736468fa1bc255344a758b8c2e9cd1ab0742eb6fc00d72fd351436563707a43"
+        "bytes": 8793,
+        "sha256": "4fea6aadc2d257c0c0c2315294a775b61f511214ebe632ff8e78759978973d30"
       },
       "abiSha256": "a264bdab8aaa4432421dc74b226ae5ec9bdf491dbf247bf2169c624392ac11d6"
     },
@@ -2714,12 +2961,12 @@
       "artifact": "src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory",
       "scope": "review",
       "creation": {
-        "bytes": 12600,
-        "sha256": "579c3a89ea03ef7c7248a1e19e20eb9efdfb6942421aae7ebe39ca8b65292cd2"
+        "bytes": 13210,
+        "sha256": "27053b147920245d1245a7f339a65c4f6d262700b9dfd482e70718d9529cdfa1"
       },
       "runtime": {
-        "bytes": 12216,
-        "sha256": "5c3facaec5cc9fb9f214f0367a1b285fb902d09832664f4adc31aaa2a52c2fbe"
+        "bytes": 12826,
+        "sha256": "a00ea28fafc4b824dceb0382346bf374589ac27920d26d1823f582ddb30a2093"
       },
       "abiSha256": "6c5f646349b3f76e4b1b71c7c90f40bdbf732d26960ffb9afa17fcdad70680da"
     }
@@ -2727,6 +2974,6 @@
   "compilerContext": {
     "retainedInput": "lib/solady/src/utils/MerkleProofLib.sol",
     "importedBy": "test/mocks/LiveBalanceRoleProviderMock.sol",
-    "reason": "Retain release compiler context after excluding the Merkle provider. Removing this input changes compiler-generated IDs and lens optimizer output under Solidity 0.8.25. The canonical full test build matches the release artifacts; arbitrary narrowed input graphs are not guaranteed to do so."
+    "reason": "Retain the compiler input used during the original provider pruning. Removing it can change compiler-generated identifiers and optimized lens bytecode under Solidity 0.8.25. Use the canonical full test build graph when reproducing these artifacts."
   }
 }

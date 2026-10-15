@@ -105,9 +105,7 @@ market's deadline inclusive.
 ## Grace Tracker default
 
 Every new v2.5 market uses its Grace Tracker, `state.timeDelinquent`, to trigger
-default when it exceeds `delinquencyGracePeriod + 90 days`. This implements the
-tracker-based rule confirmed on 2026-10-15. It replaces the earlier source
-candidate's separate consecutive-delinquency clock.
+default when it exceeds `delinquencyGracePeriod + 90 days`.
 
 The tracker increases by one second per second of delinquency and decreases by
 one second per healthy second, stopping at zero. Clearing a reserve shortfall
@@ -132,11 +130,9 @@ There is no administrative setter, clearing function, or reason field. Later
 recovery, repayment, authority changes, closure, or another trigger do not
 replace that timestamp. The market stores no separate default countdown.
 
-The correction changes no public ABI, hook-state tuple, or event payload.
-Consumers of the committed `defaultedAt` marker keep the same read path; any
-off-chain prediction must use the decaying tracker rather than a consecutive
-delinquency run. This v2.5 source rule does not rewrite older markets' terms
-or historical default calculations.
+Off-chain predictions must use the decaying tracker rather than a consecutive
+delinquency run. Older immutable markets retain their original terms and
+default behavior.
 
 ## Automatic closure and collection
 

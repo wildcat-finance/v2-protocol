@@ -4,8 +4,10 @@ These pages describe contract changes and integration compatibility between
 versions. Addresses, factory lifecycle, and transaction receipts are recorded
 in [`deployments/`](https://github.com/wildcat-finance/v2-protocol/tree/bfe1412141f263ba6b056c60c3f4654a461598dd/deployments).
 
-The [audit scope](./v2.5-audit-scope.md) and its file manifest define this
-branch. Historical inventories remain in the release repository.
+The [audit scope](./v2.5-audit-scope.md) defines this branch's review boundary.
+The [manifest](./v2.5-audit-manifest.json) records the prepared source inventory.
+The retained October 5 verification artifacts describe the initial snapshot,
+before the subsequent contract changes.
 
 ## v2.5.8
 
@@ -14,6 +16,9 @@ integration contracts, keeps those contracts operational when sanctioned, and
 derives [delinquency default](../protocol/repayment-and-default.md#grace-tracker-default)
 from the decaying Grace Tracker. Wrapper deployment remains optional, and the
 repayment deadline remains an independent default trigger.
+
+Grace Tracker default replaces the earlier consecutive-delinquency clock
+without changing the public ABI, hook-state tuples, or event payloads.
 
 ## v2.5
 
@@ -42,12 +47,12 @@ A later tag does not extend an earlier review's source scope.
 
 ## v2.5 review material
 
-- [Audit scope](./v2.5-audit-scope.md): current source identity, review boundary,
+- [Audit scope](./v2.5-audit-scope.md): current review boundary,
   security properties, exclusions, and test accounting.
-- [Scope manifest](./v2.5-audit-manifest.json): retained source hashes, artifact
-  identities, and supporting-file inventory.
-- [Verification receipt](./v2.5-audit-verification.json): results for this
-  pruned package, including source and artifact comparisons.
+- [Scope manifest](./v2.5-audit-manifest.json): current source hashes, normalized
+  and physical line counts, artifact identities, and supporting-file inventory.
+- [October 5 verification receipt](./v2.5-audit-verification.json): historical
+  checks of the initial pruned snapshot, including source and artifact comparisons.
 - [2026-10-05 release test review](./test-review-2026-10-05.json): historical
   full-provider-suite results and partial coverage. Its 958-test total predates
   this package's provider exclusions.
@@ -55,3 +60,5 @@ A later tag does not extend an earlier review's source scope.
 The earlier audit packet and deployment evidence are available at the
 [release base](https://github.com/wildcat-finance/v2-protocol/tree/bfe1412141f263ba6b056c60c3f4654a461598dd).
 Their source boundaries and measurements do not override this package's scope.
+Recheck the manifest and refresh verification against the final committed
+audit snapshot when preparing the quote package.

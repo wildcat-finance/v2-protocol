@@ -120,8 +120,8 @@ itself cannot be rescued.
 Automatic closure bypasses the closure hook. Manual closure retains its hook
 checks and surplus transfer. A permanent `defaultedAt` marker is independent
 of either closure path. See [repayment and default](./repayment-and-default.md)
-for dated funding, Grace Tracker default and the distinction between stored and accrued
-lifecycle state.
+for dated funding, Grace Tracker default and the distinction between stored
+and accrued lifecycle state.
 
 ## Borrower identity and transfer
 
@@ -146,9 +146,12 @@ Both steps resolve the target through the borrower identity registry and apply
 current registration and raw sanctions checks. Acceptance changes borrower
 identity. It does not change market accounting or lifecycle state.
 
-The canonical ERC-4626 wrapper follows the market's live borrower and principal. Hooks and role providers do not transfer implicitly because they may be shared across markets and have separate authority domains.
+The canonical ERC-4626 wrapper follows the market's live borrower and principal.
+Hooks and role providers do not transfer implicitly because they may be shared
+across markets and have separate authority domains.
 
-See [Borrower Identity and Transfers](./borrower-identity.md) for the full state model, transfer cases, events, and integration requirements.
+See [borrower identity and transfers](./borrower-identity.md) for the full state
+model, transfer cases, events, and integration requirements.
 
 ## Related mechanics
 

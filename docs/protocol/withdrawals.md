@@ -119,7 +119,9 @@ to `maxBatches` and FIFO order.
 _Execution_ transfers a lender's paid pro-rata claim out of the market. Anyone
 can execute for an account and batch once it is no longer the current pending
 batch, normally after expiry or after closure releases it. If the lender is
-sanctioned, the market sends the assets to that lender's sanctions escrow.
+sanctioned and unprotected, the market sends the assets to that lender's
+sanctions escrow. [Protected integrations](../integrations/nuke-protection.md)
+receive their withdrawals directly.
 
 New v2.5 markets never call `onExecuteWithdrawal`, including markets without
 repayment terms. They reject a hook configuration enabling it. A hook cannot

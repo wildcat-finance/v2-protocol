@@ -104,9 +104,9 @@ overrides, and derives sanctions escrows.
 
 ### Sanctions escrow
 
-A contract that holds underlying owed to a sanctioned lender after a paid
-withdrawal is executed. The assets become releasable if the oracle clears the
-account or the borrower adds an override.
+A contract that holds underlying assets or wrapper shares quarantined for a
+sanctioned, unprotected lender. The assets become releasable if the oracle
+clears the account or the principal associated with the escrow adds an override.
 
 ### Vault
 
@@ -255,4 +255,5 @@ paid batch can no longer accept requests.
 
 The transfer of a lender's share from a paid batch after expiry or closure
 releases the batch. Anyone can execute for an account and batch. Assets owed to
-a sanctioned account go to its sanctions escrow.
+a sanctioned, unprotected account go to its sanctions escrow;
+[protected integrations](../integrations/nuke-protection.md) receive them directly.

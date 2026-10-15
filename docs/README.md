@@ -1,7 +1,10 @@
 # Technical documentation
 
 Contract behavior and integration guides for security reviewers. Start with
-the [audit scope](./releases/v2.5-audit-scope.md) for this branch's source boundary.
+the [audit scope](./releases/v2.5-audit-scope.md), then the
+[market model](./protocol/markets.md), [repayment lifecycle](./protocol/repayment-and-default.md),
+and [security assumptions](./security/assumptions.md). The guides below cover
+individual accounting and integration paths.
 
 Use the documentation from the same tag or commit as the contracts you are
 working with. [Release notes](./releases/README.md) describe compatibility
@@ -61,6 +64,6 @@ this audit snapshot does not attest deployed state.
 ## Review and release context
 
 - [Audit scope](./releases/v2.5-audit-scope.md): source identity, exclusions,
-  security properties, and verification
+  security properties, and evidence boundaries
 - [Release notes](./releases/README.md): source boundaries and compatibility
   changes from v2.0 and v2.1
