@@ -53,7 +53,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     MarketState memory state = _getUpdatedState();
 
     uint104 scaledAmount = state.scaleAmountDown(amount).toUint104();
-    if (scaledAmount == 0) revert_NullBurnAmount();
+    if (scaledAmount == 0) revertWithSelector(NullBurnAmount_ErrorSelector);
 
     Account memory account = _getAccount(msg.sender);
 
@@ -78,7 +78,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     MarketState memory state = _getUpdatedState();
 
     uint104 amount = scaledAmount.toUint104();
-    if (amount == 0) revert_NullBurnAmount();
+    if (amount == 0) revertWithSelector(NullBurnAmount_ErrorSelector);
 
     Account memory account = _getAccount(msg.sender);
 
@@ -97,7 +97,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     Account memory account = _getAccount(msg.sender);
 
     uint104 scaledAmount = account.scaledBalance;
-    if (scaledAmount == 0) revert_NullBurnAmount();
+    if (scaledAmount == 0) revertWithSelector(NullBurnAmount_ErrorSelector);
 
     uint256 normalizedAmount = state.normalizeAmount(scaledAmount);
 
@@ -130,7 +130,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
       if (state.isClosed && _withdrawalData.batches[expiry].scaledTotalAmount != 0) {
         expiry += 1;
         if (_withdrawalData.batches[expiry].scaledTotalAmount != 0) {
-          revert_WithdrawalBatchKeyAlreadyExists();
+          revertWithSelector(WithdrawalBatchKeyAlreadyExists_ErrorSelector);
         }
       }
 
@@ -204,7 +204,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     }
 
     MarketState memory state = _getUpdatedState(repayAmount == 0);
-    if (state.isClosed && repayAmount != 0) revert_RepayToClosedMarket();
+    if (state.isClosed && repayAmount != 0) revertWithSelector(RepayToClosedMarket_ErrorSelector);
 
     uint256 currentTotalAssets;
     if (repayAmount > 0) {
@@ -307,7 +307,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     sphereXGuardExternal
     returns (uint256[] memory amounts)
   {
-    if (accountAddresses.length != expiries.length) revert_InvalidArrayLength();
+    if (accountAddresses.length != expiries.length) revertWithSelector(InvalidArrayLength_ErrorSelector);
 
     amounts = new uint256[](accountAddresses.length);
 
@@ -332,7 +332,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     returns (uint256)
   {
     WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
-    if (expiry == state.pendingWithdrawalExpiry) revert_WithdrawalBatchNotExpired();
+    if (expiry == state.pendingWithdrawalExpiry) revertWithSelector(WithdrawalBatchNotExpired_ErrorSelector);
 
     AccountWithdrawalStatus storage status = _withdrawalData.accountStatuses[expiry][accountAddress];
 
@@ -342,7 +342,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     uint128 normalizedAmountWithdrawn = newTotalWithdrawn - status.normalizedAmountWithdrawn;
 
-    if (normalizedAmountWithdrawn == 0) revert_NullWithdrawalAmount();
+    if (normalizedAmountWithdrawn == 0) revertWithSelector(NullWithdrawalAmount_ErrorSelector);
 
     status.normalizedAmountWithdrawn = newTotalWithdrawn;
     state.normalizedUnclaimedWithdrawals -= normalizedAmountWithdrawn;
@@ -386,7 +386,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     // funded closure can release the batch before expiry. preview and execution must agree.
     if (expiry == state.pendingWithdrawalExpiry || (expiry >= block.timestamp && !state.isClosed)) {
-      revert_WithdrawalBatchNotExpired();
+      revertWithSelector(WithdrawalBatchNotExpired_ErrorSelector);
     }
 
     // use the previewed batch when available. storage may not include this block's funding yet.

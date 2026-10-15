@@ -80,7 +80,7 @@ library HooksTemplateDataLib {
     data.fees.fill(template, factory, borrower);
     uint256 hash;
     (data.initCodeHash.isPresent, hash) = OptionalDataLib.readWord(
-      address(factory), abi.encodeCall(IHooksFactory.getHooksTemplateInitCodeHash, (hooksTemplate))
+      address(factory), abi.encodeCall(IHooksFactoryBase.getHooksTemplateInitCodeHash, (hooksTemplate))
     );
     data.initCodeHash.value = bytes32(hash);
   }

@@ -37,6 +37,7 @@ pragma solidity 0.8.25;
 //  maxDeposit(...)
 //  previewDeposit(...)
 //  mint(...)
+//  _receiveAssets(...)
 //  maxMint(...)
 //  previewMint(...)
 //  _maxDepositAndScaleFactor(...)
@@ -49,6 +50,7 @@ pragma solidity 0.8.25;
 //  maxWithdraw(...)
 //  previewWithdraw(...)
 //  redeem(...)
+//  _releaseAssets(...)
 //  maxRedeem(...)
 //  previewRedeem(...)
 //
@@ -84,13 +86,16 @@ pragma solidity 0.8.25;
 //  _isLimitOperational(...)
 //
 //  MARKET READERS
-//  _readMarketAddress(...)
-//  _readMarketWord(...)
-//  _readMarketWord(...)
+//  _scaleFactor()
+//  _scaledBalance()
+//  _borrowerPrincipal()
+//  _borrower()
+//  _marketBalance()
 //  _tryReadMarketAddress(...)
 //  _tryReadMarketWord(...)
 //  _tryReadMarketWord(...)
 //  _tryReadScaleFactor()
+//  _tryStaticcallWord(...)
 // ═════
 
 import { ERC4626 } from 'solady/tokens/ERC4626.sol';
@@ -230,29 +235,20 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     if (marketAddress == address(0)) revert ZeroAddress();
 
     wrappedMarket = IWildcatMarketToken(marketAddress);
-    if (msg.sender != _readMarketAddress(IWildcatMarketToken.wrapperFactory.selector)) {
+    if (msg.sender != wrappedMarket.wrapperFactory()) {
       revert NotWrapperFactory();
     }
-    address currentBorrower = _readMarketAddress(IWildcatMarketToken.borrower.selector);
+    address currentBorrower = _borrower();
     if (currentBorrower == address(0)) revert ZeroAddress();
-    if (_readMarketAddress(IWildcatMarketToken.borrowerPrincipal.selector) == address(0)) {
+    if (_borrowerPrincipal() == address(0)) {
       revert ZeroAddress();
     }
-    address sentinel = _readMarketAddress(IWildcatMarketToken.sentinel.selector);
+    address sentinel = wrappedMarket.sentinel();
     if (sentinel == address(0)) revert ZeroAddress();
     sanctionsSentinel = IWildcatSanctionsSentinel(sentinel);
-    HooksConfig hooksConfig = HooksConfig.wrap(_readMarketWord(IWildcatMarketToken.hooks.selector));
+    HooksConfig hooksConfig = wrappedMarket.hooks();
     _transferPolicy = IMarketTransferPolicy(hooksConfig.hooksAddress());
-    uint256 marketDecimals = _readMarketWord(IERC20Metadata.decimals.selector);
-    if (marketDecimals > type(uint8).max) {
-      // decimals() promises a uint8, but the shared reader gives us the whole return word. keep
-      // the range check Solidity's decoder would perform, then fail without adding an error
-      // selector just for malformed market data.
-      assembly ('memory-safe') {
-        revert(0, 0)
-      }
-    }
-    _decimals = uint8(marketDecimals);
+    _decimals = wrappedMarket.decimals();
 
     string memory marketSymbol = IERC20Metadata(marketAddress).symbol();
     _name = string.concat(marketSymbol, ' [4626 Vault Shares]');
@@ -298,7 +294,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ///
   /// @dev retained as a compatibility getter; sweep authorization reads the same live value.
   function marketOwner() public view returns (address) {
-    return _readMarketAddress(IWildcatMarketToken.borrower.selector);
+    return _borrower();
   }
 
   // ┌─ asset ─────
@@ -312,7 +308,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ///
   /// @dev direct market-token transfers increase this without minting shares.
   function totalAssets() public view override returns (uint256) {
-    return _readMarketWord(IERC20.balanceOf.selector, address(this));
+    return _marketBalance();
   }
 
   // ░░▒▒▓▓██ [ DEPOSITS ] ─────────────────────────────────────────────────────
@@ -345,24 +341,12 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     uint256 limit = _remainingCapacityAssets();
     if (assets > limit) revert CapExceeded();
 
-    uint256 scaleFactor = _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
+    uint256 scaleFactor = _scaleFactor();
     // match the market transfer's floor-scaled credit exactly.
-    uint256 expectedShares = _convertToSharesDown(assets, scaleFactor);
-    if (expectedShares == 0) revert ZeroShares();
+    shares = _convertToSharesDown(assets, scaleFactor);
+    if (shares == 0) revert ZeroShares();
 
-    _requireMarketTokenRecipientAllowed();
-
-    address assetAddress = address(wrappedMarket);
-    uint256 scaledBefore = _readMarketWord(IWildcatMarketToken.scaledBalanceOf.selector, address(this));
-    assetAddress.safeTransferFrom(msg.sender, address(this), assets);
-    uint256 scaledAfter = _readMarketWord(IWildcatMarketToken.scaledBalanceOf.selector, address(this));
-
-    shares = scaledAfter - scaledBefore;
-    if (shares != expectedShares) revert SharesMismatch(expectedShares, shares);
-
-    _mint(receiver, shares);
-    _requireSolvent(scaledAfter);
-    emit Deposit(msg.sender, receiver, assets, shares);
+    _receiveAssets(assets, receiver, shares);
     return shares;
   }
 
@@ -389,7 +373,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256 assets) {
     _requireOperational(msg.sender, address(0));
     if (shares == 0) revert ZeroShares();
-    uint256 scaleFactor = _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
+    uint256 scaleFactor = _scaleFactor();
     assets = _remainingCapacityAssets();
     if (assets == 0 || shares > _convertToSharesDown(assets, scaleFactor)) {
       revert CapExceeded();
@@ -401,12 +385,18 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     uint256 expectedShares = _convertToSharesDown(assets, scaleFactor);
     if (expectedShares != shares) revert SharesMismatch(shares, expectedShares);
 
+    _receiveAssets(assets, receiver, shares);
+  }
+
+  // ┌─ _receiveAssets ─────
+  /// @dev mint only the scaled backing actually received; market transfers can round or reject.
+  function _receiveAssets(uint256 assets, address receiver, uint256 shares) private {
     _requireMarketTokenRecipientAllowed();
 
     address assetAddress = address(wrappedMarket);
-    uint256 scaledBefore = _readMarketWord(IWildcatMarketToken.scaledBalanceOf.selector, address(this));
+    uint256 scaledBefore = _scaledBalance();
     assetAddress.safeTransferFrom(msg.sender, address(this), assets);
-    uint256 scaledAfter = _readMarketWord(IWildcatMarketToken.scaledBalanceOf.selector, address(this));
+    uint256 scaledAfter = _scaledBalance();
 
     uint256 mintedShares = scaledAfter - scaledBefore;
     if (mintedShares != shares) revert SharesMismatch(shares, mintedShares);
@@ -431,7 +421,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @notice return assets required to mint `shares`, rounded up.
   function previewMint(uint256 shares) public view override returns (uint256) {
     if (shares == 0) return 0;
-    uint256 scaleFactor = _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
+    uint256 scaleFactor = _scaleFactor();
     return _convertToAssetsUp(shares, scaleFactor);
   }
 
@@ -463,8 +453,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @dev remaining normalized assets before reaching the market's maxTotalSupply,
   ///      without sanctions checks (execution paths already enforce them).
   function _remainingCapacityAssets() internal view returns (uint256) {
-    uint256 marketCap = _readMarketWord(IWildcatMarketToken.maxTotalSupply.selector);
-    uint256 held = _readMarketWord(IERC20.balanceOf.selector, address(this));
+    uint256 marketCap = wrappedMarket.maxTotalSupply();
+    uint256 held = _marketBalance();
     if (held >= marketCap) return 0;
     return marketCap - held;
   }
@@ -480,23 +470,12 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ///      carry permission. keep this fail closed: if the policy probe breaks, report zero
   ///      capacity instead of breaking the ERC-4626 limit view too.
   function _canReceiveMarketTokens() internal view returns (bool allowed) {
-    address policy = address(_transferPolicy);
-    address marketAddress = address(wrappedMarket);
-    uint256 selectorWord = uint32(IMarketTransferPolicy.isMarketTransferRecipientAllowed.selector);
-    assembly ('memory-safe') {
-      // same layout again: the selector starts at +0x1c, then market and wrapper each get a
-      // normal 32-byte ABI slot.
-      let pointer := mload(0x40)
-      mstore(pointer, selectorWord)
-      mstore(add(pointer, 0x20), marketAddress)
-      mstore(add(pointer, 0x40), address())
-      let success := staticcall(gas(), policy, add(pointer, 0x1c), 0x44, pointer, 0x20)
-
-      // only open capacity when all three checks pass: the call succeeded, returned a full
-      // word, and that word is exactly one. a revert, short return, dirty bool, or ordinary
-      // false all stay closed without breaking the view.
-      allowed := and(success, and(iszero(lt(returndatasize(), 0x20)), eq(mload(pointer), 1)))
-    }
+    (bool success, uint256 word) = _tryStaticcallWord(
+      address(_transferPolicy),
+      abi.encodeCall(IMarketTransferPolicy.isMarketTransferRecipientAllowed, (address(wrappedMarket), address(this)))
+    );
+    // only a canonical true opens capacity; false and malformed answers stay closed.
+    return success && word == 1;
   }
 
   // ░░▒▒▓▓██ [ WITHDRAWALS ] ──────────────────────────────────────────────────
@@ -522,7 +501,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     _requireOperational(msg.sender, receiver);
     if (assets == 0) revert ZeroAssets();
 
-    uint256 scaleFactor = _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
+    uint256 scaleFactor = _scaleFactor();
     // match the market transfer's floor-scaled debit exactly.
     shares = _convertToSharesDown(assets, scaleFactor);
     if (shares == 0) revert ZeroShares();
@@ -531,17 +510,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
       _spendAllowance(owner_, msg.sender, shares);
     }
 
-    uint256 scaledBefore = _readMarketWord(IWildcatMarketToken.scaledBalanceOf.selector, address(this));
-
-    _burn(owner_, shares);
-    address assetAddress = address(wrappedMarket);
-    assetAddress.safeTransfer(receiver, assets);
-    uint256 scaledAfter = _readMarketWord(IWildcatMarketToken.scaledBalanceOf.selector, address(this));
-
-    uint256 burnedShares = scaledBefore - scaledAfter;
-    if (burnedShares != shares) revert SharesMismatch(shares, burnedShares);
-    _requireSolvent(scaledAfter);
-    emit Withdraw(msg.sender, receiver, owner_, assets, shares);
+    _releaseAssets(assets, receiver, owner_, shares);
   }
 
   // ┌─ maxWithdraw ─────
@@ -564,7 +533,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @notice return the ERC-4626 preview of shares for `assets`, rounded up.
   function previewWithdraw(uint256 assets) public view override returns (uint256) {
     if (assets == 0) return 0;
-    uint256 scaleFactor = _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
+    uint256 scaleFactor = _scaleFactor();
     return _convertToSharesUp(assets, scaleFactor);
   }
 
@@ -592,17 +561,23 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
       _spendAllowance(owner_, msg.sender, shares);
     }
 
-    uint256 scaleFactor = _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
+    uint256 scaleFactor = _scaleFactor();
     // ceiling conversion makes the floor-rounded market transfer move exactly `shares`.
     assets = _convertToAssetsUp(shares, scaleFactor);
     if (assets == 0) revert ZeroAssets();
 
-    uint256 scaledBefore = _readMarketWord(IWildcatMarketToken.scaledBalanceOf.selector, address(this));
+    _releaseAssets(assets, receiver, owner_, shares);
+  }
+
+  // ┌─ _releaseAssets ─────
+  /// @dev burn before transferring, then verify the exact scaled debit and remaining backing.
+  function _releaseAssets(uint256 assets, address receiver, address owner_, uint256 shares) private {
+    uint256 scaledBefore = _scaledBalance();
 
     _burn(owner_, shares);
     address assetAddress = address(wrappedMarket);
     assetAddress.safeTransfer(receiver, assets);
-    uint256 scaledAfter = _readMarketWord(IWildcatMarketToken.scaledBalanceOf.selector, address(this));
+    uint256 scaledAfter = _scaledBalance();
 
     uint256 burnedShares = scaledBefore - scaledAfter;
     if (burnedShares != shares) revert SharesMismatch(shares, burnedShares);
@@ -634,7 +609,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @dev this is a pure exchange-rate quote; it ignores sanctions, capacity, and transfer policy.
   function convertToShares(uint256 assets) public view override returns (uint256) {
     if (assets == 0) return 0;
-    uint256 scaleFactor = _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
+    uint256 scaleFactor = _scaleFactor();
     return _convertToSharesDown(assets, scaleFactor);
   }
 
@@ -644,7 +619,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @dev this is a pure exchange-rate quote; it ignores sanctions and wrapper solvency.
   function convertToAssets(uint256 shares) public view override returns (uint256) {
     if (shares == 0) return 0;
-    uint256 scaleFactor = _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
+    uint256 scaleFactor = _scaleFactor();
     return _convertToAssetsDown(shares, scaleFactor);
   }
 
@@ -653,7 +628,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ///
   /// @dev exactly the market scale factor.
   function assetsPerShareRay() external view returns (uint256) {
-    return _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
+    return _scaleFactor();
   }
 
   // ┌─ sharesPerAssetRay ─────
@@ -661,7 +636,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ///
   /// @dev the floored ray inverse of the market scale factor.
   function sharesPerAssetRay() external view returns (uint256) {
-    return MathUtils.mulDiv(RAY, RAY, _readMarketWord(IWildcatMarketToken.scaleFactor.selector));
+    return MathUtils.mulDiv(RAY, RAY, _scaleFactor());
   }
 
   // ┌─ _convertToSharesDown ─────
@@ -701,26 +676,26 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ///
   /// @return amount token units sent to `to`.
   function sweep(address token, address to) external nonReentrant returns (uint256 amount) {
-    if (msg.sender != _readMarketAddress(IWildcatMarketToken.borrower.selector)) {
+    if (msg.sender != _borrower()) {
       revert NotMarketOwner();
     }
     if (token == address(0) || to == address(0)) revert ZeroAddress();
     _checkNotSanctioned(to);
 
     if (token == address(wrappedMarket)) {
-      uint256 scaledBefore = _readMarketWord(IWildcatMarketToken.scaledBalanceOf.selector, address(this));
+      uint256 scaledBefore = _scaledBalance();
       uint256 expectedScaled = totalSupply();
       if (scaledBefore <= expectedScaled) revert ZeroAssets();
 
       uint256 strandedScaled = scaledBefore - expectedScaled;
-      uint256 scaleFactor = _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
+      uint256 scaleFactor = _scaleFactor();
       // ceiling conversion sweeps exactly the scaled surplus, not backing for live shares.
       amount = _convertToAssetsUp(strandedScaled, scaleFactor);
       if (amount == 0) revert ZeroAssets();
 
       token.safeTransfer(to, amount);
 
-      uint256 scaledAfter = _readMarketWord(IWildcatMarketToken.scaledBalanceOf.selector, address(this));
+      uint256 scaledAfter = _scaledBalance();
       uint256 sweptScaled = scaledBefore - scaledAfter;
       if (sweptScaled != strandedScaled) revert SharesMismatch(strandedScaled, sweptScaled);
     } else {
@@ -766,9 +741,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     uint256 shares = balanceOf(account);
     if (shares == 0) return;
 
-    address escrow = sanctionsSentinel.createEscrow(
-      _readMarketAddress(IWildcatMarketToken.borrowerPrincipal.selector), account, address(this)
-    );
+    address escrow = sanctionsSentinel.createEscrow(_borrowerPrincipal(), account, address(this));
     _authorizedEscrows[escrow] = true;
     _transfer(account, escrow, shares);
     emit SanctionedAccountSharesSentToEscrow(account, escrow, shares);
@@ -778,7 +751,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @dev enforces solvency and sanctions on share moves. a sanctioned holder may only move to its
   ///      deterministic escrow; an authorized escrow gets one release under its original principal.
   function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
-    address principal = _readMarketAddress(IWildcatMarketToken.borrowerPrincipal.selector);
+    address principal = _borrowerPrincipal();
     bool fromIsSanctioned = _isSanctioned(from, principal);
     bool toIsSanctioned = _isSanctioned(to, principal);
     bool isEscrowRelease = _isEscrowRelease(from, to);
@@ -818,34 +791,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
 
   // ┌─ _getEscrowAddress ─────
   function _getEscrowAddress(address principal, address account) internal view returns (address escrow) {
-    address sentinel = address(sanctionsSentinel);
-    assembly ('memory-safe') {
-      // _isSanctioned's calldata layout with one extra address. address() is this
-      // wrapper when we're inside Yul.
-      let pointer := mload(0x40)
-      mstore(pointer, 0x1cdf58b0)
-      mstore(add(pointer, 0x20), principal)
-      mstore(add(pointer, 0x40), account)
-      mstore(add(pointer, 0x60), address())
-
-      // reuse the start of the buffer for the return word. on failure, overwrite it with the
-      // complete revert payload and bubble that up instead.
-      if iszero(staticcall(gas(), sentinel, add(pointer, 0x1c), 0x64, pointer, 0x20)) {
-        returndatacopy(pointer, 0, returndatasize())
-        revert(pointer, returndatasize())
-      }
-      // short data can't hold an address. trailing data is fine; we only use the first word.
-      if lt(returndatasize(), 0x20) {
-        revert(0, 0)
-      }
-
-      // an ABI address is 160 bits with zeroes on the left. reject anything in those upper bits
-      // so this behaves like Solidity's normal decoder.
-      escrow := mload(pointer)
-      if shr(160, escrow) {
-        revert(0, 0)
-      }
-    }
+    return sanctionsSentinel.getEscrowAddress(principal, account, address(this));
   }
 
   // ┌─ _checkNotSanctioned ─────
@@ -865,42 +811,12 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   // ┌─ _isSanctioned ─────
   function _isSanctioned(address account) internal view returns (bool) {
     if (account == address(0)) return false;
-    return _isSanctioned(account, _readMarketAddress(IWildcatMarketToken.borrowerPrincipal.selector));
+    return _isSanctioned(account, _borrowerPrincipal());
   }
 
   // ┌─ _isSanctioned ─────
   function _isSanctioned(address account, address principal) internal view returns (bool isSanctioned_) {
-    if (account == address(0)) return false;
-    address sentinel = address(sanctionsSentinel);
-    uint256 selectorWord = uint32(IWildcatSanctionsSentinel.isSanctioned.selector);
-    assembly ('memory-safe') {
-      // borrow the free-memory pointer for calldata and the first return word. nothing needs
-      // this buffer after the assembly block, so leave 0x40 alone.
-      let pointer := mload(0x40)
-
-      // mstore puts the four-byte selector at the right edge of a 32-byte word. starting the
-      // call at +0x1c skips the leading zeroes, so calldata is selector | principal | account.
-      mstore(pointer, selectorWord)
-      mstore(add(pointer, 0x20), principal)
-      mstore(add(pointer, 0x40), account)
-
-      // ask staticcall to write up to the first return word over the start of our buffer. if it
-      // reverts, replace that with the full revert payload and bubble it up.
-      if iszero(staticcall(gas(), sentinel, add(pointer, 0x1c), 0x44, pointer, 0x20)) {
-        returndatacopy(pointer, 0, returndatasize())
-        revert(pointer, returndatasize())
-      }
-
-      // Solidity would reject a short bool or anything other than zero or one. do the same
-      // here. extra return data is fine; the bool still lives in the first word.
-      if lt(returndatasize(), 0x20) {
-        revert(0, 0)
-      }
-      isSanctioned_ := mload(pointer)
-      if gt(isSanctioned_, 1) {
-        revert(0, 0)
-      }
-    }
+    return account != address(0) && sanctionsSentinel.isSanctioned(principal, account);
   }
 
   // ┌─ _tryIsSanctioned ─────
@@ -914,33 +830,12 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     returns (bool success, bool isSanctioned_)
   {
     if (account == address(0)) return (true, false);
-    address sentinel = address(sanctionsSentinel);
-    uint256 selectorWord = uint32(IWildcatSanctionsSentinel.isSanctioned.selector);
-    assembly ('memory-safe') {
-      // borrow three words at the free-memory pointer. calldata is the right-aligned
-      // isSanctioned selector followed by the principal and account words.
-      let pointer := mload(0x40)
-      mstore(pointer, selectorWord)
-      mstore(add(pointer, 0x20), principal)
-      mstore(add(pointer, 0x40), account)
-
-      // +0x1c skips the selector's leading zeroes. 0x44 is four selector bytes plus two address
-      // words. copy at most one return word so an oversized response stays cheap to ignore.
-      success := staticcall(gas(), sentinel, add(pointer, 0x1c), 0x44, pointer, 0x20)
-
-      // a failed call or short word closes the limit without bubbling. trailing data is fine;
-      // the strict reader already follows the same first-word rule.
-      success := and(success, iszero(lt(returndatasize(), 0x20)))
-      if success {
-        isSanctioned_ := mload(pointer)
-
-        // Solidity booleans are exactly 0 or 1. anything else is malformed and closes the limit.
-        success := iszero(gt(isSanctioned_, 1))
-        if iszero(success) {
-          isSanctioned_ := 0
-        }
-      }
-    }
+    uint256 word;
+    (success, word) = _tryStaticcallWord(
+      address(sanctionsSentinel), abi.encodeCall(IWildcatSanctionsSentinel.isSanctioned, (principal, account))
+    );
+    if (!success || word > 1) return (false, false);
+    return (true, word == 1);
   }
 
   // ░░▒▒▓▓██ [ OPERATIONAL CHECKS ] ───────────────────────────────────────────
@@ -948,16 +843,16 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   // ┌─ _requireOperational ─────
   function _requireOperational(address principal) internal view {
     _checkNotSanctioned(address(this), principal);
-    _requireSolvent(_readMarketWord(IWildcatMarketToken.scaledBalanceOf.selector, address(this)));
+    _requireSolvent(_scaledBalance());
   }
 
   // ┌─ _requireOperational ─────
   function _requireOperational(address account, address secondAccount) internal view {
-    address principal = _readMarketAddress(IWildcatMarketToken.borrowerPrincipal.selector);
+    address principal = _borrowerPrincipal();
     _checkNotSanctioned(account, principal);
     _checkNotSanctioned(secondAccount, principal);
     _checkNotSanctioned(address(this), principal);
-    _requireSolvent(_readMarketWord(IWildcatMarketToken.scaledBalanceOf.selector, address(this)));
+    _requireSolvent(_scaledBalance());
   }
 
   // ┌─ _requireSolvent ─────
@@ -991,71 +886,32 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
 
   // ░░▒▒▓▓██ [ MARKET READERS ] ───────────────────────────────────────────────
 
-  // ┌─ _readMarketAddress ─────
-  function _readMarketAddress(bytes4 selector) internal view returns (address value) {
-    uint256 word = _readMarketWord(selector);
-    assembly ('memory-safe') {
-      // shr(160, word) drops the address-sized low bits. anything left is dirty ABI padding,
-      // which Solidity's normal address decoder would reject too.
-      if shr(160, word) {
-        revert(0, 0)
-      }
-      // the upper bits are clean now, so narrowing the first return word to address is safe.
-      value := word
-    }
+  // shared typed reads reduce deployment bytecode with the pinned compiler. check compiled size
+  // before inlining these calls at their use sites; the ABI decoding stays with Solidity.
+
+  // ┌─ _scaleFactor ─────
+  function _scaleFactor() private view returns (uint256) {
+    return wrappedMarket.scaleFactor();
   }
 
-  // ┌─ _readMarketWord ─────
-  function _readMarketWord(bytes4 selector) internal view returns (uint256 value) {
-    address marketAddress = address(wrappedMarket);
-    // turn bytes4 into an ordinary low-end integer before Yul sees it. mstore will put those
-    // four bytes at the right edge of its word, which is what the +0x1c call offset expects.
-    uint256 selectorWord = uint32(selector);
-    assembly ('memory-safe') {
-      // borrow the free-memory pointer for four bytes of input and one word of output. nothing
-      // needs this buffer after the assembly block, so leave 0x40 alone.
-      let pointer := mload(0x40)
-      mstore(pointer, selectorWord)
-
-      // +0x1c skips the 28 leading zero bytes and sends only the selector. ask for one return
-      // word back at the start of the same buffer.
-      if iszero(staticcall(gas(), marketAddress, add(pointer, 0x1c), 0x04, pointer, 0x20)) {
-        // the getter reverted. replace our scratch data with the full revert payload and pass
-        // it through unchanged.
-        returndatacopy(pointer, 0, returndatasize())
-        revert(pointer, returndatasize())
-      }
-
-      // success with less than one word is still malformed. extra data is fine; this helper
-      // only promises the first word.
-      if lt(returndatasize(), 0x20) {
-        revert(0, 0)
-      }
-      value := mload(pointer)
-    }
+  // ┌─ _scaledBalance ─────
+  function _scaledBalance() private view returns (uint256) {
+    return wrappedMarket.scaledBalanceOf(address(this));
   }
 
-  // ┌─ _readMarketWord ─────
-  function _readMarketWord(bytes4 selector, address account) internal view returns (uint256 value) {
-    address marketAddress = address(wrappedMarket);
-    uint256 selectorWord = uint32(selector);
-    assembly ('memory-safe') {
-      // same scratch-buffer layout as the no-argument reader, with account in the next full
-      // ABI slot. four selector bytes plus one 32-byte argument gives us the 0x24 call length.
-      let pointer := mload(0x40)
-      mstore(pointer, selectorWord)
-      mstore(add(pointer, 0x20), account)
-      if iszero(staticcall(gas(), marketAddress, add(pointer, 0x1c), 0x24, pointer, 0x20)) {
-        // don't hide a useful market error behind the reader. copy and bubble the whole thing.
-        returndatacopy(pointer, 0, returndatasize())
-        revert(pointer, returndatasize())
-      }
-      // require one complete word, as in the no-argument reader; ignore trailing data.
-      if lt(returndatasize(), 0x20) {
-        revert(0, 0)
-      }
-      value := mload(pointer)
-    }
+  // ┌─ _borrowerPrincipal ─────
+  function _borrowerPrincipal() private view returns (address) {
+    return wrappedMarket.borrowerPrincipal();
+  }
+
+  // ┌─ _borrower ─────
+  function _borrower() private view returns (address) {
+    return wrappedMarket.borrower();
+  }
+
+  // ┌─ _marketBalance ─────
+  function _marketBalance() private view returns (uint256) {
+    return wrappedMarket.balanceOf(address(this));
   }
 
   // ┌─ _tryReadMarketAddress ─────
@@ -1070,54 +926,13 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   // ┌─ _tryReadMarketWord ─────
   /// @dev max* needs a reader that reports failure instead of bubbling it.
   function _tryReadMarketWord(bytes4 selector) internal view returns (bool success, uint256 value) {
-    address marketAddress = address(wrappedMarket);
-    uint256 selectorWord = uint32(selector);
-    assembly ('memory-safe') {
-      // borrow one word at the free-memory pointer. everything leaves on the stack, so there's
-      // no reason to move 0x40 or keep this buffer around.
-      let pointer := mload(0x40)
-
-      // mstore right-aligns selectorWord. start 28 bytes in so calldata begins with the four-byte
-      // selector instead of its leading zeroes.
-      mstore(pointer, selectorWord)
-
-      // copy at most one return word. an ordinary Solidity low-level call copies all returndata,
-      // which lets a broken dependency turn this limit view into a memory-expansion
-      // revert.
-      success := staticcall(gas(), marketAddress, add(pointer, 0x1c), 0x04, pointer, 0x20)
-
-      // a revert or short response means unavailable. trailing bytes don't matter; the first
-      // complete word is all this reader promises.
-      success := and(success, iszero(lt(returndatasize(), 0x20)))
-      if success {
-        value := mload(pointer)
-      }
-    }
+    return _tryStaticcallWord(address(wrappedMarket), abi.encodeWithSelector(selector));
   }
 
   // ┌─ _tryReadMarketWord ─────
   /// @dev max* version of the one-argument market reader.
   function _tryReadMarketWord(bytes4 selector, address account) internal view returns (bool success, uint256 value) {
-    address marketAddress = address(wrappedMarket);
-    uint256 selectorWord = uint32(selector);
-    assembly ('memory-safe') {
-      // same temporary buffer, with one ABI address after the selector. 4 + 32 gives us the
-      // 0x24-byte call below.
-      let pointer := mload(0x40)
-      mstore(pointer, selectorWord)
-      mstore(add(pointer, 0x20), account)
-
-      // still copy only one return word. this is the non-reverting twin of
-      // _readMarketWord(selector, account), not a general ABI decoder.
-      success := staticcall(gas(), marketAddress, add(pointer, 0x1c), 0x24, pointer, 0x20)
-
-      // don't load the buffer unless a full word landed. value stays zero on failure, and the
-      // caller uses success to collapse the limit to 0.
-      success := and(success, iszero(lt(returndatasize(), 0x20)))
-      if success {
-        value := mload(pointer)
-      }
-    }
+    return _tryStaticcallWord(address(wrappedMarket), abi.encodeWithSelector(selector, account));
   }
 
   // ┌─ _tryReadScaleFactor ─────
@@ -1127,6 +942,21 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     // bounds here also keeps the later max* multiplication inside uint256.
     if (!success || scaleFactor < RAY || scaleFactor > type(uint112).max) {
       return (false, 0);
+    }
+  }
+
+  // ┌─ _tryStaticcallWord ─────
+  /// @dev failed or short responses are unavailable. copy only the first word, so oversized
+  ///      returndata cannot force a memory-expansion revert in a non-reverting limit view.
+  function _tryStaticcallWord(address target, bytes memory callData)
+    private
+    view
+    returns (bool success, uint256 value)
+  {
+    assembly ('memory-safe') {
+      success := staticcall(gas(), target, add(callData, 0x20), mload(callData), 0, 0x20)
+      success := and(success, iszero(lt(returndatasize(), 0x20)))
+      if success { value := mload(0) }
     }
   }
 }
