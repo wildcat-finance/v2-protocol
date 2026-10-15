@@ -163,13 +163,13 @@ Removing the temporary automatic-deployment implementation changes no public
 market or factory ABI.
 
 `MarketState` and hook callback tuples are unchanged. The new mapping is separate
-storage. The independent grace/default correction is outside this
-change.
+storage. The [Grace Tracker default correction](../protocol/repayment-and-default.md#grace-tracker-default)
+is a separate change.
 
 The [initial verification receipt](../releases/v2.5.8-nuke-verification.json)
 records the superseded candidate that included the first-deposit cutoff.
 The [open-registration receipt](../releases/v2.5.8-open-registration-verification.json)
 records removal of that cutoff while automatic wrapper creation was still
 enabled. The [optional-wrapper receipt](../releases/v2.5.8-optional-wrapper-verification.json)
-records removal of automatic deployment. These checks do not qualify the
-pending grace/default correction or a future deployment package.
+records removal of automatic deployment. These earlier checks do not qualify
+the Grace Tracker default correction or a future deployment package.

@@ -189,7 +189,9 @@ The state where the market's underlying balance is below
 the market is healthy. The penalty rate applies while that timer exceeds
 `delinquencyGracePeriod`.
 
-Scheduled repayment removes unused grace while the market is underfunded.
+This rolling timer is the **Grace Tracker**. Scheduled repayment removes unused
+grace for penalty fees while the market is underfunded; it does not change the
+configured grace used for tracker-based default.
 
 ### Repayment date and deadline
 
@@ -201,8 +203,9 @@ and withdrawal windows. See [repayment and default](./repayment-and-default.md).
 ### Default marker
 
 `defaultedAt`, a permanent recorded timestamp. It identifies the first missed
-repayment deadline or uncured 90-day penalty cutoff. It does not itself change
-market permissions, rates or closure. Zero means no default has been recorded.
+repayment deadline or boundary crossed when the Grace Tracker exceeds the
+configured grace plus 90 days. It does not itself change market permissions,
+rates or closure. Zero means no default has been recorded.
 
 ### Closure
 

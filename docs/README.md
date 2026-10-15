@@ -20,7 +20,7 @@ this audit snapshot does not attest deployed state.
 - [Markets](./protocol/markets.md): configuration, implementations, and borrower
   authority
 - [Repayment and default](./protocol/repayment-and-default.md): immutable terms,
-  inclusive deadlines, penalty runs, automatic closure, and collection
+  inclusive deadlines, Grace Tracker default, automatic closure, and collection
 - [Accounting](./protocol/accounting.md) and
   [scaling](./protocol/scaling-and-rounding.md): collateral obligations,
   interest, fees, balances, and rounding

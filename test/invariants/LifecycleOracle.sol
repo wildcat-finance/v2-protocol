@@ -45,7 +45,6 @@ library LifecycleOracle {
     MarketState state;
     WithdrawalBatch batch;
     uint256 cash;
-    uint256 cutoff;
     uint256 defaultedAt;
     uint256 drawn;
   }
@@ -53,7 +52,6 @@ library LifecycleOracle {
   struct Preview {
     MarketState state;
     WithdrawalBatch batch;
-    uint256 cutoff;
     uint256 defaultedAt;
     uint256 closedAt;
     uint256 fees;
@@ -75,7 +73,6 @@ library LifecycleOracle {
   {
     p.state = old.state;
     p.batch = old.batch;
-    p.cutoff = old.cutoff;
     p.defaultedAt = old.defaultedAt;
     uint256 from = p.state.lastInterestAccruedTimestamp;
     uint256 expiry = p.state.pendingWithdrawalExpiry;
@@ -108,8 +105,6 @@ library LifecycleOracle {
         p.dateReached = true;
         p.state.reserveRatioBips = 10_000;
         p.state.isDelinquent = p.state.liquidityRequired() > old.cash;
-        if (!p.state.isDelinquent) p.cutoff = 0;
-        else if (p.cutoff == 0 || p.cutoff > at + 90 days) p.cutoff = at + 90 days;
         if (old.cash >= p.state.totalDebts()) _close(p, old.cash, at);
       }
       if (crossesDeadline && at == deadline && !p.state.isClosed) {
@@ -136,17 +131,6 @@ library LifecycleOracle {
     uint256 from = s.lastInterestAccruedTimestamp;
     uint256 elapsed = at - from;
     bool repayment = t.date != 0 && from >= t.date;
-    if (p.defaultedAt == 0) {
-      if (s.isClosed || !s.isDelinquent) {
-        p.cutoff = 0;
-      } else {
-        if (p.cutoff == 0) {
-          uint256 graceLeft = repayment ? 0 : t.grace.satSub(s.timeDelinquent);
-          p.cutoff = from + graceLeft + 90 days;
-        }
-        if (at > p.cutoff) p.defaultedAt = p.cutoff;
-      }
-    }
     if (elapsed == 0) return;
 
     uint256 base = MathUtils.calculateLinearInterestFromBips(s.annualInterestBips, elapsed);
@@ -167,6 +151,12 @@ library LifecycleOracle {
     if (s.isDelinquent) {
       penalized = repayment ? elapsed : elapsed.satSub(t.grace.satSub(s.timeDelinquent));
       s.timeDelinquent += uint32(elapsed);
+      // Judge the updated tracker, then work back to its threshold-crossing timestamp.
+      // The reference keeps no separate default clock or cure/reset state.
+      uint256 threshold = t.grace + 90 days;
+      if (!s.isClosed && p.defaultedAt == 0 && s.timeDelinquent > threshold) {
+        p.defaultedAt = at - (s.timeDelinquent - threshold);
+      }
     } else {
       penalized = MathUtils.min(elapsed, uint256(s.timeDelinquent).satSub(t.grace));
       s.timeDelinquent = uint32(uint256(s.timeDelinquent).satSub(elapsed));
@@ -225,7 +215,6 @@ library LifecycleOracle {
     p.state.timeDelinquent = 0;
     p.state.annualInterestBips = 0;
     p.state.reserveRatioBips = 10_000;
-    p.cutoff = 0;
     p.closedAt = at;
   }
 }

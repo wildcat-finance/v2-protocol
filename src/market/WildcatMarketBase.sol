@@ -764,12 +764,12 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
       if (datePending.and(date < target)) target = date;
       if (deadlinePending.and(deadline < target)) target = deadline;
       if (expiryPending.and(next.batchExpiry < target)) target = next.batchExpiry;
-      _accrueTransition(next, target, date);
+      _accrueTransition(next, target);
       if (datePending.and(target == date)) {
         datePending = false;
         if (!state.isClosed) {
           next.repaymentActivated = true;
-          next.lifecycle.activateRepayment(state, historicalAssets, date);
+          state.activateRepayment(historicalAssets);
           if (historicalAssets >= state.totalDebts()) {
             _previewAutomaticClosure(next, historicalAssets, target);
           }
@@ -806,10 +806,9 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ _accrueTransition ─────
-  function _accrueTransition(LifecycleTransition memory next, uint256 timestamp, uint256 date) internal view {
+  function _accrueTransition(LifecycleTransition memory next, uint256 timestamp) internal view {
     MarketState memory state = next.state;
-    uint256 grace = (date != 0).and(state.lastInterestAccruedTimestamp >= date) ? 0 : delinquencyGracePeriod;
-    next.lifecycle.accrueDefaultRun(state, timestamp, grace);
+    next.lifecycle.accrueGraceTrackerDefault(state, timestamp, delinquencyGracePeriod);
     if (timestamp == state.lastInterestAccruedTimestamp) return;
 
     // LifecycleTransition already allocated four records. fill the next slot in place.
@@ -971,7 +970,6 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
       next.expiryAfterAccrual = next.accrualCount;
     }
     state.closeFundedState();
-    next.lifecycle.penaltyCutoff = 0;
     next.closedAt = uint32(timestamp);
   }
 
@@ -1024,7 +1022,6 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
     _closeAfterCurrentAction(state, currentTotalAssets);
     bool isDelinquent = state.liquidityRequired() > currentTotalAssets;
     state.isDelinquent = isDelinquent;
-    if ((!isDelinquent).or(state.isClosed)) _lifecycle.penaltyCutoff = 0;
 
     // a direct transfer can exceed uint152. saturate instead of bricking every state write.
     // the uint104/uint112/uint128 accounting fields keep every payable liability below uint152,

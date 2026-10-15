@@ -45,11 +45,11 @@ expiry or at a repayment deadline must be followed by a market state write no
 later than that timestamp.
 
 `defaultedAt` is a permanent stored marker, not a live prediction. It can remain
-zero after an uncured cutoff until a successful update records it. A healthy
-write at the exact 90-day cutoff resets the separate penalty run; default is
-sealed only at a later timestamp. The ordinary `timeDelinquent` decay and fee
-calculation remain separate. A zero-day repayment period is valid and gives no
-extra interval beyond the repayment-date timestamp. See
+zero after a qualifying cutoff until a successful update records it. The Grace
+Tracker must strictly exceed configured grace plus 90 days. A healthy write at
+exact equality permits recovery, but preserves the timer for subsequent decay
+or renewed delinquency. A zero-day repayment period is valid and gives no extra
+interval beyond the repayment-date timestamp. See
 [repayment and default](../protocol/repayment-and-default.md).
 
 Closing accrues through the close timestamp, then clears the delinquency timer.

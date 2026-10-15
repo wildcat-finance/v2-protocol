@@ -109,7 +109,8 @@ Likewise, `isClosed` can already be true in an accrued view before closure has
 been written. Default itself does not imply closure.
 
 Markets without repayment terms still return `isPresent == true` when these
-getters exist. They can record a default from a consecutive penalty run.
+getters exist. They can record a default when the decaying Grace Tracker exceeds
+the configured grace plus 90 days.
 See [repayment and default](../protocol/repayment-and-default.md) for inclusive
 cutoffs, observed funding and automatic closure.
 

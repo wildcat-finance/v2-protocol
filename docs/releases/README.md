@@ -17,7 +17,12 @@ first-deposit cutoff. The [open-registration receipt](./v2.5.8-open-registration
 covers its removal while retaining permanent protection and factory approval.
 The [optional-wrapper receipt](./v2.5.8-optional-wrapper-verification.json)
 covers restoring separate permissionless wrapper deployment.
-These are source checks, not a deployed release or the pending grace/default correction.
+These are source checks, not a deployed release.
+
+The [Grace Tracker default correction](../protocol/repayment-and-default.md#grace-tracker-default)
+uses the existing decaying tracker instead of a separate consecutive-delinquency
+clock. Its [verification receipt](./v2.5.8-grace-tracker-verification.json) covers
+the combined protocol candidate, including the preceding nuke and wrapper changes.
 
 [V2.5](./v2.5.md) adds revolving markets, repayment scheduling and default
 tracking, periodic-term hooks, borrower transfers, and expanded wrapper and

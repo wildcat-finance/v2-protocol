@@ -118,7 +118,7 @@ itself cannot be rescued.
 Automatic closure bypasses the closure hook. Manual closure retains its hook
 checks and surplus transfer. A permanent `defaultedAt` marker is independent
 of either closure path. See [repayment and default](./repayment-and-default.md)
-for dated funding, penalty runs and the distinction between stored and accrued
+for dated funding, Grace Tracker default and the distinction between stored and accrued
 lifecycle state.
 
 ## Borrower identity and transfer
