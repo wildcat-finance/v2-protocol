@@ -65,5 +65,7 @@ this audit snapshot does not attest deployed state.
 
 - [Audit scope](./releases/v2.5-audit-scope.md): source identity, exclusions,
   security properties, and evidence boundaries
+- [v2.1-to-v2.5 comparison](./releases/v2.1-to-v2.5-change-summary.md): retained
+  code, refactoring, and material changes; includes AST, ABI, and storage comparisons
 - [Release notes](./releases/README.md): source boundaries and compatibility
   changes from v2.0 and v2.1

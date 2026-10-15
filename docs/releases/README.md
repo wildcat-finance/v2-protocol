@@ -51,6 +51,11 @@ A later tag does not extend an earlier review's source scope.
   security properties, exclusions, and test accounting.
 - [Scope manifest](./v2.5-audit-manifest.json): current source hashes, normalized
   and physical line counts, artifact identities, and supporting-file inventory.
+- [v2.1-to-v2.5 comparison](./v2.1-to-v2.5-change-summary.md): October 15
+  comparison of `audit/v2.5@16521eb` with the v2.1 baseline, covering retained
+  code, refactoring, and material changes. The [comparison record](./v2.1-to-v2.5-comparison.json)
+  contains per-file counts, AST hashes, exact function matches, and compiled
+  ABI/storage comparisons.
 - [October 5 verification receipt](./v2.5-audit-verification.json): historical
   checks of the initial pruned snapshot, including source and artifact comparisons.
 - [2026-10-05 release test review](./test-review-2026-10-05.json): historical
