@@ -1,9 +1,9 @@
-# Wildcat Protocol V2.5 audit package
+# Wildcat Protocol v2.5 audit package
 
-Wildcat Protocol V2.5 provides undercollateralized credit markets with rebasing
+Wildcat Protocol v2.5 provides undercollateralized credit markets with rebasing
 lender balances, batched withdrawals, and configurable access and term hooks.
 This branch contains the contracts, tests, and technical documentation for a
-focused V2.5 security review.
+focused v2.5 security review.
 
 Start with the [audit scope](./docs/releases/v2.5-audit-scope.md). This package
 derives from release commit `bfe1412141f263ba6b056c60c3f4654a461598dd`.

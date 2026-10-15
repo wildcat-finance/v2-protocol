@@ -94,7 +94,7 @@ enabled bit. A feature must declare the callbacks it requires at construction.
 - `queueWithdrawal`, `queueWithdrawalScaled`, and `queueFullWithdrawal` call
   `onQueueWithdrawal` with the lender, batch expiry, and scaled amount until
   an enabled repayment date. After that date, queueing skips the hook.
-- `executeWithdrawal` and `executeWithdrawals` have no hook callback. New V2.5
+- `executeWithdrawal` and `executeWithdrawals` have no hook callback. New v2.5
   markets reject `useOnExecuteWithdrawal` during construction. The historical
   callback remains in the shared interface and encoding library.
 - `transfer` and `transferFrom` call `onTransfer` with the caller, sender,

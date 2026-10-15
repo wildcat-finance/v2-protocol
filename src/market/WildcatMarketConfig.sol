@@ -27,6 +27,9 @@ pragma solidity 0.8.25;
 //  WRAPPER REGISTRATION
 //  registerWrapper(...)
 //
+//  NUKE PROTECTION
+//  registerNukeProtectedAccount(...)
+//
 //  SANCTIONS
 //  nukeFromOrbit(...)
 //
@@ -239,7 +242,8 @@ contract WildcatMarketConfig is WildcatMarketBase {
   // ┌─ registerWrapper ─────
   /// @notice store the canonical ERC-4626 wrapper supplied by `wrapperFactory`.
   ///
-  /// @dev normally called during wrapper deployment. a nonzero stored wrapper blocks replacement.
+  /// @dev canonical identity and nuke protection are separate registrations. a nonzero stored
+  ///      wrapper blocks replacement.
   ///
   /// @param wrapper canonical wrapper address to store.
   function registerWrapper(address wrapper) external {
@@ -247,6 +251,20 @@ contract WildcatMarketConfig is WildcatMarketBase {
     if (registeredWrapper() != address(0)) revertWithSelector(WrapperAlreadyRegistered_ErrorSelector);
     _setAddress(REGISTERED_WRAPPER_STORAGE_SLOT, wrapper);
     emit WrapperRegistered(wrapper);
+  }
+
+  // ░░▒▒▓▓██ [ NUKE PROTECTION ] ──────────────────────────────────────────────
+
+  // ┌─ registerNukeProtectedAccount ─────
+  /// @notice permanently exclude an approved integration account from `nukeFromOrbit`.
+  ///
+  /// @dev only the immutable market factory may call. it checks approval and deployed code;
+  ///      the approved feature factory must authenticate the instance and its market binding.
+  ///      protection may be added throughout the market's lifetime, but never removed.
+  function registerNukeProtectedAccount(address account) external {
+    if (msg.sender != factory) revertWithSelector(NotFactory_ErrorSelector);
+    isNukeProtected[account] = true;
+    emit NukeProtectionRegistered(account);
   }
 
   // ░░▒▒▓▓██ [ SANCTIONS ] ────────────────────────────────────────────────────
@@ -278,12 +296,12 @@ contract WildcatMarketConfig is WildcatMarketBase {
   ///
   /// @dev permissionless. before an enabled repayment date, the target must pass the normal
   ///      queue-withdrawal hook, so term policy can defer quarantine until withdrawals open.
-  ///      from that date, queueing bypasses the hook. the canonical wrapper is excluded.
+  ///      from that date, queueing bypasses the hook. protected integration accounts are excluded.
   ///
   /// @param accountAddress sanctioned lender to quarantine.
   function nukeFromOrbit(address accountAddress) external nonReentrant sphereXGuardExternal {
-    if (accountAddress != address(0) && accountAddress == registeredWrapper()) {
-      revertWithSelector(CannotNukeWrapper_ErrorSelector);
+    if (isNukeProtected[accountAddress]) {
+      revertWithSelector(CannotNukeProtectedAccount_ErrorSelector);
     }
     if (!_isSanctioned(accountAddress)) revertWithSelector(BadLaunchCode_ErrorSelector);
     MarketState memory state = _getUpdatedState();

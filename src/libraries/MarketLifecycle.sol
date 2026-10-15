@@ -10,7 +10,7 @@ pragma solidity 0.8.25;
 //  activateRepayment(...)
 //
 //  DEFAULT TIMING
-//  accrueDefaultRun(...)
+//  accrueGraceTrackerDefault(...)
 //
 //  CLOSURE
 //  closeFundedState(...)
@@ -22,7 +22,6 @@ import './BoolUtils.sol';
 /// @dev keep this outside MarketState; that struct is copied directly into hook calldata.
 struct MarketLifecycle {
   uint32 defaultedAt;
-  uint40 penaltyCutoff;
 }
 
 struct LifecycleAccrual {
@@ -52,6 +51,7 @@ struct LifecycleTransition {
 }
 
 // ┌─ MarketLifecycleLib ───────────────────────────────────────────────────────
+/// @notice apply repayment, default, and closure rules to a transition in memory.
 library MarketLifecycleLib {
   using BoolUtils for bool;
   using MathUtils for uint256;
@@ -61,34 +61,20 @@ library MarketLifecycleLib {
   // ░░▒▒▓▓██ [ REPAYMENT ] ────────────────────────────────────────────────────
 
   // ┌─ activateRepayment ─────
-  /// @dev reaching repayment can end unused grace, but never restarts an existing penalty run.
-  function activateRepayment(
-    MarketLifecycle memory lifecycle,
-    MarketState memory state,
-    uint256 assets,
-    uint256 date
-  )
-    internal
-    pure
-  {
+  /// @dev reaching repayment raises required reserves without changing the grace tracker.
+  function activateRepayment(MarketState memory state, uint256 assets) internal pure {
     state.reserveRatioBips = 10_000;
     state.isDelinquent = state.liquidityRequired() > assets;
-    if (state.isDelinquent) {
-      uint40 cutoff = uint40(date + DefaultDelay);
-      if ((lifecycle.penaltyCutoff == 0).or(lifecycle.penaltyCutoff > cutoff)) {
-        lifecycle.penaltyCutoff = cutoff;
-      }
-    } else {
-      lifecycle.penaltyCutoff = 0;
-    }
   }
 
   // ░░▒▒▓▓██ [ DEFAULT TIMING ] ───────────────────────────────────────────────
 
-  // ┌─ accrueDefaultRun ─────
-  /// @dev a cure at `penaltyCutoff` still counts. don't record default until a later timestamp.
-  ///      timeDelinquent keeps its existing decay; this clock resets on an observed healthy state.
-  function accrueDefaultRun(
+  // ┌─ accrueGraceTrackerDefault ─────
+  /// @dev use `timeDelinquent` before this interval's accrual. it grows only while delinquent;
+  ///      healthy intervals decay it in FeeMath. equality remains curable, so record default
+  ///      only after the tracker exceeds configured grace plus 90 days. store the threshold
+  ///      timestamp, not the later observation time. fee-grace overrides don't change this threshold.
+  function accrueGraceTrackerDefault(
     MarketLifecycle memory lifecycle,
     MarketState memory state,
     uint256 timestamp,
@@ -97,17 +83,11 @@ library MarketLifecycleLib {
     internal
     pure
   {
-    if (lifecycle.defaultedAt != 0) return;
-    if ((!state.isDelinquent).or(state.isClosed)) {
-      lifecycle.penaltyCutoff = 0;
-      return;
-    }
-    if (lifecycle.penaltyCutoff == 0) {
-      uint256 graceRemaining = gracePeriod.satSub(state.timeDelinquent);
-      lifecycle.penaltyCutoff = uint40(uint256(state.lastInterestAccruedTimestamp) + graceRemaining + DefaultDelay);
-    }
-    if (timestamp > lifecycle.penaltyCutoff) {
-      lifecycle.defaultedAt = uint256(lifecycle.penaltyCutoff).toUint32();
+    if ((lifecycle.defaultedAt != 0).or(!state.isDelinquent).or(state.isClosed)) return;
+    uint256 remaining = (gracePeriod + DefaultDelay).satSub(state.timeDelinquent);
+    uint256 cutoff = uint256(state.lastInterestAccruedTimestamp) + remaining;
+    if (timestamp > cutoff) {
+      lifecycle.defaultedAt = cutoff.toUint32();
     }
   }
 

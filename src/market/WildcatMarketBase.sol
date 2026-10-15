@@ -133,7 +133,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   /// @notice sanctions sentinel used for borrower/lender checks and escrow deployment.
   address public immutable sentinel;
 
-  /// @notice factory that deployed the market and can update its protocol fee.
+  /// @notice factory that deployed the market, updates its protocol fee, and registers nuke protection.
   address public immutable factory;
 
   /// @notice immutable account that receives protocol fees.
@@ -190,6 +190,11 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   MarketLifecycle internal _lifecycle;
 
   uint64 internal immutable _repaymentTerms;
+
+  /// @notice integration accounts permanently excluded from `nukeFromOrbit`.
+  ///
+  /// @dev protection grants no deposit, transfer, or withdrawal permissions.
+  mapping(address account => bool protected) public isNukeProtected;
 
   // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
 
@@ -628,7 +633,10 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ defaultedAt ─────
-  /// @notice committed default cutoff. zero means no default has been recorded yet.
+  /// @notice return the committed default cutoff timestamp, or zero if none has been recorded.
+  ///
+  /// @dev records the first breached Grace Tracker or repayment-deadline threshold. recovery
+  ///      cannot clear it. views don't commit a default that has accrued since the last write.
   function defaultedAt() external view returns (uint256) {
     return _lifecycle.defaultedAt;
   }
@@ -740,7 +748,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
 
   // ┌─ _calculateTransition ─────
   /// @dev replay only the finite boundaries that change accounting. no daily loop, and no
-  ///      accrual split merely to record the separate 90-day default marker.
+  ///      accrual split merely to record the Grace Tracker's default threshold.
   function _calculateTransition(LifecycleTransition memory next, uint256 currentAssets, bool closeNow) internal view {
     next.state = _state;
     next.lifecycle = _lifecycle;
@@ -761,12 +769,12 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
       if (datePending.and(date < target)) target = date;
       if (deadlinePending.and(deadline < target)) target = deadline;
       if (expiryPending.and(next.batchExpiry < target)) target = next.batchExpiry;
-      _accrueTransition(next, target, date);
+      _accrueTransition(next, target);
       if (datePending.and(target == date)) {
         datePending = false;
         if (!state.isClosed) {
           next.repaymentActivated = true;
-          next.lifecycle.activateRepayment(state, historicalAssets, date);
+          state.activateRepayment(historicalAssets);
           if (historicalAssets >= state.totalDebts()) {
             _previewAutomaticClosure(next, historicalAssets, target);
           }
@@ -803,10 +811,9 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ _accrueTransition ─────
-  function _accrueTransition(LifecycleTransition memory next, uint256 timestamp, uint256 date) internal view {
+  function _accrueTransition(LifecycleTransition memory next, uint256 timestamp) internal view {
     MarketState memory state = next.state;
-    uint256 grace = (date != 0).and(state.lastInterestAccruedTimestamp >= date) ? 0 : delinquencyGracePeriod;
-    next.lifecycle.accrueDefaultRun(state, timestamp, grace);
+    next.lifecycle.accrueGraceTrackerDefault(state, timestamp, delinquencyGracePeriod);
     if (timestamp == state.lastInterestAccruedTimestamp) return;
 
     // LifecycleTransition already allocated four records. fill the next slot in place.
@@ -968,7 +975,6 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
       next.expiryAfterAccrual = next.accrualCount;
     }
     state.closeFundedState();
-    next.lifecycle.penaltyCutoff = 0;
     next.closedAt = uint32(timestamp);
   }
 
@@ -1021,7 +1027,6 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
     _closeAfterCurrentAction(state, currentTotalAssets);
     bool isDelinquent = state.liquidityRequired() > currentTotalAssets;
     state.isDelinquent = isDelinquent;
-    if ((!isDelinquent).or(state.isClosed)) _lifecycle.penaltyCutoff = 0;
 
     // a direct transfer can exceed uint152. saturate instead of bricking every state write.
     // the uint104/uint112/uint128 accounting fields keep every payable liability below uint152,

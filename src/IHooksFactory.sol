@@ -20,6 +20,12 @@ pragma solidity 0.8.25;
 //  borrowerIdentityRegistry()
 //  marketInitCodeStorage()
 //  marketInitCodeHash()
+//  isMarket(...)
+//
+//  NUKE PROTECTION
+//  isApprovedNukeProtectionFactory(...)
+//  setNukeProtectionFactoryApproval(...)
+//  registerNukeProtectedAccount(...)
 //
 //  HOOKS TEMPLATES
 //  addHooksTemplate(...)
@@ -224,9 +230,6 @@ interface IHooksFactoryEventsAndErrors {
   /// @dev stored-initcode deployment returned an address other than the derived market address.
   error MarketDeploymentAddressMismatch();
 
-  /// @dev a hooks instance already occupies the expected deployment address.
-  error HooksInstanceAlreadyExists();
-
   /// @dev the market name or symbol exceeds the factory's 63-byte packed encoding.
   error NameOrSymbolTooLong();
 
@@ -245,7 +248,22 @@ interface IHooksFactoryEventsAndErrors {
   /// @dev the hooks instance is not at its recorded position in the administrator index.
   error InvalidHooksInstanceAssociation();
 
+  /// @dev only approved feature factories may request protection for their instances.
+  error NotApprovedNukeProtectionFactory();
+
+  /// @dev feature factories and protected accounts must be deployed contracts.
+  error NukeProtectionRequiresContract();
+
+  /// @dev the target market was not deployed by this factory.
+  error NukeProtectionMarketNotFound();
+
   // ░░▒▒▓▓██ [ EVENTS ] ───────────────────────────────────────────────────────
+
+  /// @notice eligibility for future registrations changed; existing protection is unaffected.
+  event NukeProtectionFactoryApproval(address indexed featureFactory, bool approved);
+
+  /// @notice records which approved factory vouched for an account's protection.
+  event NukeProtectionRequested(address indexed market, address indexed account, address indexed featureFactory);
 
   /// @notice immutable repayment terms; a zero date disables scheduled repayment.
   event MarketRepaymentTerms(address indexed market, uint256 repaymentDate, uint256 repaymentPeriod);
@@ -387,6 +405,34 @@ interface IHooksFactoryBase is IHooksFactoryEventsAndErrors {
   // ┌─ marketInitCodeHash ─────
   /// @notice hash of the market initcode stored by `marketInitCodeStorage`.
   function marketInitCodeHash() external view returns (uint256);
+
+  // ┌─ isMarket ─────
+  /// @notice return whether this factory deployed `market`.
+  function isMarket(address market) external view returns (bool);
+
+  // ░░▒▒▓▓██ [ NUKE PROTECTION ] ──────────────────────────────────────────────
+
+  // ┌─ isApprovedNukeProtectionFactory ─────
+  /// @notice return whether `featureFactory` may request new protection registrations.
+  function isApprovedNukeProtectionFactory(address featureFactory) external view returns (bool);
+
+  // ┌─ setNukeProtectionFactoryApproval ─────
+  /// @notice allow or deny future registrations by an immutable, reviewed feature factory.
+  ///
+  /// @dev only the current ArchController owner may call this. removing approval cannot
+  ///      revoke any account's existing protection. approval trusts the factory to deploy
+  ///      or authenticate its own instances and bind each instance to the correct market.
+  ///      deployed code is required; immutability and instance checks require review before approval.
+  function setNukeProtectionFactoryApproval(address featureFactory, bool approved) external;
+
+  // ┌─ registerNukeProtectedAccount ─────
+  /// @notice permanently protect `account` from nuking in a market deployed by this factory.
+  ///
+  /// @dev only approved feature factories may call this, including after market funding.
+  ///      this relay checks deployed code, not provenance. the caller must authenticate the
+  ///      instance and its market binding; a self-reported interface is insufficient.
+  ///      feature factories must register new instances in the transaction that deploys them.
+  function registerNukeProtectedAccount(address market, address account) external;
 
   // ░░▒▒▓▓██ [ HOOKS TEMPLATES ] ──────────────────────────────────────────────
 

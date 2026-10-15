@@ -12,7 +12,7 @@ nested fields even where the input selector is unchanged. Regenerate SDK and
 application decoders when adopting this lens deployment. Reading older
 contracts does not make its return ABI compatible with an older lens ABI.
 
-This includes the common `getMarketData` result used for V2.0/V2.1 markets:
+This includes the common `getMarketData` result used for v2.0/v2.1 markets:
 its nested `MarketHooksData` changed too. Common market arrays, lender-paired
 results, and aggregation results containing these types need the new decoder,
 as do hook-instance and template metadata. Regenerate the lens bindings as a
@@ -44,15 +44,15 @@ not acquire this accounting from a lens update.
 
 | Need                                                                                                 | Interface                                                                                                     |
 | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Full V2.5 configuration, hook metadata, borrower identity, canonical wrapper, and current accounting | `getMarketDataV2` or `getMarketsDataV2`                                                                       |
+| Full v2.5 configuration, hook metadata, borrower identity, canonical wrapper, and current accounting | `getMarketDataV2` or `getMarketsDataV2`                                                                       |
 | Frequent accounting, repayment/default, and available-liquidity refreshes                            | `getMarketsLiveDataV2`                                                                                        |
 | The same compact data with lender balances and access status                                         | `getMarketsLiveDataWithLenderStatusV2`                                                                        |
-| V2.5 markets discovered by template                                                                  | `getAllMarketsDataV2ForHooksTemplate`, its paginated form, or `getAggregatedAllMarketsDataV2ForHooksTemplate` |
+| v2.5 markets discovered by template                                                                  | `getAllMarketsDataV2ForHooksTemplate`, its paginated form, or `getAggregatedAllMarketsDataV2ForHooksTemplate` |
 | Lender batch claims and amounts currently collectible                                                | `getWithdrawalBatchDataWithLenderStatus` and its batch/lender array forms                                     |
 | Template commitments and fees with factory provenance                                                | `getAggregatedHooksTemplatesForBorrowerWithFactory` or an explicit-factory template query                     |
 
 The common `getMarketData` tuple and its lender-paired variants remain for
-markets with the common V2 interfaces. Use the V2.5 full or live routes for
+markets with the common v2 interfaces. Use the v2.5 full or live routes for
 `lifecycle` and `liquidity`; the common tuple does not contain those additions.
 Strict batch reads preserve input order and revert if any required read fails.
 Cross-factory discovery retains its existing failure-isolation and
@@ -90,7 +90,7 @@ Best-effort lens labels do not relax deployment checks.
 
 ## Repayment and default
 
-Both full and live V2.5 results contain the same `MarketLifecycleData`:
+Both full and live v2.5 results contain the same `MarketLifecycleData`:
 
 | Field               | Meaning                                                                                                                                                             |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -109,7 +109,8 @@ Likewise, `isClosed` can already be true in an accrued view before closure has
 been written. Default itself does not imply closure.
 
 Markets without repayment terms still return `isPresent == true` when these
-getters exist. They can record a default from a consecutive penalty run.
+getters exist. They can record a default when the decaying Grace Tracker exceeds
+the configured grace plus 90 days.
 See [repayment and default](../protocol/repayment-and-default.md) for inclusive
 cutoffs, observed funding and automatic closure.
 
@@ -134,7 +135,7 @@ The full tuple's `registeredWrapper` is the market's canonical
 [ERC-4626 wrapper](./erc-4626-wrapper.md). It is not a tranche-vault address.
 Existing APR, reserve, commitment-fee, drawn-principal, and borrower-identity
 fields remain available. Senior APR, tranche floors, shares, and waterfall
-state belong to later V2.6 contracts and are not inferred here.
+state belong to later v2.6 contracts and are not inferred here.
 
 ## Hook policies and artifact commitments
 
@@ -192,7 +193,7 @@ asset's transfer succeeds. See [withdrawals](../protocol/withdrawals.md).
 ### Withdrawal compatibility
 
 The active market ABI declares cumulative scaled withdrawal counters as
-`uint128`; V2.0/V2.1 and earlier V2.5 builds declare `uint104`. Queue admission
+`uint128`; v2.0/v2.1 and earlier v2.5 builds declare `uint104`. Queue admission
 caps successful scaled values at `uint104.max`, so they remain representable in
 the older fields. That does not make the entire ABI or accounting model
 interchangeable. The lens exposes `uint256` amounts and retains full-precision

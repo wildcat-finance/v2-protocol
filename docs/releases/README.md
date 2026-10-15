@@ -7,24 +7,31 @@ in [`deployments/`](https://github.com/wildcat-finance/v2-protocol/tree/bfe14121
 The [audit scope](./v2.5-audit-scope.md) and its file manifest define this
 branch. Historical inventories remain in the release repository.
 
-## V2.5
+## v2.5.8
 
-[V2.5](./v2.5.md) adds revolving markets, repayment scheduling and default
+v2.5.8 extends [nuke protection](../integrations/nuke-protection.md) to approved
+integration contracts and derives [delinquency default](../protocol/repayment-and-default.md#grace-tracker-default)
+from the decaying Grace Tracker. Wrapper deployment remains optional, and the
+repayment deadline remains an independent default trigger.
+
+## v2.5
+
+[v2.5](./v2.5.md) adds revolving markets, repayment scheduling and default
 tracking, periodic-term hooks, borrower transfers, and expanded wrapper and
-lens interfaces. The release notes describe changes from V2.1 and the ABI
+lens interfaces. The release notes describe changes from v2.1 and the ABI
 updates required by integrators.
 
-## V2.1
+## v2.1
 
-[V2.1](./v2.1.md) adds the first canonical ERC-4626 wrapper and wrapper factory.
-It does not change the V2.0 core market or hook source.
+[v2.1](./v2.1.md) adds the first canonical ERC-4626 wrapper and wrapper factory.
+It does not change the v2.0 core market or hook source.
 
 - Tag: [`v2.1.0`](https://github.com/wildcat-finance/v2-protocol/tree/v2.1.0)
 - Commit: `c7be4039f8f383a9dda4e45f63331c17d63f9ed9`
 
-## V2.0
+## v2.0
 
-[V2.0](./v2.0.md) is the baseline for this repository's release history.
+[v2.0](./v2.0.md) is the baseline for this repository's release history.
 
 - Tag: [`v2.0.0`](https://github.com/wildcat-finance/v2-protocol/tree/v2.0.0)
 - Commit: `a70f297fbd1b1ab597e0e9a3458a2d13a34b4657`
@@ -32,7 +39,7 @@ It does not change the V2.0 core market or hook source.
 Completed external reviews are indexed in [`audits/`](../../audits/README.md).
 A later tag does not extend an earlier review's source scope.
 
-## V2.5 review material
+## v2.5 review material
 
 - [Audit scope](./v2.5-audit-scope.md): current source identity, review boundary,
   security properties, exclusions, and test accounting.

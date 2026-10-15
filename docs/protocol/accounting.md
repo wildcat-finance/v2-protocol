@@ -77,9 +77,10 @@ decays instead of resetting. Once it passes the grace period, the borrower pays
 the penalty while the timer rises and while the excess later decays.
 
 At an enabled repayment date, underfunded intervals incur penalty immediately;
-unused grace no longer delays it. The separate 90-day default run resets on a
-healthy state write, even if the ordinary delinquency timer still has residual
-decay. See [repayment and default](./repayment-and-default.md).
+unused grace no longer delays the fee. Automatic default uses the same decaying
+Grace Tracker and requires it to exceed the configured grace plus 90 days.
+There is no separate clock that resets on a healthy write. See
+[repayment and default](./repayment-and-default.md#grace-tracker-default).
 
 Each accrual interval uses the previously stored `isDelinquent` value. The final
 state write compares the updated liquidity requirement with the current

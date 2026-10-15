@@ -104,16 +104,16 @@ Preview methods use standard ERC-4626 rounding:
 | `previewMint(shares)`     | ceil                                   |
 | `previewWithdraw(assets)` | ceil                                   |
 
-Execution must also match Wildcat's transfer rounding. V2.5 market transfers
+Execution must also match Wildcat's transfer rounding. v2.5 market transfers
 move:
 
 ```text
 floor(amount * RAY / scaleFactor)
 ```
 
-This is `scaleAmountDown`. Markets before V2.5 rounded half-up.
+This is `scaleAmountDown`. Markets before v2.5 rounded half-up.
 
-The wrapper keeps an exact identity against the V2.5 floor:
+The wrapper keeps an exact identity against the v2.5 floor:
 
 - `deposit(assets, receiver)` transfers `assets` in. It mints the observed
   increase in scaled balance. That increase must equal
@@ -163,7 +163,10 @@ shares remain fully backed, but cannot be recovered.
 
 Notes:
 
-- Wrapper creation is permissionless. The built-in access hooks always allow a
+- v2.5 wrapper creation is permissionless and separate from market deployment.
+  Eligible markets without a wrapper can register one after funding, with no age cutoff;
+  see [nuke protection](./nuke-protection.md).
+  The built-in access hooks always allow a
   market's nonzero `registeredWrapper()` to receive market tokens when transfers
   are enabled. Hook administrators cannot veto the canonical wrapper through a
   credential or local deposit block.
@@ -225,7 +228,7 @@ stores the market and sentinel addresses, but does not cache borrower identity.
   hook.
 - Ordinary ERC-20 share transfers reject a sanctioned sender or receiver.
   Sanctions escrows have the narrow exceptions described below.
-- As of V2.5.7, `transferFrom` also rejects a sanctioned caller, even with an
+- As of v2.5.7, `transferFrom` also rejects a sanctioned caller, even with an
   existing finite or unlimited approval. Rejection preserves balances and
   allowance; principal-scoped sanctions overrides still apply.
 - `maxDeposit`, `maxMint`, `maxWithdraw`, and `maxRedeem` return zero when the
@@ -252,8 +255,9 @@ the market's current principal.
   sanctions escrow, authorizes it, and moves the full share balance.
 - A sanctioned holder may otherwise send shares only to that deterministic
   escrow. `nukeFromOrbit` is the supported path because it authorizes release.
-- The wrapper itself cannot be nuked. A V2.5 market also rejects nuking its
-  registered canonical wrapper, protecting the wrapper's pooled backing.
+- The wrapper itself cannot be nuked. Its factory registers permanent
+  [market-local nuke protection](./nuke-protection.md) for the wrapper's pooled
+  backing. This does not bypass the wrapper's operational sanctions checks.
 - An authorized escrow may return shares only when releasable under the
   principal namespace that created it. Foreign or spoofed escrows receive no
   release exception.
@@ -300,11 +304,12 @@ In addition to standard ERC-20 events, the wrapper emits:
 ### `Wildcat4626WrapperFactory`
 
 This permissionless factory handles creation and discovery across wrapper
-generations.
+generations. `v1Factory` refers to the first wrapper generation, introduced in
+[protocol v2.1](../releases/v2.1.md).
 
 Wrapper arithmetic is coupled to market transfer rounding:
 
-- V2.5 markets declare `keccak256('scaleAmountDown')`.
+- v2.5 markets declare `keccak256('scaleAmountDown')`.
 - Earlier markets use half-up rounding and do not declare a rounding mode.
 
 A mismatched wrapper can revert with `SharesMismatch` whenever those rules
@@ -325,17 +330,19 @@ diverge.
 #### `createWrapper(market) -> wrapper`
 
 - Reverts if `market == address(0)` or a wrapper is already recorded locally.
-- Forwards markets without a declared transfer rounding to the V1 factory.
-  These are pre-V2.5 markets. Reverts with `LegacyMarketsNotSupported` if no V1
-  factory is configured.
+- Forwards markets without a declared transfer rounding to the legacy wrapper
+  factory (`v1Factory`). These are pre-v2.5 markets. Reverts with
+  `LegacyMarketsNotSupported` if no legacy factory is configured.
 - Rejects any declared rounding other than floor with
   `UnsupportedMarketRounding`. This prevents a hypothetical future market from
   being paired with the wrong wrapper.
 - Floor-declaring markets must be registered, expose the complete generic
   transfer-policy interface, permit transfers globally, and designate this
   factory through `market.wrapperFactory()`.
-- The factory deploys and records the wrapper, then calls
-  `market.registerWrapper(wrapper)`.
+- The factory deploys and records the wrapper, requests permanent nuke protection
+  through the market's factory, then calls `market.registerWrapper(wrapper)`.
+  The market factory must have approved this wrapper factory. Existing deposits
+  do not prevent registration. All wrapper-creation steps are atomic.
 - Registration is one-time. The factory emits
   `WrapperDeployed(market, wrapper)`.
 
@@ -374,7 +381,7 @@ asset. Exiting to the underlying asset then follows the
 payment, then execution. The [glossary](../protocol/glossary.md) defines those
 stages.
 
-For V2.5 markets, one wrapper share represents one scaled market-token unit. A
+For v2.5 markets, one wrapper share represents one scaled market-token unit. A
 Safe can atomically redeem and queue an exact share amount with
 `wrapper.redeem(shares, safe, safe)` followed by
 `market.queueWithdrawalScaled(shares)`. The Safe must be eligible to receive
@@ -382,7 +389,7 @@ market tokens under the market's transfer policy. The scaled amount stays exact
 while the transaction waits for signatures. Any direct market-token balance
 held by the Safe stays separate.
 
-`queueWithdrawalScaled` is not available on pre-V2.5 markets. Integrations must
+`queueWithdrawalScaled` is not available on pre-v2.5 markets. Integrations must
 select the ABI from the deployed market generation. The scaled entry point is
 not interchangeable with a normalized withdrawal amount.
 
@@ -395,7 +402,7 @@ not interchangeable with a normalized withdrawal amount.
 - **Wrapper and market generations must match.** Use the current factory for
   creation and discovery. It routes legacy markets when configured and hides a
   mispaired legacy-factory wrapper from canonical discovery.
-- **Legacy wrappers need an operational sanctions override.** Pre-V2.5 markets
+- **Legacy wrappers need an operational sanctions override.** Pre-v2.5 markets
   cannot register a canonical wrapper. While one is in use, the borrower
   principal should keep a sentinel override for it. This prevents market-level
   sanctions handling from removing pooled backing while wrapper shares remain
@@ -406,7 +413,7 @@ not interchangeable with a normalized withdrawal amount.
   for one market can still authorize access to another.
 - **Do not substitute `queueFullWithdrawal()` for a wrapped-only withdrawal when
   the account also holds market tokens directly.** Full withdrawal queues both
-  positions. Use the V2.5 scaled route to preserve the direct position.
+  positions. Use the v2.5 scaled route to preserve the direct position.
 
 ## Development notes
 

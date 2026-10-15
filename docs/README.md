@@ -20,7 +20,7 @@ this audit snapshot does not attest deployed state.
 - [Markets](./protocol/markets.md): configuration, implementations, and borrower
   authority
 - [Repayment and default](./protocol/repayment-and-default.md): immutable terms,
-  inclusive deadlines, penalty runs, automatic closure, and collection
+  inclusive deadlines, Grace Tracker default, automatic closure, and collection
 - [Accounting](./protocol/accounting.md) and
   [scaling](./protocol/scaling-and-rounding.md): collateral obligations,
   interest, fees, balances, and rounding
@@ -42,6 +42,8 @@ this audit snapshot does not attest deployed state.
   capabilities and construction paths
 - [ERC-4626 wrapper](./integrations/erc-4626-wrapper.md): wrapping, redemption,
   rounding, sanctions, and integration constraints
+- [Nuke protection](./integrations/nuke-protection.md): permanent protection for
+  pooled lender contracts, factory approvals, and registration after funding
 - [Market lenses](./integrations/lenses.md): lifecycle, liquidity, hook policies,
   factory commitments, withdrawal claims, and return-ABI compatibility
 - [Event model](./integrations/events.md): ABI families, event ordering,
@@ -61,4 +63,4 @@ this audit snapshot does not attest deployed state.
 - [Audit scope](./releases/v2.5-audit-scope.md): source identity, exclusions,
   security properties, and verification
 - [Release notes](./releases/README.md): source boundaries and compatibility
-  changes from V2.0 and V2.1
+  changes from v2.0 and v2.1

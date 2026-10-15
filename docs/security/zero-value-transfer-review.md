@@ -55,7 +55,7 @@ This changes factories only: no market runtime budget, market storage,
 ABI tuple or event-schema change. Existing deployed factories retain the old
 behavior; source integration and deployment of new factories are separate work.
 
-At `subgraph@584e5de`, V2.5 fee configuration is indexed from
+At `subgraph@584e5de`, v2.5 fee configuration is indexed from
 `MarketDeploymentConfig` in `src/hooks-factory-v2-5.ts`, rather than inferred
 from a fee-token transfer. At `wildcat.ts@e64e766`,
 `src/access/access-control.ts` requires fee balance/allowance only for a positive

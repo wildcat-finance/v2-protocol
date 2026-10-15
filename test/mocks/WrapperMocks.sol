@@ -17,12 +17,14 @@ pragma solidity 0.8.25;
 //  MARKET REGISTRATION
 //  setRegisteredMarket(...)
 //
-//  V1 WRAPPER CREATION
+//  v1 WRAPPER CREATION
 //  seedWrapper(...)
 //  createWrapper(...)
 //
 //  FACTORY MARKET SETUP
 //  constructor(...)
+//  factory()
+//  registerNukeProtectedAccount(...)
 //  registerWrapper(...)
 //
 //  FACTORY MARKET POLICY
@@ -147,7 +149,7 @@ contract WrapperV1FactoryMock {
   mapping(address market => address wrapper) public wrapperForMarket;
   uint256 public createCalls;
 
-  // ░░▒▒▓▓██ [ V1 WRAPPER CREATION ] ──────────────────────────────────────────
+  // ░░▒▒▓▓██ [ v1 WRAPPER CREATION ] ──────────────────────────────────────────
 
   // ┌─ seedWrapper ─────
   function seedWrapper(address market, address wrapper) external {
@@ -184,6 +186,8 @@ contract WrapperFactoryMarketMock is IWildcatMarketToken, IMarketTransferPolicy 
   bool public recipientAllowed = true;
   bool public recipientCheckReverts;
 
+  mapping(address account => bool) public isNukeProtected;
+
   mapping(address account => uint256) public override balanceOf;
   mapping(address owner => mapping(address spender => uint256)) public override allowance;
 
@@ -204,6 +208,17 @@ contract WrapperFactoryMarketMock is IWildcatMarketToken, IMarketTransferPolicy 
     hooksAddress = address(this);
     roundingDeclared = roundingDeclared_;
     rounding = rounding_;
+  }
+
+  // ┌─ factory ─────
+  function factory() external view returns (address) {
+    return address(this);
+  }
+
+  // ┌─ registerNukeProtectedAccount ─────
+  function registerNukeProtectedAccount(address market, address account) external {
+    require(msg.sender == wrapperFactory && market == address(this), 'NOT_WRAPPER_FACTORY');
+    isNukeProtected[account] = true;
   }
 
   // ┌─ registerWrapper ─────
