@@ -11,10 +11,14 @@ pragma solidity 0.8.25;
 //  registerWithArchController()
 //  archController()
 //
-//  HOOKS TEMPLATES
+//  AUTHORITY
 //  onlyArchControllerOwner()
+//
+//  NUKE PROTECTION
 //  setNukeProtectionFactoryApproval(...)
 //  registerNukeProtectedAccount(...)
+//
+//  HOOKS TEMPLATES
 //  addHooksTemplate(...)
 //  disableHooksTemplate(...)
 //
@@ -191,7 +195,7 @@ abstract contract HooksFactoryBase is SphereXProtectedRegisteredBase, Reentrancy
     return _archController;
   }
 
-  // ░░▒▒▓▓██ [ HOOKS TEMPLATES ] ──────────────────────────────────────────────
+  // ░░▒▒▓▓██ [ AUTHORITY ] ────────────────────────────────────────────────────
 
   // ┌─ onlyArchControllerOwner ─────
   modifier onlyArchControllerOwner() {
@@ -200,6 +204,8 @@ abstract contract HooksFactoryBase is SphereXProtectedRegisteredBase, Reentrancy
     }
     _;
   }
+
+  // ░░▒▒▓▓██ [ NUKE PROTECTION ] ──────────────────────────────────────────────
 
   // ┌─ setNukeProtectionFactoryApproval ─────
   /// @inheritdoc IHooksFactoryBase
@@ -211,15 +217,19 @@ abstract contract HooksFactoryBase is SphereXProtectedRegisteredBase, Reentrancy
 
   // ┌─ registerNukeProtectedAccount ─────
   /// @inheritdoc IHooksFactoryBase
+  ///
   /// @dev only this factory's markets are targets. their setter adds permanent protection
   ///      without external calls or changes to market accounting.
   function registerNukeProtectedAccount(address market, address account) external {
     if (!isApprovedNukeProtectionFactory[msg.sender]) revert NotApprovedNukeProtectionFactory();
     if (!isMarket[market]) revert NukeProtectionMarketNotFound();
     if (account.code.length == 0) revert NukeProtectionRequiresContract();
+
     INukeProtectionMarket(market).registerNukeProtectedAccount(account);
     emit NukeProtectionRequested(market, account, msg.sender);
   }
+
+  // ░░▒▒▓▓██ [ HOOKS TEMPLATES ] ──────────────────────────────────────────────
 
   // ┌─ addHooksTemplate ─────
   /// @dev ArchController-owner-only registration for a hooks template and fee config.

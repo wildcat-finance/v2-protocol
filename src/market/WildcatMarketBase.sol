@@ -133,7 +133,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   /// @notice sanctions sentinel used for borrower/lender checks and escrow deployment.
   address public immutable sentinel;
 
-  /// @notice factory that deployed the market and can update its protocol fee.
+  /// @notice factory that deployed the market, updates its protocol fee, and registers nuke protection.
   address public immutable factory;
 
   /// @notice immutable account that receives protocol fees.
@@ -192,6 +192,8 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   uint64 internal immutable _repaymentTerms;
 
   /// @notice integration accounts permanently excluded from `nukeFromOrbit`.
+  ///
+  /// @dev protection grants no deposit, transfer, or withdrawal permissions.
   mapping(address account => bool protected) public isNukeProtected;
 
   // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
@@ -631,7 +633,10 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ defaultedAt ─────
-  /// @notice committed default cutoff. zero means no default has been recorded yet.
+  /// @notice return the committed default cutoff timestamp, or zero if none has been recorded.
+  ///
+  /// @dev records the first breached Grace Tracker or repayment-deadline threshold. recovery
+  ///      cannot clear it. views don't commit a default that has accrued since the last write.
   function defaultedAt() external view returns (uint256) {
     return _lifecycle.defaultedAt;
   }
@@ -743,7 +748,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
 
   // ┌─ _calculateTransition ─────
   /// @dev replay only the finite boundaries that change accounting. no daily loop, and no
-  ///      accrual split merely to record the separate 90-day default marker.
+  ///      accrual split merely to record the Grace Tracker's default threshold.
   function _calculateTransition(LifecycleTransition memory next, uint256 currentAssets, bool closeNow) internal view {
     next.state = _state;
     next.lifecycle = _lifecycle;

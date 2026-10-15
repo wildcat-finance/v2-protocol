@@ -51,6 +51,7 @@ struct LifecycleTransition {
 }
 
 // ┌─ MarketLifecycleLib ───────────────────────────────────────────────────────
+/// @notice apply repayment, default, and closure rules to a transition in memory.
 library MarketLifecycleLib {
   using BoolUtils for bool;
   using MathUtils for uint256;
@@ -69,9 +70,10 @@ library MarketLifecycleLib {
   // ░░▒▒▓▓██ [ DEFAULT TIMING ] ───────────────────────────────────────────────
 
   // ┌─ accrueGraceTrackerDefault ─────
-  /// @dev use the tracker before this interval's accrual. it grows only while delinquent;
+  /// @dev use `timeDelinquent` before this interval's accrual. it grows only while delinquent;
   ///      healthy intervals decay it in FeeMath. equality remains curable, so record default
-  ///      only after the tracker exceeds configured grace plus 90 days.
+  ///      only after the tracker exceeds configured grace plus 90 days. store the threshold
+  ///      timestamp, not the later observation time. fee-grace overrides don't change this threshold.
   function accrueGraceTrackerDefault(
     MarketLifecycle memory lifecycle,
     MarketState memory state,

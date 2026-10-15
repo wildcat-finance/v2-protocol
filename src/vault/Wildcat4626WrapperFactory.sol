@@ -136,6 +136,7 @@ contract Wildcat4626WrapperFactory {
   /// @param v1Factory_      legacy factory for undeclared half-up markets, or zero to reject them.
   constructor(address archController_, address v1Factory_) {
     archController = IWildcatArchController(archController_);
+
     // a wrong V1 address permanently breaks legacy routing and can revert discovery.
     // require a usable wrapperForMarket answer at deployment, not only a nonzero address.
     if (v1Factory_ != address(0)) {
@@ -152,11 +153,11 @@ contract Wildcat4626WrapperFactory {
   // ┌─ createWrapper ─────
   /// @notice deploy and register the generation-appropriate wrapper for `market`.
   ///
-  /// @dev callable by anyone. local floor-rounding markets must be registered, globally
-  ///      transferable, expose the full transfer-policy interface, and name this contract as their
-  ///      wrapper factory.
-  ///      the market factory must approve this factory for nuke protection.
-  ///      creation and registration are atomic and remain available after market funding.
+  /// @dev anyone can call, including after market funding. local floor-rounding markets must be
+  ///      registered with the ArchController, permit transfers, expose the full transfer-policy
+  ///      interface through their hook, and name this contract as their wrapper factory.
+  ///      the market factory must approve this factory for nuke protection. deployment, protection,
+  ///      and canonical registration share one transaction; failed registration reverts creation.
   ///      undeclared markets are forwarded to V1; unknown declared rounding is rejected.
   ///
   /// @return wrapper generation-appropriate newly deployed wrapper.
@@ -171,6 +172,7 @@ contract Wildcat4626WrapperFactory {
       if (address(v1Factory) == address(0)) revert LegacyMarketsNotSupported(market);
       return v1Factory.createWrapper(market);
     }
+
     // new rounding needs a matching wrapper generation, not a silent fallback to V1.
     if (rounding != FloorRounding) revert UnsupportedMarketRounding(market, rounding);
 

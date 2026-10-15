@@ -410,13 +410,13 @@ interface IHooksFactoryBase is IHooksFactoryEventsAndErrors {
   function marketInitCodeHash() external view returns (uint256);
 
   // ┌─ isMarket ─────
-  /// @notice whether this factory deployed the market.
+  /// @notice return whether this factory deployed `market`.
   function isMarket(address market) external view returns (bool);
 
-  // ░░▒▒▓▓██ [ NUKE PROTECTION ] ───────────────────────────────────────────────────────
+  // ░░▒▒▓▓██ [ NUKE PROTECTION ] ──────────────────────────────────────────────
 
   // ┌─ isApprovedNukeProtectionFactory ─────
-  /// @notice whether a feature factory may request future protection registrations.
+  /// @notice return whether `featureFactory` may request new protection registrations.
   function isApprovedNukeProtectionFactory(address featureFactory) external view returns (bool);
 
   // ┌─ setNukeProtectionFactoryApproval ─────
@@ -425,13 +425,16 @@ interface IHooksFactoryBase is IHooksFactoryEventsAndErrors {
   /// @dev only the current ArchController owner may call this. removing approval cannot
   ///      revoke any account's existing protection. approval trusts the factory to deploy
   ///      or authenticate its own instances and bind each instance to the correct market.
+  ///      deployed code is required; immutability and instance checks require review before approval.
   function setNukeProtectionFactoryApproval(address featureFactory, bool approved) external;
 
   // ┌─ registerNukeProtectedAccount ─────
-  /// @notice forward permanent protection for a contract in a market deployed by this factory.
+  /// @notice permanently protect `account` from nuking in a market deployed by this factory.
   ///
   /// @dev only approved feature factories may call this, including after market funding.
-  ///      the caller must authenticate the instance; a self-reported interface is insufficient.
+  ///      this relay checks deployed code, not provenance. the caller must authenticate the
+  ///      instance and its market binding; a self-reported interface is insufficient.
+  ///      feature factories must register new instances in the transaction that deploys them.
   function registerNukeProtectedAccount(address market, address account) external;
 
   // ░░▒▒▓▓██ [ HOOKS TEMPLATES ] ──────────────────────────────────────────────

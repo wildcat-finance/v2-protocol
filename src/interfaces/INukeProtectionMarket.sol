@@ -6,8 +6,10 @@ pragma solidity 0.8.25;
 //  \ ^ /   Market-local protection registration and lifetime queries.
 //    V
 //
-//  OPERATIONS
+//  AUTHORITY
 //  factory()
+//
+//  NUKE PROTECTION
 //  isNukeProtected(...)
 //  registerNukeProtectedAccount(...)
 // ═════
@@ -15,14 +17,21 @@ pragma solidity 0.8.25;
 // ┌─ INukeProtectionMarket ────────────────────────────────────────────────────
 /// @notice market-local protection for approved integration contracts.
 interface INukeProtectionMarket {
+  // ░░▒▒▓▓██ [ AUTHORITY ] ────────────────────────────────────────────────────
+
   // ┌─ factory ─────
+  /// @notice return the immutable factory allowed to register protected accounts.
   function factory() external view returns (address);
 
+  // ░░▒▒▓▓██ [ NUKE PROTECTION ] ──────────────────────────────────────────────
+
   // ┌─ isNukeProtected ─────
+  /// @notice return whether `account` is permanently excluded from `nukeFromOrbit`.
   function isNukeProtected(address account) external view returns (bool);
 
   // ┌─ registerNukeProtectedAccount ─────
   /// @notice permanently protect an account at any point in the market's lifetime.
+  ///
   /// @dev only the market's immutable factory may call this.
   function registerNukeProtectedAccount(address account) external;
 }

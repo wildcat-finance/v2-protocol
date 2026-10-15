@@ -26,6 +26,8 @@ pragma solidity 0.8.25;
 //
 //  WRAPPER REGISTRATION
 //  registerWrapper(...)
+//
+//  NUKE PROTECTION
 //  registerNukeProtectedAccount(...)
 //
 //  SANCTIONS
@@ -240,7 +242,8 @@ contract WildcatMarketConfig is WildcatMarketBase {
   // ┌─ registerWrapper ─────
   /// @notice store the canonical ERC-4626 wrapper supplied by `wrapperFactory`.
   ///
-  /// @dev normally called during wrapper deployment. a nonzero stored wrapper blocks replacement.
+  /// @dev canonical identity and nuke protection are separate registrations. a nonzero stored
+  ///      wrapper blocks replacement.
   ///
   /// @param wrapper canonical wrapper address to store.
   function registerWrapper(address wrapper) external {
@@ -250,10 +253,13 @@ contract WildcatMarketConfig is WildcatMarketBase {
     emit WrapperRegistered(wrapper);
   }
 
+  // ░░▒▒▓▓██ [ NUKE PROTECTION ] ──────────────────────────────────────────────
+
   // ┌─ registerNukeProtectedAccount ─────
   /// @notice permanently exclude an approved integration account from `nukeFromOrbit`.
   ///
-  /// @dev the factory authenticates the feature factory and account before forwarding.
+  /// @dev only the immutable market factory may call. it checks approval and deployed code;
+  ///      the approved feature factory must authenticate the instance and its market binding.
   ///      protection may be added throughout the market's lifetime, but never removed.
   function registerNukeProtectedAccount(address account) external {
     if (msg.sender != factory) revertWithSelector(NotFactory_ErrorSelector);
