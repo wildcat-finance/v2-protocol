@@ -212,7 +212,7 @@ contract DisableHooksTemplate is Script {
 
   // ┌─ _disableCalldata ─────
   function _disableCalldata(DisableAction memory action) internal pure returns (bytes memory) {
-    return abi.encodeWithSelector(IHooksFactory.disableHooksTemplate.selector, action.hooksTemplate);
+    return abi.encodeWithSelector(IHooksFactoryBase.disableHooksTemplate.selector, action.hooksTemplate);
   }
 
   // ┌─ _printDisableAction ─────

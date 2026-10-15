@@ -121,7 +121,7 @@ can execute for an account and batch once it is no longer the current pending
 batch, normally after expiry or after closure releases it. If the lender is
 sanctioned, the market sends the assets to that lender's sanctions escrow.
 
-New V2.5 markets never call `onExecuteWithdrawal`, including markets without
+New v2.5 markets never call `onExecuteWithdrawal`, including markets without
 repayment terms. They reject a hook configuration enabling it. A hook cannot
 add another eligibility check when collecting an accepted, payable claim.
 Token transfers and sanctions dependencies can still fail.
@@ -183,7 +183,7 @@ Batch keys are absolute `uint32` Unix timestamps. Creating a batch requires
 `block.timestamp + withdrawalBatchDuration <= type(uint32).max`; the checked
 conversion reverts instead of wrapping into an earlier key. With the maximum
 365-day duration, the final representable creation timestamp is
-2105-02-07 06:28:15 UTC. V2.x markets and lender positions must be retired with
+2105-02-07 06:28:15 UTC. v2.x markets and lender positions must be retired with
 enough margin to complete withdrawals before this generation-wide timestamp
 horizon. See [known limitations](../security/known-issues.md#timestamp-horizon).
 

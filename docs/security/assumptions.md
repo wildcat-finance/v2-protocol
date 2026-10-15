@@ -52,7 +52,7 @@ An enabled callback can reject its corresponding market action. Market
 liveness therefore depends on the selected hook implementation and
 configuration.
 
-New V2.5 markets do not permit execution hooks to veto collection. Markets with
+New v2.5 markets do not permit execution hooks to veto collection. Markets with
 repayment terms also bypass queue hooks from their date and closure hooks for
 automatic completion. Token transfers, sanctions dependencies and other enabled
 callbacks retain their own failure boundaries. See
@@ -78,6 +78,14 @@ installation constructors, plan commitments and execution tooling together;
 see [deployment](../operations/deployment.md#stored-creation-code).
 
 ## Sanctions dependency
+
+Approved feature factories may register permanent protection against nuking a
+pooled lender account throughout its market's lifetime. Review must establish
+each factory's instance provenance, market binding, and immutable behavior.
+The current ArchController owner controls future factory eligibility but cannot
+remove existing market protection. New approvals can introduce protected accounts
+into already funded markets; protection does not grant other market permissions.
+See [nuke protection](../integrations/nuke-protection.md).
 
 Sanctions-gated market and wrapper paths depend on the configured sentinel and
 its external sanctions list. Calls fail closed if that dependency reverts or

@@ -1,6 +1,6 @@
 # Wildcat Protocol
 
-Wildcat Protocol V2.5 provides undercollateralized credit markets with rebasing
+Wildcat Protocol v2.5 provides undercollateralized credit markets with rebasing
 lender balances, batched withdrawals, and configurable access and term hooks.
 This repository contains its Solidity contracts, tests, and deployment tooling.
 

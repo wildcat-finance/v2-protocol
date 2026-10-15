@@ -1,6 +1,6 @@
 # Repayment and default
 
-New V2.5 standard and revolving markets support optional scheduled repayment
+New v2.5 standard and revolving markets support optional scheduled repayment
 and a permanent default marker. Fixed maturity and periodic withdrawal windows
 remain hook policies. They do not set the market's repayment date.
 
@@ -65,8 +65,8 @@ unfunded claims collectible. See [withdrawals](./withdrawals.md).
 
 Neither APR path can restore a lower reserve ratio. While the market is
 underfunded, its funding check prevents APR updates; once fully funded,
-automatic closure prevents them. Scheduled repayment does not restart an
-existing penalty run or give an already defaulted market another grace period.
+automatic closure prevents them. Scheduled repayment does not reset the Grace
+Tracker or change the configured grace used by the tracker-based default trigger.
 
 The supplied hook templates also freeze maximum supply, minimum deposit,
 fixed-term maturity changes, and new periodic APR-reduction proposals from an
@@ -102,26 +102,41 @@ the date first, then the deadline, then expiry. Deadline failure is judged only
 when the current timestamp is strictly later. This also makes a zero-period
 market's deadline inclusive.
 
-## Consecutive penalty default
+## Grace Tracker default
 
-Every new V2.5 market tracks an uninterrupted period of underfunded penalty,
-including markets without repayment terms. After 90 days, an uncured run
-records default at its cutoff. The market waits until a strictly later
-timestamp before recording it, so a full cure at the exact cutoff still counts.
+Every new v2.5 market uses its Grace Tracker, `state.timeDelinquent`, to trigger
+default when it exceeds `delinquencyGracePeriod + 90 days`. This implements the
+tracker-based rule confirmed on 2026-10-15. It replaces the earlier source
+candidate's separate consecutive-delinquency clock.
 
-This run is separate from `timeDelinquent`:
+The tracker increases by one second per second of delinquency and decreases by
+one second per healthy second, stopping at zero. Clearing a reserve shortfall
+does not reset it. If delinquency resumes, the tracker grows from its remaining
+value. Only actual healthy time restores the remaining allowance. For example,
+a one-second cure followed by renewed delinquency postpones the original
+cutoff by two seconds: one second without growth and one second of decay.
 
-- Ordinary grace determines when the run starts. At the repayment date, unused
-  grace ends without restarting an earlier run.
-- A successful healthy state write resets the run. The existing delinquency
-  timer still decays, and its residual penalty fees can continue before repayment.
-- Partial funding that leaves the market delinquent does not reset it.
-- The penalty condition counts even when `delinquencyFeeBips` is zero.
-- A cure first observed after the cutoff cannot erase the completed run.
+- Exact equality is not default. A cure at the threshold can start recovery;
+  renewed delinquency must still exceed the threshold before default is recorded.
+- Partial repayment that leaves a shortfall earns no recovery time.
+- Neither a withdrawal request nor a nonzero `delinquencyFeeBips` is required.
+- Scheduled repayment can charge penalty fees immediately, but the tracker
+  still uses the configured Grace Period. Its separate repayment-deadline
+  trigger can record an earlier default.
+- A cure observed only after the tracker exceeded its threshold cannot erase
+  that historical crossing. Accrual resolves it before applying current funding.
 
-The first qualifying cutoff sets `defaultedAt` once. There is no administrative
-setter, clearing function, or reason field. Later repayment, authority changes,
-closure, or another trigger do not replace that timestamp.
+The first qualifying cutoff sets `defaultedAt` once. The timestamp identifies
+the threshold boundary, even though recording requires a strictly later time.
+There is no administrative setter, clearing function, or reason field. Later
+recovery, repayment, authority changes, closure, or another trigger do not
+replace that timestamp. The market stores no separate default countdown.
+
+The correction changes no public ABI, hook-state tuple, or event payload.
+Consumers of the committed `defaultedAt` marker keep the same read path; any
+off-chain prediction must use the decaying tracker rather than a consecutive
+delinquency run. This v2.5 source rule does not rewrite older markets' terms
+or historical default calculations.
 
 ## Automatic closure and collection
 
@@ -147,7 +162,7 @@ when replay discovers that the market was fully funded and closed at an earlier
 boundary. Use `updateState()` to commit that state and the zero-repayment batch
 processor to finish allocation.
 
-Withdrawal execution never calls a hook in new V2.5 markets, with or without
+Withdrawal execution never calls a hook in new v2.5 markets, with or without
 repayment terms. Funding, batch accounting and sanctions escrow still govern
 collection. The constructor rejects the execution-hook flag.
 
@@ -172,7 +187,10 @@ or displaying lifecycle state.
 - [`LifecycleScenarios.t.sol`](../../test/invariants/LifecycleScenarios.t.sol):
   inclusive deadlines, unobserved donations, boundary ordering and closure.
 - [`PenaltyLifecycleScenarios.t.sol`](../../test/invariants/PenaltyLifecycleScenarios.t.sol):
-  exact-cutoff cures and reset behavior.
+  exact-cutoff cures, recovery, and resumed delinquency across all six market/hook combinations.
+- [`GraceTrackerDefault.t.sol`](../../test/integration/GraceTrackerDefault.t.sol):
+  repeated brief cures, same-timestamp relapse, recovery through grace and zero,
+  zero penalty APR, no withdrawal requests, and scheduled-repayment interaction.
 - [`RepaymentLifecycleInvariant.t.sol`](../../test/invariants/RepaymentLifecycleInvariant.t.sol)
   and [`PenaltyLifecycleInvariant.t.sol`](../../test/invariants/PenaltyLifecycleInvariant.t.sol):
   stateful checks against independent lifecycle models.

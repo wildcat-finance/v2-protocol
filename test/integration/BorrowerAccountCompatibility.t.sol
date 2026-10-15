@@ -41,7 +41,7 @@ pragma solidity 0.8.25;
 //  _expectAccountRevert(...)
 // ═════
 
-import { IHooksFactory, IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';
+import { IHooksFactory, IHooksFactoryBase, IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';
 import { IHooksFactoryRevolving } from 'src/IHooksFactoryRevolving.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { IHooks } from 'src/access/IHooks.sol';
@@ -285,7 +285,7 @@ contract BorrowerAccountCompatibilityTest is ProductionMatrixFixture {
     bytes memory result = _execute(
       account,
       address(_factoryFor(stack, marketKind)),
-      abi.encodeCall(IHooksFactory.deployHooksInstance, (template, constructorArgs))
+      abi.encodeCall(IHooksFactoryBase.deployHooksInstance, (template, constructorArgs))
     );
     hooks = BaseAccessControls(abi.decode(result, (address)));
   }

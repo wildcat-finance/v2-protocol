@@ -11,7 +11,7 @@ pragma solidity 0.8.25;
 //
 //  PENALTY TIMELINE
 //  testFuzz_penaltyCureAtCutoffAndOneSecondLate(...)
-//  testFuzz_observedCureResetsRunWithoutForgivingEconomicTimer(...)
+//  testFuzz_observedCureOnlyDelaysDefaultByRecoveredTime(...)
 //
 //  QUEUE ALLOCATION AND DRAIN
 //  test_idleQueueAllocationMatchesOracle()
@@ -50,8 +50,8 @@ contract PenaltyLifecycleScenariosTest is PenaltyLifecycleFixture {
     _assertLifecycle();
   }
 
-  // ┌─ testFuzz_observedCureResetsRunWithoutForgivingEconomicTimer ─────
-  function testFuzz_observedCureResetsRunWithoutForgivingEconomicTimer(uint8 cell) external {
+  // ┌─ testFuzz_observedCureOnlyDelaysDefaultByRecoveredTime ─────
+  function testFuzz_observedCureOnlyDelaysDefaultByRecoveredTime(uint8 cell) external {
     uint256 i = uint256(cell) % MatrixSize;
     WildcatMarket market = WildcatMarket(lifecycle.marketAt(i));
     uint256 oldCutoff = lifecycle.penaltyCutoff(i);
@@ -60,16 +60,20 @@ contract PenaltyLifecycleScenariosTest is PenaltyLifecycleFixture {
     uint256 economicTimer = market.previousState().timeDelinquent;
     lifecycle.fund(i, 4, 0, false);
     assertEq(market.previousState().timeDelinquent, economicTimer, 'economic timer retained');
-    assertEq(lifecycle.penaltyCutoff(i), 0, 'observed cure resets run');
+    assertEq(lifecycle.penaltyCutoff(i), 0, 'healthy tracker is decaying');
     vm.warp(oldCutoff + 1);
     lifecycle.checkpoint(i);
     assertTrue(market.previousState().isDelinquent, 'interest creates a new shortfall');
     uint256 newCutoff = lifecycle.penaltyCutoff(i);
-    assertEq(newCutoff, vm.getBlockTimestamp() + 90 days, 'fresh default clock');
-    assertEq(market.defaultedAt(), 0, 'old cutoff cannot default the new run');
+    assertEq(market.previousState().timeDelinquent, economicTimer - 1, 'one second of recovery');
+    assertEq(newCutoff, oldCutoff + 2, 'one healthy second decays instead of accruing');
+    assertEq(market.defaultedAt(), 0, 'recovered second has not been used yet');
+    vm.warp(newCutoff);
+    lifecycle.checkpoint(i);
+    assertEq(market.defaultedAt(), 0, 'exact tracker threshold is inclusive');
     vm.warp(newCutoff + 1);
     lifecycle.checkpoint(i);
-    assertEq(market.defaultedAt(), newCutoff, 'new run default');
+    assertEq(market.defaultedAt(), newCutoff, 'resumed tracker default');
     lifecycle.fund(i, 1, 1, false);
     assertEq(market.defaultedAt(), newCutoff, 'cure cannot clear default');
     assertFalse(market.isClosed(), 'fully funded before date or without terms');

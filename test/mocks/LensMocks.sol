@@ -50,7 +50,7 @@ pragma solidity 0.8.25;
 //  constructor(...)
 //  version()
 //
-//  V1 MARKET METADATA
+//  v1 MARKET METADATA
 //  constructor(...)
 //  version()
 //
@@ -329,7 +329,7 @@ contract LensV1MarketMock {
   string public constant symbol = 'WCV1';
   uint8 public constant decimals = 18;
 
-  // ░░▒▒▓▓██ [ V1 MARKET METADATA ] ───────────────────────────────────────────
+  // ░░▒▒▓▓██ [ v1 MARKET METADATA ] ───────────────────────────────────────────
 
   // ┌─ constructor ─────
   constructor(address asset_) {

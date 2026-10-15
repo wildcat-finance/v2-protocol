@@ -7,32 +7,17 @@ const {
   buildRehearsalPlan,
   buildInventoryPendingRecords,
   buildTemplateUpdateHandoff,
-  loadArtifacts,
 } = require("../sepolia-v2-5-fix-rotation");
+const { historicalArtifacts, mockHistoricalInputs } = require("./helpers/historical-rotation");
 const rotation = require("../../deployments/sepolia/v2.5.6.json");
 const plan = require("../../deployments/sepolia/plan-v2.5.6.json");
 const deployments = JSON.parse(execFileSync("git", ["show",
   `${rotation.inventoryBaselineCommit}:deployments/sepolia/deployments.json`], { encoding: "utf8" }));
-const artifacts = loadArtifacts(rotation);
-// this historical template-only packet reused the pre-2.5.7 market code.
-// restore those artifact bytes from its pinned plan, rather than comparing
-// the old packet with today's deliberately changed market implementations.
-const baselinePlan = require("../../deployments/sepolia/plan-v2.5.5.json");
-for (const key of ["standardMarket", "revolvingMarket", "wrapperFactory"]) {
-  const entry = baselinePlan.transactions.find((tx) => tx.id === artifacts[key].previousId);
-  if (!artifacts[key].storedInitCode) {
-    artifacts[key] = { ...artifacts[key], bytecode: entry.initCode };
-    continue;
-  }
-  const primary = entry.constructorArgs.decoded[0];
-  const length = parseInt(primary.slice(-8, -4), 16);
-  const secondary = baselinePlan.transactions.find((tx) => tx.output === `${entry.output}-secondary`);
-  artifacts[key] = { ...artifacts[key], bytecode:
-    `0x${primary.slice(-48 - length * 2, -48)}${secondary.constructorArgs.decoded[0].slice(4)}` };
-}
+const artifacts = historicalArtifacts(rotation, plan);
 const call = (entry) => entry.forwardedCall;
 
-test("template update deploys only three stores, registers both factories, then disables old templates", () => {
+test("template update deploys only three stores, registers both factories, then disables old templates", (t) => {
+  mockHistoricalInputs(t, rotation, artifacts);
   assertRotationPlan(plan, rotation, artifacts);
   assert.equal(plan.transactions.length, 15);
   const stores = plan.transactions.slice(0, 3);
@@ -64,7 +49,8 @@ test("template update deploys only three stores, registers both factories, then 
   assertRehearsalPlan(buildRehearsalPlan(plan), plan);
 });
 
-test("template update rejects another factory, an unapproved disable, and reused bytecode drift", () => {
+test("template update rejects another factory, an unapproved disable, and reused bytecode drift", (t) => {
+  mockHistoricalInputs(t, rotation, artifacts);
   const wrongFactory = structuredClone(plan);
   wrongFactory.transactions[3].forwardedCall.target = rotation.authority.archController;
   assert.throws(() => assertRotationPlan(wrongFactory, rotation, artifacts));
@@ -76,6 +62,15 @@ test("template update rejects another factory, an unapproved disable, and reused
   const wrongReuse = structuredClone(rotation);
   wrongReuse.reused.marketLensCore = rotation.reused.marketLens;
   assert.throws(() => assertRotationPlan(plan, wrongReuse, artifacts), /receipt-backed baseline/);
+});
+
+test("template update rejects inventory and alias drift from the pinned predecessor", (t) => {
+  const state = mockHistoricalInputs(t, rotation, artifacts);
+  state.inventory.recordCount += 1;
+  assert.throws(() => assertRotationPlan(plan, rotation, artifacts), /Unchanged factory inventory/);
+  state.inventory.recordCount -= 1;
+  state.deployments.HooksFactory = rotation.authority.archController;
+  assert.throws(() => assertRotationPlan(plan, rotation, artifacts), /HooksFactory baseline alias/);
 });
 
 function verifiedRun() {

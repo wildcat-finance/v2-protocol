@@ -46,9 +46,9 @@ using MarketDataLib for MarketDataV2_5 global;
 using MarketDataLib for MarketDataWithLenderStatus global;
 using MarketDataLib for LenderAccountQueryResult global;
 
-/// @notice full static configuration, hooks metadata, and accrued state for one V2 market.
+/// @notice full static configuration, hooks metadata, and accrued state for one v2 market.
 ///
-/// @dev reads the common V2 interfaces; nested hook fields use this lens deployment's ABI.
+/// @dev reads the common v2 interfaces; nested hook fields use this lens deployment's ABI.
 ///      use `MarketDataV2_5` for identity, lifecycle, liquidity, and revolving-market extensions.
 struct MarketData {
   // -- token metadata --
@@ -95,7 +95,7 @@ struct MarketData {
   uint256 coverageLiquidity;
 }
 
-/// @notice V2.5 market data, including lifecycle terms, current capacity, and registered wrapper.
+/// @notice v2.5 market data, including lifecycle terms, current capacity, and registered wrapper.
 ///
 /// @dev revolving-only values are absent for standard markets instead of being reported as zero.
 struct MarketDataV2_5 {
@@ -158,7 +158,7 @@ library MarketDataLib {
   }
 
   // ┌─ fillMarketsDataV2 ─────
-  /// @notice fill V2.5 data for each market in input order.
+  /// @notice fill v2.5 data for each market in input order.
   function fillMarketsDataV2(address[] memory markets) internal view returns (MarketDataV2_5[] memory data) {
     data = new MarketDataV2_5[](markets.length);
     for (uint256 i; i < markets.length; i++) {
@@ -167,7 +167,7 @@ library MarketDataLib {
   }
 
   // ┌─ fill ─────
-  /// @notice fill the complete compatibility tuple for a V2 market.
+  /// @notice fill the complete compatibility tuple for a v2 market.
   ///
   /// @dev token decimals, market and known-hooks reads remain strict; cosmetic
   ///      token names and symbols are best effort.
@@ -183,7 +183,7 @@ library MarketDataLib {
   }
 
   // ┌─ fill ─────
-  /// @notice fill V2.5 identity fields and optional revolving-market fields.
+  /// @notice fill v2.5 identity fields and optional revolving-market fields.
   function fill(MarketDataV2_5 memory data, WildcatMarket market) internal view {
     data.market.fill(market);
     data.borrowerPrincipal = market.borrowerPrincipal();

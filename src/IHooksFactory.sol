@@ -20,6 +20,12 @@ pragma solidity 0.8.25;
 //  borrowerIdentityRegistry()
 //  marketInitCodeStorage()
 //  marketInitCodeHash()
+//  isMarket(...)
+//
+//  NUKE PROTECTION
+//  isApprovedNukeProtectionFactory(...)
+//  setNukeProtectionFactoryApproval(...)
+//  registerNukeProtectedAccount(...)
 //
 //  HOOKS TEMPLATES
 //  addHooksTemplate(...)
@@ -54,8 +60,6 @@ pragma solidity 0.8.25;
 //  getHooksInstancesCountForBorrower(...)
 //
 //  MARKET DEPLOYMENT
-//  deployMarket(...)
-//  deployMarketAndHooks(...)
 //  computeMarketAddress(...)
 //
 //  CONSTRUCTOR PARAMETERS
@@ -68,6 +72,10 @@ pragma solidity 0.8.25;
 //  getMarketsForHooksInstance(...)
 //  getMarketsForHooksInstance(...)
 //  getMarketsForHooksInstanceCount(...)
+//
+//  STANDARD MARKET DEPLOYMENT
+//  deployMarket(...)
+//  deployMarketAndHooks(...)
 // ═════
 
 import './access/IHooks.sol';
@@ -222,9 +230,6 @@ interface IHooksFactoryEventsAndErrors {
   /// @dev stored-initcode deployment returned an address other than the derived market address.
   error MarketDeploymentAddressMismatch();
 
-  /// @dev a hooks instance already occupies the expected deployment address.
-  error HooksInstanceAlreadyExists();
-
   /// @dev the market name or symbol exceeds the factory's 63-byte packed encoding.
   error NameOrSymbolTooLong();
 
@@ -243,7 +248,22 @@ interface IHooksFactoryEventsAndErrors {
   /// @dev the hooks instance is not at its recorded position in the administrator index.
   error InvalidHooksInstanceAssociation();
 
+  /// @dev only approved feature factories may request protection for their instances.
+  error NotApprovedNukeProtectionFactory();
+
+  /// @dev feature factories and protected accounts must be deployed contracts.
+  error NukeProtectionRequiresContract();
+
+  /// @dev the target market was not deployed by this factory.
+  error NukeProtectionMarketNotFound();
+
   // ░░▒▒▓▓██ [ EVENTS ] ───────────────────────────────────────────────────────
+
+  /// @notice eligibility for future registrations changed; existing protection is unaffected.
+  event NukeProtectionFactoryApproval(address indexed featureFactory, bool approved);
+
+  /// @notice records which approved factory vouched for an account's protection.
+  event NukeProtectionRequested(address indexed market, address indexed account, address indexed featureFactory);
 
   /// @notice immutable repayment terms; a zero date disables scheduled repayment.
   event MarketRepaymentTerms(address indexed market, uint256 repaymentDate, uint256 repaymentPeriod);
@@ -338,15 +358,17 @@ interface IHooksFactoryEventsAndErrors {
   event MarketHooksData(address indexed market, bytes hooksData);
 }
 
-// ┌─ IHooksFactory ────────────────────────────────────────────────────────────
-/// @title Wildcat hooks factory
+// ┌─ IHooksFactoryBase ────────────────────────────────────────────────────────
+/// @title Wildcat hooks factory base
 ///
-/// @notice register hooks templates, deploy reusable hooks instances, and deploy markets.
+/// @notice register hooks templates, deploy reusable hooks instances, and track their markets.
 ///
-/// @dev borrower accounts are indexed under their resolved principal, while the market stores the
-///      calling account as its operational borrower. market salts still bind to that caller;
-///      hooks-instance salts use the resolved administrator and its nonce.
-interface IHooksFactory is IHooksFactoryEventsAndErrors {
+/// @dev shared by the standard and revolving factories, which add their own market deployment
+///      functions. borrower accounts are indexed under their resolved principal, while the market
+///      stores the calling account as its operational borrower. market salts still bind to that
+///      caller; hooks-instance salts use the resolved administrator and its nonce.
+///      use `IHooksFactoryBase.fn` for shared function selectors and `abi.encodeCall` references.
+interface IHooksFactoryBase is IHooksFactoryEventsAndErrors {
   // ░░▒▒▓▓██ [ SETUP ] ────────────────────────────────────────────────────────
 
   // ┌─ registerWithArchController ─────
@@ -383,6 +405,34 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   // ┌─ marketInitCodeHash ─────
   /// @notice hash of the market initcode stored by `marketInitCodeStorage`.
   function marketInitCodeHash() external view returns (uint256);
+
+  // ┌─ isMarket ─────
+  /// @notice return whether this factory deployed `market`.
+  function isMarket(address market) external view returns (bool);
+
+  // ░░▒▒▓▓██ [ NUKE PROTECTION ] ──────────────────────────────────────────────
+
+  // ┌─ isApprovedNukeProtectionFactory ─────
+  /// @notice return whether `featureFactory` may request new protection registrations.
+  function isApprovedNukeProtectionFactory(address featureFactory) external view returns (bool);
+
+  // ┌─ setNukeProtectionFactoryApproval ─────
+  /// @notice allow or deny future registrations by an immutable, reviewed feature factory.
+  ///
+  /// @dev only the current ArchController owner may call this. removing approval cannot
+  ///      revoke any account's existing protection. approval trusts the factory to deploy
+  ///      or authenticate its own instances and bind each instance to the correct market.
+  ///      deployed code is required; immutability and instance checks require review before approval.
+  function setNukeProtectionFactoryApproval(address featureFactory, bool approved) external;
+
+  // ┌─ registerNukeProtectedAccount ─────
+  /// @notice permanently protect `account` from nuking in a market deployed by this factory.
+  ///
+  /// @dev only approved feature factories may call this, including after market funding.
+  ///      this relay checks deployed code, not provenance. the caller must authenticate the
+  ///      instance and its market binding; a self-reported interface is insufficient.
+  ///      feature factories must register new instances in the transaction that deploys them.
+  function registerNukeProtectedAccount(address market, address account) external;
 
   // ░░▒▒▓▓██ [ HOOKS TEMPLATES ] ──────────────────────────────────────────────
 
@@ -535,41 +585,6 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
 
   // ░░▒▒▓▓██ [ MARKET DEPLOYMENT ] ────────────────────────────────────────────
 
-  // ┌─ deployMarket ─────
-  /// @notice deploy a market using the existing hooks instance in `parameters.hooks`.
-  ///
-  /// @dev the caller becomes the operational borrower and its resolved principal is stored on the
-  ///      market. fee arguments must exactly match current template terms, and the first 20 bytes
-  ///      of `salt` must equal the caller.
-  ///
-  /// @param hooksData opaque data forwarded to the hooks instance's `onCreateMarket` callback.
-  function deployMarket(
-    DeployMarketInputs calldata parameters,
-    bytes calldata hooksData,
-    bytes32 salt,
-    address originationFeeAsset,
-    uint256 originationFeeAmount
-  )
-    external
-    returns (address market);
-
-  // ┌─ deployMarketAndHooks ─────
-  /// @notice deploy a principal-administered hooks instance and a market using it.
-  ///
-  /// @dev both deployments are atomic. the caller may be a registered borrower account, but the
-  ///      hooks instance is administered and indexed under its resolved principal.
-  function deployMarketAndHooks(
-    address hooksTemplate,
-    bytes calldata hooksConstructorArgs,
-    DeployMarketInputs calldata parameters,
-    bytes calldata hooksData,
-    bytes32 salt,
-    address originationFeeAsset,
-    uint256 originationFeeAmount
-  )
-    external
-    returns (address market, address hooks);
-
   // ┌─ computeMarketAddress ─────
   /// @notice return the CREATE2 market address for `salt` and this factory's initcode.
   ///
@@ -625,4 +640,47 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   // ┌─ getMarketsForHooksInstanceCount ─────
   /// @notice return the number of markets attached to `hooksInstance`.
   function getMarketsForHooksInstanceCount(address hooksInstance) external view returns (uint256);
+}
+
+// ┌─ IHooksFactory ────────────────────────────────────────────────────────────
+/// @title Wildcat hooks factory
+///
+/// @notice deploy standard Wildcat markets with registered hooks templates and instances.
+interface IHooksFactory is IHooksFactoryBase {
+  // ░░▒▒▓▓██ [ MARKET DEPLOYMENT ] ────────────────────────────────────────────
+
+  // ┌─ deployMarket ─────
+  /// @notice deploy a market using the existing hooks instance in `parameters.hooks`.
+  ///
+  /// @dev the caller becomes the operational borrower and its resolved principal is stored on the
+  ///      market. fee arguments must exactly match current template terms, and the first 20 bytes
+  ///      of `salt` must equal the caller.
+  ///
+  /// @param hooksData opaque data forwarded to the hooks instance's `onCreateMarket` callback.
+  function deployMarket(
+    DeployMarketInputs calldata parameters,
+    bytes calldata hooksData,
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
+  )
+    external
+    returns (address market);
+
+  // ┌─ deployMarketAndHooks ─────
+  /// @notice deploy a principal-administered hooks instance and a market using it.
+  ///
+  /// @dev both deployments are atomic. the caller may be a registered borrower account, but the
+  ///      hooks instance is administered and indexed under its resolved principal.
+  function deployMarketAndHooks(
+    address hooksTemplate,
+    bytes calldata hooksConstructorArgs,
+    DeployMarketInputs calldata parameters,
+    bytes calldata hooksData,
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
+  )
+    external
+    returns (address market, address hooks);
 }

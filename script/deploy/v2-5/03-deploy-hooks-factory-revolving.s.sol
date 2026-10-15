@@ -36,7 +36,7 @@ pragma solidity 0.8.25;
 
 import { console } from 'forge-std/console.sol';
 
-import { IHooksFactoryRevolving } from 'src/IHooksFactoryRevolving.sol';
+import { IHooksFactoryBase } from 'src/IHooksFactory.sol';
 
 import '../../common/DeployScriptBase.sol';
 
@@ -204,42 +204,42 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       factory,
       label,
       'archController',
-      abi.encodeWithSelector(IHooksFactoryRevolving.archController.selector),
+      abi.encodeWithSelector(IHooksFactoryBase.archController.selector),
       archController
     );
     _verifyAddressCall(
       factory,
       label,
       'sanctionsSentinel',
-      abi.encodeWithSelector(IHooksFactoryRevolving.sanctionsSentinel.selector),
+      abi.encodeWithSelector(IHooksFactoryBase.sanctionsSentinel.selector),
       sanctionsSentinel
     );
     _verifyAddressCall(
       factory,
       label,
       'wrapperFactory',
-      abi.encodeWithSelector(IHooksFactoryRevolving.wrapperFactory.selector),
+      abi.encodeWithSelector(IHooksFactoryBase.wrapperFactory.selector),
       wrapperFactory
     );
     _verifyAddressCall(
       factory,
       label,
       'borrowerIdentityRegistry',
-      abi.encodeWithSelector(IHooksFactoryRevolving.borrowerIdentityRegistry.selector),
+      abi.encodeWithSelector(IHooksFactoryBase.borrowerIdentityRegistry.selector),
       borrowerIdentityRegistry
     );
     _verifyAddressCall(
       factory,
       label,
       'marketInitCodeStorage',
-      abi.encodeWithSelector(IHooksFactoryRevolving.marketInitCodeStorage.selector),
+      abi.encodeWithSelector(IHooksFactoryBase.marketInitCodeStorage.selector),
       initCodeStorage
     );
     _verifyUintCall(
       factory,
       label,
       'marketInitCodeHash',
-      abi.encodeWithSelector(IHooksFactoryRevolving.marketInitCodeHash.selector),
+      abi.encodeWithSelector(IHooksFactoryBase.marketInitCodeHash.selector),
       initCodeHash
     );
   }

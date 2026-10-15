@@ -4,18 +4,20 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { loadReusedDeployments } = require("../reused-deployments");
-const { assertRotationPlan, loadArtifacts, buildInventoryPendingRecords,
+const { assertRotationPlan, buildInventoryPendingRecords,
   buildRehearsalPlan, assertRehearsalPlan } = require("../sepolia-v2-5-fix-rotation");
+const { historicalArtifacts, mockHistoricalInputs } = require("./helpers/historical-rotation");
 const { assertActivationPlan, upsertFactory, upsertWrapperFactory } = require("../factory-inventory");
 const { buildHandoff, validateHandoff } = require("../generate-handoff");
 const rotation = require("../../deployments/sepolia/v2.5.7.json");
 const plan = require("../../deployments/sepolia/plan-v2.5.7.json");
 const reused = loadReusedDeployments(rotation);
-const artifacts = loadArtifacts(rotation);
+const artifacts = historicalArtifacts(rotation, plan);
 const options = { reuseIdentityRegistry: true, reuseAccessListRoleProviderFactory: true,
   reusedDeployments: reused };
 
-test("v2.5.7 replaces dependent factories and lenses while retaining four deployed components", () => {
+test("v2.5.7 replaces dependent factories and lenses while retaining four deployed components", (t) => {
+  mockHistoricalInputs(t, rotation, artifacts);
   assertRotationPlan(plan, rotation, artifacts);
   assertActivationPlan(plan, "sepolia", options);
   assert.equal(plan.transactions.length, 21);
@@ -40,7 +42,8 @@ test("v2.5.7 replaces dependent factories and lenses while retaining four deploy
   assert.equal(pending.filter((record) => record.provenance).length, 4);
 });
 
-test("reused registration validation rejects a missing pin, changed address, hash, or predicate", () => {
+test("reused registration validation rejects a missing pin, changed address, hash, or predicate", (t) => {
+  mockHistoricalInputs(t, rotation, artifacts);
   assert.throws(() => assertActivationPlan(plan, "sepolia", { ...options, reusedDeployments: undefined }));
   for (const change of [
     (tx) => { tx.forwardedCall.args[0] = rotation.authority.archController; },
@@ -54,7 +57,8 @@ test("reused registration validation rejects a missing pin, changed address, has
   }
 });
 
-test("reuse rejects changed code and unsupported, duplicate, or unpinned sources", () => {
+test("reuse rejects changed code and unsupported, duplicate, or unpinned sources", (t) => {
+  mockHistoricalInputs(t, rotation, artifacts);
   const wrongPredecessor = structuredClone(rotation);
   wrongPredecessor.superseded.standardHooksFactory = rotation.authority.archController;
   assert.throws(() => assertRotationPlan(plan, wrongPredecessor, artifacts), /predecessor baseline/);
@@ -62,6 +66,11 @@ test("reuse rejects changed code and unsupported, duplicate, or unpinned sources
     const altered = { ...artifacts, [key]: { ...artifacts[key], bytecode: "0x6000" } };
     assert.throws(() => assertRotationPlan(plan, rotation, altered), /bytecode differs from baseline/);
   }
+  const changedWrapper = { ...artifacts, wrapperFactory: { ...artifacts.wrapperFactory, bytecode: "0x6000" } };
+  assert.throws(() => assertRotationPlan(plan, rotation, changedWrapper), /does not use the frozen deploy artifact/);
+  const changedPlan = structuredClone(plan);
+  changedPlan.transactions[0].initCode = "0x6000";
+  assert.throws(() => assertRotationPlan(changedPlan, rotation, artifacts), /does not match current/);
   for (const change of [
     (cfg) => { cfg.inventoryBaselineCommit = "HEAD"; },
     (cfg) => { cfg.reusedDeployments.push(cfg.reusedDeployments[0]); },
@@ -75,6 +84,15 @@ test("reuse rejects changed code and unsupported, duplicate, or unpinned sources
       assert.throws(() => assertRotationPlan(plan, altered, artifacts));
     } else assert.throws(() => loadReusedDeployments(altered));
   }
+});
+
+test("reuse rejects inventory and alias drift from the pinned predecessor", (t) => {
+  const state = mockHistoricalInputs(t, rotation, artifacts);
+  state.inventory.recordCount += 1;
+  assert.throws(() => assertRotationPlan(plan, rotation, artifacts), /Unchanged baseline factory inventory/);
+  state.inventory.recordCount -= 1;
+  state.deployments.HooksFactory = rotation.authority.archController;
+  assert.throws(() => assertRotationPlan(plan, rotation, artifacts), /HooksFactory baseline alias/);
 });
 
 test("final handoff retains original deployment receipts and records reuse explicitly", (t) => {

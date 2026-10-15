@@ -15,6 +15,7 @@ pragma solidity 0.8.25;
 //  scaledTransferRounding()
 //  name()
 //  symbol()
+//  _returnPackedString(...)
 //  archController()
 //  registeredWrapper()
 //
@@ -54,7 +55,6 @@ pragma solidity 0.8.25;
 //  BATCH FUNDING
 //  _commitTransitionBatch(...)
 //  _closeOrQueueWithdrawalBatch(...)
-//  _processExpiredWithdrawalBatch(...)
 //  _payTransitionBatch(...)
 //  _applyWithdrawalBatchPayment(...)
 //  _applyWithdrawalBatchPaymentView(...)
@@ -133,7 +133,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   /// @notice sanctions sentinel used for borrower/lender checks and escrow deployment.
   address public immutable sentinel;
 
-  /// @notice factory that deployed the market and can update its protocol fee.
+  /// @notice factory that deployed the market, updates its protocol fee, and registers nuke protection.
   address public immutable factory;
 
   /// @notice immutable account that receives protocol fees.
@@ -191,6 +191,11 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
 
   uint64 internal immutable _repaymentTerms;
 
+  /// @notice integration accounts permanently excluded from `nukeFromOrbit`.
+  ///
+  /// @dev protection grants no deposit, transfer, or withdrawal permissions.
+  mapping(address account => bool protected) public isNukeProtected;
+
   // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
 
   error InvalidRepaymentTerms();
@@ -219,9 +224,9 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
     if ((date == 0)
         .and(period != 0)
         .or((date != 0).and((date <= block.timestamp).or(date + period > type(uint32).max)))) {
-      revert_InvalidRepaymentTerms();
+      revertWithSelector(InvalidRepaymentTerms_ErrorSelector);
     }
-    if (parameters.hooks.useOnExecuteWithdrawal()) revert_UnsupportedExecuteWithdrawalHook();
+    if (parameters.hooks.useOnExecuteWithdrawal()) revertWithSelector(UnsupportedExecuteWithdrawalHook_ErrorSelector);
     _repaymentTerms = uint64(date | (period << 32));
 
     asset = parameters.asset;
@@ -374,41 +379,30 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   // ┌─ name ─────
   /// @notice return the market-token name set at deployment.
   function name() external view returns (string memory) {
-    bytes32 nameWord0 = PACKED_NAME_WORD_0;
-    bytes32 nameWord1 = PACKED_NAME_WORD_1;
-
-    assembly {
-      // ABI string layout:
-      // 0x00: Offset to the string
-      // 0x20: Length of the string
-      // 0x40: First word of the string
-      // 0x60: Second word of the string
-      // the first immutable word also holds the length byte. that leaves at most 63 string bytes.
-      mstore(0, 0x20)
-      mstore(0x20, 0)
-      mstore(0x3f, nameWord0)
-      mstore(0x5f, nameWord1)
-      return(0, 0x80)
-    }
+    _returnPackedString(PACKED_NAME_WORD_0, PACKED_NAME_WORD_1);
   }
 
   // ┌─ symbol ─────
   /// @notice return the market-token symbol set at deployment.
   function symbol() external view returns (string memory) {
-    bytes32 symbolWord0 = PACKED_SYMBOL_WORD_0;
-    bytes32 symbolWord1 = PACKED_SYMBOL_WORD_1;
+    _returnPackedString(PACKED_SYMBOL_WORD_0, PACKED_SYMBOL_WORD_1);
+  }
 
+  // ┌─ _returnPackedString ─────
+  /// @dev return a string from two packed words. this exits the external call, not just the helper.
+  function _returnPackedString(bytes32 word0, bytes32 word1) internal pure {
     assembly {
       // ABI string layout:
-      // 0x00: Offset to the string
-      // 0x20: Length of the string
-      // 0x40: First word of the string
-      // 0x60: Second word of the string
-      // the first immutable word also holds the length byte. that leaves at most 63 string bytes.
+      // 0x00: offset to the string
+      // 0x20: length of the string
+      // 0x40: first word of the string
+      // 0x60: second word of the string
+      // word0 holds the length byte and 31 string bytes; word1 holds the remaining 32 bytes.
+      // the stores overwrite the free memory pointer and zero slot. return without resuming Solidity.
       mstore(0, 0x20)
       mstore(0x20, 0)
-      mstore(0x3f, symbolWord0)
-      mstore(0x5f, symbolWord1)
+      mstore(0x3f, word0)
+      mstore(0x5f, word1)
       return(0, 0x80)
     }
   }
@@ -429,15 +423,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
 
   // ┌─ onlyBorrower ─────
   modifier onlyBorrower() {
-    address _borrower = borrower();
-    assembly {
-      // equivalent to
-      // if (msg.sender != borrower) revert NotApprovedBorrower();
-      if xor(caller(), _borrower) {
-        mstore(0, 0x02171e6a)
-        revert(0x1c, 0x04)
-      }
-    }
+    if (msg.sender != borrower()) revertWithSelector(NotApprovedBorrower_ErrorSelector);
     _;
   }
 
@@ -483,7 +469,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   ///      again; a principal change since request makes the caller request a fresh transfer.
   function acceptBorrowerTransfer() external nonReentrant sphereXGuardExternal {
     address newBorrower = pendingBorrower();
-    if (msg.sender != newBorrower) revert_NotPendingBorrower();
+    if (msg.sender != newBorrower) revertWithSelector(NotPendingBorrower_ErrorSelector);
 
     address expectedPrincipal = pendingBorrowerPrincipal();
     address newBorrowerPrincipal = _validateBorrowerTransferTarget(newBorrower, expectedPrincipal);
@@ -502,7 +488,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   /// @notice clear the pending borrower transfer without changing current authority.
   function cancelBorrowerTransfer() external onlyBorrower nonReentrant sphereXGuardExternal {
     address cancelledPendingBorrower = pendingBorrower();
-    if (cancelledPendingBorrower == address(0)) revert_NoPendingBorrowerTransfer();
+    if (cancelledPendingBorrower == address(0)) revertWithSelector(NoPendingBorrowerTransfer_ErrorSelector);
     address cancelledPendingBorrowerPrincipal = pendingBorrowerPrincipal();
     _setAddress(PENDING_BORROWER_STORAGE_SLOT, address(0));
     _setAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT, address(0));
@@ -591,7 +577,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   function _checkBorrowerNotSanctioned(address operationalBorrower, address principal) internal view {
     address flaggedIdentity = _flaggedBorrowerIdentity(operationalBorrower, principal);
     if (flaggedIdentity != address(0)) {
-      revert_BorrowerTransferWhileSanctioned(flaggedIdentity);
+      revertWithSelectorAndArgument(BorrowerTransferWhileSanctioned_ErrorSelector, uint256(uint160(flaggedIdentity)));
     }
   }
 
@@ -647,7 +633,10 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ defaultedAt ─────
-  /// @notice committed default cutoff. zero means no default has been recorded yet.
+  /// @notice return the committed default cutoff timestamp, or zero if none has been recorded.
+  ///
+  /// @dev records the first breached Grace Tracker or repayment-deadline threshold. recovery
+  ///      cannot clear it. views don't commit a default that has accrued since the last write.
   function defaultedAt() external view returns (uint256) {
     return _lifecycle.defaultedAt;
   }
@@ -759,7 +748,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
 
   // ┌─ _calculateTransition ─────
   /// @dev replay only the finite boundaries that change accounting. no daily loop, and no
-  ///      accrual split merely to record the separate 90-day default marker.
+  ///      accrual split merely to record the Grace Tracker's default threshold.
   function _calculateTransition(LifecycleTransition memory next, uint256 currentAssets, bool closeNow) internal view {
     next.state = _state;
     next.lifecycle = _lifecycle;
@@ -780,12 +769,12 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
       if (datePending.and(date < target)) target = date;
       if (deadlinePending.and(deadline < target)) target = deadline;
       if (expiryPending.and(next.batchExpiry < target)) target = next.batchExpiry;
-      _accrueTransition(next, target, date);
+      _accrueTransition(next, target);
       if (datePending.and(target == date)) {
         datePending = false;
         if (!state.isClosed) {
           next.repaymentActivated = true;
-          next.lifecycle.activateRepayment(state, historicalAssets, date);
+          state.activateRepayment(historicalAssets);
           if (historicalAssets >= state.totalDebts()) {
             _previewAutomaticClosure(next, historicalAssets, target);
           }
@@ -822,10 +811,9 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   }
 
   // ┌─ _accrueTransition ─────
-  function _accrueTransition(LifecycleTransition memory next, uint256 timestamp, uint256 date) internal view {
+  function _accrueTransition(LifecycleTransition memory next, uint256 timestamp) internal view {
     MarketState memory state = next.state;
-    uint256 grace = (date != 0).and(state.lastInterestAccruedTimestamp >= date) ? 0 : delinquencyGracePeriod;
-    next.lifecycle.accrueDefaultRun(state, timestamp, grace);
+    next.lifecycle.accrueGraceTrackerDefault(state, timestamp, delinquencyGracePeriod);
     if (timestamp == state.lastInterestAccruedTimestamp) return;
 
     // LifecycleTransition already allocated four records. fill the next slot in place.
@@ -894,36 +882,6 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
     } else {
       _withdrawalData.unpaidBatches.push(expiry);
     }
-  }
-
-  // ┌─ _processExpiredWithdrawalBatch ─────
-  /// @dev fund the expired batch with available liquidity. close it if fully funded;
-  ///      otherwise retain the unpaid portion in FIFO. reserve the paid assets and burn the
-  ///      corresponding shares at the current scale factor so they stop earning interest.
-  function _processExpiredWithdrawalBatch(MarketState memory state, uint256 currentTotalAssets) internal {
-    uint32 expiry = state.pendingWithdrawalExpiry;
-    WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
-
-    if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
-      uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(state, currentTotalAssets);
-      if (availableLiquidity > 0) {
-        _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
-      }
-    }
-
-    batch.releaseRemainder(state);
-
-    emit_WithdrawalBatchExpired(expiry, batch.scaledTotalAmount, batch.scaledAmountBurned, batch.normalizedAmountPaid);
-
-    if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
-      _withdrawalData.unpaidBatches.push(expiry);
-    } else {
-      emit_WithdrawalBatchClosed(expiry);
-    }
-
-    state.pendingWithdrawalExpiry = 0;
-
-    _withdrawalData.batches[expiry] = batch;
   }
 
   // ┌─ _payTransitionBatch ─────
@@ -1017,7 +975,6 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
       next.expiryAfterAccrual = next.accrualCount;
     }
     state.closeFundedState();
-    next.lifecycle.penaltyCutoff = 0;
     next.closedAt = uint32(timestamp);
   }
 
@@ -1070,7 +1027,6 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
     _closeAfterCurrentAction(state, currentTotalAssets);
     bool isDelinquent = state.liquidityRequired() > currentTotalAssets;
     state.isDelinquent = isDelinquent;
-    if ((!isDelinquent).or(state.isClosed)) _lifecycle.penaltyCutoff = 0;
 
     // a direct transfer can exceed uint152. saturate instead of bricking every state write.
     // the uint104/uint112/uint128 accounting fields keep every payable liability below uint152,
@@ -1262,7 +1218,7 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   /// @dev loads an account and reverts if it is currently sanctioned for this borrower principal.
   function _getAccount(address accountAddress) internal view returns (Account memory account) {
     account = _accounts[accountAddress];
-    if (_isSanctioned(accountAddress)) revert_AccountBlocked();
+    if (_isSanctioned(accountAddress)) revertWithSelector(AccountBlocked_ErrorSelector);
   }
 
   // ┌─ _isSanctioned ─────

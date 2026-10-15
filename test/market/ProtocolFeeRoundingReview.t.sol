@@ -16,9 +16,8 @@ pragma solidity 0.8.25;
 //  _runDaily(...)
 // ═════
 
-import { FeeMath } from 'src/libraries/FeeMath.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
-import { RAY, BIP } from 'src/libraries/MathUtils.sol';
+import { MathUtils, RAY, BIP } from 'src/libraries/MathUtils.sol';
 import { FeeMathExternal } from '../libraries/wrappers/FeeMathExternal.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 
@@ -89,7 +88,7 @@ contract ProtocolFeeRoundingReviewTest is MarketFixture {
     state.scaleFactor = uint112(RAY);
     state.scaledTotalSupply = type(uint104).max;
     state.protocolFeeBips = 1000;
-    uint256 baseRay = FeeMath.calculateLinearInterestFromBips(1, 12);
+    uint256 baseRay = MathUtils.calculateLinearInterestFromBips(1, 12);
     uint256 expectedNumerator = uint256(state.scaledTotalSupply) * baseRay * 1000;
     uint256 denominator = RAY * BIP;
     uint256 expected = (expectedNumerator + denominator / 2) / denominator;

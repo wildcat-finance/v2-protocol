@@ -220,7 +220,7 @@ and known-issue dispositions have not been changed by deployment.
 
 The broader task is to revisit known issues whose rationale assumed approved
 underlying assets, then assess other reasonably supportable ERC20 quirks.
-Arbitrary ERC20 admission has always been possible, including V2.0. Rebasing,
+Arbitrary ERC20 admission has always been possible, including v2.0. Rebasing,
 fee-on-transfer and explicitly malicious token behavior remain unsupported.
 Continue that review after the withdrawal-remediation decision; the broader
 assessment is not complete. Work remains solo, and replacement lenses must

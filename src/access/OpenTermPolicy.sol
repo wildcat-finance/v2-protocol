@@ -8,8 +8,6 @@ pragma solidity 0.8.25;
 //
 //  MARKET SETUP
 //  _initializeMarket(...)
-//  _readUint128Cd(...)
-//  _readBoolCd(...)
 //
 //  ACCESS CONFIGURATION
 //  _readAccessConfig(...)
@@ -51,7 +49,11 @@ abstract contract OpenTermPolicy is BaseHooks {
     returns (HooksConfig marketHooksConfig)
   {
     (AccessConfig memory access, bool depositHookEnabled, HooksConfig effective) = _configureMarketAccess(
-      administrator_, marketAddress, parameters.hooks, _readUint128Cd(hooksData), _readBoolCd(hooksData, 0x20)
+      administrator_,
+      marketAddress,
+      parameters.hooks,
+      _readWordCd(hooksData, 0).toUint128(),
+      _readBoolCd(hooksData, 0x20)
     );
     _depositHookEnabled[marketAddress] = depositHookEnabled;
     _hookedMarkets[marketAddress] = HookedMarket({
@@ -62,22 +64,6 @@ abstract contract OpenTermPolicy is BaseHooks {
       transfersDisabled: access.transfersDisabled
     });
     return effective;
-  }
-
-  // ┌─ _readUint128Cd ─────
-  function _readUint128Cd(bytes calldata data) internal pure returns (uint128 value) {
-    uint _value;
-    assembly {
-      _value := calldataload(data.offset)
-    }
-    return _value.toUint128();
-  }
-
-  // ┌─ _readBoolCd ─────
-  function _readBoolCd(bytes calldata data, uint offset) internal pure returns (bool value) {
-    assembly {
-      value := and(calldataload(add(data.offset, offset)), 1)
-    }
   }
 
   // ░░▒▒▓▓██ [ ACCESS CONFIGURATION ] ─────────────────────────────────────────

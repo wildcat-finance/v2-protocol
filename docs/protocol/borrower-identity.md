@@ -1,22 +1,22 @@
 # Borrower identity and transfers
 
-V2.5 stores the address that operates a market separately from the registered
+v2.5 stores the address that operates a market separately from the registered
 legal borrower. That lets the borrower transfer control without replacing the
 market or resetting its state.
 
-## V2.5 boundary
+## v2.5 boundary
 
-Supported V2.5 factories create markets for direct registered principals.
+Supported v2.5 factories create markets for direct registered principals.
 Supported transfers also resolve to direct registered principals. The following
-invariant therefore holds for every supported V2.5 market:
+invariant therefore holds for every supported v2.5 market:
 
 ```text
 borrower() == borrowerPrincipal()
 ```
 
 The source and ABI already contain an account-aware path where the two values
-may differ. No supported V2.5 factory deploys Borrower Accounts. That path is
-planned for V2.6, but it is documented here because the compatibility seam is
+may differ. No supported v2.5 factory deploys Borrower Accounts. That path is
+planned for v2.6, but it is documented here because the compatibility seam is
 already in the code.
 
 ## Identity model
@@ -129,12 +129,12 @@ The supported standard and revolving factories initialize markets with
 The shared market constructor can accept a different operational borrower and
 principal. A future factory could use that seam to construct a market through a
 temporary contract while retaining the requesting principal's legal identity.
-The V2.5 factories do not support deferred origination or Borrower Account
+The v2.5 factories do not support deferred origination or Borrower Account
 policy.
 
 ## Two-step market transfer
 
-Every V2.5 market exposes:
+Every v2.5 market exposes:
 
 ```solidity
 function requestBorrowerTransfer(address newBorrower) external;
@@ -256,7 +256,7 @@ for that independent transfer path and
 [the production integration suite](../../test/integration/ProductionMatrixScenarios.t.sol)
 for real factory/lens coverage.
 
-V2.5 `AccessListRoleProvider` administration also uses an independent two-step
+v2.5 `AccessListRoleProvider` administration also uses an independent two-step
 transfer. The provider address, membership, and every hook attachment remain
 unchanged. Other role providers are not assumed to support that interface.
 

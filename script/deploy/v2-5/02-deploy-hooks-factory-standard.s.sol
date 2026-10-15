@@ -36,7 +36,7 @@ pragma solidity 0.8.25;
 
 import { console } from 'forge-std/console.sol';
 
-import { IHooksFactory } from 'src/IHooksFactory.sol';
+import { IHooksFactoryBase } from 'src/IHooksFactory.sol';
 import { IBorrowerIdentityRegistry } from 'src/interfaces/IBorrowerIdentityRegistry.sol';
 
 import '../../common/DeployScriptBase.sol';
@@ -266,37 +266,45 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
     view
   {
     _verifyAddressCall(
-      factory, label, 'archController', abi.encodeWithSelector(IHooksFactory.archController.selector), archController
+      factory,
+      label,
+      'archController',
+      abi.encodeWithSelector(IHooksFactoryBase.archController.selector),
+      archController
     );
     _verifyAddressCall(
       factory,
       label,
       'sanctionsSentinel',
-      abi.encodeWithSelector(IHooksFactory.sanctionsSentinel.selector),
+      abi.encodeWithSelector(IHooksFactoryBase.sanctionsSentinel.selector),
       sanctionsSentinel
     );
     _verifyAddressCall(
-      factory, label, 'wrapperFactory', abi.encodeWithSelector(IHooksFactory.wrapperFactory.selector), wrapperFactory
+      factory,
+      label,
+      'wrapperFactory',
+      abi.encodeWithSelector(IHooksFactoryBase.wrapperFactory.selector),
+      wrapperFactory
     );
     _verifyAddressCall(
       factory,
       label,
       'borrowerIdentityRegistry',
-      abi.encodeWithSelector(IHooksFactory.borrowerIdentityRegistry.selector),
+      abi.encodeWithSelector(IHooksFactoryBase.borrowerIdentityRegistry.selector),
       borrowerIdentityRegistry
     );
     _verifyAddressCall(
       factory,
       label,
       'marketInitCodeStorage',
-      abi.encodeWithSelector(IHooksFactory.marketInitCodeStorage.selector),
+      abi.encodeWithSelector(IHooksFactoryBase.marketInitCodeStorage.selector),
       initCodeStorage
     );
     _verifyUintCall(
       factory,
       label,
       'marketInitCodeHash',
-      abi.encodeWithSelector(IHooksFactory.marketInitCodeHash.selector),
+      abi.encodeWithSelector(IHooksFactoryBase.marketInitCodeHash.selector),
       initCodeHash
     );
   }

@@ -1,6 +1,6 @@
 # Glossary
 
-These terms describe supported V2.5 behavior. Names in `code` match the source.
+These terms describe supported v2.5 behavior. Names in `code` match the source.
 Rates use basis points (`bips`); 10,000 bips is 100%.
 
 For the mechanics, see [markets](./markets.md),
@@ -33,14 +33,14 @@ lender-facing namespace for sanctions checks and new sanctions escrows.
 ### Operational borrower
 
 The address returned by `market.borrower()`. This exact address can call
-borrower-only market functions. Supported V2.5 markets keep
+borrower-only market functions. Supported v2.5 markets keep
 `borrower() == borrowerPrincipal()` at origination and after transfer.
 
 ### Borrower Account
 
 A contract account associated with a registered principal through the borrower
 identity registry. The account-aware path exists in source and ABI, but no
-supported V2.5 factory or deployment uses it. It is planned for V2.6.
+supported v2.5 factory or deployment uses it. It is planned for v2.6.
 
 ### Lender
 
@@ -189,7 +189,9 @@ The state where the market's underlying balance is below
 the market is healthy. The penalty rate applies while that timer exceeds
 `delinquencyGracePeriod`.
 
-Scheduled repayment removes unused grace while the market is underfunded.
+This rolling timer is the **Grace Tracker**. Scheduled repayment removes unused
+grace for penalty fees while the market is underfunded; it does not change the
+configured grace used for tracker-based default.
 
 ### Repayment date and deadline
 
@@ -201,8 +203,9 @@ and withdrawal windows. See [repayment and default](./repayment-and-default.md).
 ### Default marker
 
 `defaultedAt`, a permanent recorded timestamp. It identifies the first missed
-repayment deadline or uncured 90-day penalty cutoff. It does not itself change
-market permissions, rates or closure. Zero means no default has been recorded.
+repayment deadline or boundary crossed when the Grace Tracker exceeds the
+configured grace plus 90 days. It does not itself change market permissions,
+rates or closure. Zero means no default has been recorded.
 
 ### Closure
 
