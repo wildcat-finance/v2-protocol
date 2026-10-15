@@ -191,6 +191,12 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
 
   uint64 internal immutable _repaymentTerms;
 
+  /// @notice integration accounts permanently excluded from `nukeFromOrbit`.
+  mapping(address account => bool protected) public isNukeProtected;
+
+  /// @notice the first successful deposit permanently closes protection registration.
+  bool public nukeProtectionSealed;
+
   // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
 
   error InvalidRepaymentTerms();

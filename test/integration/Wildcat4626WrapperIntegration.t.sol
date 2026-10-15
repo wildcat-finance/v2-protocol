@@ -24,6 +24,7 @@ pragma solidity 0.8.25;
 //
 //  WRAPPER READINESS AND REDEMPTION
 //  test_registrationAndReadinessUseProductionMarketsAndEveryBuiltInHook()
+//  test_lateWrapperCreationRevertsAtomically()
 //  test_depositAndMintIgnoreLocalBlockForRegisteredWrapperAcrossBuiltInHooks()
 //  test_redeemKeepsOrdinaryRecipientPolicyAcrossEveryBuiltInHook()
 //  test_redeemAndScaledQueueRemainAtomicAcrossMarketTypes()
@@ -369,6 +370,18 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     }
   }
 
+  // ┌─ test_lateWrapperCreationRevertsAtomically ─────
+  function test_lateWrapperCreationRevertsAtomically() external {
+    Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
+    _deposit(fixture, Lender, 1e18);
+    vm.expectRevert(IMarketEventsAndErrors.NukeProtectionSealed.selector);
+    fixture.wrapperFactory.createWrapper(address(fixture.market));
+    assertEq(fixture.market.registeredWrapper(), address(0), 'failed creation must not register identity');
+    assertEq(
+      fixture.wrapperFactory.wrapperForMarket(address(fixture.market)), address(0), 'failed creation must not persist'
+    );
+  }
+
   // ┌─ test_depositAndMintIgnoreLocalBlockForRegisteredWrapperAcrossBuiltInHooks ─────
   function test_depositAndMintIgnoreLocalBlockForRegisteredWrapperAcrossBuiltInHooks() external {
     for (uint256 i; i < 3; i++) {
@@ -556,7 +569,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     fixture.sanctionsList.sanction(address(wrapper));
     vm.expectRevert(Wildcat4626Wrapper.CannotNukeWrapper.selector);
     wrapper.nukeFromOrbit(address(wrapper));
-    vm.expectRevert(IMarketEventsAndErrors.CannotNukeWrapper.selector);
+    vm.expectRevert(IMarketEventsAndErrors.CannotNukeProtectedAccount.selector);
     fixture.market.nukeFromOrbit(address(wrapper));
     assertEq(fixture.market.scaledBalanceOf(address(wrapper)), backingBefore, 'backing changed');
     assertEq(wrapper.maxRedeem(OtherLender), 0, 'sanctioned wrapper limit');
@@ -891,11 +904,11 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
   // ┌─ test_wildcatWrapperInterestCanAuthorizeADifferentMarket ─────
   function test_wildcatWrapperInterestCanAuthorizeADifferentMarket() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
+    Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
     _deposit(fixture, Lender, DepositAmount);
     uint256 borrowableAssets = fixture.market.borrowableAssets();
     vm.prank(Borrower);
     fixture.market.borrow(borrowableAssets);
-    Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
     vm.startPrank(Lender);
     fixture.market.approve(address(wrapper), type(uint256).max);
     uint256 shares = wrapper.deposit(DepositAmount, Lender);

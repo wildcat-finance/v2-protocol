@@ -30,6 +30,10 @@ in this order:
 3. The ArchController registers it and emits
    `WildcatArchController.MarketAdded`.
 4. The factory writes its associations and emits the market deployment bundle.
+5. For wrapper-compatible markets, the wrapper factory deploys the canonical
+   wrapper. The market emits `NukeProtectionRegistered`, followed by the market
+   factory's `NukeProtectionRequested`, the market's `WrapperRegistered`, and
+   the wrapper factory's `WrapperDeployed`.
 
 `MarketAdded` proves registration. It does not contain enough data to initialize
 a market entity. Upsert the address, then finish initialization from the later
@@ -376,8 +380,16 @@ recovery event and is not a `Borrow` operation. See
 
 Canonical V2.5 wrapper creation emits:
 
-1. `WrapperRegistered` from the market.
-2. `WrapperDeployed` from the wrapper factory.
+1. `NukeProtectionRegistered(account)` from the market.
+2. `NukeProtectionRequested(market, account, featureFactory)` from the market factory.
+3. `WrapperRegistered` from the market.
+4. `WrapperDeployed` from the wrapper factory.
+
+The market factory separately emits
+`NukeProtectionFactoryApproval(featureFactory, approved)` when eligibility for
+future registrations changes. Removal of approval never removes existing
+market protection. These events also support other approved feature factories;
+see [nuke protection](./nuke-protection.md).
 
 Standard ERC-20 and ERC-4626 `Transfer`, `Approval`, `Deposit`, and `Withdraw`
 events remain part of the wrapper ABI. See

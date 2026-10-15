@@ -13,6 +13,8 @@ pragma solidity 0.8.25;
 //
 //  HOOKS TEMPLATES
 //  onlyArchControllerOwner()
+//  setNukeProtectionFactoryApproval(...)
+//  registerNukeProtectedAccount(...)
 //  addHooksTemplate(...)
 //  disableHooksTemplate(...)
 //
@@ -45,6 +47,8 @@ pragma solidity 0.8.25;
 //
 //  MARKET DEPLOYMENT
 //  _deployMarket(...)
+//  _createWrapperIfSupported(...)
+//  _readTransferPolicyFlag(...)
 //  _packString(...)
 //  _emitMarketDeployment(...)
 //  computeMarketAddress(...)
@@ -80,6 +84,9 @@ import './spherex/SphereXProtectedRegisteredBase.sol';
 import './access/IHooksAdministrator.sol';
 import './interfaces/IBorrowerIdentityRegistry.sol';
 import './types/RoleProvider.sol';
+import './interfaces/INukeProtectionMarket.sol';
+import './interfaces/IWildcat4626WrapperFactory.sol';
+import './access/IMarketTransferPolicy.sol';
 
 /// @dev deployment values outside `DeployMarketInputs`, grouped to stay within the stack limit.
 struct DeployMarketRuntimeParameters {
@@ -153,6 +160,10 @@ abstract contract HooksFactoryBase is SphereXProtectedRegisteredBase, Reentrancy
   /// @notice immutable artifact commitment for each registered template.
   mapping(address hooksTemplate => bytes32 initCodeHash) public override getHooksTemplateInitCodeHash;
 
+  mapping(address market => bool deployed) public override isMarket;
+
+  mapping(address featureFactory => bool approved) public override isApprovedNukeProtectionFactory;
+
   // ░░▒▒▓▓██ [ SETUP ] ────────────────────────────────────────────────────────
 
   // ┌─ constructor ─────
@@ -192,6 +203,26 @@ abstract contract HooksFactoryBase is SphereXProtectedRegisteredBase, Reentrancy
       revert CallerNotArchControllerOwner();
     }
     _;
+  }
+
+  // ┌─ setNukeProtectionFactoryApproval ─────
+  /// @inheritdoc IHooksFactoryBase
+  function setNukeProtectionFactoryApproval(address featureFactory, bool approved) external onlyArchControllerOwner {
+    if (approved && featureFactory.code.length == 0) revert NukeProtectionRequiresContract();
+    isApprovedNukeProtectionFactory[featureFactory] = approved;
+    emit NukeProtectionFactoryApproval(featureFactory, approved);
+  }
+
+  // ┌─ registerNukeProtectedAccount ─────
+  /// @inheritdoc IHooksFactoryBase
+  /// @dev the wrapper factory calls back here during guarded market deployment.
+  ///      only this factory's markets are targets, and their setter makes no external calls.
+  function registerNukeProtectedAccount(address market, address account) external {
+    if (!isApprovedNukeProtectionFactory[msg.sender]) revert NotApprovedNukeProtectionFactory();
+    if (!isMarket[market]) revert NukeProtectionMarketNotFound();
+    if (account.code.length == 0) revert NukeProtectionRequiresContract();
+    INukeProtectionMarket(market).registerNukeProtectedAccount(account);
+    emit NukeProtectionRequested(market, account, msg.sender);
   }
 
   // ┌─ addHooksTemplate ─────
@@ -666,6 +697,7 @@ abstract contract HooksFactoryBase is SphereXProtectedRegisteredBase, Reentrancy
     }
 
     IWildcatArchController(_archController).registerMarket(market);
+    isMarket[market] = true;
 
     _tmpMarketParameters.setEmpty();
     _clearMarketData();
@@ -674,6 +706,38 @@ abstract contract HooksFactoryBase is SphereXProtectedRegisteredBase, Reentrancy
     _marketsByHooksInstance[hooksInstance].push(market);
 
     _emitMarketDeployment(market, name, symbol, marketParameters, runtimeParams, hooksData);
+    _createWrapperIfSupported(market, marketParameters.hooks.hooksAddress());
+  }
+
+  // ┌─ _createWrapperIfSupported ─────
+  /// @dev finish wrapper registration before any lender can seal the protection list.
+  ///      hooks without the complete transfer-policy interface remain valid without wrapping.
+  function _createWrapperIfSupported(address market, address hooksInstance) private {
+    (bool supported, bool transfersDisabled) =
+      _readTransferPolicyFlag(hooksInstance, abi.encodeCall(IMarketTransferPolicy.isMarketTransferDisabled, (market)));
+    if (!supported || transfersDisabled) return;
+    (supported,) = _readTransferPolicyFlag(
+      hooksInstance, abi.encodeCall(IMarketTransferPolicy.isMarketTransferRecipientAllowed, (market, wrapperFactory))
+    );
+    if (supported) IWildcat4626WrapperFactory(wrapperFactory).createWrapper(market);
+  }
+
+  // ┌─ _readTransferPolicyFlag ─────
+  /// @dev copy one word only; absent, short, or noncanonical boolean responses are unsupported.
+  function _readTransferPolicyFlag(
+    address hooksInstance,
+    bytes memory callData
+  )
+    private
+    view
+    returns (bool supported, bool value)
+  {
+    assembly {
+      supported := staticcall(gas(), hooksInstance, add(callData, 0x20), mload(callData), 0, 0x20)
+      let word := mload(0)
+      supported := and(supported, and(gt(returndatasize(), 0x1f), lt(word, 2)))
+      value := iszero(iszero(word))
+    }
   }
 
   // ┌─ _packString ─────

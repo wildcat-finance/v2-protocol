@@ -34,6 +34,8 @@ import { Wildcat4626Wrapper } from './Wildcat4626Wrapper.sol';
 import { IMarketTransferPolicy } from '../access/IMarketTransferPolicy.sol';
 import { IWildcatArchController } from '../interfaces/IWildcatArchController.sol';
 import { HooksConfig } from '../types/HooksConfig.sol';
+import { IHooksFactoryBase } from '../IHooksFactory.sol';
+import { INukeProtectionMarket } from '../interfaces/INukeProtectionMarket.sol';
 
 // ┌─ IMarketRounding ──────────────────────────────────────────────────────────
 /// @notice compatibility marker for a market's scaled-transfer rounding rule.
@@ -153,6 +155,8 @@ contract Wildcat4626WrapperFactory {
   /// @dev callable by anyone. local floor-rounding markets must be registered, globally
   ///      transferable, expose the full transfer-policy interface, and name this contract as their
   ///      wrapper factory.
+  ///      the market factory must approve this factory for nuke protection, and the
+  ///      market must not have had a successful deposit yet. registration is atomic.
   ///      undeclared markets are forwarded to V1; unknown declared rounding is rejected.
   ///
   /// @return wrapper generation-appropriate newly deployed wrapper.
@@ -175,6 +179,7 @@ contract Wildcat4626WrapperFactory {
 
     wrapper = address(new Wildcat4626Wrapper(market));
     _wrapperForMarket[market] = wrapper;
+    IHooksFactoryBase(INukeProtectionMarket(market).factory()).registerNukeProtectedAccount(market, wrapper);
     IWrapperAwareMarket(market).registerWrapper(wrapper);
 
     emit WrapperDeployed(market, wrapper);

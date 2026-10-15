@@ -163,7 +163,10 @@ shares remain fully backed, but cannot be recovered.
 
 Notes:
 
-- Wrapper creation is permissionless. The built-in access hooks always allow a
+- Compatible V2.5 markets create their canonical wrapper automatically during
+  market deployment, before a first deposit can seal nuke-protection registration;
+  see [nuke protection](./nuke-protection.md).
+  The built-in access hooks always allow a
   market's nonzero `registeredWrapper()` to receive market tokens when transfers
   are enabled. Hook administrators cannot veto the canonical wrapper through a
   credential or local deposit block.
@@ -252,8 +255,9 @@ the market's current principal.
   sanctions escrow, authorizes it, and moves the full share balance.
 - A sanctioned holder may otherwise send shares only to that deterministic
   escrow. `nukeFromOrbit` is the supported path because it authorizes release.
-- The wrapper itself cannot be nuked. A V2.5 market also rejects nuking its
-  registered canonical wrapper, protecting the wrapper's pooled backing.
+- The wrapper itself cannot be nuked. Its factory registers permanent
+  [market-local nuke protection](./nuke-protection.md) for the wrapper's pooled
+  backing. This does not bypass the wrapper's operational sanctions checks.
 - An authorized escrow may return shares only when releasable under the
   principal namespace that created it. Foreign or spoofed escrows receive no
   release exception.
@@ -334,8 +338,10 @@ diverge.
 - Floor-declaring markets must be registered, expose the complete generic
   transfer-policy interface, permit transfers globally, and designate this
   factory through `market.wrapperFactory()`.
-- The factory deploys and records the wrapper, then calls
-  `market.registerWrapper(wrapper)`.
+- The factory deploys and records the wrapper, requests permanent nuke protection
+  through the market's factory, then calls `market.registerWrapper(wrapper)`.
+  The market factory must have approved this wrapper factory and the market
+  must not have had a successful deposit. All steps are atomic.
 - Registration is one-time. The factory emits
   `WrapperDeployed(market, wrapper)`.
 

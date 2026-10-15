@@ -206,6 +206,7 @@ abstract contract ProductionMatrixFixture is TestKernel {
     );
     stack.archController.registerControllerFactory(address(factory));
     factory.registerWithArchController();
+    factory.setNukeProtectionFactoryApproval(address(stack.wrapperFactory), true);
   }
 
   // ┌─ _deployRevolvingFactory ─────
@@ -227,6 +228,7 @@ abstract contract ProductionMatrixFixture is TestKernel {
     );
     stack.archController.registerControllerFactory(address(factory));
     factory.registerWithArchController();
+    factory.setNukeProtectionFactoryApproval(address(stack.wrapperFactory), true);
   }
 
   // ┌─ _deployAndRegisterTemplates ─────

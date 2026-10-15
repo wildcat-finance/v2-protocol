@@ -26,6 +26,7 @@ pragma solidity 0.8.25;
 //
 //  WRAPPER REGISTRATION
 //  registerWrapper(...)
+//  registerNukeProtectedAccount(...)
 //
 //  SANCTIONS
 //  nukeFromOrbit(...)
@@ -249,6 +250,18 @@ contract WildcatMarketConfig is WildcatMarketBase {
     emit WrapperRegistered(wrapper);
   }
 
+  // ┌─ registerNukeProtectedAccount ─────
+  /// @notice permanently exclude an approved integration account from `nukeFromOrbit`.
+  ///
+  /// @dev the factory authenticates the feature factory and account before forwarding.
+  ///      no account can be added after the first successful deposit, or ever removed.
+  function registerNukeProtectedAccount(address account) external {
+    if (msg.sender != factory) revertWithSelector(NotFactory_ErrorSelector);
+    if (nukeProtectionSealed) revertWithSelector(NukeProtectionSealed_ErrorSelector);
+    isNukeProtected[account] = true;
+    emit NukeProtectionRegistered(account);
+  }
+
   // ░░▒▒▓▓██ [ SANCTIONS ] ────────────────────────────────────────────────────
 
   // ******************************************************************
@@ -278,12 +291,12 @@ contract WildcatMarketConfig is WildcatMarketBase {
   ///
   /// @dev permissionless. before an enabled repayment date, the target must pass the normal
   ///      queue-withdrawal hook, so term policy can defer quarantine until withdrawals open.
-  ///      from that date, queueing bypasses the hook. the canonical wrapper is excluded.
+  ///      from that date, queueing bypasses the hook. protected integration accounts are excluded.
   ///
   /// @param accountAddress sanctioned lender to quarantine.
   function nukeFromOrbit(address accountAddress) external nonReentrant sphereXGuardExternal {
-    if (accountAddress != address(0) && accountAddress == registeredWrapper()) {
-      revertWithSelector(CannotNukeWrapper_ErrorSelector);
+    if (isNukeProtected[accountAddress]) {
+      revertWithSelector(CannotNukeProtectedAccount_ErrorSelector);
     }
     if (!_isSanctioned(accountAddress)) revertWithSelector(BadLaunchCode_ErrorSelector);
     MarketState memory state = _getUpdatedState();

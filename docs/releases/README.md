@@ -9,6 +9,12 @@ branch. Historical inventories remain in the release repository.
 
 ## V2.5
 
+[V2.5.8 pooled-account protection](../integrations/nuke-protection.md) is a
+source candidate after the audit freeze. Its
+[verification receipt](./v2.5.8-nuke-verification.json) and
+[test output](./v2.5.8-nuke-test-output.zip) cover this branch's nuke change,
+not a deployed release or the pending grace/default correction.
+
 [V2.5](./v2.5.md) adds revolving markets, repayment scheduling and default
 tracking, periodic-term hooks, borrower transfers, and expanded wrapper and
 lens interfaces. The release notes describe changes from V2.1 and the ABI

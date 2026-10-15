@@ -33,8 +33,11 @@ interface IMarketEventsAndErrors {
   /// @notice this market already has a canonical wrapper.
   error WrapperAlreadyRegistered();
 
-  /// @notice the canonical wrapper can't be quarantined as a lender account.
-  error CannotNukeWrapper();
+  /// @notice a protected integration account can't be quarantined as a lender account.
+  error CannotNukeProtectedAccount();
+
+  /// @notice protection registration is permanently closed after the first deposit.
+  error NukeProtectionSealed();
 
   /// @notice the target isn't currently sanctioned.
   error BadLaunchCode();
@@ -287,6 +290,9 @@ interface IMarketEventsAndErrors {
   ///
   /// @param wrapper canonical wrapper address.
   event WrapperRegistered(address indexed wrapper);
+
+  /// @notice an approved integration account has received permanent nuke protection.
+  event NukeProtectionRegistered(address indexed account);
 
   /// @notice emitted when the borrower creates or replaces a pending transfer.
   ///
