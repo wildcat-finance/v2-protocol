@@ -80,10 +80,12 @@ see [deployment](https://github.com/wildcat-finance/v2-protocol/blob/bfe1412141f
 ## Sanctions dependency
 
 Approved feature factories may register permanent protection against nuking a
-pooled lender account before its market's first deposit. Review must establish
+pooled lender account throughout its market's lifetime. Review must establish
 each factory's instance provenance, market binding, and immutable behavior.
 The current ArchController owner controls future factory eligibility but cannot
-remove existing market protection. See [nuke protection](../integrations/nuke-protection.md).
+remove existing market protection. New approvals can introduce protected accounts
+into already funded markets; protection does not grant other market permissions.
+See [nuke protection](../integrations/nuke-protection.md).
 
 Sanctions-gated market and wrapper paths depend on the configured sentinel and
 its external sanctions list. Calls fail closed if that dependency reverts or

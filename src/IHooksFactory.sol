@@ -430,7 +430,7 @@ interface IHooksFactoryBase is IHooksFactoryEventsAndErrors {
   // ┌─ registerNukeProtectedAccount ─────
   /// @notice forward permanent protection for a contract in a market deployed by this factory.
   ///
-  /// @dev only approved feature factories may call this, before the market's first deposit.
+  /// @dev only approved feature factories may call this, including after market funding.
   ///      the caller must authenticate the instance; a self-reported interface is insufficient.
   function registerNukeProtectedAccount(address market, address account) external;
 

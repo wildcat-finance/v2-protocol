@@ -106,10 +106,6 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
     // sanctions checks still apply before hook admission.
     Account memory account = _getAccount(msg.sender);
 
-    // seal before the hook or asset transfer can call back into registration. a failed
-    // deposit rolls this back; withdrawing the entire supply never reopens registration.
-    nukeProtectionSealed = true;
-
     hooks.onDeposit(msg.sender, scaledAmount, state);
 
     asset.safeTransferFrom(msg.sender, address(this), amount);

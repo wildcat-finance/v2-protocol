@@ -24,7 +24,7 @@ pragma solidity 0.8.25;
 //
 //  WRAPPER READINESS AND REDEMPTION
 //  test_registrationAndReadinessUseProductionMarketsAndEveryBuiltInHook()
-//  test_lateWrapperCreationRevertsAtomically()
+//  test_wrapperCanBeCreatedMonthsAfterMarketFunding()
 //  test_depositAndMintIgnoreLocalBlockForRegisteredWrapperAcrossBuiltInHooks()
 //  test_redeemKeepsOrdinaryRecipientPolicyAcrossEveryBuiltInHook()
 //  test_redeemAndScaledQueueRemainAtomicAcrossMarketTypes()
@@ -370,16 +370,21 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     }
   }
 
-  // ┌─ test_lateWrapperCreationRevertsAtomically ─────
-  function test_lateWrapperCreationRevertsAtomically() external {
+  // ┌─ test_wrapperCanBeCreatedMonthsAfterMarketFunding ─────
+  function test_wrapperCanBeCreatedMonthsAfterMarketFunding() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     _deposit(fixture, Lender, 1e18);
-    vm.expectRevert(IMarketEventsAndErrors.NukeProtectionSealed.selector);
-    fixture.wrapperFactory.createWrapper(address(fixture.market));
-    assertEq(fixture.market.registeredWrapper(), address(0), 'failed creation must not register identity');
+    vm.warp(vm.getBlockTimestamp() + 90 days);
+    Wildcat4626Wrapper wrapper = _deployWrapper(fixture, false);
+    assertEq(fixture.market.registeredWrapper(), address(wrapper), 'late canonical registration');
     assertEq(
-      fixture.wrapperFactory.wrapperForMarket(address(fixture.market)), address(0), 'failed creation must not persist'
+      fixture.wrapperFactory.wrapperForMarket(address(fixture.market)), address(wrapper), 'late factory registration'
     );
+    assertTrue(fixture.market.isNukeProtected(address(wrapper)));
+    assertEq(fixture.market.scaledBalanceOf(Lender), 1e18, 'registration preserves existing position');
+    fixture.sanctionsList.sanction(address(wrapper));
+    vm.expectRevert(IMarketEventsAndErrors.CannotNukeProtectedAccount.selector);
+    fixture.market.nukeFromOrbit(address(wrapper));
   }
 
   // ┌─ test_depositAndMintIgnoreLocalBlockForRegisteredWrapperAcrossBuiltInHooks ─────

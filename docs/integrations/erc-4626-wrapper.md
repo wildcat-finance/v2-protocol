@@ -164,7 +164,7 @@ shares remain fully backed, but cannot be recovered.
 Notes:
 
 - Compatible V2.5 markets create their canonical wrapper automatically during
-  market deployment, before a first deposit can seal nuke-protection registration;
+  market deployment; eligible markets without a wrapper can also register one later,
   see [nuke protection](./nuke-protection.md).
   The built-in access hooks always allow a
   market's nonzero `registeredWrapper()` to receive market tokens when transfers

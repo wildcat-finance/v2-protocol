@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  |\ /|   WILDCAT v2.5 // NukeProtectionTest
-//  \ ^ /   Permanent integration protection and first-deposit sealing.
+//  \ ^ /   Permanent integration protection throughout a market's lifetime.
 //    V
 //
 //  OPERATIONS
@@ -12,12 +12,11 @@ pragma solidity 0.8.25;
 //  test_approvalUsesCurrentArchControllerOwnerAndCannotRevokeProtection()
 //  test_registrationRequiresApprovedFactoryOwnMarketAndAuthenticatedContract()
 //  test_protectedFeaturesCannotBeNukedAndOrdinarySanctionsStillApplyAcrossMatrix()
-//  test_firstSuccessfulDepositSealsPermanentlyAcrossEntrypointsAndFactories()
-//  test_failedDepositsRollBackSeal()
+//  test_newFactoryCanProtectFundedMarketsMonthsAfterBothDepositEntrypoints()
 //  test_wrapperSetupIsAtomicAndTransferDisabledMarketsSkipIt()
 //  test_marketsWithoutCompleteWrapperPoliciesRemainDeployable()
 //  test_automaticWrapperUsesTheFinalInstalledHooks()
-//  test_depositCallbacksCannotRegisterProtectionBeforeMint()
+//  test_depositCallbacksRespectApprovalAndRegistrationRollsBackWithDeposit()
 //  _assertWrapperLogs(...)
 //  deployCell(...)
 // ═════
@@ -143,12 +142,10 @@ contract NukeProtectionTest is ProductionMatrixFixture {
       assertTrue(wrapper != address(0), 'wrapper created with market');
       assertEq(stack.wrapperFactory.wrapperForMarket(address(cell.market)), wrapper);
       assertTrue(cell.market.isNukeProtected(wrapper));
-      assertFalse(cell.market.nukeProtectionSealed());
       _authorize(stack, cell, instance);
       _authorize(stack, cell, MatrixAlice);
       _deposit(stack, cell, instance, Deposit);
       _deposit(stack, cell, MatrixAlice, Deposit);
-      assertTrue(cell.market.nukeProtectionSealed());
       stack.sanctionsList.sanction(instance);
       stack.sanctionsList.sanction(wrapper);
       vm.expectRevert(IMarketEventsAndErrors.CannotNukeProtectedAccount.selector);
@@ -169,81 +166,67 @@ contract NukeProtectionTest is ProductionMatrixFixture {
       cell.market.nukeFromOrbit(MatrixAlice);
       assertEq(cell.market.scaledBalanceOf(MatrixAlice), 0, 'ordinary sanctioned lender still quarantined');
       stack.sanctionsList.unsanction(MatrixAlice);
-      vm.expectRevert(IMarketEventsAndErrors.NukeProtectionSealed.selector);
-      featureFactory.createFeature(address(cell.market));
+      address laterInstance = featureFactory.createFeature(address(cell.market));
+      assertTrue(cell.market.isNukeProtected(laterInstance));
     }
   }
 
-  // ┌─ test_firstSuccessfulDepositSealsPermanentlyAcrossEntrypointsAndFactories ─────
-  function test_firstSuccessfulDepositSealsPermanentlyAcrossEntrypointsAndFactories() external {
+  // ┌─ test_newFactoryCanProtectFundedMarketsMonthsAfterBothDepositEntrypoints ─────
+  function test_newFactoryCanProtectFundedMarketsMonthsAfterBothDepositEntrypoints() external {
     ProductionStack memory stack = _deployProductionStack();
-    NukeProtectionFactoryMock featureFactory = _featureFactory();
-    stack.standardFactory.setNukeProtectionFactoryApproval(address(featureFactory), true);
-    stack.revolvingFactory.setNukeProtectionFactoryApproval(address(featureFactory), true);
     for (uint256 i; i < 4; i++) {
+      NukeProtectionFactoryMock featureFactory = _featureFactory();
+      IHooksFactory factory = _factoryFor(stack, MatrixMarketKind(i / 2));
       MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, MatrixMarketKind(i / 2));
       options.annualInterestBips = 0;
       options.commitmentFeeBips = 0;
       MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(950 + i));
-      _authorize(stack, cell, MatrixAlice);
-      _fundAndApprove(stack, cell, MatrixAlice, Deposit);
-      vm.prank(MatrixAlice);
-      vm.expectRevert(IMarketEventsAndErrors.NullMintAmount.selector);
-      cell.market.deposit(0);
-      assertFalse(cell.market.nukeProtectionSealed(), 'zero deposit cannot seal');
-
-      vm.prank(MatrixAlice);
-      cell.market.approve(MatrixBob, Deposit);
-      assertFalse(cell.market.nukeProtectionSealed(), 'approval cannot seal');
+      address instance = featureFactory.createUnregisteredFeature(address(cell.market));
+      _authorize(stack, cell, instance);
+      _fundAndApprove(stack, cell, instance, Deposit);
       if (i % 2 == 0) {
-        vm.prank(MatrixAlice);
+        vm.prank(instance);
         cell.market.deposit(Deposit);
       } else {
-        vm.prank(MatrixAlice);
+        vm.prank(instance);
         assertEq(cell.market.depositUpTo(Deposit), Deposit);
       }
-      assertTrue(cell.market.nukeProtectionSealed());
-      vm.expectRevert(IMarketEventsAndErrors.NukeProtectionSealed.selector);
+
+      vm.warp(vm.getBlockTimestamp() + 90 days);
+      assertFalse(cell.market.isNukeProtected(instance));
+      vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedNukeProtectionFactory.selector);
+      featureFactory.registerInstance(address(cell.market), instance);
+      vm.prank(MatrixBorrower);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.CallerNotArchControllerOwner.selector);
+      factory.setNukeProtectionFactoryApproval(address(featureFactory), true);
+      factory.setNukeProtectionFactoryApproval(address(featureFactory), true);
+      featureFactory.registerInstance(address(cell.market), instance);
+      assertTrue(cell.market.isNukeProtected(instance), 'existing funded instance can gain protection');
+      address laterInstance = featureFactory.createFeature(address(cell.market));
+      assertTrue(cell.market.isNukeProtected(laterInstance), 'new instance can gain protection');
+      assertEq(cell.market.scaledBalanceOf(instance), Deposit, 'registration preserves balance');
+      assertEq(cell.market.scaledTotalSupply(), Deposit, 'registration preserves supply');
+
+      factory.setNukeProtectionFactoryApproval(address(featureFactory), false);
+      assertTrue(cell.market.isNukeProtected(instance), 'revocation cannot remove existing protection');
+      assertTrue(cell.market.isNukeProtected(laterInstance));
+      stack.sanctionsList.sanction(instance);
+      vm.expectRevert(IMarketEventsAndErrors.CannotNukeProtectedAccount.selector);
+      cell.market.nukeFromOrbit(instance);
+      stack.sanctionsList.unsanction(instance);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedNukeProtectionFactory.selector);
       featureFactory.createFeature(address(cell.market));
-      vm.prank(MatrixAlice);
+      factory.setNukeProtectionFactoryApproval(address(featureFactory), true);
+      assertTrue(cell.market.isNukeProtected(featureFactory.createFeature(address(cell.market))));
+
+      vm.prank(instance);
       uint32 expiry = cell.market.queueFullWithdrawal();
       assertEq(cell.market.scaledTotalSupply(), 0);
-      vm.expectRevert(IMarketEventsAndErrors.NukeProtectionSealed.selector);
-      featureFactory.createFeature(address(cell.market));
       vm.warp(uint256(expiry) + 1);
-      cell.market.executeWithdrawal(MatrixAlice, expiry);
-      assertTrue(cell.market.nukeProtectionSealed(), 'full exit cannot reopen registration');
-      vm.expectRevert(IMarketEventsAndErrors.NukeProtectionSealed.selector);
-      featureFactory.createFeature(address(cell.market));
+      cell.market.executeWithdrawal(instance, expiry);
+      assertTrue(cell.market.isNukeProtected(instance), 'exit cannot remove protection');
+      assertTrue(cell.market.isNukeProtected(featureFactory.createFeature(address(cell.market))));
     }
-  }
-
-  // ┌─ test_failedDepositsRollBackSeal ─────
-  function test_failedDepositsRollBackSeal() external {
-    ProductionStack memory stack = _deployProductionStack();
-    MatrixCell memory cell = _cell(stack, 0);
-    _fundAndApprove(stack, cell, MatrixAlice, Deposit);
-    // The access hook rejects an unknown lender after the tentative seal write.
-    vm.prank(MatrixAlice);
-    vm.expectRevert();
-    cell.market.deposit(Deposit);
-    assertFalse(cell.market.nukeProtectionSealed());
-    _authorize(stack, cell, MatrixAlice);
-    // A failed token transfer must also roll back the seal.
-    vm.prank(MatrixAlice);
-    stack.asset.approve(address(cell.market), 0);
-    vm.prank(MatrixAlice);
-    vm.expectRevert();
-    cell.market.deposit(Deposit);
-    assertFalse(cell.market.nukeProtectionSealed());
-
-    // Exact-deposit capacity failure happens after the internal deposit has returned.
-    _fundAndApprove(stack, cell, MatrixAlice, cell.options.maxTotalSupply + 1);
-    vm.prank(MatrixAlice);
-    vm.expectRevert(IMarketEventsAndErrors.MaxSupplyExceeded.selector);
-    cell.market.deposit(uint256(cell.options.maxTotalSupply) + 1);
-    assertFalse(cell.market.nukeProtectionSealed());
-    assertEq(cell.market.scaledTotalSupply(), 0);
   }
 
   // ┌─ test_wrapperSetupIsAtomicAndTransferDisabledMarketsSkipIt ─────
@@ -340,11 +323,10 @@ contract NukeProtectionTest is ProductionMatrixFixture {
     }
   }
 
-  // ┌─ test_depositCallbacksCannotRegisterProtectionBeforeMint ─────
-  function test_depositCallbacksCannotRegisterProtectionBeforeMint() external {
+  // ┌─ test_depositCallbacksRespectApprovalAndRegistrationRollsBackWithDeposit ─────
+  function test_depositCallbacksRespectApprovalAndRegistrationRollsBackWithDeposit() external {
     ProductionStack memory stack = _deployProductionStack();
     NukeProtectionFactoryMock featureFactory = _featureFactory();
-    stack.standardFactory.setNukeProtectionFactoryApproval(address(featureFactory), true);
     NukeProtectionCallbackToken token =
       NukeProtectionCallbackToken(_deployCode('test/mocks/NukeProtectionMocks.sol:NukeProtectionCallbackToken'));
     stack.asset = token;
@@ -355,17 +337,43 @@ contract NukeProtectionTest is ProductionMatrixFixture {
     stack.hooksTemplates[0] = template;
     MatrixCell memory cell = _cell(stack, 0);
     NukeProtectionCallbackHooks hooks = NukeProtectionCallbackHooks(address(cell.hooks));
-    address instance = featureFactory.createUnregisteredFeature(address(cell.market));
-    hooks.setProbe(featureFactory, instance);
-    token.setProbe(featureFactory, instance);
+    address hookInstance = featureFactory.createUnregisteredFeature(address(cell.market));
+    address tokenInstance = featureFactory.createUnregisteredFeature(address(cell.market));
+    hooks.setProbe(featureFactory, hookInstance);
+    token.setProbe(featureFactory, tokenInstance);
     _authorize(stack, cell, MatrixAlice);
     _deposit(stack, cell, MatrixAlice, Deposit);
-    assertFalse(hooks.registrationSucceeded(), 'hook cannot register during first deposit');
-    assertEq(bytes32(hooks.registrationError()), bytes32(IMarketEventsAndErrors.NukeProtectionSealed.selector));
-    assertFalse(token.registrationSucceeded(), 'token cannot register during first deposit');
-    assertEq(bytes32(token.registrationError()), bytes32(IMarketEventsAndErrors.NukeProtectionSealed.selector));
-    assertFalse(cell.market.isNukeProtected(instance));
+    assertFalse(hooks.registrationSucceeded(), 'hook cannot bypass factory approval');
+    assertEq(
+      bytes32(hooks.registrationError()),
+      bytes32(IHooksFactoryEventsAndErrors.NotApprovedNukeProtectionFactory.selector)
+    );
+    assertFalse(token.registrationSucceeded(), 'token cannot bypass factory approval');
+    assertEq(
+      bytes32(token.registrationError()),
+      bytes32(IHooksFactoryEventsAndErrors.NotApprovedNukeProtectionFactory.selector)
+    );
+    assertFalse(cell.market.isNukeProtected(hookInstance));
+    assertFalse(cell.market.isNukeProtected(tokenInstance));
     assertEq(cell.market.scaledBalanceOf(MatrixAlice), Deposit);
+
+    stack.standardFactory.setNukeProtectionFactoryApproval(address(featureFactory), true);
+    // The exact-deposit capacity check reverts after both callbacks have registered.
+    _fundAndApprove(stack, cell, MatrixAlice, uint256(cell.options.maxTotalSupply) + 1);
+    vm.prank(MatrixAlice);
+    vm.expectRevert(IMarketEventsAndErrors.MaxSupplyExceeded.selector);
+    cell.market.deposit(uint256(cell.options.maxTotalSupply) + 1);
+    assertFalse(cell.market.isNukeProtected(hookInstance), 'reverted hook registration rolls back');
+    assertFalse(cell.market.isNukeProtected(tokenInstance), 'reverted token registration rolls back');
+    assertEq(cell.market.scaledTotalSupply(), Deposit);
+
+    _deposit(stack, cell, MatrixAlice, Deposit);
+    assertTrue(hooks.registrationSucceeded());
+    assertTrue(token.registrationSucceeded());
+    assertTrue(cell.market.isNukeProtected(hookInstance));
+    assertTrue(cell.market.isNukeProtected(tokenInstance));
+    assertEq(cell.market.scaledBalanceOf(MatrixAlice), Deposit * 2, 'callbacks preserve deposit accounting');
+    assertEq(cell.market.scaledTotalSupply(), Deposit * 2);
   }
 
   // ┌─ _assertWrapperLogs ─────

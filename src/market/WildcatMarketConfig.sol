@@ -254,10 +254,9 @@ contract WildcatMarketConfig is WildcatMarketBase {
   /// @notice permanently exclude an approved integration account from `nukeFromOrbit`.
   ///
   /// @dev the factory authenticates the feature factory and account before forwarding.
-  ///      no account can be added after the first successful deposit, or ever removed.
+  ///      protection may be added throughout the market's lifetime, but never removed.
   function registerNukeProtectedAccount(address account) external {
     if (msg.sender != factory) revertWithSelector(NotFactory_ErrorSelector);
-    if (nukeProtectionSealed) revertWithSelector(NukeProtectionSealed_ErrorSelector);
     isNukeProtected[account] = true;
     emit NukeProtectionRegistered(account);
   }

@@ -9,7 +9,6 @@ pragma solidity 0.8.25;
 //  OPERATIONS
 //  factory()
 //  isNukeProtected(...)
-//  nukeProtectionSealed()
 //  registerNukeProtectedAccount(...)
 // ═════
 
@@ -22,11 +21,8 @@ interface INukeProtectionMarket {
   // ┌─ isNukeProtected ─────
   function isNukeProtected(address account) external view returns (bool);
 
-  // ┌─ nukeProtectionSealed ─────
-  function nukeProtectionSealed() external view returns (bool);
-
   // ┌─ registerNukeProtectedAccount ─────
-  /// @notice permanently protect an account before the first successful deposit.
+  /// @notice permanently protect an account at any point in the market's lifetime.
   /// @dev only the market's immutable factory may call this.
   function registerNukeProtectedAccount(address account) external;
 }

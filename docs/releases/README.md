@@ -11,9 +11,11 @@ branch. Historical inventories remain in the release repository.
 
 [V2.5.8 pooled-account protection](../integrations/nuke-protection.md) is a
 source candidate after the audit freeze. Its
-[verification receipt](./v2.5.8-nuke-verification.json) and
-[test output](./v2.5.8-nuke-test-output.zip) cover this branch's nuke change,
-not a deployed release or the pending grace/default correction.
+[initial verification receipt](./v2.5.8-nuke-verification.json) and
+[test output](./v2.5.8-nuke-test-output.zip) cover the superseded candidate with a
+first-deposit cutoff. The [open-registration receipt](./v2.5.8-open-registration-verification.json)
+covers its removal while retaining permanent protection and factory approval.
+These are source checks, not a deployed release or the pending grace/default correction.
 
 [V2.5](./v2.5.md) adds revolving markets, repayment scheduling and default
 tracking, periodic-term hooks, borrower transfers, and expanded wrapper and

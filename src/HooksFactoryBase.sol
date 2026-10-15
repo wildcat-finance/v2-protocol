@@ -710,7 +710,7 @@ abstract contract HooksFactoryBase is SphereXProtectedRegisteredBase, Reentrancy
   }
 
   // ┌─ _createWrapperIfSupported ─────
-  /// @dev finish wrapper registration before any lender can seal the protection list.
+  /// @dev create and register the canonical wrapper atomically with a compatible market.
   ///      hooks without the complete transfer-policy interface remain valid without wrapping.
   function _createWrapperIfSupported(address market, address hooksInstance) private {
     (bool supported, bool transfersDisabled) =

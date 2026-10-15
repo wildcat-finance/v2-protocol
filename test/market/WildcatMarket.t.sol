@@ -191,8 +191,8 @@ contract WildcatMarketTest is MarketFixture {
   bytes32 internal constant BorrowerStorageSlot = bytes32(type(uint256).max);
   bytes4 internal constant PanicSelector = 0x4e487b71;
   uint256 internal constant ArithmeticPanic = 0x11;
-  // `_lifecycle` is slot 10, protection uses 11-12, allowance is 13, and principal follows.
-  bytes32 internal constant RevolvingDrawnAmountSlot = bytes32(uint256(14));
+  // `_lifecycle` is slot 10, protection uses 11, allowance is 12, and principal follows.
+  bytes32 internal constant RevolvingDrawnAmountSlot = bytes32(uint256(13));
 
   // ░░▒▒▓▓██ [ CONSTRUCTION ] ─────────────────────────────────────────────────
 

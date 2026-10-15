@@ -36,9 +36,6 @@ interface IMarketEventsAndErrors {
   /// @notice a protected integration account can't be quarantined as a lender account.
   error CannotNukeProtectedAccount();
 
-  /// @notice protection registration is permanently closed after the first deposit.
-  error NukeProtectionSealed();
-
   /// @notice the target isn't currently sanctioned.
   error BadLaunchCode();
 

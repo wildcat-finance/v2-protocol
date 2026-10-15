@@ -26,7 +26,7 @@ responsibility.
 | --- | --- | --- |
 | Approve or disable a feature factory | Current `ArchController.owner()` | Changes eligibility for future registrations on that market factory |
 | Request protection for an instance | An approved feature factory | Vouches for an instance it deployed or authenticated, bound to this market |
-| Write the market's protection entry | The market's immutable `factory()` | Adds a permanent local entry before the first successful deposit |
+| Write the market's protection entry | The market's immutable `factory()` | Adds a permanent local entry at any point in the market's lifetime |
 | Remove protection | Nobody | No removal path exists |
 
 Both standard and revolving market factories expose
@@ -50,26 +50,32 @@ provide an unrestricted relay for user-supplied addresses.
 
 Factory approval can be removed to prevent new registrations. Existing market
 entries do not consult that approval again. Ownership transfer, approval
-removal, and borrower changes cannot undo them. This limits administrative
-authority over an already funded market.
+removal, and borrower changes cannot undo them. The owner retains authority to
+approve additional feature factories for existing markets, but cannot remove
+protection from any registered account.
 
-## Registration closes at first funding
+## Registration remains open after funding
 
-This is a new restriction introduced by freezing the protection list. The
-previous canonical-wrapper guard allowed wrapper registration after funding.
-The local mapping itself does not require a deadline; the deadline enforces
-the chosen rule that lenders' protection set cannot change after first funding.
+Protection is permanent per account; the set of accounts is not frozen. A new
+approved feature factory can register authentic instances in an already funded
+market, including months after its first deposit. An eligible existing instance
+may also receive protection after acquiring its market position. Registration
+does not move balances or grant deposit, transfer, or withdrawal permissions.
 
-The first successful `deposit` or `depositUpTo` permanently sets
-`nukeProtectionSealed()`. The write precedes the deposit hook and asset transfer,
-so callbacks cannot add protection while the deposit is in progress. A reverted
-deposit, including an exact-deposit capacity failure, rolls the write back.
+The initially prepared first-deposit cutoff was removed after design review.
+There is no seal flag or registration deadline. Deposits, withdrawals, zero
+supply, and market closure do not change registration eligibility. Approved
+registration may occur during a deposit callback; the setter has no external
+calls, changes only the protection mapping, and rolls back with a reverted
+transaction. All factory authorization and provenance rules still apply.
 
-Emptying the supply, settling withdrawal claims, or closing the market does not
-reopen registration. New approved feature types can serve new or still unfunded
-markets; they cannot add protected accounts to a market that has already had a
-successful deposit. Integrations that require protection must complete creation
-and registration before allowing a first deposit, preferably atomically.
+This deliberately retains trust in future factory approvals: an incorrectly
+approved factory could introduce inappropriate exemptions into existing markets.
+Reviewing immutable factory code and instance configuration is the boundary for
+new additions. Irrevocable market entries address the separate risk of later
+administrative removal. Integrations should register before accepting pooled
+funds so that their initial backing is protected, but market funding is not a
+protocol-level deadline.
 
 ## Canonical wrapper setup
 
@@ -77,8 +83,10 @@ Both market factories create the canonical wrapper in the market-deployment
 transaction, after the discovery event bundle. The wrapper factory deploys it,
 requests protection through the market factory, and calls `registerWrapper`
 to record its canonical identity. Failure of any step reverts the entire
-market deployment. This closes the window in which a first deposit could
-otherwise seal the protection list before wrapper setup.
+market deployment. Automatic wrapper creation is a separate deployment choice,
+not a prerequisite for open-ended protection registration. The wrapper factory
+can still create and register a wrapper later for an eligible market that has
+no canonical wrapper, even if that market is already funded.
 
 The compatibility check uses the final hook address returned by the creation
 callback and installed on the market. Markets whose hooks disable transfers or
@@ -131,16 +139,17 @@ approval.
 Consumers must regenerate the market and factory ABIs. The market emits
 `NukeProtectionRegistered(account)`; the factory emits
 `NukeProtectionRequested(market, account, featureFactory)` and
-`NukeProtectionFactoryApproval(featureFactory, approved)`. A successful first
-`Deposit` seals registration; there is no separate seal event. Clients must
+`NukeProtectionFactoryApproval(featureFactory, approved)`. Deposits do not close
+registration. Clients must
 discover the wrapper after compatible market creation instead of submitting
 a second deployment transaction or presenting wrapper deployment as optional.
 
-`MarketState` and hook callback tuples are unchanged. The new mapping and seal
-are separate storage. The independent grace/default correction is outside this
+`MarketState` and hook callback tuples are unchanged. The new mapping is separate
+storage. The independent grace/default correction is outside this
 change.
 
-The [verification receipt](../releases/v2.5.8-nuke-verification.json) records
-the source hashes, complete test runs, and runtime sizes for this candidate.
-It does not qualify a future deployment package or the pending grace/default
-correction.
+The [initial verification receipt](../releases/v2.5.8-nuke-verification.json)
+records the superseded candidate that included the first-deposit cutoff.
+The [open-registration receipt](../releases/v2.5.8-open-registration-verification.json)
+records the corrected source and its checks. Neither qualifies the pending
+grace/default correction or a future deployment package.
