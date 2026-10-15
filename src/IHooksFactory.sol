@@ -230,9 +230,6 @@ interface IHooksFactoryEventsAndErrors {
   /// @dev stored-initcode deployment returned an address other than the derived market address.
   error MarketDeploymentAddressMismatch();
 
-  /// @dev a hooks instance already occupies the expected deployment address.
-  error HooksInstanceAlreadyExists();
-
   /// @dev the market name or symbol exceeds the factory's 63-byte packed encoding.
   error NameOrSymbolTooLong();
 
