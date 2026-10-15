@@ -82,7 +82,9 @@ Market-token transfers check the sender and recipient against the sanctions
 sentinel in the current borrower principal's namespace. As of v2.5.7,
 `transferFrom` also checks the caller, including callers with an existing finite
 or unlimited approval. A rejected transfer preserves balances and allowance.
-The principal's sanctions overrides still apply.
+The principal's sanctions overrides still apply. Registered
+[protected integrations](../integrations/nuke-protection.md) are exempt from
+lender sanctions checks on this market; ordinary lenders remain subject to them.
 
 ## Closure
 

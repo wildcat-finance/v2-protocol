@@ -150,7 +150,7 @@ holds. It is not a cap on aggregate market supply.
 
 The relevant `max*` view returns zero when:
 
-- The owner, receiver, or wrapper checked by that view is sanctioned.
+- The owner, receiver, or wrapper checked by that view is sanctioned and unprotected.
 - The wrapper is under-backed.
 - Recipient policy denies or fails for a deposit.
 - Remaining deposit capacity would mint zero shares.
@@ -219,8 +219,10 @@ policy remain independent.
 
 #### Sanctions enforcement
 
-The wrapper reads `market.borrowerPrincipal()` for every sanctions check. It
-stores the market and sentinel addresses, but does not cache borrower identity.
+The wrapper exempts accounts protected by `market.isNukeProtected(account)`
+from sanctions checks. This includes itself and other registered integrations;
+ordinary holders remain subject to enforcement. It reads the market's live
+borrower principal and does not cache borrower identity or protection.
 
 - ERC-4626 entry points always check `msg.sender`.
 - `deposit` and `mint` check `receiver` through the mint hook.
@@ -232,9 +234,10 @@ stores the market and sentinel addresses, but does not cache borrower identity.
   existing finite or unlimited approval. Rejection preserves balances and
   allowance; principal-scoped sanctions overrides still apply.
 - `maxDeposit`, `maxMint`, `maxWithdraw`, and `maxRedeem` return zero when the
-  relevant account or the wrapper itself is sanctioned.
+  relevant account or the wrapper itself is sanctioned and unprotected. Failed
+  or malformed protection reads also close the limits; execution reverts.
 
-Sanctions checks call:
+Unprotected accounts are checked through:
 
 ```solidity
 sanctionsSentinel.isSanctioned(borrowerPrincipal, account)
@@ -257,7 +260,7 @@ the market's current principal.
   escrow. `nukeFromOrbit` is the supported path because it authorizes release.
 - The wrapper itself cannot be nuked. Its factory registers permanent
   [market-local nuke protection](./nuke-protection.md) for the wrapper's pooled
-  backing. This does not bypass the wrapper's operational sanctions checks.
+  backing. The same entry keeps it operational if its own address is sanctioned.
 - An authorized escrow may return shares only when releasable under the
   principal namespace that created it. Foreign or spoofed escrows receive no
   release exception.
@@ -270,7 +273,7 @@ from the wrapper.
 - Authorization reads `wrappedMarket.borrower()` at execution time. It follows
   an accepted borrower transfer without a wrapper callback.
 - `marketOwner()` remains a dynamic compatibility getter.
-- Reverts if `to` is sanctioned.
+- Reverts if `to` is sanctioned and unprotected.
 - For non-market tokens, sweeps the entire token balance.
 - For the wrapped market token, sweeps only stranded scaled surplus:
 

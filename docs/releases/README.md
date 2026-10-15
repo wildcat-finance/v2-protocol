@@ -10,7 +10,8 @@ branch. Historical inventories remain in the release repository.
 ## v2.5.8
 
 v2.5.8 extends [nuke protection](../integrations/nuke-protection.md) to approved
-integration contracts and derives [delinquency default](../protocol/repayment-and-default.md#grace-tracker-default)
+integration contracts, keeps those contracts operational when sanctioned, and
+derives [delinquency default](../protocol/repayment-and-default.md#grace-tracker-default)
 from the decaying Grace Tracker. Wrapper deployment remains optional, and the
 repayment deadline remains an independent default trigger.
 

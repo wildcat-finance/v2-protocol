@@ -11,7 +11,10 @@ pragma solidity 0.8.25;
 //  _cell(...)
 //  test_approvalUsesCurrentArchControllerOwnerAndCannotRevokeProtection()
 //  test_registrationRequiresApprovedFactoryOwnMarketAndAuthenticatedContract()
-//  test_protectedFeaturesCannotBeNukedAndOrdinarySanctionsStillApplyAcrossMatrix()
+//  test_protectedFeaturesStayOperationalAndOrdinarySanctionsStillApplyAcrossMatrix()
+//  test_protectedWrapperPreservesHolderSanctionsAndEscrowRecoveryAcrossMatrix()
+//  test_protectionIsMarketLocalForDirectAndWrappedPositions()
+//  test_protectedLenderDoesNotBypassBorrowerSanctions()
 //  test_newFactoryCanProtectFundedMarketsMonthsAfterBothDepositEntrypoints()
 //  test_marketCreationDoesNotRequireWrapperApprovalAndLaterWrappingIsAtomic()
 //  test_marketsWithoutCompleteWrapperPoliciesRemainDeployable()
@@ -25,6 +28,8 @@ import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.so
 import { IHooks } from 'src/access/IHooks.sol';
 import { HooksConfig, EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 import { Wildcat4626WrapperFactory } from 'src/vault/Wildcat4626WrapperFactory.sol';
+import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
+import { IWildcatSanctionsEscrow } from 'src/interfaces/IWildcatSanctionsEscrow.sol';
 import { NukeProtectionFactoryMock, ProtectedFeatureMock } from '../mocks/NukeProtectionMocks.sol';
 import { NukeProtectionCallbackHooks, NukeProtectionCallbackToken } from '../mocks/NukeProtectionMocks.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
@@ -128,8 +133,8 @@ contract NukeProtectionTest is ProductionMatrixFixture {
     featureFactory.registerInstance(address(other.market), instance);
   }
 
-  // ┌─ test_protectedFeaturesCannotBeNukedAndOrdinarySanctionsStillApplyAcrossMatrix ─────
-  function test_protectedFeaturesCannotBeNukedAndOrdinarySanctionsStillApplyAcrossMatrix() external {
+  // ┌─ test_protectedFeaturesStayOperationalAndOrdinarySanctionsStillApplyAcrossMatrix ─────
+  function test_protectedFeaturesStayOperationalAndOrdinarySanctionsStillApplyAcrossMatrix() external {
     ProductionStack memory stack = _deployProductionStack();
     NukeProtectionFactoryMock featureFactory = _featureFactory();
     stack.standardFactory.setNukeProtectionFactoryApproval(address(featureFactory), true);
@@ -151,22 +156,242 @@ contract NukeProtectionTest is ProductionMatrixFixture {
       cell.market.nukeFromOrbit(instance);
       vm.expectRevert(IMarketEventsAndErrors.CannotNukeProtectedAccount.selector);
       cell.market.nukeFromOrbit(wrapper);
+      vm.expectRevert(IMarketEventsAndErrors.BadLaunchCode.selector);
+      cell.market.nukeFromOrbit(MatrixAlice);
       assertEq(cell.market.scaledBalanceOf(instance), Deposit);
-      _fundAndApprove(stack, cell, instance, Deposit);
+
+      _deposit(stack, cell, instance, Deposit);
       vm.prank(instance);
+      cell.market.transfer(MatrixAlice, 10e18);
+      vm.prank(MatrixAlice);
+      cell.market.transfer(instance, 10e18);
+      vm.prank(MatrixAlice);
+      cell.market.approve(instance, type(uint256).max);
+      vm.prank(instance);
+      cell.market.transferFrom(MatrixAlice, instance, 10e18);
+      assertEq(cell.market.scaledBalanceOf(instance), 210e18, 'protected sender, recipient and operator');
+
+      stack.sanctionsList.sanction(MatrixAlice);
+      _fundAndApprove(stack, cell, MatrixAlice, Deposit);
+      vm.prank(MatrixAlice);
       vm.expectRevert(IMarketEventsAndErrors.AccountBlocked.selector);
       cell.market.deposit(Deposit);
-      vm.prank(instance);
+      vm.prank(MatrixAlice);
       vm.expectRevert(IMarketEventsAndErrors.AccountBlocked.selector);
       cell.market.queueFullWithdrawal();
+      vm.prank(instance);
+      vm.expectRevert(IMarketEventsAndErrors.AccountBlocked.selector);
+      cell.market.transfer(MatrixAlice, 1e18);
+      vm.prank(instance);
+      vm.expectRevert(IMarketEventsAndErrors.AccountBlocked.selector);
+      cell.market.transferFrom(MatrixAlice, instance, 1e18);
+      vm.prank(MatrixAlice);
+      vm.expectRevert(IMarketEventsAndErrors.AccountBlocked.selector);
+      cell.market.transferFrom(instance, instance, 1e18);
 
       _warpToWithdrawalAccess(cell);
-      stack.sanctionsList.sanction(MatrixAlice);
+      _approveBorrower(stack, cell, Deposit);
+      uint256 shortfall = cell.market.totalDebts() - cell.market.totalAssets();
+      if (shortfall != 0) _repay(cell, shortfall);
+      vm.prank(instance);
+      uint32 expiry = cell.market.queueFullWithdrawal();
       cell.market.nukeFromOrbit(MatrixAlice);
       assertEq(cell.market.scaledBalanceOf(MatrixAlice), 0, 'ordinary sanctioned lender still quarantined');
+      vm.warp(uint256(expiry) + 1);
+      uint256 instancePayment = cell.market.getAvailableWithdrawalAmount(instance, expiry);
+      uint256 lenderPayment = cell.market.getAvailableWithdrawalAmount(MatrixAlice, expiry);
+      assertTrue(instancePayment > 0 && lenderPayment > 0);
+      address lenderEscrow = stack.sentinel.getEscrowAddress(MatrixBorrower, MatrixAlice, address(stack.asset));
+      uint256 previousEscrowBalance = stack.asset.balanceOf(lenderEscrow);
+      cell.market.executeWithdrawal(instance, expiry);
+      cell.market.executeWithdrawal(MatrixAlice, expiry);
+      assertEq(stack.asset.balanceOf(instance), instancePayment, 'protected lender receives its withdrawal');
+      address instanceEscrow = stack.sentinel.getEscrowAddress(MatrixBorrower, instance, address(stack.asset));
+      assertEq(stack.asset.balanceOf(instanceEscrow), 0, 'protected backing never enters sanctions escrow');
+      assertEq(
+        stack.asset.balanceOf(lenderEscrow) - previousEscrowBalance,
+        lenderPayment,
+        'ordinary lender payment is quarantined'
+      );
       stack.sanctionsList.unsanction(MatrixAlice);
       address laterInstance = featureFactory.createFeature(address(cell.market));
       assertTrue(cell.market.isNukeProtected(laterInstance));
+    }
+  }
+
+  // ┌─ test_protectedWrapperPreservesHolderSanctionsAndEscrowRecoveryAcrossMatrix ─────
+  function test_protectedWrapperPreservesHolderSanctionsAndEscrowRecoveryAcrossMatrix() external {
+    ProductionStack memory stack = _deployProductionStack();
+    for (uint256 i; i < 6; ++i) {
+      MatrixCell memory cell = _cell(stack, i);
+      Wildcat4626Wrapper wrapper = Wildcat4626Wrapper(stack.wrapperFactory.createWrapper(address(cell.market)));
+      _authorize(stack, cell, MatrixAlice);
+      _authorize(stack, cell, MatrixBob);
+      _deposit(stack, cell, MatrixAlice, 300e18);
+      vm.prank(MatrixAlice);
+      cell.market.approve(address(wrapper), type(uint256).max);
+      vm.prank(MatrixAlice);
+      wrapper.deposit(100e18, MatrixAlice);
+      vm.prank(MatrixAlice);
+      wrapper.deposit(50e18, MatrixBob);
+
+      stack.sanctionsList.sanction(address(wrapper));
+      assertTrue(wrapper.maxDeposit(MatrixAlice) > 0 && wrapper.maxMint(MatrixAlice) > 0);
+      assertEq(wrapper.maxWithdraw(MatrixAlice), 100e18);
+      assertEq(wrapper.maxRedeem(MatrixAlice), 100e18);
+      vm.expectRevert(IMarketEventsAndErrors.CannotNukeProtectedAccount.selector);
+      cell.market.nukeFromOrbit(address(wrapper));
+      vm.prank(MatrixAlice);
+      wrapper.deposit(10e18, MatrixAlice);
+      vm.prank(MatrixAlice);
+      wrapper.mint(10e18, MatrixAlice);
+      vm.prank(MatrixAlice);
+      wrapper.transfer(MatrixBob, 10e18);
+      vm.prank(MatrixBob);
+      wrapper.approve(MatrixAlice, 10e18);
+      vm.prank(MatrixAlice);
+      wrapper.transferFrom(MatrixBob, MatrixAlice, 10e18);
+      vm.prank(MatrixAlice);
+      wrapper.withdraw(10e18, MatrixAlice, MatrixAlice);
+      vm.prank(MatrixAlice);
+      wrapper.redeem(10e18, MatrixAlice, MatrixAlice);
+      assertEq(wrapper.balanceOf(MatrixAlice), 100e18);
+      assertEq(wrapper.balanceOf(MatrixBob), 50e18);
+
+      vm.prank(MatrixAlice);
+      wrapper.approve(MatrixBob, type(uint256).max);
+      stack.sanctionsList.sanction(MatrixAlice);
+      bytes memory blocked = abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, MatrixAlice);
+      assertEq(wrapper.maxDeposit(MatrixAlice), 0);
+      assertEq(wrapper.maxMint(MatrixAlice), 0);
+      assertEq(wrapper.maxWithdraw(MatrixAlice), 0);
+      assertEq(wrapper.maxRedeem(MatrixAlice), 0);
+      vm.prank(MatrixAlice);
+      vm.expectRevert(blocked);
+      wrapper.deposit(1e18, MatrixAlice);
+      vm.prank(MatrixAlice);
+      vm.expectRevert(blocked);
+      wrapper.mint(1e18, MatrixAlice);
+      vm.prank(MatrixAlice);
+      vm.expectRevert(blocked);
+      wrapper.withdraw(1e18, MatrixAlice, MatrixAlice);
+      vm.prank(MatrixAlice);
+      vm.expectRevert(blocked);
+      wrapper.redeem(1e18, MatrixAlice, MatrixAlice);
+      vm.prank(MatrixBob);
+      vm.expectRevert(blocked);
+      wrapper.redeem(1e18, MatrixBob, MatrixAlice);
+      vm.prank(MatrixBob);
+      vm.expectRevert(blocked);
+      wrapper.transfer(MatrixAlice, 1e18);
+      vm.prank(MatrixAlice);
+      vm.expectRevert(blocked);
+      wrapper.transfer(MatrixBob, 1e18);
+      vm.prank(MatrixAlice);
+      vm.expectRevert(blocked);
+      wrapper.transferFrom(MatrixBob, MatrixBob, 1e18);
+
+      vm.prank(MatrixBob);
+      wrapper.redeem(10e18, MatrixBob, MatrixBob);
+      _warpToWithdrawalAccess(cell);
+      wrapper.nukeFromOrbit(MatrixAlice);
+      address escrow = stack.sentinel.getEscrowAddress(MatrixBorrower, MatrixAlice, address(wrapper));
+      assertEq(wrapper.balanceOf(escrow), 100e18, 'only the sanctioned holder is quarantined');
+      assertEq(wrapper.balanceOf(MatrixAlice), 0);
+      assertEq(cell.market.scaledBalanceOf(MatrixAlice), 0, 'direct position is also quarantined');
+      vm.expectRevert(IWildcatSanctionsEscrow.CanNotReleaseEscrow.selector);
+      IWildcatSanctionsEscrow(escrow).releaseEscrow();
+      vm.prank(MatrixBob);
+      wrapper.redeem(40e18, MatrixBob, MatrixBob);
+      stack.sanctionsList.unsanction(MatrixAlice);
+      IWildcatSanctionsEscrow(escrow).releaseEscrow();
+      vm.prank(MatrixAlice);
+      wrapper.redeem(100e18, MatrixAlice, MatrixAlice);
+      assertEq(wrapper.totalSupply(), 0, 'holder recovery works while the wrapper remains sanctioned');
+      assertTrue(stack.sentinel.isFlaggedByChainalysis(address(wrapper)));
+      assertFalse(stack.sentinel.sanctionOverrides(MatrixBorrower, address(wrapper)), 'no borrower override needed');
+    }
+  }
+
+  // ┌─ test_protectionIsMarketLocalForDirectAndWrappedPositions ─────
+  function test_protectionIsMarketLocalForDirectAndWrappedPositions() external {
+    ProductionStack memory stack = _deployProductionStack();
+    NukeProtectionFactoryMock featureFactory = _featureFactory();
+    for (uint256 model; model < 2; ++model) {
+      _factoryFor(stack, MatrixMarketKind(model)).setNukeProtectionFactoryApproval(address(featureFactory), true);
+      MatrixCell memory cell = _cell(stack, model * 3);
+      MatrixCell memory other = _deployMatrixCell(
+        stack,
+        _defaultMatrixOptions(MatrixHooksKind.OpenTerm, MatrixMarketKind(model)),
+        MatrixBorrower,
+        MatrixBorrower,
+        uint96(1_100 + model)
+      );
+      address instance = featureFactory.createFeature(address(cell.market));
+      _authorize(stack, cell, instance);
+      _authorize(stack, other, instance);
+      _deposit(stack, cell, instance, Deposit);
+      _deposit(stack, other, instance, Deposit);
+      Wildcat4626Wrapper wrapper = Wildcat4626Wrapper(stack.wrapperFactory.createWrapper(address(cell.market)));
+      Wildcat4626Wrapper otherWrapper = Wildcat4626Wrapper(stack.wrapperFactory.createWrapper(address(other.market)));
+      vm.prank(instance);
+      cell.market.approve(address(wrapper), type(uint256).max);
+      vm.prank(instance);
+      other.market.approve(address(otherWrapper), type(uint256).max);
+      vm.prank(instance);
+      wrapper.deposit(50e18, instance);
+      vm.prank(instance);
+      otherWrapper.deposit(50e18, instance);
+      stack.sanctionsList.sanction(instance);
+
+      _deposit(stack, cell, instance, Deposit);
+      _fundAndApprove(stack, other, instance, Deposit);
+      vm.prank(instance);
+      vm.expectRevert(IMarketEventsAndErrors.AccountBlocked.selector);
+      other.market.deposit(Deposit);
+      assertEq(wrapper.maxRedeem(instance), 50e18);
+      assertEq(otherWrapper.maxRedeem(instance), 0);
+      vm.prank(instance);
+      wrapper.redeem(50e18, instance, instance);
+      vm.prank(instance);
+      vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, instance));
+      otherWrapper.redeem(50e18, instance, instance);
+      vm.prank(instance);
+      vm.expectRevert(IMarketEventsAndErrors.AccountBlocked.selector);
+      other.market.queueFullWithdrawal();
+      vm.expectRevert(IMarketEventsAndErrors.CannotNukeProtectedAccount.selector);
+      cell.market.nukeFromOrbit(instance);
+      otherWrapper.nukeFromOrbit(instance);
+      assertEq(other.market.scaledBalanceOf(instance), 0);
+      assertEq(otherWrapper.balanceOf(instance), 0);
+      assertEq(cell.market.scaledBalanceOf(instance), 2 * Deposit, 'other market quarantine cannot move this position');
+      assertFalse(other.market.isNukeProtected(instance));
+    }
+  }
+
+  // ┌─ test_protectedLenderDoesNotBypassBorrowerSanctions ─────
+  function test_protectedLenderDoesNotBypassBorrowerSanctions() external {
+    ProductionStack memory stack = _deployProductionStack();
+    NukeProtectionFactoryMock featureFactory = _featureFactory();
+    for (uint256 model; model < 2; ++model) {
+      _factoryFor(stack, MatrixMarketKind(model)).setNukeProtectionFactoryApproval(address(featureFactory), true);
+      MatrixCell memory cell = _cell(stack, model * 3);
+      address instance = featureFactory.createFeature(address(cell.market));
+      _authorize(stack, cell, MatrixAlice);
+      _deposit(stack, cell, MatrixAlice, Deposit);
+      stack.archController.registerBorrower(instance);
+      vm.prank(MatrixBorrower);
+      cell.market.requestBorrowerTransfer(instance);
+      vm.prank(instance);
+      cell.market.acceptBorrowerTransfer();
+      stack.sanctionsList.sanction(instance);
+      vm.prank(instance);
+      vm.expectRevert(IMarketEventsAndErrors.BorrowWhileSanctioned.selector);
+      cell.market.borrow(1e18);
+      vm.prank(instance);
+      vm.expectRevert(abi.encodeWithSelector(IMarketEventsAndErrors.BorrowerTransferWhileSanctioned.selector, instance));
+      cell.market.requestBorrowerTransfer(MatrixBorrower);
+      assertTrue(cell.market.isNukeProtected(instance));
     }
   }
 
@@ -212,18 +437,17 @@ contract NukeProtectionTest is ProductionMatrixFixture {
       stack.sanctionsList.sanction(instance);
       vm.expectRevert(IMarketEventsAndErrors.CannotNukeProtectedAccount.selector);
       cell.market.nukeFromOrbit(instance);
-      stack.sanctionsList.unsanction(instance);
       vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedNukeProtectionFactory.selector);
       featureFactory.createFeature(address(cell.market));
-      factory.setNukeProtectionFactoryApproval(address(featureFactory), true);
-      assertTrue(cell.market.isNukeProtected(featureFactory.createFeature(address(cell.market))));
 
       vm.prank(instance);
       uint32 expiry = cell.market.queueFullWithdrawal();
       assertEq(cell.market.scaledTotalSupply(), 0);
       vm.warp(uint256(expiry) + 1);
       cell.market.executeWithdrawal(instance, expiry);
+      assertEq(stack.asset.balanceOf(instance), Deposit, 'approval removal does not freeze protected withdrawals');
       assertTrue(cell.market.isNukeProtected(instance), 'exit cannot remove protection');
+      factory.setNukeProtectionFactoryApproval(address(featureFactory), true);
       assertTrue(cell.market.isNukeProtected(featureFactory.createFeature(address(cell.market))));
     }
   }

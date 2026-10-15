@@ -577,9 +577,8 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     vm.expectRevert(IMarketEventsAndErrors.CannotNukeProtectedAccount.selector);
     fixture.market.nukeFromOrbit(address(wrapper));
     assertEq(fixture.market.scaledBalanceOf(address(wrapper)), backingBefore, 'backing changed');
-    assertEq(wrapper.maxRedeem(OtherLender), 0, 'sanctioned wrapper limit');
+    assertEq(wrapper.maxRedeem(OtherLender), otherShares, 'protected wrapper stays operational');
 
-    fixture.sanctionsList.unsanction(address(wrapper));
     vm.prank(OtherLender);
     wrapper.redeem(otherShares, OtherLender, OtherLender);
     assertEq(wrapper.totalSupply(), lenderShares, 'recovered supply');
