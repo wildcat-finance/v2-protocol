@@ -359,7 +359,8 @@ library MarketDataLib {
       }
     }
 
-    data.coverageLiquidity = state.liquidityRequired();
+    // preserve the target generation's accounting and rounding rules.
+    data.coverageLiquidity = market.coverageLiquidity();
   }
 
   // ┌─ _tryFillOptionalUint ─────
