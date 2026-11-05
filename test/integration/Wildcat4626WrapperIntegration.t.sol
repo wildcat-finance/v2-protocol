@@ -22,6 +22,10 @@ pragma solidity 0.8.25;
 //  _wrap(...)
 //  _authorize(...)
 //
+//  WRAPPER SHARE RECOVERY
+//  test_rescueWrapperShares()
+//  test_transfersRedemptionAndRescue()
+//
 //  WRAPPER READINESS AND REDEMPTION
 //  test_registrationAndReadinessUseProductionMarketsAndEveryBuiltInHook()
 //  test_wrapperCanBeCreatedMonthsAfterMarketFunding()
@@ -334,6 +338,85 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
   function _authorize(Fixture memory fixture, address account) private {
     vm.prank(address(fixture.roleProvider));
     fixture.hooks.grantRole(account, uint32(vm.getBlockTimestamp()));
+  }
+
+  // ░░▒▒▓▓██ [ WRAPPER SHARE RECOVERY ] ───────────────────────────────────────
+
+  // ┌─ test_rescueWrapperShares ─────
+  function test_rescueWrapperShares() external {
+    for (uint256 model; model < 2; ++model) {
+      for (uint256 route; route < 3; ++route) {
+        for (uint256 closed; closed < 2; ++closed) {
+          Fixture memory fixture = _newFixture(HooksKind.OpenTerm, model != 0, false);
+          Wildcat4626Wrapper wrapper = _deployWrapper(fixture, false);
+          _deposit(fixture, Lender, DepositAmount);
+
+          vm.startPrank(Lender);
+          fixture.market.approve(address(wrapper), type(uint256).max);
+          if (route == 0) {
+            wrapper.deposit(DepositAmount, Lender);
+            wrapper.transfer(address(fixture.market), DepositAmount);
+          } else if (route == 1) {
+            wrapper.deposit(DepositAmount, address(fixture.market));
+          } else {
+            wrapper.mint(DepositAmount, address(fixture.market));
+          }
+          vm.stopPrank();
+          if (closed != 0) {
+            vm.prank(Borrower);
+            fixture.market.closeMarket();
+          }
+
+          bytes32 stateBefore = keccak256(abi.encode(fixture.market.previousState()));
+          uint256 assetsBefore = fixture.market.totalAssets();
+          assertEq(wrapper.balanceOf(address(fixture.market)), DepositAmount, 'market owns the shares');
+          vm.prank(Outsider);
+          vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
+          fixture.market.rescueTokens(address(wrapper));
+
+          vm.prank(Borrower);
+          fixture.market.rescueTokens(address(wrapper));
+          assertEq(wrapper.balanceOf(address(fixture.market)), 0, 'market shares recovered');
+          assertEq(wrapper.balanceOf(Borrower), DepositAmount, 'borrower receives every share');
+          assertEq(wrapper.totalSupply(), DepositAmount, 'share supply unchanged');
+          assertEq(fixture.market.scaledBalanceOf(address(wrapper)), DepositAmount, 'backing unchanged');
+          assertEq(fixture.market.totalAssets(), assetsBefore, 'underlying unchanged');
+          assertEq(keccak256(abi.encode(fixture.market.previousState())), stateBefore, 'market state unchanged');
+
+          vm.prank(Borrower);
+          assertEq(wrapper.redeem(DepositAmount, Lender, Borrower), DepositAmount, 'recovered shares redeem');
+          assertEq(fixture.market.scaledBalanceOf(Lender), DepositAmount, 'lender receives backing');
+          assertEq(wrapper.totalSupply(), 0, 'recovered shares burned');
+          assertEq(fixture.market.scaledBalanceOf(address(wrapper)), 0, 'wrapper backing released');
+        }
+      }
+    }
+  }
+
+  // ┌─ test_transfersRedemptionAndRescue ─────
+  function test_transfersRedemptionAndRescue() external {
+    for (uint256 model; model < 2; ++model) {
+      Fixture memory fixture = _newFixture(HooksKind.OpenTerm, model != 0, false);
+      Wildcat4626Wrapper wrapper = _deployWrapper(fixture, false);
+      _wrap(fixture, wrapper, Lender, DepositAmount);
+      vm.prank(Lender);
+      wrapper.transfer(OtherLender, DepositAmount / 2);
+      vm.prank(OtherLender);
+      assertEq(wrapper.redeem(DepositAmount / 2, OtherLender, OtherLender), DepositAmount / 2, 'ordinary redemption');
+      assertEq(fixture.market.scaledBalanceOf(OtherLender), DepositAmount / 2, 'redeemed backing');
+
+      MockERC20 unrelated = MockERC20(
+        _deployCode(
+          'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode('Unrelated', 'OTHER', uint8(18))
+        )
+      );
+      unrelated.mint(address(fixture.market), DepositAmount);
+      vm.prank(Borrower);
+      fixture.market.rescueTokens(address(unrelated));
+      assertEq(unrelated.balanceOf(Borrower), DepositAmount, 'unrelated-token rescue succeeds');
+      assertEq(unrelated.balanceOf(address(fixture.market)), 0, 'unrelated-token balance cleared');
+      assertEq(wrapper.balanceOf(Lender), DepositAmount / 2, 'other holder shares preserved');
+    }
   }
 
   // ░░▒▒▓▓██ [ WRAPPER READINESS AND REDEMPTION ] ─────────────────────────────
