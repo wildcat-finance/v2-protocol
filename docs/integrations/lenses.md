@@ -29,8 +29,13 @@ to four. Getter selectors do not change.
 `MarketAccountingReader` pads only the exact legacy response lengths with a
 zero remainder, then decodes the current tuple. Truncated or malformed values
 still fail ABI decoding. The lens's public results do not expose these
-remainders as separate fields; coverage, debt, and withdrawal estimates use
-them internally.
+remainders as separate fields; debt and withdrawal estimates use them
+internally.
+
+Both full and live reads obtain `coverageLiquidity` from the target market's
+native getter. This preserves each generation's reserve accounting and
+rounding; padding a legacy tuple does not make its formulas interchangeable
+with current accounting. Failed or malformed coverage reads revert.
 
 Hook callbacks carrying `MarketState` have different selectors because their
 input tuple grows. Markets using carry accounting require matching hook
@@ -215,6 +220,9 @@ when adopting the source, and preserve historical market provenance.
 - [`MarketAccountingReader.t.sol`](../../test/lens/MarketAccountingReader.t.sol):
   legacy and extended state/batch tuples, retained fractions, malformed values,
   and dependency reverts
+- [`LegacyMarketCoverage.t.sol`](../../test/lens/LegacyMarketCoverage.t.sol):
+  original v2.0/v2.1 contracts, native coverage parity through both lens paths,
+  repayment, withdrawals, closure, and strict coverage-read failures
 - [`MarketLensDeployment.t.sol`](../../test/lens/MarketLensDeployment.t.sol):
   a small harness that deploys all four lens contracts and checks forwarding
   against both real market families with `--code-size-limit 24576`

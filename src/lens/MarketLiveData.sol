@@ -96,7 +96,8 @@ library MarketLiveDataLib {
       }
     }
 
-    data.coverageLiquidity = state.liquidityRequired();
+    // preserve the target generation's accounting and rounding rules.
+    data.coverageLiquidity = market.coverageLiquidity();
     MarketDataLib._tryFillOptionalUint(
       data.commitmentFeeBips, address(market), MarketDataLib._COMMITMENT_FEE_BIPS_SELECTOR
     );
