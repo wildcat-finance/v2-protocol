@@ -24,6 +24,7 @@ pragma solidity 0.8.25;
 //  CLOSURE AND RECOVERY
 //  closeMarket()
 //  rescueTokens(...)
+//  _rescueUnderlyingAsset()
 //
 //  STATE CHECKPOINTING
 //  updateState()
@@ -291,19 +292,26 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   ///
   /// @dev totalDebts protects live shares, unpaid batches, paid claims, and protocol fees.
   ///      the market token can't be rescued. a failed surplus transfer affects only this call.
+  ///      unrelated tokens may read market state during transfer. underlying recovery holds
+  ///      the lock, and rescue still rejects entry during another guarded market operation.
   ///
   /// @param token token to recover; underlying assets require a fully funded, closed market.
-  function rescueTokens(address token) external nonReentrant onlyBorrower {
+  function rescueTokens(address token) external nonReentrantView onlyBorrower {
     if (token == address(this)) revertWithSelector(BadRescueAsset_ErrorSelector);
     if (token == asset) {
-      MarketState memory state = _getUpdatedState();
-      if (!state.isClosed) revertWithSelector(BadRescueAsset_ErrorSelector);
-      uint256 totalDebts = state.totalDebts();
-      token.safeTransfer(msg.sender, totalAssets() - totalDebts);
-      _writeState(state, totalDebts);
+      _rescueUnderlyingAsset();
     } else {
       token.safeTransferAll(msg.sender);
     }
+  }
+
+  // ┌─ _rescueUnderlyingAsset ─────
+  function _rescueUnderlyingAsset() internal nonReentrant {
+    MarketState memory state = _getUpdatedState();
+    if (!state.isClosed) revertWithSelector(BadRescueAsset_ErrorSelector);
+    uint256 totalDebts = state.totalDebts();
+    asset.safeTransfer(msg.sender, totalAssets() - totalDebts);
+    _writeState(state, totalDebts);
   }
 
   // ░░▒▒▓▓██ [ STATE CHECKPOINTING ] ──────────────────────────────────────────
