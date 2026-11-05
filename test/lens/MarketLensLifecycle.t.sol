@@ -20,6 +20,7 @@ pragma solidity 0.8.25;
 //  CLOSURE AND PROPOSAL DATA
 //  test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery()
 //  test_manualClosureBeforeDate_DoesNotReenterRepayment()
+//  test_manualClosureZerosCapacity()
 //  test_periodicProposal_ExposesRecordedWindowAndAccruedClosure()
 //
 //  ROUTE PARITY
@@ -197,6 +198,7 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
       MarketDataV2_5 memory data = _assertReads(cell, false);
       assertFalse(cell.market.previousState().isClosed, 'closure still unwritten');
       assertTrue(data.market.isClosed, 'accrued closure');
+      assertEq(data.liquidity.maximumDeposit, 0, 'automatic closure stops deposits');
       assertEq(data.liquidity.totalDebts, 100e18, 'live shares plus paid claims');
       assertEq(data.liquidity.recoverableUnderlying, 7e18, 'only surplus recoverable');
       batch = lens.getWithdrawalBatchDataWithLenderStatus(address(cell.market), expiry, MatrixAlice);
@@ -234,6 +236,49 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
     MarketDataV2_5 memory data = _assertReads(cell, false);
     assertTrue(data.market.isClosed, 'remains closed');
     assertEq(data.lifecycle.defaultedAt, 0, 'no debt to default');
+  }
+
+  // ┌─ test_manualClosureZerosCapacity ─────
+  function test_manualClosureZerosCapacity() external {
+    for (uint256 model; model < 2; ++model) {
+      for (uint256 scheduled; scheduled < 2; ++scheduled) {
+        MatrixOptions memory options = _options(MatrixMarketKind(model), MatrixHooksKind.OpenTerm, 0);
+        if (scheduled == 0) options.repaymentDate = 0;
+        MatrixCell memory cell = _cell(options, uint96(model * 2 + scheduled));
+        _deposit(stack, cell, MatrixAlice, 100_000e18);
+        _borrow(cell, 80_000e18);
+        _approveBorrower(stack, cell, 80_000e18);
+        assertEq(cell.market.maximumDeposit(), 900_000e18, 'open-market capacity');
+        MarketDataV2_5 memory data = _assertReads(cell, false);
+        assertFalse(data.market.isClosed, 'market still open');
+        assertEq(data.liquidity.maximumDeposit, 900_000e18, 'open-market lens capacity');
+
+        _close(cell);
+
+        assertTrue(cell.market.previousState().isClosed, 'manual closure committed');
+        assertEq(cell.market.totalSupply(), 100_000e18, 'outstanding supply retained');
+        assertEq(cell.market.totalAssets(), 100_000e18, 'closure fully funded');
+        assertEq(cell.market.maximumDeposit(), 0, 'closed-market deposit capacity');
+        assertEq(cell.market.borrowableAssets(), 0, 'borrow view handles closure');
+        data = _assertReads(cell, false);
+        assertTrue(data.market.isClosed, 'full and live lens report closure');
+        assertEq(data.liquidity.maximumDeposit, 0, 'full and live lens report no deposit capacity');
+
+        _fundAndApprove(stack, cell, MatrixAlice, 900_000e18);
+        uint256 lenderAssets = stack.asset.balanceOf(MatrixAlice);
+        vm.prank(MatrixAlice);
+        vm.expectRevert(bytes4(keccak256('DepositToClosedMarket()')));
+        cell.market.depositUpTo(900_000e18);
+        assertEq(stack.asset.balanceOf(MatrixAlice), lenderAssets, 'failed deposit transfers no assets');
+        assertEq(cell.market.totalAssets(), 100_000e18, 'failed deposit preserves backing');
+        assertEq(cell.market.totalSupply(), 100_000e18, 'failed deposit mints no shares');
+
+        vm.warp(scheduled == 0 ? vm.getBlockTimestamp() + 30 days : options.repaymentDate);
+        data = _assertReads(cell, false);
+        assertTrue(data.market.isClosed, 'market stays closed');
+        assertEq(data.liquidity.maximumDeposit, 0, 'capacity stays zero after time passes');
+      }
+    }
   }
 
   // ┌─ test_periodicProposal_ExposesRecordedWindowAndAccruedClosure ─────

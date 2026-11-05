@@ -94,8 +94,9 @@ contract WildcatMarketConfig is WildcatMarketBase {
   /// @notice return the most underlying assets a deposit can currently add.
   ///
   /// @dev includes interest accrued through this block and saturates at zero.
+  ///      returns zero once closed or when the repayment date has arrived.
   function maximumDeposit() external view returns (uint256) {
-    if (_isInRepayment()) return 0;
+    if (_state.isClosed || _isInRepayment()) return 0;
     MarketState memory state = _calculateCurrentStatePointers.asReturnsMarketState()();
     return state.maximumDeposit();
   }
