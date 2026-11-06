@@ -18,6 +18,8 @@ pragma solidity 0.8.25;
 //  test_noRepaymentTerms_StillReportsOrdinaryPenaltyDefault()
 //
 //  CLOSURE AND PROPOSAL DATA
+//  test_closedBatchQuote()
+//  test_closedBatchCollision()
 //  test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery()
 //  test_manualClosureBeforeDate_DoesNotReenterRepayment()
 //  test_periodicProposal_ExposesRecordedWindowAndAccruedClosure()
@@ -172,6 +174,118 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
   }
 
   // ░░▒▒▓▓██ [ CLOSURE AND PROPOSAL DATA ] ────────────────────────────────────
+
+  // ┌─ test_closedBatchQuote ─────
+  function test_closedBatchQuote() external {
+    for (uint256 i; i < 4; i++) {
+      MatrixCell memory cell;
+      {
+        MatrixOptions memory options = _options(MatrixMarketKind(i / 2), MatrixHooksKind.OpenTerm, 1 days);
+        if (i % 2 == 0) {
+          options.repaymentDate = 0;
+          options.repaymentPeriod = 0;
+        }
+        cell = _cell(options, uint96(i));
+      }
+      _deposit(stack, cell, MatrixAlice, 100e18);
+      if (i % 2 == 0) {
+        _close(cell);
+      } else {
+        vm.warp(cell.options.repaymentDate);
+        cell.market.updateState();
+      }
+      assertTrue(cell.market.previousState().isClosed, 'closure committed');
+      vm.prank(MatrixAlice);
+      uint32 expiry = cell.market.queueWithdrawal(40e18);
+      assertEq(expiry, vm.getBlockTimestamp(), 'zero-duration expiry');
+      assertEq(cell.market.previousState().pendingWithdrawalExpiry, expiry, 'stored pending batch');
+      WithdrawalBatchDataWithLenderStatus memory batch =
+        core.getWithdrawalBatchDataWithLenderStatus(address(cell.market), expiry, MatrixAlice);
+      assertEq(uint256(batch.batch.status), uint256(BatchStatus.Pending), 'pending until expiry');
+      assertEq(batch.batch.scaledAmountBurned, batch.batch.scaledTotalAmount, 'fully funded');
+      assertEq(batch.lenderStatus.normalizedAmountOwed, 40e18, 'claim still owed');
+      assertEq(batch.lenderStatus.availableWithdrawalAmount, 0, 'not collectible yet');
+      vm.expectRevert(bytes4(keccak256('WithdrawalBatchNotExpired()')));
+      cell.market.getAvailableWithdrawalAmount(MatrixAlice, expiry);
+      vm.expectRevert(bytes4(keccak256('WithdrawalBatchNotExpired()')));
+      cell.market.executeWithdrawal(MatrixAlice, expiry);
+      vm.roll(vm.getBlockNumber() + 1);
+      batch = core.getWithdrawalBatchDataWithLenderStatus(address(cell.market), expiry, MatrixAlice);
+      assertEq(uint256(batch.batch.status), uint256(BatchStatus.Pending), 'same timestamp remains pending');
+      assertEq(batch.lenderStatus.availableWithdrawalAmount, 0, 'new block does not release claim');
+      vm.expectRevert(bytes4(keccak256('WithdrawalBatchNotExpired()')));
+      cell.market.executeWithdrawal(MatrixAlice, expiry);
+      vm.warp(uint256(expiry) + 1);
+      batch = core.getWithdrawalBatchDataWithLenderStatus(address(cell.market), expiry, MatrixAlice);
+      assertEq(uint256(batch.batch.status), uint256(BatchStatus.Complete), 'expiry releases claim before a write');
+      assertEq(batch.lenderStatus.availableWithdrawalAmount, 40e18, 'lens quote after expiry');
+      assertEq(cell.market.getAvailableWithdrawalAmount(MatrixAlice, expiry), 40e18, 'native quote after expiry');
+      uint256 lenderBalance = stack.asset.balanceOf(MatrixAlice);
+      assertEq(cell.market.executeWithdrawal(MatrixAlice, expiry), 40e18, 'claim paid after expiry');
+      assertEq(stack.asset.balanceOf(MatrixAlice) - lenderBalance, 40e18, 'full payment');
+      batch = core.getWithdrawalBatchDataWithLenderStatus(address(cell.market), expiry, MatrixAlice);
+      assertEq(batch.lenderStatus.availableWithdrawalAmount, 0, 'claim collected');
+    }
+  }
+
+  // ┌─ test_closedBatchCollision ─────
+  function test_closedBatchCollision() external {
+    for (uint256 i; i < 4; i++) {
+      MatrixCell memory cell;
+      {
+        MatrixOptions memory options = _options(MatrixMarketKind(i / 2), MatrixHooksKind.OpenTerm, 1 days);
+        options.withdrawalBatchDuration = 2 days;
+        if (i % 2 == 0) {
+          options.repaymentDate = 0;
+          options.repaymentPeriod = 0;
+        }
+        cell = _cell(options, uint96(i));
+      }
+      _deposit(stack, cell, MatrixAlice, 100e18);
+      vm.prank(MatrixAlice);
+      uint32 oldExpiry = cell.market.queueWithdrawal(40e18);
+      vm.warp(oldExpiry);
+      if (i % 2 == 0) {
+        _close(cell);
+      } else {
+        cell.market.updateState();
+      }
+
+      // closure releases the existing claim, even at its expiry timestamp.
+      assertTrue(cell.market.previousState().isClosed, 'closure committed');
+      assertEq(cell.market.getAvailableWithdrawalAmount(MatrixAlice, oldExpiry), 40e18, 'old quote executable');
+      assertEq(cell.market.executeWithdrawal(MatrixAlice, oldExpiry), 40e18, 'old claim paid');
+      vm.prank(MatrixAlice);
+      uint32 expiry = cell.market.queueWithdrawal(20e18);
+      assertEq(expiry, uint256(oldExpiry) + 1, 'occupied timestamp key');
+
+      for (uint256 j; j < 2; j++) {
+        vm.warp(uint256(oldExpiry) + j);
+        assertEq(cell.market.previousState().pendingWithdrawalExpiry, expiry, 'stored pending batch');
+        WithdrawalBatchDataWithLenderStatus memory batch =
+          core.getWithdrawalBatchDataWithLenderStatus(address(cell.market), expiry, MatrixAlice);
+        assertEq(uint256(batch.batch.status), uint256(BatchStatus.Pending), 'pending until expiry');
+        assertEq(batch.lenderStatus.normalizedAmountOwed, 20e18, 'claim still owed');
+        assertEq(batch.lenderStatus.availableWithdrawalAmount, 0, 'not collectible yet');
+        vm.expectRevert(bytes4(keccak256('WithdrawalBatchNotExpired()')));
+        cell.market.getAvailableWithdrawalAmount(MatrixAlice, expiry);
+        vm.expectRevert(bytes4(keccak256('WithdrawalBatchNotExpired()')));
+        cell.market.executeWithdrawal(MatrixAlice, expiry);
+      }
+
+      vm.warp(uint256(expiry) + 1);
+      WithdrawalBatchDataWithLenderStatus memory released =
+        core.getWithdrawalBatchDataWithLenderStatus(address(cell.market), expiry, MatrixAlice);
+      assertEq(uint256(released.batch.status), uint256(BatchStatus.Complete), 'expiry releases claim before a write');
+      assertEq(released.lenderStatus.availableWithdrawalAmount, 20e18, 'lens quote after expiry');
+      assertEq(cell.market.getAvailableWithdrawalAmount(MatrixAlice, expiry), 20e18, 'native quote after expiry');
+      uint256 lenderBalance = stack.asset.balanceOf(MatrixAlice);
+      assertEq(cell.market.executeWithdrawal(MatrixAlice, expiry), 20e18, 'claim paid after expiry');
+      assertEq(stack.asset.balanceOf(MatrixAlice) - lenderBalance, 20e18, 'full payment');
+      released = core.getWithdrawalBatchDataWithLenderStatus(address(cell.market), expiry, MatrixAlice);
+      assertEq(released.lenderStatus.availableWithdrawalAmount, 0, 'claim collected');
+    }
+  }
 
   // ┌─ test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery ─────
   function test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery() external {
