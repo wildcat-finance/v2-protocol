@@ -72,7 +72,8 @@ pragma solidity 0.8.25;
 //  useOnNukeFromOrbit(...)
 //
 //  CALL DISPATCH
-//  _callHook(...)
+//  _prepareHookCalldata(...)
+//  _callHookWithState(...)
 // ═════
 
 import '../access/IHooks.sol';
@@ -278,38 +279,17 @@ library LibHooksConfig {
   // ░░▒▒▓▓██ [ DEPOSITS ] ─────────────────────────────────────────────────────
 
   uint256 internal constant DepositCalldataSize = 0x24;
-  // fixed call size: selector + lender + scaledAmount + state + extraData.offset + extraData.length
-  uint256 internal constant DepositHook_Base_Size = 0x0264;
-  uint256 internal constant DepositHook_ScaledAmount_Offset = 0x20;
-  uint256 internal constant DepositHook_State_Offset = 0x40;
-  uint256 internal constant DepositHook_ExtraData_Head_Offset = 0x0220;
-  uint256 internal constant DepositHook_ExtraData_Length_Offset = 0x0240;
-  uint256 internal constant DepositHook_ExtraData_TailOffset = 0x0260;
 
   // ┌─ onDeposit ─────
   /// @dev call `onDeposit` when enabled and forward bytes appended after the deposit arguments.
   function onDeposit(HooksConfig self, address lender, uint256 scaledAmount, MarketState memory state) internal {
-    address target = self.hooksAddress();
-    uint32 onDepositSelector = uint32(IHooks.onDeposit.selector);
     if (self.useOnDeposit()) {
-      uint256 calldataPointer;
-      uint256 calldataSize;
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), DepositCalldataSize)
-        let cdPointer := mload(0x40)
-        let headPointer := add(cdPointer, 0x20)
-        mstore(cdPointer, onDepositSelector)
+        let headPointer := add(mload(0x40), 0x20)
         mstore(headPointer, lender)
-        mstore(add(headPointer, DepositHook_ScaledAmount_Offset), scaledAmount)
-        mcopy(add(headPointer, DepositHook_State_Offset), state, MarketStateSize)
-        mstore(add(headPointer, DepositHook_ExtraData_Head_Offset), DepositHook_ExtraData_Length_Offset)
-        mstore(add(headPointer, DepositHook_ExtraData_Length_Offset), extraCalldataBytes)
-        calldatacopy(add(headPointer, DepositHook_ExtraData_TailOffset), DepositCalldataSize, extraCalldataBytes)
-
-        calldataPointer := add(cdPointer, 0x1c)
-        calldataSize := add(DepositHook_Base_Size, extraCalldataBytes)
+        mstore(add(headPointer, 0x20), scaledAmount)
       }
-      _callHook(target, calldataPointer, calldataSize);
+      _callHookWithState(self, uint32(IHooks.onDeposit.selector), 2, state, DepositCalldataSize);
     }
   }
 
@@ -320,15 +300,6 @@ library LibHooksConfig {
   }
 
   // ░░▒▒▓▓██ [ WITHDRAWAL QUEUEING ] ──────────────────────────────────────────
-
-  // fixed call size: selector + lender + expiry + scaledAmount + state + extraData.offset + extraData.length
-  uint256 internal constant QueueWithdrawalHook_Base_Size = 0x0284;
-  uint256 internal constant QueueWithdrawalHook_Expiry_Offset = 0x20;
-  uint256 internal constant QueueWithdrawalHook_ScaledAmount_Offset = 0x40;
-  uint256 internal constant QueueWithdrawalHook_State_Offset = 0x60;
-  uint256 internal constant QueueWithdrawalHook_ExtraData_Head_Offset = 0x0240;
-  uint256 internal constant QueueWithdrawalHook_ExtraData_Length_Offset = 0x0260;
-  uint256 internal constant QueueWithdrawalHook_ExtraData_TailOffset = 0x0280;
 
   // ┌─ onQueueWithdrawal ─────
   /// @dev call `onQueueWithdrawal` when enabled and forward trailing `extraData` unchanged.
@@ -342,28 +313,14 @@ library LibHooksConfig {
   )
     internal
   {
-    address target = self.hooksAddress();
-    uint32 onQueueWithdrawalSelector = uint32(IHooks.onQueueWithdrawal.selector);
     if (self.useOnQueueWithdrawal()) {
-      uint256 calldataPointer;
-      uint256 calldataSize;
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
-        let cdPointer := mload(0x40)
-        let headPointer := add(cdPointer, 0x20)
-        mstore(cdPointer, onQueueWithdrawalSelector)
+        let headPointer := add(mload(0x40), 0x20)
         mstore(headPointer, lender)
-        mstore(add(headPointer, QueueWithdrawalHook_Expiry_Offset), expiry)
-        mstore(add(headPointer, QueueWithdrawalHook_ScaledAmount_Offset), scaledAmount)
-        mcopy(add(headPointer, QueueWithdrawalHook_State_Offset), state, MarketStateSize)
-        mstore(add(headPointer, QueueWithdrawalHook_ExtraData_Head_Offset), QueueWithdrawalHook_ExtraData_Length_Offset)
-        mstore(add(headPointer, QueueWithdrawalHook_ExtraData_Length_Offset), extraCalldataBytes)
-        calldatacopy(add(headPointer, QueueWithdrawalHook_ExtraData_TailOffset), baseCalldataSize, extraCalldataBytes)
-
-        calldataPointer := add(cdPointer, 0x1c)
-        calldataSize := add(QueueWithdrawalHook_Base_Size, extraCalldataBytes)
+        mstore(add(headPointer, 0x20), expiry)
+        mstore(add(headPointer, 0x40), scaledAmount)
       }
-      _callHook(target, calldataPointer, calldataSize);
+      _callHookWithState(self, uint32(IHooks.onQueueWithdrawal.selector), 3, state, baseCalldataSize);
     }
   }
 
@@ -375,17 +332,9 @@ library LibHooksConfig {
 
   // ░░▒▒▓▓██ [ CLAIM COLLECTION ] ─────────────────────────────────────────────
 
-  // fixed call size: selector + lender + expiry + normalizedAmountWithdrawn + state + extraData.offset + extraData.length
-  uint256 internal constant ExecuteWithdrawalHook_Base_Size = 0x0284;
-  uint256 internal constant ExecuteWithdrawalHook_Expiry_Offset = 0x20;
-  uint256 internal constant ExecuteWithdrawalHook_NormalizedAmount_Offset = 0x40;
-  uint256 internal constant ExecuteWithdrawalHook_State_Offset = 0x60;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Head_Offset = 0x0240;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Length_Offset = 0x0260;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_TailOffset = 0x0280;
-
   // ┌─ onExecuteWithdrawal ─────
-  /// @dev call `onExecuteWithdrawal` when enabled and forward trailing `extraData` unchanged.
+  /// @dev v2.5 markets never enable this callback (the constructor rejects the flag); retained for
+  ///      the shared encoder harness. forwards trailing `extraData` unchanged.
   function onExecuteWithdrawal(
     HooksConfig self,
     address lender,
@@ -396,51 +345,24 @@ library LibHooksConfig {
   )
     internal
   {
-    address target = self.hooksAddress();
-    uint32 onExecuteWithdrawalSelector = uint32(IHooks.onExecuteWithdrawal.selector);
     if (self.useOnExecuteWithdrawal()) {
-      uint256 calldataPointer;
-      uint256 calldataSize;
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
-        let cdPointer := mload(0x40)
-        let headPointer := add(cdPointer, 0x20)
-        mstore(cdPointer, onExecuteWithdrawalSelector)
+        let headPointer := add(mload(0x40), 0x20)
         mstore(headPointer, lender)
-        mstore(add(headPointer, ExecuteWithdrawalHook_Expiry_Offset), expiry)
-        mstore(add(headPointer, ExecuteWithdrawalHook_NormalizedAmount_Offset), normalizedAmountWithdrawn)
-        mcopy(add(headPointer, ExecuteWithdrawalHook_State_Offset), state, MarketStateSize)
-        mstore(
-          add(headPointer, ExecuteWithdrawalHook_ExtraData_Head_Offset),
-          ExecuteWithdrawalHook_ExtraData_Length_Offset
-        )
-        mstore(add(headPointer, ExecuteWithdrawalHook_ExtraData_Length_Offset), extraCalldataBytes)
-        calldatacopy(add(headPointer, ExecuteWithdrawalHook_ExtraData_TailOffset), baseCalldataSize, extraCalldataBytes)
-
-        calldataPointer := add(cdPointer, 0x1c)
-        calldataSize := add(ExecuteWithdrawalHook_Base_Size, extraCalldataBytes)
+        mstore(add(headPointer, 0x20), expiry)
+        mstore(add(headPointer, 0x40), normalizedAmountWithdrawn)
       }
-      _callHook(target, calldataPointer, calldataSize);
+      _callHookWithState(self, uint32(IHooks.onExecuteWithdrawal.selector), 3, state, baseCalldataSize);
     }
   }
 
   // ┌─ useOnExecuteWithdrawal ─────
-  /// @dev whether to call the hook for executeWithdrawal.
+  /// @dev whether the config enables the unsupported executeWithdrawal callback.
   function useOnExecuteWithdrawal(HooksConfig hooks) internal pure returns (bool) {
     return hooks.readFlag(Bit_Enabled_ExecuteWithdrawal);
   }
 
   // ░░▒▒▓▓██ [ TRANSFERS ] ────────────────────────────────────────────────────
-
-  // fixed call size: selector + caller + from + to + scaledAmount + state + extraData.offset + extraData.length
-  uint256 internal constant TransferHook_Base_Size = 0x02a4;
-  uint256 internal constant TransferHook_From_Offset = 0x20;
-  uint256 internal constant TransferHook_To_Offset = 0x40;
-  uint256 internal constant TransferHook_ScaledAmount_Offset = 0x60;
-  uint256 internal constant TransferHook_State_Offset = 0x80;
-  uint256 internal constant TransferHook_ExtraData_Head_Offset = 0x0260;
-  uint256 internal constant TransferHook_ExtraData_Length_Offset = 0x0280;
-  uint256 internal constant TransferHook_ExtraData_TailOffset = 0x02a0;
 
   // ┌─ onTransfer ─────
   /// @dev call `onTransfer` when enabled and report the original market caller to the hook.
@@ -454,29 +376,15 @@ library LibHooksConfig {
   )
     internal
   {
-    address target = self.hooksAddress();
-    uint32 onTransferSelector = uint32(IHooks.onTransfer.selector);
     if (self.useOnTransfer()) {
-      uint256 calldataPointer;
-      uint256 calldataSize;
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
-        let cdPointer := mload(0x40)
-        let headPointer := add(cdPointer, 0x20)
-        mstore(cdPointer, onTransferSelector)
+        let headPointer := add(mload(0x40), 0x20)
         mstore(headPointer, caller())
-        mstore(add(headPointer, TransferHook_From_Offset), from)
-        mstore(add(headPointer, TransferHook_To_Offset), to)
-        mstore(add(headPointer, TransferHook_ScaledAmount_Offset), scaledAmount)
-        mcopy(add(headPointer, TransferHook_State_Offset), state, MarketStateSize)
-        mstore(add(headPointer, TransferHook_ExtraData_Head_Offset), TransferHook_ExtraData_Length_Offset)
-        mstore(add(headPointer, TransferHook_ExtraData_Length_Offset), extraCalldataBytes)
-        calldatacopy(add(headPointer, TransferHook_ExtraData_TailOffset), baseCalldataSize, extraCalldataBytes)
-
-        calldataPointer := add(cdPointer, 0x1c)
-        calldataSize := add(TransferHook_Base_Size, extraCalldataBytes)
+        mstore(add(headPointer, 0x20), from)
+        mstore(add(headPointer, 0x40), to)
+        mstore(add(headPointer, 0x60), scaledAmount)
       }
-      _callHook(target, calldataPointer, calldataSize);
+      _callHookWithState(self, uint32(IHooks.onTransfer.selector), 4, state, baseCalldataSize);
     }
   }
 
@@ -489,37 +397,15 @@ library LibHooksConfig {
   // ░░▒▒▓▓██ [ BORROWING ] ────────────────────────────────────────────────────
 
   uint256 internal constant BorrowCalldataSize = 0x24;
-  // fixed call size: selector + normalizedAmount + state + extraData.offset + extraData.length
-  uint256 internal constant BorrowHook_Base_Size = 0x0244;
-  uint256 internal constant BorrowHook_State_Offset = 0x20;
-  uint256 internal constant BorrowHook_ExtraData_Head_Offset = 0x0200;
-  uint256 internal constant BorrowHook_ExtraData_Length_Offset = 0x0220;
-  uint256 internal constant BorrowHook_ExtraData_TailOffset = 0x0240;
 
   // ┌─ onBorrow ─────
   /// @dev call `onBorrow` when enabled and forward bytes appended after the borrow amount.
   function onBorrow(HooksConfig self, uint256 normalizedAmount, MarketState memory state) internal {
-    address target = self.hooksAddress();
-    uint32 onBorrowSelector = uint32(IHooks.onBorrow.selector);
     if (self.useOnBorrow()) {
-      uint256 calldataPointer;
-      uint256 calldataSize;
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), BorrowCalldataSize)
-        let ptr := mload(0x40)
-        let headPointer := add(ptr, 0x20)
-
-        mstore(ptr, onBorrowSelector)
-        mstore(headPointer, normalizedAmount)
-        mcopy(add(headPointer, BorrowHook_State_Offset), state, MarketStateSize)
-        mstore(add(headPointer, BorrowHook_ExtraData_Head_Offset), BorrowHook_ExtraData_Length_Offset)
-        mstore(add(headPointer, BorrowHook_ExtraData_Length_Offset), extraCalldataBytes)
-        calldatacopy(add(headPointer, BorrowHook_ExtraData_TailOffset), BorrowCalldataSize, extraCalldataBytes)
-
-        calldataPointer := add(ptr, 0x1c)
-        calldataSize := add(BorrowHook_Base_Size, extraCalldataBytes)
+        mstore(add(mload(0x40), 0x20), normalizedAmount)
       }
-      _callHook(target, calldataPointer, calldataSize);
+      _callHookWithState(self, uint32(IHooks.onBorrow.selector), 1, state, BorrowCalldataSize);
     }
   }
 
@@ -531,13 +417,6 @@ library LibHooksConfig {
 
   // ░░▒▒▓▓██ [ REPAYMENT ] ────────────────────────────────────────────────────
 
-  // fixed call size: selector + normalizedAmount + state + extraData.offset + extraData.length
-  uint256 internal constant RepayHook_Base_Size = 0x0244;
-  uint256 internal constant RepayHook_State_Offset = 0x20;
-  uint256 internal constant RepayHook_ExtraData_Head_Offset = 0x0200;
-  uint256 internal constant RepayHook_ExtraData_Length_Offset = 0x0220;
-  uint256 internal constant RepayHook_ExtraData_TailOffset = 0x0240;
-
   // ┌─ onRepay ─────
   /// @dev call `onRepay` when enabled and forward trailing `extraData` unchanged.
   function onRepay(
@@ -548,27 +427,11 @@ library LibHooksConfig {
   )
     internal
   {
-    address target = self.hooksAddress();
-    uint32 onRepaySelector = uint32(IHooks.onRepay.selector);
     if (self.useOnRepay()) {
-      uint256 calldataPointer;
-      uint256 calldataSize;
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
-        let ptr := mload(0x40)
-        let headPointer := add(ptr, 0x20)
-
-        mstore(ptr, onRepaySelector)
-        mstore(headPointer, normalizedAmount)
-        mcopy(add(headPointer, RepayHook_State_Offset), state, MarketStateSize)
-        mstore(add(headPointer, RepayHook_ExtraData_Head_Offset), RepayHook_ExtraData_Length_Offset)
-        mstore(add(headPointer, RepayHook_ExtraData_Length_Offset), extraCalldataBytes)
-        calldatacopy(add(headPointer, RepayHook_ExtraData_TailOffset), baseCalldataSize, extraCalldataBytes)
-
-        calldataPointer := add(ptr, 0x1c)
-        calldataSize := add(RepayHook_Base_Size, extraCalldataBytes)
+        mstore(add(mload(0x40), 0x20), normalizedAmount)
       }
-      _callHook(target, calldataPointer, calldataSize);
+      _callHookWithState(self, uint32(IHooks.onRepay.selector), 1, state, baseCalldataSize);
     }
   }
 
@@ -583,38 +446,11 @@ library LibHooksConfig {
   // size of calldata to `market.closeMarket`
   uint256 internal constant CloseMarketCalldataSize = 0x04;
 
-  // fixed calldata size for hooks.onCloseMarket().
-  uint256 internal constant CloseMarketHook_Base_Size = 0x0224;
-  uint256 internal constant CloseMarketHook_ExtraData_Head_Offset = MarketStateSize;
-  uint256 internal constant CloseMarketHook_ExtraData_Length_Offset = 0x0200;
-  uint256 internal constant CloseMarketHook_ExtraData_TailOffset = 0x0220;
-
   // ┌─ onCloseMarket ─────
   /// @dev call `onCloseMarket` when enabled and forward trailing `extraData` unchanged.
   function onCloseMarket(HooksConfig self, MarketState memory state) internal {
-    address target = self.hooksAddress();
-    uint32 onCloseMarketSelector = uint32(IHooks.onCloseMarket.selector);
     if (self.useOnCloseMarket()) {
-      uint256 calldataPointer;
-      uint256 calldataSize;
-      assembly {
-        let extraCalldataBytes := sub(calldatasize(), CloseMarketCalldataSize)
-        let cdPointer := mload(0x40)
-        let headPointer := add(cdPointer, 0x20)
-        mstore(cdPointer, onCloseMarketSelector)
-        mcopy(headPointer, state, MarketStateSize)
-        mstore(add(headPointer, CloseMarketHook_ExtraData_Head_Offset), CloseMarketHook_ExtraData_Length_Offset)
-        mstore(add(headPointer, CloseMarketHook_ExtraData_Length_Offset), extraCalldataBytes)
-        calldatacopy(
-          add(headPointer, CloseMarketHook_ExtraData_TailOffset),
-          CloseMarketCalldataSize,
-          extraCalldataBytes
-        )
-
-        calldataPointer := add(cdPointer, 0x1c)
-        calldataSize := add(CloseMarketHook_Base_Size, extraCalldataBytes)
-      }
-      _callHook(target, calldataPointer, calldataSize);
+      _callHookWithState(self, uint32(IHooks.onCloseMarket.selector), 0, state, CloseMarketCalldataSize);
     }
   }
 
@@ -627,43 +463,15 @@ library LibHooksConfig {
   // ░░▒▒▓▓██ [ SUPPLY CAPACITY ] ──────────────────────────────────────────────
 
   uint256 internal constant SetMaxTotalSupplyCalldataSize = 0x24;
-  // fixed call size: selector + maxTotalSupply + state + extraData.offset + extraData.length
-  uint256 internal constant SetMaxTotalSupplyHook_Base_Size = 0x0244;
-  uint256 internal constant SetMaxTotalSupplyHook_State_Offset = 0x20;
-  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_Head_Offset = 0x0200;
-  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_Length_Offset = 0x0220;
-  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_TailOffset = 0x0240;
 
   // ┌─ onSetMaxTotalSupply ─────
   /// @dev call `onSetMaxTotalSupply` when enabled; the hook may accept or revert, not rewrite it.
   function onSetMaxTotalSupply(HooksConfig self, uint256 maxTotalSupply, MarketState memory state) internal {
-    address target = self.hooksAddress();
-    uint32 onSetMaxTotalSupplySelector = uint32(IHooks.onSetMaxTotalSupply.selector);
     if (self.useOnSetMaxTotalSupply()) {
-      uint256 calldataPointer;
-      uint256 calldataSize;
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), SetMaxTotalSupplyCalldataSize)
-        let cdPointer := mload(0x40)
-        let headPointer := add(cdPointer, 0x20)
-        mstore(cdPointer, onSetMaxTotalSupplySelector)
-        mstore(headPointer, maxTotalSupply)
-        mcopy(add(headPointer, SetMaxTotalSupplyHook_State_Offset), state, MarketStateSize)
-        mstore(
-          add(headPointer, SetMaxTotalSupplyHook_ExtraData_Head_Offset),
-          SetMaxTotalSupplyHook_ExtraData_Length_Offset
-        )
-        mstore(add(headPointer, SetMaxTotalSupplyHook_ExtraData_Length_Offset), extraCalldataBytes)
-        calldatacopy(
-          add(headPointer, SetMaxTotalSupplyHook_ExtraData_TailOffset),
-          SetMaxTotalSupplyCalldataSize,
-          extraCalldataBytes
-        )
-
-        calldataPointer := add(cdPointer, 0x1c)
-        calldataSize := add(SetMaxTotalSupplyHook_Base_Size, extraCalldataBytes)
+        mstore(add(mload(0x40), 0x20), maxTotalSupply)
       }
-      _callHook(target, calldataPointer, calldataSize);
+      _callHookWithState(self, uint32(IHooks.onSetMaxTotalSupply.selector), 1, state, SetMaxTotalSupplyCalldataSize);
     }
   }
 
@@ -676,13 +484,6 @@ library LibHooksConfig {
   // ░░▒▒▓▓██ [ INTEREST AND RESERVES ] ────────────────────────────────────────
 
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsCalldataSize = 0x44;
-  // fixed call size: selector + annualInterestBips + reserveRatioBips + state + extraData.offset + extraData.length
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_Base_Size = 0x0264;
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ReserveRatioBips_Offset = 0x20;
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_State_Offset = 0x40;
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset = 0x0220;
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset = 0x0240;
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_TailOffset = 0x0260;
 
   // ┌─ onSetAnnualInterestAndReserveRatioBips ─────
   /// @dev call the term-change hook when enabled and return its final APR and reserve ratio.
@@ -696,32 +497,22 @@ library LibHooksConfig {
     internal
     returns (uint16 newAnnualInterestBips, uint16 newReserveRatioBips)
   {
-    address target = self.hooksAddress();
-    uint32 onSetAnnualInterestBipsSelector = uint32(IHooks.onSetAnnualInterestAndReserveRatioBips.selector);
     if (self.useOnSetAnnualInterestAndReserveRatioBips()) {
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), SetAnnualInterestAndReserveRatioBipsCalldataSize)
-        let cdPointer := mload(0x40)
-        let headPointer := add(cdPointer, 0x20)
-        mstore(cdPointer, onSetAnnualInterestBipsSelector)
+        let headPointer := add(mload(0x40), 0x20)
         mstore(headPointer, annualInterestBips)
-        mstore(add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ReserveRatioBips_Offset), reserveRatioBips)
-        mcopy(add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_State_Offset), state, MarketStateSize)
-        mstore(
-          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset),
-          SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset
-        )
-        mstore(add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset), extraCalldataBytes)
-        calldatacopy(
-          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ExtraData_TailOffset),
-          SetAnnualInterestAndReserveRatioBipsCalldataSize,
-          extraCalldataBytes
-        )
-
-        let size := add(SetAnnualInterestAndReserveRatioBipsHook_Base_Size, extraCalldataBytes)
-
+        mstore(add(headPointer, 0x20), reserveRatioBips)
+      }
+      (uint256 calldataPointer, uint256 calldataSize) = _prepareHookCalldata(
+        uint32(IHooks.onSetAnnualInterestAndReserveRatioBips.selector),
+        2,
+        state,
+        SetAnnualInterestAndReserveRatioBipsCalldataSize
+      );
+      address target = self.hooksAddress();
+      assembly {
         // the hook supplies both final terms. require two return words, then mask each to uint16.
-        if or(lt(returndatasize(), 0x40), iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0x40))) {
+        if or(lt(returndatasize(), 0x40), iszero(call(gas(), target, 0, calldataPointer, calldataSize, 0, 0x40))) {
           returndatacopy(0, 0, returndatasize())
           revert(0, returndatasize())
         }
@@ -749,40 +540,15 @@ library LibHooksConfig {
   // ░░▒▒▓▓██ [ PROTOCOL FEES ] ────────────────────────────────────────────────
 
   uint256 internal constant SetProtocolFeeBipsCalldataSize = 0x24;
-  // fixed call size: selector + protocolFeeBips + state + extraData.offset + extraData.length
-  uint256 internal constant SetProtocolFeeBips_Base_Size = 0x0244;
-  uint256 internal constant SetProtocolFeeBips_State_Offset = 0x20;
-  uint256 internal constant SetProtocolFeeBips_ExtraData_Head_Offset = 0x0200;
-  uint256 internal constant SetProtocolFeeBips_ExtraData_Length_Offset = 0x0220;
-  uint256 internal constant SetProtocolFeeBips_ExtraData_TailOffset = 0x0240;
 
   // ┌─ onSetProtocolFeeBips ─────
   /// @dev call `onSetProtocolFeeBips` when enabled and bubble any hook revert.
   function onSetProtocolFeeBips(HooksConfig self, uint256 protocolFeeBips, MarketState memory state) internal {
-    address target = self.hooksAddress();
-    uint32 onSetProtocolFeeBipsSelector = uint32(IHooks.onSetProtocolFeeBips.selector);
     if (self.useOnSetProtocolFeeBips()) {
-      uint256 calldataPointer;
-      uint256 calldataSize;
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), SetProtocolFeeBipsCalldataSize)
-        let cdPointer := mload(0x40)
-        let headPointer := add(cdPointer, 0x20)
-        mstore(cdPointer, onSetProtocolFeeBipsSelector)
-        mstore(headPointer, protocolFeeBips)
-        mcopy(add(headPointer, SetProtocolFeeBips_State_Offset), state, MarketStateSize)
-        mstore(add(headPointer, SetProtocolFeeBips_ExtraData_Head_Offset), SetProtocolFeeBips_ExtraData_Length_Offset)
-        mstore(add(headPointer, SetProtocolFeeBips_ExtraData_Length_Offset), extraCalldataBytes)
-        calldatacopy(
-          add(headPointer, SetProtocolFeeBips_ExtraData_TailOffset),
-          SetProtocolFeeBipsCalldataSize,
-          extraCalldataBytes
-        )
-
-        calldataPointer := add(cdPointer, 0x1c)
-        calldataSize := add(SetProtocolFeeBips_Base_Size, extraCalldataBytes)
+        mstore(add(mload(0x40), 0x20), protocolFeeBips)
       }
-      _callHook(target, calldataPointer, calldataSize);
+      _callHookWithState(self, uint32(IHooks.onSetProtocolFeeBips.selector), 1, state, SetProtocolFeeBipsCalldataSize);
     }
   }
 
@@ -795,40 +561,15 @@ library LibHooksConfig {
   // ░░▒▒▓▓██ [ SANCTIONS ] ────────────────────────────────────────────────────
 
   uint256 internal constant NukeFromOrbitCalldataSize = 0x24;
-  // fixed call size: selector + lender + state + extraData.offset + extraData.length
-  uint256 internal constant NukeFromOrbit_Base_Size = 0x0244;
-  uint256 internal constant NukeFromOrbit_State_Offset = 0x20;
-  uint256 internal constant NukeFromOrbit_ExtraData_Head_Offset = 0x0200;
-  uint256 internal constant NukeFromOrbit_ExtraData_Length_Offset = 0x0220;
-  uint256 internal constant NukeFromOrbit_ExtraData_TailOffset = 0x0240;
 
   // ┌─ onNukeFromOrbit ─────
   /// @dev call `onNukeFromOrbit` before the market quarantines a sanctioned lender.
   function onNukeFromOrbit(HooksConfig self, address lender, MarketState memory state) internal {
-    address target = self.hooksAddress();
-    uint32 onNukeFromOrbitSelector = uint32(IHooks.onNukeFromOrbit.selector);
     if (self.useOnNukeFromOrbit()) {
-      uint256 calldataPointer;
-      uint256 calldataSize;
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), NukeFromOrbitCalldataSize)
-        let cdPointer := mload(0x40)
-        let headPointer := add(cdPointer, 0x20)
-        mstore(cdPointer, onNukeFromOrbitSelector)
-        mstore(headPointer, lender)
-        mcopy(add(headPointer, NukeFromOrbit_State_Offset), state, MarketStateSize)
-        mstore(add(headPointer, NukeFromOrbit_ExtraData_Head_Offset), NukeFromOrbit_ExtraData_Length_Offset)
-        mstore(add(headPointer, NukeFromOrbit_ExtraData_Length_Offset), extraCalldataBytes)
-        calldatacopy(
-          add(headPointer, NukeFromOrbit_ExtraData_TailOffset),
-          NukeFromOrbitCalldataSize,
-          extraCalldataBytes
-        )
-
-        calldataPointer := add(cdPointer, 0x1c)
-        calldataSize := add(NukeFromOrbit_Base_Size, extraCalldataBytes)
+        mstore(add(mload(0x40), 0x20), lender)
       }
-      _callHook(target, calldataPointer, calldataSize);
+      _callHookWithState(self, uint32(IHooks.onNukeFromOrbit.selector), 1, state, NukeFromOrbitCalldataSize);
     }
   }
 
@@ -840,12 +581,63 @@ library LibHooksConfig {
 
   // ░░▒▒▓▓██ [ CALL DISPATCH ] ────────────────────────────────────────────────
 
-  // ┌─ _callHook ─────
-  /// @dev share the no-return hook call and revert path instead of cloning it for each callback.
-  function _callHook(address target, uint256 calldataPointer, uint256 calldataSize) private {
+  // ┌─ _prepareHookCalldata ─────
+  /// @dev callbacks encoded here have the shape `(static args..., MarketState state, bytes extraData)`.
+  ///      callers write the `headWords` static argument words at `mload(0x40) + 0x20` before calling.
+  ///      this writes the selector before them, copies `state` after them, then appends the
+  ///      `extraData` head, length, and the caller's trailing calldata past `baseCalldataSize`.
+  ///      `baseCalldataSize` must not exceed `calldatasize()`. the free memory pointer stays unchanged;
+  ///      don't allocate from the first head write until the hook call consumes the buffer.
+  ///
+  /// @return calldataPointer start of the ABI-encoded call, at the selector.
+  /// @return calldataSize    total call size, including the selector.
+  function _prepareHookCalldata(
+    uint32 selector,
+    uint256 headWords,
+    MarketState memory state,
+    uint256 baseCalldataSize
+  )
+    private
+    pure
+    returns (uint256 calldataPointer, uint256 calldataSize)
+  {
     assembly {
-      // callers built contiguous ABI calldata. the pointer usually skips 28 padding bytes
-      // to reach the selector at word offset 0x1c. forward remaining gas, no ETH, no return buffer.
+      let cdPointer := mload(0x40)
+      mstore(cdPointer, selector)
+      let headSize := shl(5, headWords)
+      let statePointer := add(add(cdPointer, 0x20), headSize)
+      mcopy(statePointer, state, MarketStateSize)
+      // `extraData` offset counts from the first head word: static args, the state block, and
+      // the offset word itself.
+      let extraDataLengthOffset := add(headSize, add(MarketStateSize, 0x20))
+      let extraDataHeadPointer := add(statePointer, MarketStateSize)
+      mstore(extraDataHeadPointer, extraDataLengthOffset)
+      let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
+      mstore(add(extraDataHeadPointer, 0x20), extraCalldataBytes)
+      calldatacopy(add(extraDataHeadPointer, 0x40), baseCalldataSize, extraCalldataBytes)
+
+      // the selector occupies the last four bytes of its word.
+      calldataPointer := add(cdPointer, 0x1c)
+      // selector + head + state + offset word + length word + extraData.
+      calldataSize := add(add(0x24, extraDataLengthOffset), extraCalldataBytes)
+    }
+  }
+
+  // ┌─ _callHookWithState ─────
+  /// @dev build the callback and make the no-return hook call, bubbling any revert.
+  function _callHookWithState(
+    HooksConfig self,
+    uint32 selector,
+    uint256 headWords,
+    MarketState memory state,
+    uint256 baseCalldataSize
+  )
+    private
+  {
+    (uint256 calldataPointer, uint256 calldataSize) = _prepareHookCalldata(selector, headWords, state, baseCalldataSize);
+    address target = self.hooksAddress();
+    assembly {
+      // forward remaining gas, no ETH, no return buffer.
       if iszero(call(gas(), target, 0, calldataPointer, calldataSize, 0, 0)) {
         // bubble the hook's exact error, including custom-error arguments.
         returndatacopy(0, 0, returndatasize())

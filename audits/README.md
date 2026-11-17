@@ -7,9 +7,9 @@ deployments by implication.
 This index does not include internal reviews, automated scans, working papers,
 or audit preparation material.
 
-## V2
+## v2.0
 
-- **alpeh_v:** [Wildcat V2 Security Review](https://hackmd.io/@geistermeister/BJk4Ekt90),
+- **alpeh_v:** [Wildcat v2 Security Review](https://hackmd.io/@geistermeister/BJk4Ekt90),
   conducted from 2024-08-12 to 2024-08-23.
 
   - Starting source: [`f30ea6d`](https://github.com/wildcat-finance/v2-protocol/commit/f30ea6d)
@@ -23,9 +23,14 @@ or audit preparation material.
     matches [`v2-protocol@5a19f68`](https://github.com/wildcat-finance/v2-protocol/commit/5a19f68)
   - Findings: 1 High, 8 Medium, and 22 Low or non-critical
 
+## v2.1
+
+- **Côme du Crest:** ERC-4626 wrapper review, dated 2025-12-21.
+  Findings: 3 Informational.
+
 ## Remediation provenance
 
 The Code4rena report includes sponsor responses and linked fixes for individual
 findings. We have not yet reconstructed a complete finding-to-fix and retest
-map for either engagement. Source ancestry alone is not evidence that a finding
+map for the v2.0 engagements. Source ancestry alone is not evidence that a finding
 was retested.

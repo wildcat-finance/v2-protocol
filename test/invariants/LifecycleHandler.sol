@@ -198,7 +198,7 @@ contract LifecycleHandler is MarketMatrixHandler {
     } else if (kind == 1) {
       boundary = terms[i].date + terms[i].period;
     } else if (kind == 2) {
-      boundary = _preview(i, markets[i].totalAssets()).cutoff;
+      boundary = penaltyCutoff(i);
     } else if (kind == 3) {
       boundary = observations[i].state.pendingWithdrawalExpiry;
     } else if (kind == 4) {
@@ -520,8 +520,11 @@ contract LifecycleHandler is MarketMatrixHandler {
   }
 
   // ┌─ penaltyCutoff ─────
-  function penaltyCutoff(uint256 i) external view returns (uint256) {
-    return _preview(i, markets[i].totalAssets()).cutoff;
+  function penaltyCutoff(uint256 i) public view returns (uint256) {
+    LifecycleOracle.Preview memory p = _preview(i, markets[i].totalAssets());
+    if (p.defaultedAt != 0) return p.defaultedAt;
+    if (p.state.isClosed || !p.state.isDelinquent) return 0;
+    return uint256(p.state.lastInterestAccruedTimestamp) + (terms[i].grace + 90 days).satSub(p.state.timeDelinquent);
   }
 
   // ┌─ _preview ─────
@@ -669,7 +672,6 @@ contract LifecycleHandler is MarketMatrixHandler {
     observations[i].state = nowState;
     observations[i].cash = m.totalAssets();
     observations[i].defaultedAt = p.defaultedAt;
-    observations[i].cutoff = nowState.isClosed || !nowState.isDelinquent ? 0 : p.cutoff;
     observations[i].drawn = _drawnAmountIfRevolving(i);
     if (nowState.pendingWithdrawalExpiry != 0) {
       observations[i].batch = observedBatches[i][nowState.pendingWithdrawalExpiry];

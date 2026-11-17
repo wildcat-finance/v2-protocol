@@ -191,8 +191,8 @@ contract WildcatMarketTest is MarketFixture {
   bytes32 internal constant BorrowerStorageSlot = bytes32(type(uint256).max);
   bytes4 internal constant PanicSelector = 0x4e487b71;
   uint256 internal constant ArithmeticPanic = 0x11;
-  // `_lifecycle` occupies slot 10; allowance is slot 11, and revolving principal follows.
-  bytes32 internal constant RevolvingDrawnAmountSlot = bytes32(uint256(12));
+  // `_lifecycle` is slot 10, protection uses 11, allowance is 12, and principal follows.
+  bytes32 internal constant RevolvingDrawnAmountSlot = bytes32(uint256(13));
 
   // ░░▒▒▓▓██ [ CONSTRUCTION ] ─────────────────────────────────────────────────
 
@@ -2488,13 +2488,16 @@ contract WildcatMarketTest is MarketFixture {
       vm.prank(WrapperFactory);
       fixture.market.registerWrapper(wrapper);
       assertEq(fixture.market.registeredWrapper(), wrapper, 'registered wrapper');
+      assertFalse(fixture.market.isNukeProtected(wrapper), 'identity alone does not grant protection');
+      vm.prank(address(fixture.factory));
+      fixture.market.registerNukeProtectedAccount(wrapper);
 
       vm.prank(WrapperFactory);
       vm.expectRevert(IMarketEventsAndErrors.WrapperAlreadyRegistered.selector);
       fixture.market.registerWrapper(address(0xB4626));
 
       fixture.sentinel.setSanctioned(wrapper, true);
-      vm.expectRevert(IMarketEventsAndErrors.CannotNukeWrapper.selector);
+      vm.expectRevert(IMarketEventsAndErrors.CannotNukeProtectedAccount.selector);
       fixture.market.nukeFromOrbit(wrapper);
     }
   }

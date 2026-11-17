@@ -90,7 +90,7 @@ contract WildcatMarketToken is WildcatMarketBase {
     sphereXGuardExternal
     returns (bool)
   {
-    if (_isSanctioned(msg.sender)) revert_AccountBlocked();
+    if (_isSanctioned(msg.sender)) revertWithSelector(AccountBlocked_ErrorSelector);
 
     uint256 allowed = allowance[from][msg.sender];
 
@@ -110,7 +110,7 @@ contract WildcatMarketToken is WildcatMarketBase {
     MarketState memory state = _getUpdatedState();
     uint104 scaledAmount = state.scaleAmountDown(amount).toUint104();
 
-    if (scaledAmount == 0) revert_NullTransferAmount();
+    if (scaledAmount == 0) revertWithSelector(NullTransferAmount_ErrorSelector);
 
     hooks.onTransfer(from, to, scaledAmount, state, baseCalldataSize);
 

@@ -218,7 +218,7 @@ interface IMarketLensAggregator {
     returns (MarketData[] memory data);
 
   // ┌─ getPaginatedMarketsDataV2ForHooksTemplate ─────
-  /// @notice return V2.5 data for a default-factory market slice.
+  /// @notice return v2.5 data for a default-factory market slice.
   function getPaginatedMarketsDataV2ForHooksTemplate(
     address hooksTemplate,
     uint256 start,
@@ -229,7 +229,7 @@ interface IMarketLensAggregator {
     returns (MarketDataV2_5[] memory data);
 
   // ┌─ getPaginatedMarketsDataV2ForHooksTemplate ─────
-  /// @notice return V2.5 data for an explicit-factory market slice.
+  /// @notice return v2.5 data for an explicit-factory market slice.
   function getPaginatedMarketsDataV2ForHooksTemplate(
     address hooksFactoryAddress,
     address hooksTemplate,
@@ -255,14 +255,14 @@ interface IMarketLensAggregator {
     returns (MarketData[] memory data);
 
   // ┌─ getAllMarketsDataV2ForHooksTemplate ─────
-  /// @notice return V2.5 data for every default-factory template market.
+  /// @notice return v2.5 data for every default-factory template market.
   function getAllMarketsDataV2ForHooksTemplate(address hooksTemplate)
     external
     view
     returns (MarketDataV2_5[] memory data);
 
   // ┌─ getAllMarketsDataV2ForHooksTemplate ─────
-  /// @notice return V2.5 data for every matching market from `hooksFactoryAddress`.
+  /// @notice return v2.5 data for every matching market from `hooksFactoryAddress`.
   function getAllMarketsDataV2ForHooksTemplate(
     address hooksFactoryAddress,
     address hooksTemplate
@@ -279,7 +279,7 @@ interface IMarketLensAggregator {
     returns (MarketData[] memory data);
 
   // ┌─ getAggregatedAllMarketsDataV2ForHooksTemplate ─────
-  /// @notice return V2.5 data for every unique market across active factories.
+  /// @notice return v2.5 data for every unique market across active factories.
   function getAggregatedAllMarketsDataV2ForHooksTemplate(address hooksTemplate)
     external
     view

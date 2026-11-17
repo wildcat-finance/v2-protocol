@@ -194,7 +194,7 @@ contract MockArchControllerOwner {
   }
 
   // ┌─ setProtocolFeeConfiguration ─────
-  /// @dev keep the old V2 fee call working; the legacy controller factory still
+  /// @dev keep the old v2 fee call working; the legacy controller factory still
   ///      needs it.
   function setProtocolFeeConfiguration(
     ILegacyWildcatMarketControllerFactory factory,

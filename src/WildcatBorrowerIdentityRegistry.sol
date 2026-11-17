@@ -98,27 +98,7 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
 
   // ┌─ _archControllerOwner ─────
   function _archControllerOwner() internal view returns (address controllerOwner) {
-    address controller = _archController;
-    assembly ('memory-safe') {
-      // owner() has no arguments, so one scratch word can do both jobs. mstore leaves the
-      // selector at 0x1c; call those last four bytes and reuse 0x00 for the return word.
-      mstore(0, 0x8da5cb5b)
-      if iszero(staticcall(gas(), controller, 0x1c, 0x04, 0, 0x20)) {
-        // don't hide an ArchController error behind this helper. copy the complete revert data
-        // over scratch space and bubble it up. this path ends here, so nothing needs that memory.
-        returndatacopy(0, 0, returndatasize())
-        revert(0, returndatasize())
-      }
-
-      // owner() owes us one clean ABI address: a complete word with zeroes above the low 160 bits.
-      if lt(returndatasize(), 0x20) {
-        revert(0, 0)
-      }
-      controllerOwner := mload(0)
-      if shr(160, controllerOwner) {
-        revert(0, 0)
-      }
-    }
+    return IWildcatArchController(_archController).owner();
   }
 
   // ┌─ addAccountFactory ─────
@@ -152,15 +132,7 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
 
   // ┌─ getAccountFactories ─────
   function getAccountFactories(uint256 start, uint256 end) external view override returns (address[] memory arr) {
-    if (start > end) revert InvalidPaginationRange();
-    uint256 length = _accountFactories.length();
-    if (end > length) end = length;
-    if (start >= end) return new address[](0);
-    uint256 count = end - start;
-    arr = new address[](count);
-    for (uint256 i = 0; i < count; i++) {
-      arr[i] = _accountFactories.at(start + i);
-    }
+    return _getAddressSetSlice(_accountFactories, start, end);
   }
 
   // ┌─ getAccountFactoriesCount ─────
@@ -292,29 +264,7 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
 
   // ┌─ _isRegisteredBorrower ─────
   function _isRegisteredBorrower(address borrower) internal view returns (bool isRegistered) {
-    address controller = _archController;
-    assembly ('memory-safe') {
-      // same scratch-space layout, now with borrower in the second word. starting at 0x1c gives
-      // us four selector bytes followed by one normal address slot, for 0x24 bytes total.
-      mstore(0, 0x0787c1fe)
-      mstore(0x20, borrower)
-      if iszero(staticcall(gas(), controller, 0x1c, 0x24, 0, 0x20)) {
-        // preserve the controller's revert exactly. the full payload can overwrite scratch
-        // because this branch immediately reverts.
-        returndatacopy(0, 0, returndatasize())
-        revert(0, returndatasize())
-      }
-
-      // Solidity's bool decoder requires one full word containing exactly zero or one. extra
-      // return data is harmless, so only validate the first word.
-      if lt(returndatasize(), 0x20) {
-        revert(0, 0)
-      }
-      isRegistered := mload(0)
-      if gt(isRegistered, 1) {
-        revert(0, 0)
-      }
-    }
+    return IWildcatArchController(_archController).isRegisteredBorrower(borrower);
   }
 
   // ░░▒▒▓▓██ [ ACCOUNT ENUMERATION ] ──────────────────────────────────────────

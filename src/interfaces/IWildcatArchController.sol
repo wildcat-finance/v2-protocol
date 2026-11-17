@@ -70,8 +70,8 @@ pragma solidity 0.8.25;
 interface IWildcatArchController {
   // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
 
-  /// @dev the caller is not a registered market factory.
-  error NotMarketFactory();
+  /// @dev the caller is not a registered controller.
+  error NotController();
 
   /// @dev the caller is not a registered controller factory.
   error NotControllerFactory();

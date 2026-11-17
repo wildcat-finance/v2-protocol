@@ -45,6 +45,7 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   using SafeCastLib for uint256;
   using LibERC20 for address;
   using BoolUtils for bool;
+  using MarketLifecycleLib for MarketState;
 
   // ░░▒▒▓▓██ [ DEPOSITS ] ─────────────────────────────────────────────────────
 
@@ -56,7 +57,7 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   /// @param amount underlying assets to transfer from the caller.
   function deposit(uint256 amount) external virtual sphereXGuardExternal {
     uint256 actualAmount = _depositUpTo(amount);
-    if (amount != actualAmount) revert_MaxSupplyExceeded();
+    if (amount != actualAmount) revertWithSelector(MaxSupplyExceeded_ErrorSelector);
   }
 
   // ┌─ depositUpTo ─────
@@ -94,14 +95,14 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   {
     MarketState memory state = _getUpdatedState();
 
-    if (state.isClosed) revert_DepositToClosedMarket();
-    if (_isInRepayment()) revert_MarketInRepayment();
+    if (state.isClosed) revertWithSelector(DepositToClosedMarket_ErrorSelector);
+    if (_isInRepayment()) revertWithSelector(MarketInRepayment_ErrorSelector);
 
     // capacity limits new deposits, not interest already owed to lenders.
     amount = MathUtils.min(amount, state.maximumDeposit());
 
     uint104 scaledAmount = state.scaleAmountDown(amount).toUint104();
-    if (scaledAmount == 0) revert_NullMintAmount();
+    if (scaledAmount == 0) revertWithSelector(NullMintAmount_ErrorSelector);
 
     // sanctions checks still apply before hook admission.
     Account memory account = _getAccount(msg.sender);
@@ -137,15 +138,15 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
     address currentBorrower = msg.sender;
     address currentPrincipal = borrowerPrincipal();
     if (_flaggedBorrowerIdentity(currentBorrower, currentPrincipal) != address(0)) {
-      revert_BorrowWhileSanctioned();
+      revertWithSelector(BorrowWhileSanctioned_ErrorSelector);
     }
 
     MarketState memory state = _getUpdatedState();
-    if (state.isClosed) revert_BorrowFromClosedMarket();
-    if (_isInRepayment()) revert_MarketInRepayment();
+    if (state.isClosed) revertWithSelector(BorrowFromClosedMarket_ErrorSelector);
+    if (_isInRepayment()) revertWithSelector(MarketInRepayment_ErrorSelector);
 
     uint256 borrowable = state.borrowableAssets(totalAssets());
-    if (amount > borrowable) revert_BorrowAmountTooHigh();
+    if (amount > borrowable) revertWithSelector(BorrowAmountTooHigh_ErrorSelector);
 
     hooks.onBorrow(amount, state);
 
@@ -165,13 +166,13 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   ///
   /// @param amount nonzero underlying assets to transfer from the caller.
   function repay(uint256 amount) external virtual nonReentrant sphereXGuardExternal {
-    if (amount == 0) revert_NullRepayAmount();
+    if (amount == 0) revertWithSelector(NullRepayAmount_ErrorSelector);
 
     asset.safeTransferFrom(msg.sender, address(this), amount);
     emit_DebtRepaid(msg.sender, amount);
 
     MarketState memory state = _getUpdatedState(_runtimeConstant(0) != 0);
-    if (state.isClosed) revert_RepayToClosedMarket();
+    if (state.isClosed) revertWithSelector(RepayToClosedMarket_ErrorSelector);
 
     hooks.onRepay(amount, state, _runtimeConstant(0x24));
     uint256 currentTotalAssets = _onRepayAndGetTotalAssets(state, amount);
@@ -182,8 +183,8 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   // ┌─ _repay ─────
   /// @dev pulls a nonzero repayment, runs the hook, and lets derived markets reconcile it.
   function _repay(MarketState memory state, uint256 amount, uint256 baseCalldataSize) internal virtual {
-    if (amount == 0) revert_NullRepayAmount();
-    if (state.isClosed) revert_RepayToClosedMarket();
+    if (amount == 0) revertWithSelector(NullRepayAmount_ErrorSelector);
+    if (state.isClosed) revertWithSelector(RepayToClosedMarket_ErrorSelector);
 
     asset.safeTransferFrom(msg.sender, address(this), amount);
     emit_DebtRepaid(msg.sender, amount);
@@ -200,10 +201,10 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   /// @dev permissionless. paid-but-unclaimed withdrawals have priority over protocol fees.
   function collectFees() external nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
-    if (state.accruedProtocolFees == 0) revert_NullFeeAmount();
+    if (state.accruedProtocolFees == 0) revertWithSelector(NullFeeAmount_ErrorSelector);
 
     uint128 withdrawableFees = state.withdrawableProtocolFees(totalAssets());
-    if (withdrawableFees == 0) revert_InsufficientReservesForFeeWithdrawal();
+    if (withdrawableFees == 0) revertWithSelector(InsufficientReservesForFeeWithdrawal_ErrorSelector);
 
     state.accruedProtocolFees -= withdrawableFees;
     asset.safeTransfer(feeRecipient, withdrawableFees);
@@ -222,7 +223,7 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   function closeMarket() external virtual onlyBorrower nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
 
-    if (state.isClosed) revert_MarketAlreadyClosed();
+    if (state.isClosed) revertWithSelector(MarketAlreadyClosed_ErrorSelector);
     uint256 previousAnnualInterestBips = state.annualInterestBips;
     uint256 previousReserveRatioBips = state.reserveRatioBips;
 
@@ -238,11 +239,8 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
       currentlyHeld -= excessDebt;
     }
     hooks.onCloseMarket(state);
-    state.annualInterestBips = 0;
-    state.isClosed = true;
-    state.reserveRatioBips = 10000;
-    // stop delinquency accrual too. further interest would leave the last lender short.
-    state.timeDelinquent = 0;
+    // stop interest and delinquency accrual. further interest would leave the last lender short.
+    state.closeFundedState();
 
     // track the actual liquidity left; don't assume rounding makes every batch fit.
     uint256 availableLiquidity = currentlyHeld.satSub(state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
@@ -251,10 +249,9 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
     if (state.pendingWithdrawalExpiry != 0) {
       uint32 expiry = state.pendingWithdrawalExpiry;
       WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
-      if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
-        (, uint128 normalizedAmountPaid) = _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
-        availableLiquidity -= normalizedAmountPaid;
-      }
+      // a fully paid batch returns (0, 0) without writes or events.
+      (, uint128 normalizedAmountPaid) = _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
+      availableLiquidity -= normalizedAmountPaid;
       batch.releaseRemainder(state);
       _withdrawalData.batches[expiry] = batch;
 
@@ -279,7 +276,7 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
     }
 
     if (state.scaledPendingWithdrawals != 0) {
-      revert_CloseMarketWithUnpaidWithdrawals();
+      revertWithSelector(CloseMarketWithUnpaidWithdrawals_ErrorSelector);
     }
 
     _onCloseMarket();
@@ -300,7 +297,7 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   ///
   /// @param token token to recover. the market token itself can't be rescued.
   function rescueTokens(address token) external nonReentrantView onlyBorrower {
-    if (token == address(this)) revert_BadRescueAsset();
+    if (token == address(this)) revertWithSelector(BadRescueAsset_ErrorSelector);
     if (token == asset) {
       _rescueUnderlyingAsset(token);
     } else {
@@ -312,7 +309,7 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   /// @dev the caller must check `token == asset`. passing the checked address saves a second immutable load.
   function _rescueUnderlyingAsset(address token) internal nonReentrant {
     MarketState memory state = _getUpdatedState();
-    if (!state.isClosed) revert_BadRescueAsset();
+    if (!state.isClosed) revertWithSelector(BadRescueAsset_ErrorSelector);
     uint256 totalDebts = state.totalDebts();
     token.safeTransfer(msg.sender, totalAssets() - totalDebts);
     _writeState(state, totalDebts);

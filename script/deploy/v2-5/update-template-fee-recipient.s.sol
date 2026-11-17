@@ -37,7 +37,7 @@ pragma solidity 0.8.25;
 
 import { console } from 'forge-std/console.sol';
 
-import { HooksTemplate, IHooksFactory } from 'src/IHooksFactory.sol';
+import { HooksTemplate, IHooksFactory, IHooksFactoryBase } from 'src/IHooksFactory.sol';
 import { IWildcatArchController } from 'src/interfaces/IWildcatArchController.sol';
 
 import '../../common/DeployScriptBase.sol';
@@ -239,7 +239,7 @@ contract UpdateTemplateFeeRecipientV25 is DeployScriptBase {
     }
 
     bytes memory updateCall = abi.encodeCall(
-      IHooksFactory.updateHooksTemplateFees,
+      IHooksFactoryBase.updateHooksTemplateFees,
       (
         target.template,
         NEW_FEE_RECIPIENT,
