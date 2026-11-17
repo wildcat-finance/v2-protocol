@@ -62,21 +62,21 @@ interface IMarketLensCore {
   // ░░▒▒▓▓██ [ MARKET DATA ] ──────────────────────────────────────────────────
 
   // ┌─ getMarketData ─────
-  /// @notice return common V2 market data using this lens deployment's return ABI.
+  /// @notice return common v2 market data using this lens deployment's return ABI.
   ///
   /// @dev reverts with `NotV2Market` unless `version()` begins with `2`.
   function getMarketData(address market) external view returns (MarketData memory data);
 
   // ┌─ getMarketsData ─────
-  /// @notice return common V2 market data in input order.
+  /// @notice return common v2 market data in input order.
   function getMarketsData(address[] calldata markets) external view returns (MarketData[] memory data);
 
   // ┌─ getMarketDataV2 ─────
-  /// @notice return V2.5 identity, lifecycle, liquidity, wrapper, and optional revolving fields.
+  /// @notice return v2.5 identity, lifecycle, liquidity, wrapper, and optional revolving fields.
   function getMarketDataV2(address market) external view returns (MarketDataV2_5 memory data);
 
   // ┌─ getMarketsDataV2 ─────
-  /// @notice return V2.5 tuples in market input order.
+  /// @notice return v2.5 tuples in market input order.
   function getMarketsDataV2(address[] calldata markets) external view returns (MarketDataV2_5[] memory data);
 
   // ░░▒▒▓▓██ [ LENDER DATA ] ──────────────────────────────────────────────────

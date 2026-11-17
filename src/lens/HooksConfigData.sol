@@ -14,7 +14,6 @@ pragma solidity 0.8.25;
 //
 //  HOOKS CLASSIFICATION
 //  kindForHooks(...)
-//  kindForVersion(...)
 //  _kindForVersionHash(...)
 // ═════
 
@@ -253,12 +252,6 @@ library HooksConfigDataLib {
       }
     }
     return _kindForVersionHash(versionHash);
-  }
-
-  // ┌─ kindForVersion ─────
-  /// @notice classify a hooks version string without making an external call.
-  function kindForVersion(string memory version) internal pure returns (HooksInstanceKind) {
-    return _kindForVersionHash(keccak256(bytes(version)));
   }
 
   // ┌─ _kindForVersionHash ─────

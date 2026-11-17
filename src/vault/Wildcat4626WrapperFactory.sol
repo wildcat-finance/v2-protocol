@@ -34,6 +34,8 @@ import { Wildcat4626Wrapper } from './Wildcat4626Wrapper.sol';
 import { IMarketTransferPolicy } from '../access/IMarketTransferPolicy.sol';
 import { IWildcatArchController } from '../interfaces/IWildcatArchController.sol';
 import { HooksConfig } from '../types/HooksConfig.sol';
+import { IHooksFactoryBase } from '../IHooksFactory.sol';
+import { INukeProtectionMarket } from '../interfaces/INukeProtectionMarket.sol';
 
 // ┌─ IMarketRounding ──────────────────────────────────────────────────────────
 /// @notice compatibility marker for a market's scaled-transfer rounding rule.
@@ -60,7 +62,7 @@ interface IWrapperAwareMarket {
 }
 
 // ┌─ IWildcat4626WrapperFactoryV1 ─────────────────────────────────────────────
-/// @notice legacy wrapper factory used for pre-V2.5 half-up markets.
+/// @notice legacy wrapper factory used for pre-v2.5 half-up markets.
 interface IWildcat4626WrapperFactoryV1 {
   // ░░▒▒▓▓██ [ LEGACY WRAPPERS ] ──────────────────────────────────────────────
 
@@ -79,7 +81,7 @@ interface IWildcat4626WrapperFactoryV1 {
 /// @notice permissionless creation and discovery for one canonical wrapper per market generation.
 ///
 /// @dev wrapper arithmetic has to match market transfer rounding. this factory handles markets that
-///      declare floor rounding (`scaleAmountDown`) and forwards undeclared pre-V2.5 markets to V1.
+///      declare floor rounding (`scaleAmountDown`) and forwards undeclared pre-v2.5 markets to v1.
 ///      a declared but unknown rule is a future generation, not a legacy market, so it is
 ///      rejected instead of being handed the wrong wrapper. discovery follows the same split.
 contract Wildcat4626WrapperFactory {
@@ -91,10 +93,10 @@ contract Wildcat4626WrapperFactory {
   /// @dev a required constructor or market address is zero.
   error ZeroAddress();
 
-  /// @dev the V2.5 market is not registered with this factory's ArchController.
+  /// @dev the v2.5 market is not registered with this factory's ArchController.
   error NotRegisteredMarket(address market);
 
-  /// @dev the market uses legacy rounding but no V1 factory is configured.
+  /// @dev the market uses legacy rounding but no v1 factory is configured.
   error LegacyMarketsNotSupported(address market);
 
   /// @dev the market declares a scaled-transfer rounding rule this generation does not support.
@@ -106,12 +108,12 @@ contract Wildcat4626WrapperFactory {
   /// @dev the market hook reports that all market-token transfers are disabled.
   error MarketTransfersDisabled(address market);
 
-  /// @dev the nonzero V1 factory does not answer the required discovery query.
+  /// @dev the nonzero v1 factory does not answer the required discovery query.
   error InvalidV1Factory(address v1Factory);
 
   // ░░▒▒▓▓██ [ EVENTS ] ───────────────────────────────────────────────────────
 
-  /// @notice emitted when this factory deploys and registers a V2.5 wrapper.
+  /// @notice emitted when this factory deploys and registers a v2.5 wrapper.
   event WrapperDeployed(address indexed market, address indexed wrapper);
 
   // ░░▒▒▓▓██ [ CONFIGURATION ] ────────────────────────────────────────────────
@@ -119,7 +121,7 @@ contract Wildcat4626WrapperFactory {
   /// @dev rounding id declared by markets this factory's wrapper supports.
   bytes32 internal constant FloorRounding = keccak256('scaleAmountDown');
 
-  /// @notice registry used to require local V2.5 markets to be registered.
+  /// @notice registry used to require local v2.5 markets to be registered.
   IWildcatArchController public immutable archController;
 
   /// @notice previous half-up wrapper factory, or zero when legacy routing is unavailable.
@@ -134,7 +136,8 @@ contract Wildcat4626WrapperFactory {
   /// @param v1Factory_      legacy factory for undeclared half-up markets, or zero to reject them.
   constructor(address archController_, address v1Factory_) {
     archController = IWildcatArchController(archController_);
-    // a wrong V1 address permanently breaks legacy routing and can revert discovery.
+
+    // a wrong v1 address permanently breaks legacy routing and can revert discovery.
     // require a usable wrapperForMarket answer at deployment, not only a nonzero address.
     if (v1Factory_ != address(0)) {
       (bool success, bytes memory data) = v1Factory_.staticcall(
@@ -150,10 +153,12 @@ contract Wildcat4626WrapperFactory {
   // ┌─ createWrapper ─────
   /// @notice deploy and register the generation-appropriate wrapper for `market`.
   ///
-  /// @dev callable by anyone. local floor-rounding markets must be registered, globally
-  ///      transferable, expose the full transfer-policy interface, and name this contract as their
-  ///      wrapper factory.
-  ///      undeclared markets are forwarded to V1; unknown declared rounding is rejected.
+  /// @dev anyone can call, including after market funding. local floor-rounding markets must be
+  ///      registered with the ArchController, permit transfers, expose the full transfer-policy
+  ///      interface through their hook, and name this contract as their wrapper factory.
+  ///      the market factory must approve this factory for nuke protection. deployment, protection,
+  ///      and canonical registration share one transaction; failed registration reverts creation.
+  ///      undeclared markets are forwarded to v1; unknown declared rounding is rejected.
   ///
   /// @return wrapper generation-appropriate newly deployed wrapper.
   function createWrapper(address market) external returns (address wrapper) {
@@ -163,11 +168,12 @@ contract Wildcat4626WrapperFactory {
 
     (bool declared, bytes32 rounding) = _probeRounding(market);
     if (!declared) {
-      // V1 owns its registration and duplicate checks.
+      // v1 owns its registration and duplicate checks.
       if (address(v1Factory) == address(0)) revert LegacyMarketsNotSupported(market);
       return v1Factory.createWrapper(market);
     }
-    // new rounding needs a matching wrapper generation, not a silent fallback to V1.
+
+    // new rounding needs a matching wrapper generation, not a silent fallback to v1.
     if (rounding != FloorRounding) revert UnsupportedMarketRounding(market, rounding);
 
     if (!archController.isRegisteredMarket(market)) revert NotRegisteredMarket(market);
@@ -175,6 +181,7 @@ contract Wildcat4626WrapperFactory {
 
     wrapper = address(new Wildcat4626Wrapper(market));
     _wrapperForMarket[market] = wrapper;
+    IHooksFactoryBase(INukeProtectionMarket(market).factory()).registerNukeProtectedAccount(market, wrapper);
     IWrapperAwareMarket(market).registerWrapper(wrapper);
 
     emit WrapperDeployed(market, wrapper);
@@ -204,7 +211,7 @@ contract Wildcat4626WrapperFactory {
   /// @notice return the wrapper for `market` from the matching factory generation.
   ///
   /// @dev local records win even if a later rounding probe changes. any declared rounding stays in
-  ///      this registry; only undeclared markets fall through to V1, so a mispaired legacy wrapper
+  ///      this registry; only undeclared markets fall through to v1, so a mispaired legacy wrapper
   ///      is never surfaced here.
   function wrapperForMarket(address market) public view returns (address wrapper) {
     wrapper = _wrapperForMarket[market];

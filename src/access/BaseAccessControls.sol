@@ -30,8 +30,7 @@ pragma solidity 0.8.25;
 //
 //  PROVIDER REMOVAL
 //  removeRoleProvider(...)
-//  _removePullProvider(...)
-//  _removePushProvider(...)
+//  _removeProviderFromList(...)
 //
 //  PROVIDER QUERIES
 //  getRoleProvider(...)
@@ -460,24 +459,25 @@ contract BaseAccessControls is IHooksAdministrator {
       provider.pullProviderIndex(),
       provider.pushProviderIndex()
     );
-    if (provider.isPullProvider()) {
-      _removePullProvider(provider.pullProviderIndex());
-    } else {
-      _removePushProvider(provider.pushProviderIndex());
-    }
+    _removeProviderFromList(provider);
   }
 
-  // ┌─ _removePullProvider ─────
-  /// @dev swap-remove a pull provider and repair the moved provider's stored index.
-  function _removePullProvider(uint24 indexToRemove) internal {
-    uint256 lastIndex = _pullProviders.length - 1;
+  // ┌─ _removeProviderFromList ─────
+  /// @dev swap-remove a provider and repair the moved provider's packed index and registry entry.
+  function _removeProviderFromList(RoleProvider provider) internal {
+    bool isPull = provider.isPullProvider();
+    RoleProvider[] storage providers = isPull ? _pullProviders : _pushProviders;
+    uint24 indexToRemove = isPull ? provider.pullProviderIndex() : provider.pushProviderIndex();
+    uint256 lastIndex = providers.length - 1;
     if (indexToRemove == lastIndex) {
-      _pullProviders.pop();
+      providers.pop();
       return;
     }
-    RoleProvider lastProvider = _pullProviders[lastIndex].setPullProviderIndex(indexToRemove);
-    _pullProviders[indexToRemove] = lastProvider;
-    _pullProviders.pop();
+    RoleProvider lastProvider = providers[lastIndex];
+    lastProvider =
+      isPull ? lastProvider.setPullProviderIndex(indexToRemove) : lastProvider.setPushProviderIndex(indexToRemove);
+    providers[indexToRemove] = lastProvider;
+    providers.pop();
     address lastProviderAddress = lastProvider.providerAddress();
     _roleProviders[lastProviderAddress] = lastProvider;
     emit RoleProviderUpdated(
@@ -485,35 +485,10 @@ contract BaseAccessControls is IHooksAdministrator {
       lastProviderAddress,
       lastProvider.timeToLive(),
       lastProvider.timeToLive(),
-      uint24(lastIndex),
-      indexToRemove,
-      NullProviderIndex,
-      NullProviderIndex
-    );
-  }
-
-  // ┌─ _removePushProvider ─────
-  /// @dev swap-remove a push provider and repair the moved provider's stored index.
-  function _removePushProvider(uint24 indexToRemove) internal {
-    uint256 lastIndex = _pushProviders.length - 1;
-    if (indexToRemove == lastIndex) {
-      _pushProviders.pop();
-      return;
-    }
-    RoleProvider lastProvider = _pushProviders[lastIndex].setPushProviderIndex(indexToRemove);
-    _pushProviders[indexToRemove] = lastProvider;
-    _pushProviders.pop();
-    address lastProviderAddress = lastProvider.providerAddress();
-    _roleProviders[lastProviderAddress] = lastProvider;
-    emit RoleProviderUpdated(
-      administrator,
-      lastProviderAddress,
-      lastProvider.timeToLive(),
-      lastProvider.timeToLive(),
-      NullProviderIndex,
-      NullProviderIndex,
-      uint24(lastIndex),
-      indexToRemove
+      isPull ? uint24(lastIndex) : NullProviderIndex,
+      isPull ? indexToRemove : NullProviderIndex,
+      isPull ? NullProviderIndex : uint24(lastIndex),
+      isPull ? NullProviderIndex : indexToRemove
     );
   }
 

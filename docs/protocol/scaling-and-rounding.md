@@ -16,14 +16,14 @@
 
 ## Rounding
 
-V2.5 uses deliberate, asymmetric rounding:
+v2.5 uses deliberate, asymmetric rounding:
 
 - Converting a normalized amount **into** scaled units rounds **down** through
   `scaleAmountDown`. Deposits, transfers, and withdrawal queueing never credit,
   move, or queue more shares than the normalized input can support.
 - Converting scaled units **out** to normalized labels rounds **half-up** through
   `normalizeAmount`. Balance and supply labels retain the rounding used by
-  earlier V2 markets, as does scale-factor compounding. Debt and reserves also
+  earlier v2 markets, as does scale-factor compounding. Debt and reserves also
   include retained withdrawal-payment fractions before normalization.
 - Withdrawal payments find the largest pending scaled amount whose value,
   including the batch's prior payment remainder, fits in available liquidity
@@ -36,7 +36,7 @@ that global headroom before another batch can be paid. See
 [withdrawal payments](./withdrawals.md#payment-and-execution) and
 [representation limits](./withdrawals.md#representation-limits).
 
-Markets before V2.5 rounded transfers half-up. V2.5 and later markets declare
+Markets before v2.5 rounded transfers half-up. v2.5 and later markets declare
 their convention through `scaledTransferRounding()`. Rounding-sensitive
 integrations, including the ERC-4626 wrapper factory, use that declaration.
 

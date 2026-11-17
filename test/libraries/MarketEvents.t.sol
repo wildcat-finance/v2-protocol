@@ -88,10 +88,10 @@ contract MarketEventsHarness {
 
   // ┌─ revertLifecycle ─────
   function revertLifecycle(uint256 kind) external pure {
-    if (kind == 0) revert_InvalidRepaymentTerms();
-    if (kind == 1) revert_UnsupportedExecuteWithdrawalHook();
-    if (kind == 2) revert_MarketInRepayment();
-    revert_RepaymentReserveRequired();
+    if (kind == 0) revertWithSelector(InvalidRepaymentTerms_ErrorSelector);
+    if (kind == 1) revertWithSelector(UnsupportedExecuteWithdrawalHook_ErrorSelector);
+    if (kind == 2) revertWithSelector(MarketInRepayment_ErrorSelector);
+    revertWithSelector(RepaymentReserveRequired_ErrorSelector);
   }
 
   // ░░▒▒▓▓██ [ CONFIGURATION ENCODING ] ───────────────────────────────────────

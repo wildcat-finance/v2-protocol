@@ -30,6 +30,7 @@ pragma solidity 0.8.25;
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { IHooks } from 'src/access/IHooks.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
+import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { HooksInstanceKind } from 'src/lens/HooksConfigData.sol';
 import { LenderAccountData } from 'src/lens/LenderAccountData.sol';
 import { LenderAccountQuery, LenderAccountQueryResult } from 'src/lens/MarketData.sol';
@@ -113,7 +114,7 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(data.totalSupply, state.totalSupply(), 'supply');
     assertEq(data.totalAssets, fixture.market.totalAssets(), 'assets');
     assertEq(data.scaleFactor, state.scaleFactor, 'scale factor');
-    assertEq(data.coverageLiquidity, state.liquidityRequired(), 'coverage');
+    assertEq(data.coverageLiquidity, fixture.market.coverageLiquidity(), 'native coverage');
 
     address[] memory markets = new address[](1);
     markets[0] = address(fixture.market);
@@ -218,7 +219,7 @@ contract MarketLensCoreTest is MarketFixture {
   }
 
   // ┌─ _assertLiveParity ─────
-  function _assertLiveParity(MarketData memory full, MarketLiveDataV2_5 memory current) internal pure {
+  function _assertLiveParity(MarketData memory full, MarketLiveDataV2_5 memory current) internal view {
     assertEq(current.market, full.marketToken.token, 'live market');
     assertEq(current.isClosed, full.isClosed, 'live closed');
     assertEq(current.protocolFeeBips, full.protocolFeeBips, 'live protocol fee');
@@ -231,6 +232,7 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(current.pendingWithdrawalExpiry, full.pendingWithdrawalExpiry, 'live expiry');
     assertEq(current.timeDelinquent, full.timeDelinquent, 'live delinquency');
     assertEq(current.coverageLiquidity, full.coverageLiquidity, 'live coverage');
+    assertEq(current.coverageLiquidity, WildcatMarket(current.market).coverageLiquidity(), 'native live coverage');
   }
 
   // ┌─ test_periodicMarketRead_MapsTermConfigurationAndClosure ─────

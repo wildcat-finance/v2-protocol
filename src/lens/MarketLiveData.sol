@@ -20,7 +20,7 @@ import './MarketData.sol';
 using MarketLiveDataLib for MarketLiveDataV2_5 global;
 using MarketLiveDataLib for MarketLiveDataWithLenderStatusV2_5 global;
 
-/// @notice compact current accounting state for a V2.5 market.
+/// @notice compact current accounting state for a v2.5 market.
 ///
 /// @dev omits expensive static configuration, hook metadata, and unpaid-batch enumeration.
 struct MarketLiveDataV2_5 {
@@ -96,7 +96,8 @@ library MarketLiveDataLib {
       }
     }
 
-    data.coverageLiquidity = state.liquidityRequired();
+    // legacy markets apply the reserve ratio to scaled shares. using v2.5 math can underquote repayment.
+    data.coverageLiquidity = market.coverageLiquidity();
     MarketDataLib._tryFillOptionalUint(
       data.commitmentFeeBips, address(market), MarketDataLib._COMMITMENT_FEE_BIPS_SELECTOR
     );

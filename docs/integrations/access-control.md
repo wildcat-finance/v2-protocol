@@ -113,7 +113,7 @@ valid  = lastApprovalTimestamp != 0 && expiry >= block.timestamp
 - Positive TTLs include the exact expiry timestamp. Expiry arithmetic saturates
   at `type(uint32).max`.
 
-That cap is the V2.x absolute timestamp horizon. It does not represent
+That cap is the v2.x absolute timestamp horizon. It does not represent
 indefinite access after 2106-02-07 06:28:15 UTC; see
 [known limitations](../security/known-issues.md#timestamp-horizon).
 
@@ -238,7 +238,7 @@ an account that would then be unable to queue them.
 
 ### Executing withdrawals
 
-New V2.5 markets do not call `onExecuteWithdrawal` and reject its configuration
+New v2.5 markets do not call `onExecuteWithdrawal` and reject its configuration
 flag. Credential expiry, revocation, provider removal, and deposit blocks cannot
 stop execution of an already queued withdrawal.
 

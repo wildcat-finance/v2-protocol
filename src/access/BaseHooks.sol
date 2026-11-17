@@ -10,6 +10,8 @@ pragma solidity 0.8.25;
 //  constructor(...)
 //  _onCreateMarket(...)
 //  _initializeMarket(...)
+//  _readWordCd(...)
+//  _readBoolCd(...)
 //  _configureMarketAccess(...)
 //  _onMarketConfigured(...)
 //  _requireHookedMarket(...)
@@ -31,7 +33,6 @@ pragma solidity 0.8.25;
 //  _checkTransfer(...)
 //  isMarketTransferDisabled(...)
 //  isMarketTransferRecipientAllowed(...)
-//  _defaultTransferRecipientAllowed(...)
 //  _featureTransferRecipientAllowed(...)
 //
 //  BORROWING
@@ -201,6 +202,21 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     internal
     virtual
     returns (HooksConfig);
+
+  // ┌─ _readWordCd ─────
+  /// @dev read a raw word without checking `data.length`; reads can reach calldata beyond the slice.
+  ///      callers check required lengths and narrow values. optional words keep the raw read behavior.
+  function _readWordCd(bytes calldata data, uint256 offset) internal pure returns (uint256 value) {
+    assembly {
+      value := calldataload(add(data.offset, offset))
+    }
+  }
+
+  // ┌─ _readBoolCd ─────
+  /// @dev policy flags use the low bit, including for noncanonical boolean words.
+  function _readBoolCd(bytes calldata data, uint256 offset) internal pure returns (bool) {
+    return _readWordCd(data, offset) & 1 != 0;
+  }
 
   // ┌─ _configureMarketAccess ─────
   /// @dev capture access requirements before forcing or merging callback flags. an enabled
@@ -436,22 +452,9 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     returns (bool)
   {
     AccessConfig memory access = _requireHookedMarket(marketAddress);
-    return _defaultTransferRecipientAllowed(marketAddress, recipient, access)
+    return !access.transfersDisabled
+      && _isMarketTransferRecipientAllowed(marketAddress, recipient, access.transferRequiresAccess)
       && _featureTransferRecipientAllowed(marketAddress, recipient);
-  }
-
-  // ┌─ _defaultTransferRecipientAllowed ─────
-  function _defaultTransferRecipientAllowed(
-    address market,
-    address recipient,
-    AccessConfig memory access
-  )
-    internal
-    view
-    returns (bool)
-  {
-    return
-      !access.transfersDisabled && _isMarketTransferRecipientAllowed(market, recipient, access.transferRequiresAccess);
   }
 
   // ┌─ _featureTransferRecipientAllowed ─────

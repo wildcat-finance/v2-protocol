@@ -22,6 +22,7 @@ pragma solidity 0.8.25;
 //  getEscrowAddress(...)
 //
 //  MARKET DEPLOYMENT
+//  registerNukeProtectedAccount(...)
 //  setMarketParameters(...)
 //  getMarketParameters()
 //  deployMarket(...)
@@ -65,6 +66,7 @@ import { IHooks } from 'src/access/IHooks.sol';
 import { HooksTemplate } from 'src/IHooksFactory.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { MarketParameters } from 'src/interfaces/WildcatStructsAndEnums.sol';
+import { INukeProtectionMarket } from 'src/interfaces/INukeProtectionMarket.sol';
 
 // ┌─ HookDispatchArchControllerMock ───────────────────────────────────────────
 contract HookDispatchArchControllerMock {
@@ -133,6 +135,13 @@ contract HookDispatchFactoryMock {
   uint256 internal _revolvingCommitmentFeeResponse = 500;
   uint256 internal _revolvingCommitmentFeeResponseSize = 32;
   bool internal _revolvingCommitmentFeeReverts;
+
+  // ┌─ registerNukeProtectedAccount ─────
+  function registerNukeProtectedAccount(address market, address account) external {
+    require(msg.sender == _parameters.wrapperFactory, 'NOT_WRAPPER_FACTORY');
+    require(INukeProtectionMarket(market).factory() == address(this), 'WRONG_MARKET_FACTORY');
+    INukeProtectionMarket(market).registerNukeProtectedAccount(account);
+  }
 
   // ░░▒▒▓▓██ [ MARKET DEPLOYMENT ] ────────────────────────────────────────────
 

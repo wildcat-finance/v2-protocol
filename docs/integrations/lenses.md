@@ -12,7 +12,7 @@ nested fields even where the input selector is unchanged. Regenerate SDK and
 application decoders when adopting this lens deployment. Reading older
 contracts does not make its return ABI compatible with an older lens ABI.
 
-This includes the common `getMarketData` result used for V2.0/V2.1 markets:
+This includes the common `getMarketData` result used for v2.0/v2.1 markets:
 its nested `MarketHooksData` changed too. Common market arrays, lender-paired
 results, and aggregation results containing these types need the new decoder,
 as do hook-instance and template metadata. Regenerate the lens bindings as a
@@ -26,11 +26,16 @@ The current market source appends a `uint128 withdrawalRemainder` to
 responses grow from fourteen to fifteen words; batch responses grow from three
 to four. Getter selectors do not change.
 
-`MarketAccountingReader` pads only the exact legacy response lengths with a
-zero remainder, then decodes the current tuple. Truncated or malformed values
-still fail ABI decoding. The lens's public results do not expose these
-remainders as separate fields; coverage, debt, and withdrawal estimates use
-them internally.
+`MarketAccountingReader` adds a zero remainder only when the response matches
+the legacy tuple length. It then decodes the current tuple. Other short
+responses and invalid field encodings revert. The lens uses the remainders for
+debt and withdrawal estimates without exposing them as separate fields.
+
+Full and live reads call `coverageLiquidity()` on the market. V2.0 and V2.1
+markets apply the reserve ratio to scaled shares before converting to underlying
+units. Using V2.5 math on a padded legacy tuple can quote too little to clear
+delinquency. If the getter reverts or returns fewer than 32 bytes, the lens
+read reverts.
 
 Hook callbacks carrying `MarketState` have different selectors because their
 input tuple grows. Markets using carry accounting require matching hook
@@ -44,15 +49,15 @@ not acquire this accounting from a lens update.
 
 | Need                                                                                                 | Interface                                                                                                     |
 | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Full V2.5 configuration, hook metadata, borrower identity, canonical wrapper, and current accounting | `getMarketDataV2` or `getMarketsDataV2`                                                                       |
+| Full v2.5 configuration, hook metadata, borrower identity, canonical wrapper, and current accounting | `getMarketDataV2` or `getMarketsDataV2`                                                                       |
 | Frequent accounting, repayment/default, and available-liquidity refreshes                            | `getMarketsLiveDataV2`                                                                                        |
 | The same compact data with lender balances and access status                                         | `getMarketsLiveDataWithLenderStatusV2`                                                                        |
-| V2.5 markets discovered by template                                                                  | `getAllMarketsDataV2ForHooksTemplate`, its paginated form, or `getAggregatedAllMarketsDataV2ForHooksTemplate` |
+| v2.5 markets discovered by template                                                                  | `getAllMarketsDataV2ForHooksTemplate`, its paginated form, or `getAggregatedAllMarketsDataV2ForHooksTemplate` |
 | Lender batch claims and amounts currently collectible                                                | `getWithdrawalBatchDataWithLenderStatus` and its batch/lender array forms                                     |
 | Template commitments and fees with factory provenance                                                | `getAggregatedHooksTemplatesForBorrowerWithFactory` or an explicit-factory template query                     |
 
 The common `getMarketData` tuple and its lender-paired variants remain for
-markets with the common V2 interfaces. Use the V2.5 full or live routes for
+markets with the common v2 interfaces. Use the v2.5 full or live routes for
 `lifecycle` and `liquidity`; the common tuple does not contain those additions.
 Strict batch reads preserve input order and revert if any required read fails.
 Cross-factory discovery retains its existing failure-isolation and
@@ -90,7 +95,7 @@ Best-effort lens labels do not relax deployment checks.
 
 ## Repayment and default
 
-Both full and live V2.5 results contain the same `MarketLifecycleData`:
+Both full and live v2.5 results contain the same `MarketLifecycleData`:
 
 | Field               | Meaning                                                                                                                                                             |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -109,7 +114,8 @@ Likewise, `isClosed` can already be true in an accrued view before closure has
 been written. Default itself does not imply closure.
 
 Markets without repayment terms still return `isPresent == true` when these
-getters exist. They can record a default from a consecutive penalty run.
+getters exist. They can record a default when the decaying Grace Tracker exceeds
+the configured grace plus 90 days.
 See [repayment and default](../protocol/repayment-and-default.md) for inclusive
 cutoffs, observed funding and automatic closure.
 
@@ -118,8 +124,9 @@ cutoffs, observed funding and automatic closure.
 `MarketLiquidityData` is also shared by the full and live results:
 
 - `maximumDeposit`, `borrowableAssets`, and `totalDebts` come directly from the
-  market's current getters. This includes the repayment-date gates and all
-  lender and protocol-fee liabilities.
+  market. Markets built from this source have zero deposit and borrowing
+  capacity once they close or reach their repayment date. `totalDebts` still
+  includes all lender claims and accrued protocol fees.
 - `recoverableUnderlying` is assets above `totalDebts` when accrued state is
   closed, and zero otherwise. It matches the accounting amount available to
   the borrower's underlying-asset `rescueTokens` call; paid but uncollected
@@ -134,7 +141,7 @@ The full tuple's `registeredWrapper` is the market's canonical
 [ERC-4626 wrapper](./erc-4626-wrapper.md). It is not a tranche-vault address.
 Existing APR, reserve, commitment-fee, drawn-principal, and borrower-identity
 fields remain available. Senior APR, tranche floors, shares, and waterfall
-state belong to later V2.6 contracts and are not inferred here.
+state belong to later v2.6 contracts and are not inferred here.
 
 ## Hook policies and artifact commitments
 
@@ -179,11 +186,15 @@ unpaid amounts. `availableWithdrawalAmount` reports the already funded portion
 that can currently be collected under the market's timing rules. It is zero
 while the batch is pending, even if assets have been reserved for it.
 
-Automatic closure can fully fund and release the current batch before its
-scheduled expiry. The lens then reports it as `Complete` and exposes the
-collectible amount, including when closure is still an accrued view. An
-expired but not yet stored batch remains `Expired`; an older partially funded
-batch is `Unpaid`. Unknown batch keys retain the empty, zero-claim result.
+When automatic closure fully funds and releases a batch early, the lens reports
+`Complete` and shows the collectible amount before the next state update.
+A batch queued after closure stays `Pending` through its own expiry timestamp,
+even if fully funded. Its funded claims become collectible once
+`block.timestamp > expiry`.
+
+On an open market, `Expired` means the expiry has passed and the market still
+records that batch as pending. An older partially funded batch is `Unpaid`.
+An unknown key returns an empty batch and a zero claim.
 
 These are amounts owed to the lender. Sanctions may redirect collection into
 escrow. Reading a collectible amount does not guarantee that an arbitrary
@@ -192,7 +203,7 @@ asset's transfer succeeds. See [withdrawals](../protocol/withdrawals.md).
 ### Withdrawal compatibility
 
 The active market ABI declares cumulative scaled withdrawal counters as
-`uint128`; V2.0/V2.1 and earlier V2.5 builds declare `uint104`. Queue admission
+`uint128`; v2.0/v2.1 and earlier v2.5 builds declare `uint104`. Queue admission
 caps successful scaled values at `uint104.max`, so they remain representable in
 the older fields. That does not make the entire ABI or accounting model
 interchangeable. The lens exposes `uint256` amounts and retains full-precision
@@ -214,6 +225,9 @@ when adopting the source, and preserve historical market provenance.
 - [`MarketAccountingReader.t.sol`](../../test/lens/MarketAccountingReader.t.sol):
   legacy and extended state/batch tuples, retained fractions, malformed values,
   and dependency reverts
+- [`LegacyMarketCoverage.t.sol`](../../test/lens/LegacyMarketCoverage.t.sol):
+  checks full and live coverage against the original V2.0/V2.1 markets during
+  repayment, withdrawals, and closure. It also tests getter reverts and short responses.
 - [`MarketLensDeployment.t.sol`](../../test/lens/MarketLensDeployment.t.sol):
   a small harness that deploys all four lens contracts and checks forwarding
   against both real market families with `--code-size-limit 24576`

@@ -47,7 +47,7 @@ pragma solidity 0.8.25;
 
 import { console } from 'forge-std/console.sol';
 
-import { HooksTemplate, IHooksFactory } from 'src/IHooksFactory.sol';
+import { HooksTemplate, IHooksFactory, IHooksFactoryBase } from 'src/IHooksFactory.sol';
 import { IWildcatArchController } from 'src/interfaces/IWildcatArchController.sol';
 
 import '../../common/DeployScriptBase.sol';
@@ -567,7 +567,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
           .executeProtocolAction(
             factoryAddress,
             abi.encodeCall(
-              IHooksFactory.addHooksTemplate,
+              IHooksFactoryBase.addHooksTemplate,
               (
                 template.deployment,
                 template.name,

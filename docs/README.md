@@ -20,7 +20,7 @@ network, address, and release.
 - [Markets](./protocol/markets.md): configuration, implementations, and borrower
   authority
 - [Repayment and default](./protocol/repayment-and-default.md): immutable terms,
-  inclusive deadlines, penalty runs, automatic closure, and collection
+  inclusive deadlines, Grace Tracker default, automatic closure, and collection
 - [Accounting](./protocol/accounting.md) and
   [scaling](./protocol/scaling-and-rounding.md): collateral obligations,
   interest, fees, balances, and rounding
@@ -42,6 +42,8 @@ network, address, and release.
   capabilities and construction paths
 - [ERC-4626 wrapper](./integrations/erc-4626-wrapper.md): wrapping, redemption,
   rounding, sanctions, and integration constraints
+- [Nuke protection](./integrations/nuke-protection.md): permanent protection for
+  pooled lender contracts, factory approvals, and registration after funding
 - [Market lenses](./integrations/lenses.md): lifecycle, liquidity, hook policies,
   factory commitments, withdrawal claims, and return-ABI compatibility
 - [Event model](./integrations/events.md): ABI families, event ordering,
@@ -58,9 +60,9 @@ network, address, and release.
 
 ## Releases and operations
 
-- [Release notes](./releases/README.md): V2.0, V2.1, and V2.5 source boundaries
+- [Release notes](./releases/README.md): v2.0, v2.1, and v2.5 source boundaries
   and compatibility changes
-- [V2.5 review material](./releases/README.md#v25-review-material): source
+- [v2.5 review material](./releases/README.md#v25-review-material): source
   inventories, review scope, and dated verification results
 - [Deployment](./operations/deployment.md): inventory, plans, ceremonies,
   verification, and release-specific runbooks

@@ -34,7 +34,7 @@ pragma solidity 0.8.25;
 //  PENALTY AND OBSERVED CURE
 //  test_NoDatePenaltyCutoffAllowsLaterSameBlockCure()
 //  test_NoDateDefaultOnlyRecordsMarkerAndKeepsEconomics()
-//  test_ObservedCureResetsDefaultRunWithoutResettingPenaltyEconomics()
+//  test_ObservedCureRetainsDefaultProgressAndPenaltyEconomics()
 //
 //  WITHDRAWALS AND CLOSURE
 //  test_RepaymentOpensPeriodicQueueButKeepsBatchExpiry()
@@ -382,7 +382,7 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     _repay(cell, cell.market.coverageLiquidity() - cell.market.totalAssets());
     vm.warp(cutoff + 1);
     cell.market.updateState();
-    assertEq(cell.market.defaultedAt(), 0, 'observed cure resets run');
+    assertEq(cell.market.defaultedAt(), 0, 'healthy interval decays the tracker');
     assertFalse(cell.market.isClosed(), 'no-date cure does not close');
   }
 
@@ -407,8 +407,8 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     cell.market.queueFullWithdrawal();
   }
 
-  // ┌─ test_ObservedCureResetsDefaultRunWithoutResettingPenaltyEconomics ─────
-  function test_ObservedCureResetsDefaultRunWithoutResettingPenaltyEconomics() public {
+  // ┌─ test_ObservedCureRetainsDefaultProgressAndPenaltyEconomics ─────
+  function test_ObservedCureRetainsDefaultProgressAndPenaltyEconomics() public {
     uint256 start = vm.getBlockTimestamp();
     MatrixCell memory cell = _cell(MatrixMarketKind.Standard, 0, 0);
     _fundAndDraw(cell);
@@ -425,11 +425,14 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     assertTrue(cell.market.previousState().isDelinquent, 'healthy-tail fees create a new shortfall');
     vm.warp(start + cell.options.delinquencyGracePeriod + 90 days + 1);
     cell.market.updateState();
-    assertEq(cell.market.defaultedAt(), 0, 'old run was cured');
-    uint256 newCutoff = cureAt + 1 + 90 days;
+    assertEq(cell.market.defaultedAt(), 0, 'one recovered second remains');
+    uint256 newCutoff = start + cell.options.delinquencyGracePeriod + 90 days + 2;
+    vm.warp(newCutoff);
+    cell.market.updateState();
+    assertEq(cell.market.defaultedAt(), 0, 'tracker exactly at threshold');
     vm.warp(newCutoff + 1);
     cell.market.updateState();
-    assertEq(cell.market.defaultedAt(), newCutoff, 'new run starts from observed shortfall');
+    assertEq(cell.market.defaultedAt(), newCutoff, 'default resumes from the residual tracker');
   }
 
   // ░░▒▒▓▓██ [ WITHDRAWALS AND CLOSURE ] ──────────────────────────────────────
