@@ -24,6 +24,7 @@ pragma solidity 0.8.25;
 //  CLOSURE AND RECOVERY
 //  closeMarket()
 //  rescueTokens(...)
+//  _rescueUnderlyingAsset(...)
 //
 //  STATE CHECKPOINTING
 //  updateState()
@@ -290,23 +291,31 @@ contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketT
   }
 
   // ┌─ rescueTokens ─────
-  /// @notice send unrelated tokens or surplus underlying assets after closure to the borrower.
+  /// @notice let the borrower recover unrelated tokens, or surplus underlying from a fully funded, closed market.
   ///
-  /// @dev totalDebts protects live shares, unpaid batches, paid claims, and protocol fees.
-  ///      the market token can't be rescued. a failed surplus transfer affects only this call.
+  /// @dev rescue reverts if the market lock is held. unrelated token callbacks can read or update the market.
+  ///      the wrapper reads its backing this way. this path writes no market state after the transfer.
+  ///      underlying recovery holds the lock and leaves `totalDebts` in the market for live shares, unpaid
+  ///      batches, funded but unclaimed withdrawals, and protocol fees. a failed surplus transfer reverts this call.
   ///
-  /// @param token token to recover; underlying assets require a fully funded, closed market.
-  function rescueTokens(address token) external nonReentrant onlyBorrower {
+  /// @param token token to recover. the market token itself can't be rescued.
+  function rescueTokens(address token) external nonReentrantView onlyBorrower {
     if (token == address(this)) revert_BadRescueAsset();
     if (token == asset) {
-      MarketState memory state = _getUpdatedState();
-      if (!state.isClosed) revert_BadRescueAsset();
-      uint256 totalDebts = state.totalDebts();
-      token.safeTransfer(msg.sender, totalAssets() - totalDebts);
-      _writeState(state, totalDebts);
+      _rescueUnderlyingAsset(token);
     } else {
       token.safeTransferAll(msg.sender);
     }
+  }
+
+  // ┌─ _rescueUnderlyingAsset ─────
+  /// @dev the caller must check `token == asset`. passing the checked address saves a second immutable load.
+  function _rescueUnderlyingAsset(address token) internal nonReentrant {
+    MarketState memory state = _getUpdatedState();
+    if (!state.isClosed) revert_BadRescueAsset();
+    uint256 totalDebts = state.totalDebts();
+    token.safeTransfer(msg.sender, totalAssets() - totalDebts);
+    _writeState(state, totalDebts);
   }
 
   // ░░▒▒▓▓██ [ STATE CHECKPOINTING ] ──────────────────────────────────────────

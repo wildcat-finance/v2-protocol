@@ -93,9 +93,14 @@ library WithdrawalBatchDataLib {
     data.scaledTotalAmount = batch.scaledTotalAmount;
     data.scaledAmountBurned = batch.scaledAmountBurned;
     data.normalizedAmountPaid = batch.normalizedAmountPaid;
-    // funded closure releases the current batch before expiry, including before the next write.
-    bool isPendingBatch = expiry != 0 && expiry == MarketAccountingReader.previousState(market).pendingWithdrawalExpiry
-      && !market.isClosed();
+
+    // if an open market still stores this expiry after it passes, the batch is `Expired`.
+    bool isPendingBatch = expiry != 0 && expiry == MarketAccountingReader.previousState(market).pendingWithdrawalExpiry;
+    if (isPendingBatch && market.isClosed()) {
+      // closure can release the old batch before the next write. a batch queued after closure
+      // stays pending through its own expiry timestamp.
+      isPendingBatch = expiry == MarketAccountingReader.currentState(market).pendingWithdrawalExpiry;
+    }
     if (isPendingBatch) {
       data.status = expiry >= block.timestamp ? BatchStatus.Pending : BatchStatus.Expired;
     } else {

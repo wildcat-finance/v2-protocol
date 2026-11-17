@@ -359,7 +359,8 @@ library MarketDataLib {
       }
     }
 
-    data.coverageLiquidity = state.liquidityRequired();
+    // legacy markets apply the reserve ratio to scaled shares. using v2.5 math can underquote repayment.
+    data.coverageLiquidity = market.coverageLiquidity();
   }
 
   // ┌─ _tryFillOptionalUint ─────

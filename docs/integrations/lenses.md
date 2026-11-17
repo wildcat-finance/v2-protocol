@@ -26,11 +26,16 @@ The current market source appends a `uint128 withdrawalRemainder` to
 responses grow from fourteen to fifteen words; batch responses grow from three
 to four. Getter selectors do not change.
 
-`MarketAccountingReader` pads only the exact legacy response lengths with a
-zero remainder, then decodes the current tuple. Truncated or malformed values
-still fail ABI decoding. The lens's public results do not expose these
-remainders as separate fields; coverage, debt, and withdrawal estimates use
-them internally.
+`MarketAccountingReader` adds a zero remainder only when the response matches
+the legacy tuple length. It then decodes the current tuple. Other short
+responses and invalid field encodings revert. The lens uses the remainders for
+debt and withdrawal estimates without exposing them as separate fields.
+
+Full and live reads call `coverageLiquidity()` on the market. V2.0 and V2.1
+markets apply the reserve ratio to scaled shares before converting to underlying
+units. Using V2.5 math on a padded legacy tuple can quote too little to clear
+delinquency. If the getter reverts or returns fewer than 32 bytes, the lens
+read reverts.
 
 Hook callbacks carrying `MarketState` have different selectors because their
 input tuple grows. Markets using carry accounting require matching hook
@@ -118,8 +123,9 @@ cutoffs, observed funding and automatic closure.
 `MarketLiquidityData` is also shared by the full and live results:
 
 - `maximumDeposit`, `borrowableAssets`, and `totalDebts` come directly from the
-  market's current getters. This includes the repayment-date gates and all
-  lender and protocol-fee liabilities.
+  market. Markets built from this source have zero deposit and borrowing
+  capacity once they close or reach their repayment date. `totalDebts` still
+  includes all lender claims and accrued protocol fees.
 - `recoverableUnderlying` is assets above `totalDebts` when accrued state is
   closed, and zero otherwise. It matches the accounting amount available to
   the borrower's underlying-asset `rescueTokens` call; paid but uncollected
@@ -179,11 +185,15 @@ unpaid amounts. `availableWithdrawalAmount` reports the already funded portion
 that can currently be collected under the market's timing rules. It is zero
 while the batch is pending, even if assets have been reserved for it.
 
-Automatic closure can fully fund and release the current batch before its
-scheduled expiry. The lens then reports it as `Complete` and exposes the
-collectible amount, including when closure is still an accrued view. An
-expired but not yet stored batch remains `Expired`; an older partially funded
-batch is `Unpaid`. Unknown batch keys retain the empty, zero-claim result.
+When automatic closure fully funds and releases a batch early, the lens reports
+`Complete` and shows the collectible amount before the next state update.
+A batch queued after closure stays `Pending` through its own expiry timestamp,
+even if fully funded. Its funded claims become collectible once
+`block.timestamp > expiry`.
+
+On an open market, `Expired` means the expiry has passed and the market still
+records that batch as pending. An older partially funded batch is `Unpaid`.
+An unknown key returns an empty batch and a zero claim.
 
 These are amounts owed to the lender. Sanctions may redirect collection into
 escrow. Reading a collectible amount does not guarantee that an arbitrary
@@ -214,6 +224,9 @@ when adopting the source, and preserve historical market provenance.
 - [`MarketAccountingReader.t.sol`](../../test/lens/MarketAccountingReader.t.sol):
   legacy and extended state/batch tuples, retained fractions, malformed values,
   and dependency reverts
+- [`LegacyMarketCoverage.t.sol`](../../test/lens/LegacyMarketCoverage.t.sol):
+  checks full and live coverage against the original V2.0/V2.1 markets during
+  repayment, withdrawals, and closure. It also tests getter reverts and short responses.
 - [`MarketLensDeployment.t.sol`](../../test/lens/MarketLensDeployment.t.sol):
   a small harness that deploys all four lens contracts and checks forwarding
   against both real market families with `--code-size-limit 24576`
