@@ -592,7 +592,7 @@ contract BaseHooksTest is HookTemplateFixture {
       target.revokeRole(Lender);
       target.blockFromDeposits(Lender);
       assertTrue(target.isMarketTransferRecipientAllowed(MarketA, Lender), 'known exemption');
-      assertFalse(target.isMarketTransferRecipientAllowed(MarketB, Lender), 'unknown and blocked');
+      assertEq(target.isMarketTransferRecipientAllowed(MarketB, Lender), !requiresAccess, 'block follows dispatch');
       vm.recordLogs();
       vm.prank(MarketA);
       target.onTransfer(SecondLender, SecondLender, Lender, 1, state, '');

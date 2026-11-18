@@ -441,7 +441,8 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ┌─ isMarketTransferRecipientAllowed ─────
   /// @notice report whether `recipient` can receive tokens now without hook data.
   ///
-  /// @dev reverts for an unregistered market. credential exemptions still need feature approval.
+  /// @dev reverts for an unregistered market. recipient checks apply only when the market calls
+  ///      onTransfer. credential exemptions still need feature approval when it runs.
   function isMarketTransferRecipientAllowed(
     address marketAddress,
     address recipient
@@ -452,8 +453,11 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     returns (bool)
   {
     AccessConfig memory access = _requireHookedMarket(marketAddress);
-    return !access.transfersDisabled
-      && _isMarketTransferRecipientAllowed(marketAddress, recipient, access.transferRequiresAccess)
+    if (access.transfersDisabled) return false;
+    bool transferHookEnabled = config.requiredFlags().useOnTransfer()
+      || (access.transferRequiresAccess && config.optionalFlags().useOnTransfer());
+    if (!transferHookEnabled) return true;
+    return _isMarketTransferRecipientAllowed(marketAddress, recipient, access.transferRequiresAccess)
       && _featureTransferRecipientAllowed(marketAddress, recipient);
   }
 
