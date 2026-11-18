@@ -196,18 +196,6 @@ contract WildcatMarketBase is SphereXProtectedRegisteredBase, ReentrancyGuard, I
   /// @dev hook admission and term restrictions still apply.
   mapping(address account => bool protected) public isNukeProtected;
 
-  // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
-
-  error InvalidRepaymentTerms();
-  error UnsupportedExecuteWithdrawalHook();
-  error MarketInRepayment();
-  error RepaymentReserveRequired();
-
-  // ░░▒▒▓▓██ [ EVENTS ] ───────────────────────────────────────────────────────
-
-  event RepaymentDateReached(uint256 effectiveTimestamp);
-  event DefaultRecorded(uint256 effectiveTimestamp);
-
   // ░░▒▒▓▓██ [ SETUP ] ────────────────────────────────────────────────────────
 
   // ┌─ constructor ─────

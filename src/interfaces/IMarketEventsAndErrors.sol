@@ -75,6 +75,18 @@ interface IMarketEventsAndErrors {
   /// @notice the repayment amount is zero.
   error NullRepayAmount();
 
+  /// @notice the configured repayment date or period is invalid.
+  error InvalidRepaymentTerms();
+
+  /// @notice markets cannot enable the withdrawal execution hook.
+  error UnsupportedExecuteWithdrawalHook();
+
+  /// @notice the operation is disabled from the market's repayment date.
+  error MarketInRepayment();
+
+  /// @notice the reserve ratio must remain at 100% during repayment.
+  error RepaymentReserveRequired();
+
   /// @notice the market is already closed.
   error MarketAlreadyClosed();
 
@@ -244,6 +256,16 @@ interface IMarketEventsAndErrors {
   /// @param from        account that supplied the repayment.
   /// @param assetAmount underlying assets repaid.
   event DebtRepaid(address indexed from, uint256 assetAmount);
+
+  /// @notice emitted when the market enters scheduled repayment.
+  ///
+  /// @param effectiveTimestamp the scheduled repayment date.
+  event RepaymentDateReached(uint256 effectiveTimestamp);
+
+  /// @notice emitted when the market records its first default.
+  ///
+  /// @param effectiveTimestamp the default cutoff recorded in `defaultedAt`.
+  event DefaultRecorded(uint256 effectiveTimestamp);
 
   /// @notice emitted when the market closes with all debt backed.
   ///

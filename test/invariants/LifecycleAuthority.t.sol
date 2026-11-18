@@ -18,7 +18,7 @@ pragma solidity 0.8.25;
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 import { MarketParameters } from 'src/interfaces/WildcatStructsAndEnums.sol';
-import { WildcatMarketBase } from 'src/market/WildcatMarketBase.sol';
+import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
 import {
   HooksConfig,
   Bit_Enabled_Deposit,
@@ -145,7 +145,7 @@ contract LifecycleCollectionConfigurationTest is MarketFixture {
       vm.warp(options.repaymentDate);
       fixture.market.updateState();
       vm.prank(Borrower);
-      vm.expectRevert(WildcatMarketBase.RepaymentReserveRequired.selector);
+      vm.expectRevert(IMarketEventsAndErrors.RepaymentReserveRequired.selector);
       fixture.market.setAnnualInterestAndReserveRatioBips(900, 10_000);
       assertEq(fixture.market.reserveRatioBips(), 10_000, 'core validates the hook result');
     }
@@ -168,7 +168,7 @@ contract LifecycleCollectionConfigurationTest is MarketFixture {
         options.repaymentDate = dated == 0 ? 0 : uint32(vm.getBlockTimestamp() + 1 days);
         MarketParameters memory parameters = _buildMarketParameters(fixture, options, config);
         fixture.factory.setMarketParameters(parameters);
-        vm.expectRevert(WildcatMarketBase.UnsupportedExecuteWithdrawalHook.selector);
+        vm.expectRevert(IMarketEventsAndErrors.UnsupportedExecuteWithdrawalHook.selector);
         fixture.factory.deployMarket(creationCode);
       }
     }
