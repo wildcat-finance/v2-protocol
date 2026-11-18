@@ -16,6 +16,7 @@ pragma solidity 0.8.25;
 //  _onMarketConfigured(...)
 //  _requireHookedMarket(...)
 //  _readAccessConfig(...)
+//  _requireMarketConfigurable(...)
 //
 //  MINIMUM DEPOSITS
 //  setMinimumDeposit(...)
@@ -137,6 +138,9 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
 
   /// @dev financial settings are frozen from the market's repayment date.
   error MarketInRepayment();
+
+  /// @dev a closed market's hook parameters cannot be changed.
+  error HookChangeOnClosedMarket();
 
   /// @dev the scaled deposit is below the market's configured minimum.
   error DepositBelowMinimum();
@@ -280,19 +284,26 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   // ┌─ _readAccessConfig ─────
   function _readAccessConfig(address market) internal view virtual returns (AccessConfig memory);
 
+  // ┌─ _requireMarketConfigurable ─────
+  function _requireMarketConfigurable(address market) internal view {
+    if (_isMarketInRepayment(market)) revert MarketInRepayment();
+    // the factory registers a predicted market address before deploying its code.
+    if (market.code.length != 0 && IMarketLifecycleView(market).isClosed()) revert HookChangeOnClosedMarket();
+  }
+
   // ░░▒▒▓▓██ [ MINIMUM DEPOSITS ] ─────────────────────────────────────────────
 
   // ┌─ setMinimumDeposit ─────
   /// @notice update a hooked market's minimum deposit.
   ///
   /// @dev callback flags can't change. a positive minimum needs `onDeposit` already enabled.
-  ///      the minimum is frozen from an enabled repayment date.
+  ///      the minimum is frozen at closure or from an enabled repayment date.
   ///      leave the width check to the adapter, after the caller, market and dispatch checks.
   ///
   /// @param newMinimumDeposit normalized underlying-asset units required per deposit.
   function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyAdministrator {
     AccessConfig memory access = _requireHookedMarket(market);
-    if (_isMarketInRepayment(market)) revert MarketInRepayment();
+    _requireMarketConfigurable(market);
     if (newMinimumDeposit > 0 && !_isDepositHookEnabled(market)) revert DepositHookNotEnabled();
     uint128 previousMinimumDeposit = access.minimumDeposit;
     _writeMinimumDeposit(market, newMinimumDeposit);

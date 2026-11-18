@@ -18,6 +18,7 @@ pragma solidity 0.8.25;
 //  PARAMETER FREEZE
 //  test_ParameterFreezeStartsAtRepaymentAcrossProductionMatrix()
 //  test_ParametersRemainMutableWithoutRepaymentAcrossProductionMatrix()
+//  test_ManualClosureFreezesHookParameters()
 //  _parameterFreezeMatrix(...)
 //  _checkParameterChanges(...)
 //  _hookParametersHash(...)
@@ -147,6 +148,36 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
   // ┌─ test_ParametersRemainMutableWithoutRepaymentAcrossProductionMatrix ─────
   function test_ParametersRemainMutableWithoutRepaymentAcrossProductionMatrix() public {
     _parameterFreezeMatrix(false);
+  }
+
+  // ┌─ test_ManualClosureFreezesHookParameters ─────
+  function test_ManualClosureFreezesHookParameters() public {
+    uint32 closedAt = uint32(vm.getBlockTimestamp());
+    for (uint256 i; i < 2; ++i) {
+      MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.FixedTerm, MatrixMarketKind.Standard);
+      options.repaymentDate = i == 0 ? 0 : closedAt + 90 days;
+      MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(i + 1));
+      FixedTermHooks hooks = FixedTermHooks(address(cell.hooks));
+      address market = address(cell.market);
+      _close(cell);
+      assertEq(hooks.getHookedMarket(market).fixedTermEndTime, closedAt, 'early closure sets maturity');
+
+      vm.startPrank(MatrixBorrower);
+      vm.expectRevert(BaseHooks.HookChangeOnClosedMarket.selector);
+      hooks.setMinimumDeposit(market, 1);
+      vm.expectRevert(BaseHooks.HookChangeOnClosedMarket.selector);
+      hooks.setFixedTermEndTime(market, closedAt - 1);
+      if (options.repaymentDate != 0) {
+        vm.warp(options.repaymentDate);
+        vm.expectRevert(BaseHooks.MarketInRepayment.selector);
+        hooks.setMinimumDeposit(market, 1);
+        vm.expectRevert(BaseHooks.MarketInRepayment.selector);
+        hooks.setFixedTermEndTime(market, closedAt - 1);
+      }
+      vm.stopPrank();
+      assertEq(hooks.getHookedMarket(market).minimumDeposit, 0, 'minimum deposit at closure');
+      assertEq(hooks.getHookedMarket(market).fixedTermEndTime, closedAt, 'maturity at closure');
+    }
   }
 
   // ┌─ _parameterFreezeMatrix ─────
