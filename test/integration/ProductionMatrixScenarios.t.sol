@@ -8,6 +8,7 @@ pragma solidity 0.8.25;
 //
 //  BUILT IN PRODUCTION MATRIX
 //  test_productionFactoriesDeployCompleteBuiltInMatrix()
+//  test_blockedRecipientIsReadyWhenTransferCallbackIsDisabled()
 //  test_deterministicLifecycleRunsAcrossProductionMatrix()
 //  _runLifecycle(...)
 //
@@ -163,6 +164,26 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
         _deposit(stack, cell, MatrixAlice, 1e18);
         assertEq(cell.market.balanceOf(MatrixAlice), 1e18, 'matrix deposit');
       }
+    }
+  }
+
+  // ┌─ test_blockedRecipientIsReadyWhenTransferCallbackIsDisabled ─────
+  function test_blockedRecipientIsReadyWhenTransferCallbackIsDisabled() external {
+    ProductionStack memory stack = _deployProductionStack();
+    for (uint256 i; i < 6; i++) {
+      MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind(i % 3), MatrixMarketKind(i / 3));
+      IHooksFactory factory = _factoryFor(stack, options.marketKind);
+      vm.prank(MatrixBorrower);
+      address hooks = factory.deployHooksInstance(stack.hooksTemplates[uint256(options.hooksKind)], '');
+      HooksConfig requested = EmptyHooksConfig.setHooksAddress(hooks).setFlag(Bit_Enabled_Deposit);
+      MatrixCell memory cell =
+        _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(i + 1), requested);
+      assertFalse(cell.market.hooks().useOnTransfer(), 'market skips transfer callback');
+
+      vm.prank(MatrixBorrower);
+      cell.hooks.blockFromDeposits(MatrixBob);
+      assertFalse(cell.hooks.isKnownLenderOnMarket(MatrixBob, address(cell.market)));
+      assertTrue(BaseHooks(hooks).isMarketTransferRecipientAllowed(address(cell.market), MatrixBob));
     }
   }
 

@@ -156,6 +156,11 @@ contract HookExtensionsTest is HookTemplateFixture {
       assertFalse(target.isKnownLenderOnMarket(Allowed, MarketC), 'optional entry without credentials stays unknown');
       assertTrue(target.isMarketTransferRecipientAllowed(MarketC, Allowed), 'ungated recipient view');
       assertEq(TransferFeatures(address(target)).scaledTransferVolume(MarketC), 1);
+
+      target.blockFromDeposits(Allowed);
+      assertFalse(target.isMarketTransferRecipientAllowed(MarketC, Allowed), 'required callback checks deposit block');
+      TransferFeatures(address(target)).setRestrictedRecipient(MarketC, Restricted);
+      assertFalse(target.isMarketTransferRecipientAllowed(MarketC, Restricted), 'required callback checks feature');
     }
   }
 
