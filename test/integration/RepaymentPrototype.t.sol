@@ -49,7 +49,6 @@ import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
 import { LibSplitInitCode } from 'src/libraries/LibSplitInitCode.sol';
 import { Vm } from 'forge-std/Vm.sol';
-import { WildcatMarketBase } from 'src/market/WildcatMarketBase.sol';
 import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
 import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
 import { BaseHooks } from 'src/access/BaseHooks.sol';
@@ -189,19 +188,19 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     vm.startPrank(MatrixBorrower);
     for (uint256 direction; direction < 2; direction++) {
       uint256 capacity = direction == 0 ? cell.options.maxTotalSupply * 2 : cell.options.maxTotalSupply / 2;
-      if (frozen) vm.expectRevert(WildcatMarketBase.MarketInRepayment.selector);
+      if (frozen) vm.expectRevert(IMarketEventsAndErrors.MarketInRepayment.selector);
       cell.market.setMaxTotalSupply(capacity);
       assertEq(cell.market.maxTotalSupply(), frozen ? previousCapacity : capacity, 'capacity');
     }
-    if (frozen) vm.expectRevert(WildcatMarketBase.MarketInRepayment.selector);
+    if (frozen) vm.expectRevert(IMarketEventsAndErrors.MarketInRepayment.selector);
     BaseHooks(address(cell.hooks)).setMinimumDeposit(market, uint128(vm.getBlockTimestamp()));
     if (cell.options.hooksKind == MatrixHooksKind.FixedTerm) {
       FixedTermHooks hooks = FixedTermHooks(address(cell.hooks));
       uint32 earlierMaturity = hooks.getHookedMarket(market).fixedTermEndTime - 1;
-      if (frozen) vm.expectRevert(WildcatMarketBase.MarketInRepayment.selector);
+      if (frozen) vm.expectRevert(IMarketEventsAndErrors.MarketInRepayment.selector);
       hooks.setFixedTermEndTime(market, earlierMaturity);
     } else if (cell.options.hooksKind == MatrixHooksKind.PeriodicTerm) {
-      if (frozen) vm.expectRevert(WildcatMarketBase.MarketInRepayment.selector);
+      if (frozen) vm.expectRevert(IMarketEventsAndErrors.MarketInRepayment.selector);
       PeriodicTermHooks(address(cell.hooks)).proposeAnnualInterestBips(market, 900);
     }
     vm.stopPrank();
@@ -454,10 +453,10 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     assertEq(cell.market.maximumDeposit(), 0, 'dated capacity');
     assertEq(cell.market.borrowableAssets(), 0, 'dated borrowing');
     vm.prank(MatrixBorrower);
-    vm.expectRevert(WildcatMarketBase.MarketInRepayment.selector);
+    vm.expectRevert(IMarketEventsAndErrors.MarketInRepayment.selector);
     cell.market.borrow(0);
     vm.prank(MatrixAlice);
-    vm.expectRevert(WildcatMarketBase.MarketInRepayment.selector);
+    vm.expectRevert(IMarketEventsAndErrors.MarketInRepayment.selector);
     cell.market.depositUpTo(1);
     vm.prank(MatrixAlice);
     uint32 expiry = cell.market.queueFullWithdrawal();

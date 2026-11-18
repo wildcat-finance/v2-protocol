@@ -46,7 +46,6 @@ pragma solidity 0.8.25;
 import 'src/interfaces/IMarketEventsAndErrors.sol';
 import 'src/libraries/MarketEvents.sol';
 import 'src/libraries/MarketErrors.sol';
-import { WildcatMarketBase } from 'src/market/WildcatMarketBase.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
 // ┌─ MarketEventsHarness ──────────────────────────────────────────────────────
@@ -146,8 +145,6 @@ contract MarketEventsHarness {
 
 // ┌─ MarketEventsTest ─────────────────────────────────────────────────────────
 contract MarketEventsTest is TestKernel, IMarketEventsAndErrors {
-  event RepaymentDateReached(uint256 effectiveTimestamp);
-  event DefaultRecorded(uint256 effectiveTimestamp);
   event DrawnAmountUpdated(uint256 previousDrawnAmount, uint256 newDrawnAmount);
 
   MarketEventsHarness internal harness;
@@ -191,10 +188,10 @@ contract MarketEventsTest is TestKernel, IMarketEventsAndErrors {
   // ┌─ test_repaymentErrorsMatchSolidityEncoding ─────
   function test_repaymentErrorsMatchSolidityEncoding() external {
     bytes4[4] memory selectors = [
-      WildcatMarketBase.InvalidRepaymentTerms.selector,
-      WildcatMarketBase.UnsupportedExecuteWithdrawalHook.selector,
-      WildcatMarketBase.MarketInRepayment.selector,
-      WildcatMarketBase.RepaymentReserveRequired.selector
+      IMarketEventsAndErrors.InvalidRepaymentTerms.selector,
+      IMarketEventsAndErrors.UnsupportedExecuteWithdrawalHook.selector,
+      IMarketEventsAndErrors.MarketInRepayment.selector,
+      IMarketEventsAndErrors.RepaymentReserveRequired.selector
     ];
     for (uint256 i; i < selectors.length; ++i) {
       vm.expectRevert(abi.encodeWithSelector(selectors[i]));
