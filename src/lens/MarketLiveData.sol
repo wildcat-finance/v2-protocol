@@ -101,6 +101,7 @@ library MarketLiveDataLib {
       data.commitmentFeeBips, address(market), MarketDataLib._COMMITMENT_FEE_BIPS_SELECTOR
     );
     MarketDataLib._tryFillOptionalUint(data.drawnAmount, address(market), MarketDataLib._DRAWN_AMOUNT_SELECTOR);
+    if (data.isClosed) data.drawnAmount.value = 0;
     data.lifecycle.fill(market, data.isClosed);
     data.liquidity.fill(market, data.isClosed, data.totalAssets);
   }

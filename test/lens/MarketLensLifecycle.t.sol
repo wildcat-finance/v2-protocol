@@ -18,6 +18,7 @@ pragma solidity 0.8.25;
 //  test_noRepaymentTerms_StillReportsOrdinaryPenaltyDefault()
 //
 //  CLOSURE AND PROPOSAL DATA
+//  test_automaticClosure_ProjectsZeroDrawnPrincipalBeforeMarketWrite()
 //  test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery()
 //  test_manualClosureBeforeDate_DoesNotReenterRepayment()
 //  test_periodicProposal_ExposesRecordedWindowAndAccruedClosure()
@@ -35,6 +36,7 @@ import { MarketDataV2_5 } from 'src/lens/MarketData.sol';
 import { MarketLiveDataV2_5 } from 'src/lens/MarketLiveData.sol';
 import { BatchStatus, WithdrawalBatchDataWithLenderStatus } from 'src/lens/WithdrawalBatchData.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
+import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 
 // ┌─ MarketLensLifecycleTest ──────────────────────────────────────────────────
@@ -173,6 +175,32 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
 
   // ░░▒▒▓▓██ [ CLOSURE AND PROPOSAL DATA ] ────────────────────────────────────
 
+  // ┌─ test_automaticClosure_ProjectsZeroDrawnPrincipalBeforeMarketWrite ─────
+  function test_automaticClosure_ProjectsZeroDrawnPrincipalBeforeMarketWrite() external {
+    MatrixCell memory cell = _cell(_options(MatrixMarketKind.Revolving, MatrixHooksKind.OpenTerm, 1 days), 0);
+    IWildcatMarketRevolving revolving = IWildcatMarketRevolving(address(cell.market));
+    _fundAndBorrow(cell);
+    vm.warp(cell.options.repaymentDate);
+    MarketDataV2_5 memory data = _assertReads(cell, true);
+    assertFalse(data.market.isClosed, 'unfunded market stays open');
+    assertEq(data.drawnAmount.value, 80e18, 'open principal');
+
+    vm.prank(MatrixBorrower);
+    stack.asset.transfer(address(cell.market), 80e18);
+    data = _assertReads(cell, false);
+    assertTrue(data.market.isClosed, 'fully funded closure projected');
+    assertFalse(cell.market.previousState().isClosed, 'closure still unwritten');
+    assertEq(revolving.drawnAmount(), 80e18, 'direct funding leaves stored principal');
+    assertTrue(data.drawnAmount.isPresent, 'revolving principal still present');
+    assertEq(data.drawnAmount.value, 0, 'projected closed principal');
+
+    cell.market.updateState();
+    assertTrue(cell.market.previousState().isClosed, 'closure committed');
+    assertEq(revolving.drawnAmount(), 0, 'stored principal cleared');
+    MarketDataV2_5 memory committed = _assertReads(cell, false);
+    assertEq(abi.encode(committed.drawnAmount), abi.encode(data.drawnAmount), 'principal agrees across the write');
+  }
+
   // ┌─ test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery ─────
   function test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery() external {
     for (uint256 i; i < 2; i++) {
@@ -233,6 +261,7 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
     vm.warp(uint256(cell.options.repaymentDate) + 2 days);
     MarketDataV2_5 memory data = _assertReads(cell, false);
     assertTrue(data.market.isClosed, 'remains closed');
+    assertFalse(data.drawnAmount.isPresent, 'standard market has no drawn principal field');
     assertEq(data.lifecycle.defaultedAt, 0, 'no debt to default');
   }
 
