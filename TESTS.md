@@ -1,3 +1,12 @@
+## Running the suite
+
+CI reads the Foundry release from `.foundry-version`. If you use `foundryup`, run `foundryup --install "$(cat .foundry-version)"` to select the same release locally.
+
+```sh
+git submodule update --init --recursive
+forge test --summary
+```
+
 ## Testing external functions in contracts
 
 Every contract or library `<Contract>` defined in `src/<subdir>/<FileName>.sol` should have a corresponding test `<Contract>Test` defined in `test/<subdir>/<FileName>.t.sol`.

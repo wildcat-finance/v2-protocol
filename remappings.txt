@@ -1,6 +1,7 @@
 src/=src/
 forge-std/=lib/forge-std/src/
 ds-test/=lib/ds-test/src/
+erc4626-tests/=lib/erc4626-tests/
 solmate/=lib/solmate/src/
 solady/=lib/solady/src/
 openzeppelin/=lib/openzeppelin-contracts/
