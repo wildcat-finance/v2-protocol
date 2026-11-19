@@ -84,10 +84,22 @@ def archive_evidence(config_path, session):
 
     cold_gate = read(Path("deployments/anvil") / f"{release}-cold-gate.json")
     acceptance = read(Path("deployments/anvil") / f"{release}-accepted-rehearsal.json")
+    inputs = identity.get("inputsSha256")
+    if inputs is not None:
+        require(isinstance(inputs, str) and re.fullmatch(r"[0-9a-f]{64}", inputs),
+                "Invalid ceremony input digest")
+    if "inputsSha256" in cold_gate:
+        cold_matches = inputs is not None and cold_gate["inputsSha256"] == inputs
+    else:
+        # Legacy cold checks recorded only the checkout commit.
+        cold_matches = cold_gate.get("sourceCommit") == identity.get("coldGateSourceCommit", identity["sourceCommit"])
     require(cold_gate.get("status") == "green"
-            and cold_gate.get("sourceCommit") == identity["sourceCommit"],
+            and cold_matches,
             "Cold gate differs from the ceremony source")
+    require("livePackageDigest" not in cold_gate or cold_gate["livePackageDigest"] == identity["packageDigest"],
+            "Cold gate differs from the live package")
     require(acceptance.get("status") == "green"
+            and ("inputsSha256" not in acceptance or acceptance["inputsSha256"] == inputs)
             and acceptance.get("livePlanSha256") == identity["planSha256"]
             and acceptance.get("livePackageDigest") == identity["packageDigest"],
             "Accepted rehearsal differs from the live ceremony")

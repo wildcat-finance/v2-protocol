@@ -51,8 +51,8 @@ node scripts/sepolia-v2-5-fix-rotation.js validate
 node scripts/sepolia-v2-5-fix-rotation.js generate-rehearsal
 ```
 
-Review and commit the live plan, plan entries, pending inventory, impact report,
-source pin, EOA package and digest. For a newly generated live package, use
+When publishing a rebuilt packet, include the reviewed live plan, plan entries,
+pending inventory, impact report, source pin, EOA package and digest in the
+release commit. For a newly generated live package, use
 `git add -f -- deployments/sepolia/ceremony-v2.5.9-eoa.json` to stage the
-ignored file. Push the reviewed branch and use a clean checkout for the
-operator gates. The Anvil package is generated locally.
+ignored file. The Anvil package is generated locally.

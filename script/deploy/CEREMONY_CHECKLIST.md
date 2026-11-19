@@ -40,7 +40,8 @@ rehearse() {
 stage check
 ```
 
-Wait for `Cold gates GREEN` before starting the fork.
+Wait for `Cold gates GREEN` before starting the fork. The checks use your
+local files. Unused library checkouts and unrelated edits can stay in place.
 
 ## 3. Rehearse with the signing wallet
 

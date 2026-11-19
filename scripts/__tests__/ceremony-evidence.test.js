@@ -80,6 +80,22 @@ test("archive preserves the live evidence bytes, original source and portable ch
   assert.deepEqual(fs.readFileSync(filename), bytes, "existing ZIP is never overwritten");
 });
 
+test("archive matches checked and rehearsed inputs across unrelated commits", (t) => {
+  const f = fixture(t);
+  const inputs = hash("the signing inputs");
+  const cold = "deployments/anvil/v2.5.6-cold-gate.json";
+  const accepted = "deployments/anvil/v2.5.6-accepted-rehearsal.json";
+  f.modify(`${session}/identity.json`, (record) => record.inputsSha256 = inputs);
+  f.modify(cold, (record) => Object.assign(record, { inputsSha256: inputs, sourceCommit: "earlier-commit" }));
+  f.modify(accepted, (record) => record.inputsSha256 = inputs);
+  assert.equal(f.run().status, 0);
+  f.modify(cold, (record) => record.inputsSha256 = hash("other inputs"));
+  assert.match(f.run().stderr, /Cold gate differs/);
+  f.modify(cold, (record) => record.inputsSha256 = inputs);
+  f.modify(accepted, (record) => record.inputsSha256 = hash("different rehearsal"));
+  assert.match(f.run().stderr, /Accepted rehearsal differs/);
+});
+
 for (const [label, alter, message] of [
   ["missing final handoff", (f) => fs.unlinkSync(path.join(f.directory, "deployments/sepolia/template-update-v2.5.6.json")), /Missing evidence/],
   ["changed plan", (f) => f.modify("deployments/sepolia/plan-v2.5.6.json", (value) => value.transactions.reverse()), /Plan or locked package differs/],
@@ -141,7 +157,6 @@ LIVE_PACKAGE=deployments/sepolia/ceremony-v2.5.6-eoa.json
 PENDING_INVENTORY=deployments/sepolia/inventory-pending-v2.5.6
 ROTATION_SCRIPT=scripts/sepolia-v2-5-fix-rotation.js
 RPC_URL=http://127.0.0.1:1
-assert_clean_pushed_source() { :; }
 assert_rpc() { :; }
 current_session() { printf '%s\\n' '${session}'; }
 node() {

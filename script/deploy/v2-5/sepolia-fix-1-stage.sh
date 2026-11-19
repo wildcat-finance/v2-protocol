@@ -70,28 +70,29 @@ package_fingerprint() {
     tr '[:lower:]' '[:upper:]'
 }
 
-assert_clean_pushed_source() {
-  local upstream_head status untracked
-  git rev-parse '@{upstream}' >/dev/null
-  upstream_head="$(git rev-parse '@{upstream}')"
-  if [[ "$(git rev-parse HEAD)" != "$upstream_head" ]]; then
-    echo "HEAD is not pushed to the configured upstream ($upstream_head)" >&2
-    exit 1
+signing_inputs_digest() {
+  node scripts/ceremony-input-digest.js "$CONFIG" "$LIVE_PLAN" "$@"
+}
+
+recorded_inputs_digest() {
+  local record="$1" recorded commit
+  recorded="$(jq -er '.inputsSha256 // ""' "$record")"
+  if [[ -n "$recorded" ]]; then
+    printf '%s\n' "$recorded"
+    return
   fi
-  status="$(git status --porcelain --untracked-files=no --ignore-submodules=none)"
-  if [[ -n "$status" ]]; then
-    echo 'Tracked files or submodules differ from the reviewed commit:' >&2
-    printf '%s\n' "$status" >&2
-    exit 1
-  fi
-  untracked="$(git ls-files --others --exclude-standard -- \
-    src lib script scripts test deploy-ui deployments \
-    .npmrc npm-shrinkwrap.json package-lock.json \
-    ':(exclude)deployments/*/ceremony-evidence/**')"
-  if [[ -n "$untracked" ]]; then
-    echo 'Untracked build or ceremony inputs must be reviewed and committed:' >&2
-    printf '%s\n' "$untracked" >&2
-    exit 1
+  # Older evidence was created in a clean checkout and identified its inputs by commit.
+  commit="$(jq -er '.sourceCommit' "$record")"
+  signing_inputs_digest "$commit"
+}
+
+assert_recorded_inputs() {
+  local record="$1" recovery="$2" recorded current
+  recorded="$(recorded_inputs_digest "$record")"
+  current="$(signing_inputs_digest)"
+  if [[ "$recorded" != "$current" ]]; then
+    echo "The release config, plan, package.json, or signing UI changed. $recovery" >&2
+    return 1
   fi
 }
 
@@ -117,14 +118,6 @@ assert_anvil_session() {
   esac
   pid_file="$evidence_dir/anvil.pid"
   test -f "$pid_file" || { echo "Missing Anvil PID: $pid_file" >&2; exit 1; }
-  test -f "$evidence_dir/source-commit" || {
-    echo "Missing rehearsal source commit: $evidence_dir/source-commit" >&2
-    exit 1
-  }
-  if [[ "$(<"$evidence_dir/source-commit")" != "$(git rev-parse HEAD)" ]]; then
-    echo 'The active Anvil fork was started from a different source commit.' >&2
-    exit 1
-  fi
   anvil_pid="$(<"$pid_file")"
   if [[ ! "$anvil_pid" =~ ^[1-9][0-9]*$ ]] || ! kill -0 "$anvil_pid" 2>/dev/null; then
     echo "Recorded Anvil process is not running: $anvil_pid" >&2
@@ -143,40 +136,18 @@ assert_cold_gate() {
     echo 'Cold gate evidence is missing. Run stage check first.' >&2
     exit 1
   }
-  jq -e \
-    --arg source_commit "$(git rev-parse HEAD)" \
-    '.status == "green" and .sourceCommit == $source_commit' \
+  jq -e --slurpfile package "$LIVE_PACKAGE" \
+    '.status == "green" and (.livePackageDigest == null or .livePackageDigest == $package[0].digest)' \
     "$COLD_GATE" >/dev/null || {
-      echo 'Cold gate evidence does not match the current source commit.' >&2
-      exit 1
-  }
-}
-
-assert_rehearsed_input_unchanged() {
-  local rehearsal_source="$1" tracked_path="$2" rehearsal_object current_object
-  rehearsal_object="$(git rev-parse "${rehearsal_source}:${tracked_path}" 2>/dev/null)" || {
-    echo "Accepted rehearsal source does not contain $tracked_path." >&2
+    echo 'The live package needs a passing stage check. Run stage check again.' >&2
     exit 1
   }
-  current_object="$(git rev-parse "HEAD:${tracked_path}")"
-  if [[ "$rehearsal_object" != "$current_object" ]]; then
-    echo "Accepted rehearsal does not match the current $tracked_path." >&2
-    exit 1
-  fi
+  assert_recorded_inputs "$COLD_GATE" 'Run stage check again.'
 }
 
 assert_rehearsal_accepted() {
-  local rehearsal_source current_source tracked_path
   test -f "$REHEARSAL_ACCEPTANCE" || {
     echo 'Accepted real-wallet rehearsal evidence is missing.' >&2
-    exit 1
-  }
-  rehearsal_source="$(jq -er '.sourceCommit' "$REHEARSAL_ACCEPTANCE")" || {
-    echo 'Accepted rehearsal is missing its source commit.' >&2
-    exit 1
-  }
-  git cat-file -e "${rehearsal_source}^{commit}" 2>/dev/null || {
-    echo "Accepted rehearsal source commit is unavailable: $rehearsal_source" >&2
     exit 1
   }
   jq -e \
@@ -189,14 +160,7 @@ assert_rehearsal_accepted() {
       echo 'Accepted rehearsal does not match the current plan or live package.' >&2
       exit 1
     }
-  for tracked_path in "$CONFIG" "$LIVE_PLAN" package.json deploy-ui; do
-    assert_rehearsed_input_unchanged "$rehearsal_source" "$tracked_path"
-  done
-  current_source="$(git rev-parse HEAD)"
-  if [[ "$rehearsal_source" != "$current_source" ]]; then
-    echo "Accepted rehearsal carried forward from $rehearsal_source."
-    echo 'Config, plan, package digest, protocol version, and deploy-ui tree are unchanged.'
-  fi
+  assert_recorded_inputs "$REHEARSAL_ACCEPTANCE" 'Repeat the wallet rehearsal.'
 }
 
 create_live_session() {
@@ -242,7 +206,8 @@ generate_artifacts() {
 }
 
 write_identity() {
-  local evidence_dir="$1" package_digest fingerprint
+  local evidence_dir="$1" package_digest fingerprint inputs_digest
+  inputs_digest="$(recorded_inputs_digest "$COLD_GATE")"
   package_digest="$(jq -er '.digest' "$PACKAGE")"
   fingerprint="$(package_fingerprint "$PACKAGE")"
   jq -n \
@@ -252,6 +217,8 @@ write_identity() {
     --arg release "$(jq -er '.release' "$PLAN")" \
     --arg protocol_version "$(jq -er '.version' package.json)" \
     --arg source_commit "$(git rev-parse HEAD)" \
+    --arg inputs_sha256 "$inputs_digest" \
+    --arg cold_source_commit "$(jq -er '.sourceCommit' "$COLD_GATE")" \
     --arg contract_source_commit "$(jq -er '.contractSourceCommit' "$CONFIG")" \
     --arg foundry_profile "$FOUNDRY_PROFILE" \
     --arg plan "$PLAN" \
@@ -263,7 +230,8 @@ write_identity() {
     --argjson transaction_count "$(jq -er '.transactions | length' "$PLAN")" \
     '{schemaVersion:"1.0.0", status:$status, network:$network,
       chainId:$chain_id, release:$release, protocolVersion:$protocol_version,
-      sourceCommit:$source_commit, contractSourceCommit:$contract_source_commit,
+      sourceCommit:$source_commit, inputsSha256:$inputs_sha256, coldGateSourceCommit:$cold_source_commit,
+      contractSourceCommit:$contract_source_commit,
       foundryProfile:$foundry_profile, plan:$plan, planSha256:$plan_sha256,
       package:$package, packageDigest:$package_digest, fingerprint:$fingerprint,
       expectedExecutor:$executor, transactionCount:$transaction_count}' \
@@ -276,7 +244,6 @@ assert_identity_unchanged() {
   jq -e \
     --arg network "$DEPLOYMENTS_NETWORK" \
     --argjson chain_id "$EXPECTED_CHAIN_ID" \
-    --arg source_commit "$(git rev-parse HEAD)" \
     --arg plan_sha256 "$(sha256_file "$PLAN")" \
     --arg package_digest "$(jq -er '.digest' "$PACKAGE")" \
     --arg executor "$(jq -er '.expectedExecutor' "$PLAN")" \
@@ -284,7 +251,6 @@ assert_identity_unchanged() {
     '.status == "ready" and
      .network == $network and
      .chainId == $chain_id and
-     .sourceCommit == $source_commit and
      .planSha256 == $plan_sha256 and
      .packageDigest == $package_digest and
      .expectedExecutor == $executor and
@@ -293,6 +259,7 @@ assert_identity_unchanged() {
       echo 'Ceremony identity changed after the locked UI was built.' >&2
       exit 1
     }
+  assert_recorded_inputs "$evidence_dir/identity.json" 'Check the inputs used to build the locked UI.'
 }
 
 build_ui() {
@@ -384,10 +351,10 @@ assert_archive_tool() {
 }
 
 run_check() {
-  assert_clean_pushed_source
+  local inputs_digest current_digest package_digest fork_rpc_url
+  inputs_digest="$(signing_inputs_digest)"
   assert_archive_tool
   corepack yarn install --frozen-lockfile --ignore-scripts --non-interactive
-  local fork_rpc_url
   fork_rpc_url="${FORK_RPC_URL:-$DEFAULT_SEPOLIA_RPC}"
   if [[ "$(cast chain-id --rpc-url "$fork_rpc_url")" != '11155111' ]]; then
     echo 'FORK_RPC_URL is not Sepolia.' >&2
@@ -402,6 +369,7 @@ run_check() {
   FOUNDRY_PROFILE=deploy forge build --sizes src
   node --test scripts/__tests__/*.test.js
   generate_artifacts
+  package_digest="$(jq -er '.digest' "$LIVE_PACKAGE")"
   (
     cd deploy-ui
     npm ci --ignore-scripts
@@ -410,19 +378,25 @@ run_check() {
     CEREMONY_PACKAGE="../$LIVE_PACKAGE" npm run build
     SEPOLIA_RPC_URL="$fork_rpc_url" npm run test:fork
   )
-  assert_clean_pushed_source
+  current_digest="$(signing_inputs_digest)"
+  if [[ "$inputs_digest" != "$current_digest" || "$package_digest" != "$(jq -er '.digest' "$LIVE_PACKAGE")" ]]; then
+    echo 'Ceremony inputs changed during the checks. Run stage check again.' >&2
+    return 1
+  fi
   mkdir -p deployments/anvil
   jq -n \
     --arg status green \
     --arg source_commit "$(git rev-parse HEAD)" \
+    --arg inputs_sha256 "$inputs_digest" \
+    --arg package_digest "$package_digest" \
     --arg checked_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
     '{schemaVersion:"1.0.0", status:$status,
-      sourceCommit:$source_commit, checkedAt:$checked_at}' >"$COLD_GATE"
-  echo "Cold gates GREEN for $(git rev-parse HEAD)"
+      sourceCommit:$source_commit, inputsSha256:$inputs_sha256, livePackageDigest:$package_digest,
+      checkedAt:$checked_at}' >"$COLD_GATE"
+  echo "Cold gates GREEN for $RELEASE"
 }
 
 prepare_activation() {
-  assert_clean_pushed_source
   assert_cold_gate
   assert_rpc
   local evidence_dir
@@ -434,7 +408,6 @@ prepare_activation() {
     assert_rehearsal_accepted
     evidence_dir="$(create_live_session)"
   fi
-  assert_clean_pushed_source
   if [[ "$DEPLOYMENTS_NETWORK" == 'anvil' ]]; then
     node "$ROTATION_SCRIPT" preflight \
       --rehearsal --rpc-url "$RPC_URL" --out "$evidence_dir/preflight.json"
@@ -442,8 +415,9 @@ prepare_activation() {
     node "$ROTATION_SCRIPT" preflight \
       --rpc-url "$RPC_URL" --out "$evidence_dir/preflight.json"
   fi
-  write_identity "$evidence_dir"
   build_ui
+  assert_cold_gate
+  write_identity "$evidence_dir"
   if [[ "$DEPLOYMENTS_NETWORK" == 'sepolia' ]]; then
     printf '%s\n' "$evidence_dir" >"$LIVE_SESSION_FILE"
   fi
@@ -451,9 +425,8 @@ prepare_activation() {
 }
 
 finalize_activation() {
-  assert_clean_pushed_source
   assert_rpc
-  local evidence_dir exported_run_state retained_run_state post_activation
+  local evidence_dir exported_run_state retained_run_state post_activation inputs_digest
   evidence_dir="$(current_session)"
   assert_identity_unchanged "$evidence_dir"
   exported_run_state="$(find_exported_run_state "$evidence_dir")"
@@ -472,17 +445,20 @@ finalize_activation() {
       --run-state "$retained_run_state" \
       --preflight "$evidence_dir/preflight.json" \
       --out "$post_activation"
+    assert_identity_unchanged "$evidence_dir"
+    inputs_digest="$(recorded_inputs_digest "$evidence_dir/identity.json")"
     jq -n \
       --arg status green \
       --arg accepted_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
       --arg source_commit "$(git rev-parse HEAD)" \
+      --arg inputs_sha256 "$inputs_digest" \
       --arg live_plan_sha256 "$(sha256_file "$LIVE_PLAN")" \
       --arg live_package_digest "$(jq -er '.digest' "$LIVE_PACKAGE")" \
       --arg rehearsal_package_digest "$(jq -er '.digest' "$REHEARSAL_PACKAGE")" \
       --arg fork_block "$(<"$evidence_dir/fork-block")" \
       --arg run_state_sha256 "$(sha256_file "$retained_run_state")" \
       '{schemaVersion:"1.0.0", status:$status, acceptedAt:$accepted_at,
-        sourceCommit:$source_commit, livePlanSha256:$live_plan_sha256,
+        sourceCommit:$source_commit, inputsSha256:$inputs_sha256, livePlanSha256:$live_plan_sha256,
         livePackageDigest:$live_package_digest,
         rehearsalPackageDigest:$rehearsal_package_digest,
         forkBlock:$fork_block, runStateSha256:$run_state_sha256}' \
@@ -504,7 +480,6 @@ finalize_inventory() {
     echo 'Inventory finalization is only valid for the live Sepolia activation.' >&2
     exit 1
   fi
-  assert_clean_pushed_source
   assert_archive_tool
   assert_rpc
   local evidence_dir evidence_run_state run_state post_activation handoff

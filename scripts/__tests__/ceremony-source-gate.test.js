@@ -4,15 +4,18 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { execFileSync, spawnSync } = require("node:child_process");
+const { changedSourceFiles, loadArtifacts } = require("../sepolia-v2-5-fix-rotation");
 
 const stage = fs.readFileSync(
   path.resolve(__dirname, "../../script/deploy/v2-5/sepolia-fix-1-stage.sh"),
   "utf8"
 );
-const sourceGate = stage.match(
-  /^assert_clean_pushed_source\(\) \{[\s\S]*?^\}/m
-)?.[0];
-assert.ok(sourceGate, "source gate must exist in the stage script");
+const checks = ["sha256_file", "signing_inputs_digest", "recorded_inputs_digest", "assert_recorded_inputs",
+  "assert_cold_gate", "assert_rehearsal_accepted"].map((name) => {
+  const source = stage.match(new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?^\\}`, "m"));
+  assert.ok(source, `${name} must exist in the stage script`);
+  return source[0];
+}).join("\n");
 
 function git(directory, ...args) {
   return execFileSync(
@@ -47,131 +50,122 @@ function writeFile(directory, filename, contents = "local file\n") {
   fs.writeFileSync(target, contents);
 }
 
+const configFile = "deployments/sepolia/release.json";
+const planFile = "deployments/sepolia/plan-release.json";
+const packageFile = "deployments/sepolia/ceremony-release-eoa.json";
+const coldGate = "deployments/anvil/cold-gate.json";
+const acceptance = "deployments/anvil/accepted.json";
+
 function repository(context) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "ceremony-source-"));
   context.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   git(directory, "init", "--quiet", "--initial-branch=ceremony");
-  writeFile(directory, "src/Contract.sol", "reviewed source\n");
-  writeFile(directory, "README.md", "reviewed documentation\n");
-  writeFile(directory, ".gitignore", "deploy-ui/dist/\n");
+  for (const file of [configFile, planFile, "deploy-ui/src/main.ts", "README.md"]) {
+    writeFile(directory, file);
+  }
+  writeFile(directory, "package.json", '{"version":"2.5.9"}\n');
+  writeFile(directory, packageFile, JSON.stringify({ digest: "package-digest" }));
+  writeFile(directory, "scripts/ceremony-input-digest.js",
+    fs.readFileSync(path.join(__dirname, "../ceremony-input-digest.js")));
+  writeFile(directory, ".gitignore", "deploy-ui/dist/\ndeployments/anvil/\n");
   git(directory, "add", "--", ".");
-  git(directory, "commit", "--quiet", "-m", "Reviewed fixture");
-  git(directory, "remote", "add", "origin", ".");
-  git(directory, "update-ref", "refs/remotes/origin/ceremony", "HEAD");
-  git(directory, "branch", "--set-upstream-to=origin/ceremony");
+  git(directory, "commit", "--quiet", "-m", "Reviewed signing inputs");
   return directory;
 }
 
-function runGate(directory) {
+function run(directory, command) {
   return spawnSync(
     "bash",
-    ["-c", `set -euo pipefail\n${sourceGate}\nassert_clean_pushed_source`],
-    { cwd: directory, encoding: "utf8" }
+    ["-c", `set -euo pipefail\n${checks}\n${command}`],
+    { cwd: directory, encoding: "utf8", env: { ...process.env, CONFIG: configFile, LIVE_PLAN: planFile,
+      LIVE_PACKAGE: packageFile, COLD_GATE: coldGate, REHEARSAL_ACCEPTANCE: acceptance } }
   );
 }
 
-test("source gate permits unrelated local files and ignored build output", (context) => {
+function checked(directory, command) {
+  const result = run(directory, command);
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout.trim();
+}
+
+test("checking a local packet needs neither a clean checkout nor an upstream", (context) => {
   const directory = repository(context);
-  assert.equal(runGate(directory).status, 0);
-  writeFile(directory, "notes.md");
-  writeFile(directory, "machine-local/settings.json");
-  writeFile(directory, "docs/local-notes.md");
+  writeFile(directory, configFile, "candidate config\n");
+  git(directory, "add", configFile);
+  writeFile(directory, "deploy-ui/src/new.ts");
+  writeFile(directory, coldGate, JSON.stringify({ status: "green", inputsSha256: checked(directory, "signing_inputs_digest") }));
+  writeFile(directory, "README.md", "updated notes\n");
+  writeFile(directory, "scripts/local-fix.js");
+  git(directory, "add", "scripts/local-fix.js");
+  writeFile(directory, "deployments/sepolia/other-release.json");
   writeFile(directory, "deploy-ui/dist/index.html");
-  const result = runGate(directory);
-  assert.equal(result.status, 0, result.stderr);
+  const unused = path.join(directory, "lib/old-dependency");
+  fs.mkdirSync(unused, { recursive: true });
+  git(unused, "init", "--quiet");
+  writeFile(unused, "Library.sol");
+  checked(directory, "assert_cold_gate");
+  git(directory, "add", "deploy-ui/src/new.ts");
+  git(directory, "commit", "--quiet", "-m", "Commit the same signing inputs");
+  checked(directory, "assert_cold_gate");
 });
 
-test("source gate permits new ceremony evidence but preserves tracked evidence checks", (context) => {
-  const directory = repository(context);
-  const filename = "deployments/sepolia/ceremony-evidence/v2.5.6.session/run-state.json";
-  writeFile(directory, filename, "{}\n");
-  const result = runGate(directory);
-  assert.equal(result.status, 0, result.stderr);
-  git(directory, "add", filename);
-  git(directory, "commit", "--quiet", "-m", "Preserved evidence");
-  git(directory, "update-ref", "refs/remotes/origin/ceremony", "HEAD");
-  writeFile(directory, filename, '{"changed":true}\n');
-  const changed = runGate(directory);
-  assert.equal(changed.status, 1);
-  assert.match(changed.stderr, /Tracked files or submodules differ/);
+test("artifact checks skip unused sources and enforce deployed sources and dependencies", () => {
+  const rotation = { schemaVersion: "1.1.0" };
+  assert.doesNotThrow(() => loadArtifacts(rotation, ["lib/old-dependency", "src/Unused.sol"]));
+  assert.throws(() => loadArtifacts(rotation, ["src/IHooksFactory.sol"]), /src\/IHooksFactory\.sol/);
+  assert.throws(() => loadArtifacts(rotation, ["lib/solady"]), /Deployment source differs.*lib\/solady\//);
 });
 
-for (const state of ["unstaged", "staged", "deleted"]) {
-  test(`source gate rejects ${state} tracked changes`, (context) => {
-    const directory = repository(context);
-    if (state === "deleted") {
-      fs.unlinkSync(path.join(directory, "src/Contract.sol"));
-    } else {
-      writeFile(directory, "src/Contract.sol", "unreviewed source\n");
-      if (state === "staged") git(directory, "add", "src/Contract.sol");
-    }
-    const result = runGate(directory);
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /Tracked files or submodules differ/);
-  });
-}
-
-test("source gate still rejects staged additions outside build inputs", (context) => {
+test("dirty submodules report just their changed files", (context) => {
   const directory = repository(context);
-  writeFile(directory, "notes.md");
-  git(directory, "add", "notes.md");
-  const result = runGate(directory);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /Tracked files or submodules differ/);
+  const library = path.join(directory, "lib/active");
+  fs.mkdirSync(library, { recursive: true });
+  git(library, "init", "--quiet");
+  writeFile(library, "Source.sol");
+  writeFile(library, "README.md");
+  git(library, "add", ".");
+  git(library, "commit", "--quiet", "-m", "Pin dependency");
+  git(directory, "add", "lib/active");
+  git(directory, "commit", "--quiet", "-m", "Use dependency");
+  const pinned = git(directory, "rev-parse", "HEAD");
+  writeFile(library, "README.md", "edited dependency notes\n");
+  writeFile(library, "Extra.sol");
+  assert.deepEqual(changedSourceFiles(directory, pinned, ["lib"]).sort(),
+    ["lib/active/Extra.sol", "lib/active/README.md"]);
+  writeFile(library, "Source.sol", "edited code\n");
+  assert.ok(changedSourceFiles(directory, pinned, ["lib"]).includes("lib/active/Source.sol"));
 });
 
-for (const filename of [
-  "src/Unreviewed.sol",
-  "lib/unreviewed/Library.sol",
-  "script/Deploy.sol",
-  "scripts/helper.js",
-  "test/NewTest.t.sol",
-  "deploy-ui/src/local.ts",
-  "deployments/sepolia/local.json",
-  ".npmrc",
-  "npm-shrinkwrap.json",
-  "package-lock.json",
-]) {
-  test(`source gate rejects untracked input ${filename}`, (context) => {
-    const directory = repository(context);
-    writeFile(directory, filename);
-    const result = runGate(directory);
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /Untracked build or ceremony inputs/);
-    assert.ok(result.stderr.includes(filename), result.stderr);
-  });
-}
-
-test("source gate rejects a commit not present at the configured upstream", (context) => {
+test("a change to an input after check or rehearsal invalidates the recorded evidence", (context) => {
   const directory = repository(context);
-  writeFile(directory, "README.md", "another revision\n");
-  git(directory, "commit", "--quiet", "-am", "Unpushed fixture");
-  const result = runGate(directory);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /HEAD is not pushed/);
+  const evidence = { status: "green", inputsSha256: checked(directory, "signing_inputs_digest"),
+    livePlanSha256: checked(directory, 'sha256_file "$LIVE_PLAN"'), livePackageDigest: "package-digest" };
+  for (const record of [coldGate, acceptance]) writeFile(directory, record, JSON.stringify(evidence));
+  checked(directory, "assert_rehearsal_accepted");
+  for (const file of [configFile, planFile, "package.json", "deploy-ui/src/main.ts", "deploy-ui/src/new.ts"]) {
+    const fullPath = path.join(directory, file);
+    const previous = fs.existsSync(fullPath) ? fs.readFileSync(fullPath) : null;
+    writeFile(directory, file, file === "package.json" ? '{"version":"2.5.10"}\n' : "new content\n");
+    assert.equal(run(directory, "assert_cold_gate").status, 1, file);
+    assert.equal(run(directory, "assert_rehearsal_accepted").status, 1, file);
+    if (previous) fs.writeFileSync(fullPath, previous);
+    else fs.unlinkSync(fullPath);
+  }
+  writeFile(directory, packageFile, JSON.stringify({ digest: "other-package" }));
+  assert.equal(run(directory, "assert_cold_gate").status, 1);
+  assert.equal(run(directory, "assert_rehearsal_accepted").status, 1);
+  writeFile(directory, packageFile, JSON.stringify({ digest: evidence.livePackageDigest }));
+  fs.unlinkSync(path.join(directory, "deploy-ui/src/main.ts"));
+  assert.equal(run(directory, "assert_cold_gate").status, 1);
+  checked(directory, "signing_inputs_digest");
 });
 
-test("source gate requires an upstream", (context) => {
+test("legacy checks still match the working files to the recorded commit", (context) => {
   const directory = repository(context);
-  git(directory, "branch", "--unset-upstream");
-  const result = runGate(directory);
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /upstream/i);
-});
-
-test("source gate still rejects an untracked file inside a recorded submodule", (context) => {
-  const directory = repository(context);
-  const dependency = path.join(directory, "lib/dependency");
-  writeFile(directory, "lib/dependency/Library.sol", "reviewed dependency\n");
-  git(dependency, "init", "--quiet", "--initial-branch=dependency");
-  git(dependency, "add", "Library.sol");
-  git(dependency, "commit", "--quiet", "-m", "Dependency fixture");
-  git(directory, "add", "lib/dependency");
-  git(directory, "commit", "--quiet", "-m", "Reviewed dependency");
-  git(directory, "update-ref", "refs/remotes/origin/ceremony", "HEAD");
-  assert.equal(runGate(directory).status, 0);
-  writeFile(dependency, "Unreviewed.sol");
-  const result = runGate(directory);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /Tracked files or submodules differ/);
+  writeFile(directory, coldGate, JSON.stringify({ status: "green", sourceCommit: git(directory, "rev-parse", "HEAD") }));
+  writeFile(directory, "README.md", "updated notes\n");
+  git(directory, "commit", "--quiet", "-am", "Update notes");
+  checked(directory, "assert_cold_gate");
+  writeFile(directory, "deploy-ui/src/new.ts");
+  assert.equal(run(directory, "assert_cold_gate").status, 1);
 });

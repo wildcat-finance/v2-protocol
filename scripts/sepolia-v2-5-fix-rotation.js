@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { createHash } = require("crypto");
-const { execFileSync, spawnSync } = require("child_process");
+const { execFileSync } = require("child_process");
 const { Contract, JsonRpcProvider, getAddress, keccak256 } = require("ethers");
 
 process.env.FOUNDRY_PROFILE = "deploy";
@@ -427,47 +427,45 @@ function isCurrentCeremony(rotation) {
 }
 
 function git(...args) {
-  return execFileSync("git", args, {
+  const result = execFileSync("git", args, {
     cwd: REPO_ROOT,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
+  });
+  return args.includes("-z") ? result : result.trim();
 }
 
-function assertContractSourceBoundary(rotation) {
-  git("cat-file", "-e", `${rotation.contractSourceCommit}^{commit}`);
-  const tracked = spawnSync(
-    "git",
-    [
-      "diff",
-      "--quiet",
-      rotation.contractSourceCommit,
-      "--",
-      "src",
-      "lib",
-      "foundry.toml",
-      "remappings.txt",
-    ],
-    { cwd: REPO_ROOT }
-  );
-  if (tracked.status !== 0) {
-    throw new Error(
-      `Contract source differs from frozen commit ${rotation.contractSourceCommit}`
-    );
+function changedSourceFiles(directory, commit, paths = []) {
+  const list = (...args) => git("-C", directory, ...args).split("\0").filter(Boolean);
+  const changed = list("diff", "--name-only", "--no-renames", "--ignore-submodules=none",
+    "-z", `${commit}^{commit}`, "--", ...paths);
+  const untracked = list("ls-files", "--others", "--exclude-standard", "-z", "--", ...paths);
+  const sources = untracked.map((name) => name.replace(/\/$/, ""));
+  for (const name of changed) {
+    const child = path.join(directory, name);
+    if (fs.existsSync(path.join(child, ".git"))) {
+      // A dirty gitlink can be just a README edit. Compare the files at its recorded revision.
+      const entry = git("-C", directory, "ls-tree", commit, "--", name);
+      const gitlink = entry.match(/^160000 commit ([0-9a-f]+)\t/);
+      if (gitlink) {
+        sources.push(...changedSourceFiles(child, gitlink[1]).map((file) => `${name}/${file}`));
+        continue;
+      }
+    }
+    sources.push(name);
   }
-  const untracked = git(
-    "status",
-    "--porcelain",
-    "--untracked-files=all",
-    "--",
-    "src",
-    "lib",
-    "foundry.toml",
-    "remappings.txt"
-  );
-  if (untracked) {
-    throw new Error(`Contract source boundary is dirty:\n${untracked}`);
+  return sources;
+}
+
+function changedDeploymentSources(rotation) {
+  const paths = ["src", "lib", "script/common", "foundry.toml", "remappings.txt"];
+  const sources = changedSourceFiles(REPO_ROOT, rotation.contractSourceCommit, paths);
+  for (const setting of ["foundry.toml", "remappings.txt"]) {
+    if (sources.includes(setting)) {
+      throw new Error(`Deployment compiler settings differ from the pinned source: ${setting}`);
+    }
   }
+  return sources;
 }
 
 function artifactPath(source, contract) {
@@ -479,7 +477,7 @@ function artifactPath(source, contract) {
   );
 }
 
-function loadDeployArtifact(source, contract, rotation) {
+function loadDeployArtifact(source, contract, rotation, changedSources) {
   const filePath = artifactPath(source, contract);
   if (!fs.existsSync(filePath)) {
     throw new Error(
@@ -531,6 +529,11 @@ function loadDeployArtifact(source, contract, rotation) {
   for (const [sourceName, sourceMetadata] of Object.entries(
     metadata.sources || {}
   )) {
+    if (changedSources.some((name) => sourceName === name || sourceName.startsWith(`${name}/`))) {
+      throw new Error(
+        `Deployment source differs from the pinned version: ${sourceName} (compiled into ${contract})`
+      );
+    }
     const sourcePath = path.join(REPO_ROOT, sourceName);
     if (!fs.existsSync(sourcePath)) {
       throw new Error(`Artifact source is missing: ${sourceName}`);
@@ -549,7 +552,7 @@ function loadDeployArtifact(source, contract, rotation) {
   return { artifact, bytecode };
 }
 
-function loadArtifacts(rotation) {
+function loadArtifacts(rotation, changedSources = []) {
   const definitions = { ...ARTIFACTS };
   if (rotation.kycRoleProvider) definitions.kycRoleProvider = KYC_ROLE_PROVIDER;
   if (isCurrentCeremony(rotation)) {
@@ -569,7 +572,7 @@ function loadArtifacts(rotation) {
       key,
       {
         ...definition,
-        ...loadDeployArtifact(definition.source, definition.contract, rotation),
+        ...loadDeployArtifact(definition.source, definition.contract, rotation, changedSources),
       },
     ])
   );
@@ -1675,8 +1678,7 @@ function writeInventoryPending(rotation, artifacts) {
 
 function generateInventoryPending() {
   const rotation = config();
-  assertContractSourceBoundary(rotation);
-  const artifacts = loadArtifacts(rotation);
+  const artifacts = loadArtifacts(rotation, changedDeploymentSources(rotation));
   const planPath = path.join(
     REPO_ROOT,
     `deployments/sepolia/plan-${rotation.release}.json`
@@ -1692,7 +1694,7 @@ function generateInventoryPending() {
 
 function generate() {
   const rotation = config();
-  assertContractSourceBoundary(rotation);
+  const changedSources = changedDeploymentSources(rotation);
   const buildArgs = isCurrentCeremony(rotation)
     ? ["build", "src", "script/common/PreparedInitCodeStorage.sol"]
     : ["build"];
@@ -1701,7 +1703,7 @@ function generate() {
     env: { ...process.env, FOUNDRY_PROFILE: "deploy" },
     stdio: "inherit",
   });
-  const artifacts = loadArtifacts(rotation);
+  const artifacts = loadArtifacts(rotation, changedSources);
   const entries = buildEntries(rotation, artifacts);
   const entriesName = `plan-entries-${rotation.release}`;
   const entriesDirectory = path.join(
@@ -1786,8 +1788,7 @@ function generate() {
 
 function validate() {
   const rotation = config();
-  assertContractSourceBoundary(rotation);
-  const artifacts = loadArtifacts(rotation);
+  const artifacts = loadArtifacts(rotation, changedDeploymentSources(rotation));
   const planPath = path.join(
     REPO_ROOT,
     `deployments/sepolia/plan-${rotation.release}.json`
@@ -1832,8 +1833,7 @@ function assertRehearsalPlan(plan, canonicalPlan) {
 
 function generateRehearsal(args) {
   const rotation = config();
-  assertContractSourceBoundary(rotation);
-  const artifacts = loadArtifacts(rotation);
+  const artifacts = loadArtifacts(rotation, changedDeploymentSources(rotation));
   const canonicalPlanPath = path.join(
     REPO_ROOT,
     `deployments/sepolia/plan-${rotation.release}.json`
@@ -2011,9 +2011,9 @@ async function authoritySnapshot(provider, rotation) {
 
 async function preflight(args) {
   const rotation = config();
-  assertContractSourceBoundary(rotation);
-  if (isTemplateUpdate(rotation)) assertTemplateBaseline(rotation, loadArtifacts(rotation));
-  const reusedDeployments = assertReusedArtifacts(rotation, loadArtifacts(rotation));
+  const artifacts = loadArtifacts(rotation, changedDeploymentSources(rotation));
+  if (isTemplateUpdate(rotation)) assertTemplateBaseline(rotation, artifacts);
+  const reusedDeployments = assertReusedArtifacts(rotation, artifacts);
   const rehearsal = args.rehearsal === true;
   if (args.rehearsal !== undefined && !rehearsal) {
     throw new Error("--rehearsal does not take a value");
@@ -2431,8 +2431,7 @@ async function verifyReplacementFactory({
 
 async function verifyActivation(args) {
   const rotation = config();
-  assertContractSourceBoundary(rotation);
-  const artifacts = loadArtifacts(rotation);
+  const artifacts = loadArtifacts(rotation, changedDeploymentSources(rotation));
   const canonicalPlanPath = path.join(
     REPO_ROOT,
     `deployments/sepolia/plan-${rotation.release}.json`
@@ -2838,6 +2837,7 @@ module.exports = {
   buildRehearsalPlan,
   buildEntries,
   buildInventoryPendingRecords,
+  changedSourceFiles,
   config,
   loadArtifacts,
   assertReusedArtifacts,
