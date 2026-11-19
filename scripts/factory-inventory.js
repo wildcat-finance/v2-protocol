@@ -56,7 +56,8 @@ const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 const SAFE_DEPLOYMENT_KEY_REGEX =
   /^[A-Za-z][A-Za-z0-9]*(?:[:_.-][A-Za-z0-9-]+(?:[:_.][A-Za-z0-9-]+)*)?$/;
-const { ROLE_PROVIDER_FACTORIES } = require("./role-provider-factories");
+const { ROLE_PROVIDER_FACTORIES, KYC_ROLE_PROVIDER, validateKycRoleProvider } = require("./role-provider-factories");
+const { loadReleaseConfig, loadReleaseReuse } = require("./reused-deployments");
 const RAW_TIMESTAMP_LABEL_REGEX = /(?:^|[_-])\d{8}-\d{6}$/;
 const GET_REGISTERED_CONTROLLER_FACTORIES_SELECTOR = "0x6e0fb58d";
 const GET_REGISTERED_CONTROLLERS_SELECTOR = "0xdb316dbc";
@@ -606,6 +607,7 @@ function assertActivationPlan(plan, network, options = {}) {
   if (typeof plan.release !== "string" || plan.release.endsWith("-retirement")) {
     throw new Error("Activation plan must not use the retirement release suffix");
   }
+  const rotation = options.rotation || loadReleaseConfig(network, plan.release);
   const forbiddenSignatures = new Set([
     "removeControllerFactory(address)",
     "removeController(address)",
@@ -728,6 +730,34 @@ function assertActivationPlan(plan, network, options = {}) {
     },
   ];
   const omittedDeploymentIds = new Set();
+  if (rotation?.kycRoleProvider) {
+    validateKycRoleProvider(rotation.kycRoleProvider);
+    const { administrator, runtimeCodeHash } = rotation.kycRoleProvider;
+    const output = KYC_ROLE_PROVIDER.output;
+    allExpectedTransactions.splice(allExpectedTransactions.findIndex((tx) => tx.kind === "call"), 0, {
+      id: `deploy-${output}`,
+      kind: "deploy",
+      artifactName: KYC_ROLE_PROVIDER.artifactName,
+      output,
+      constructorArgs: [administrator],
+      predicate: { type: "codeHash", target: { $ref: output }, expect: runtimeCodeHash },
+    });
+  }
+  if (rotation?.approveWrapperForNukeProtection) {
+    for (const marketType of ["standard", "revolving"]) {
+      const target = { $ref: `hooks-factory-${marketType}` };
+      const wrapper = { $ref: "wildcat-4626-wrapper-factory" };
+      allExpectedTransactions.push({
+        id: `approve-${marketType}-wrapper-factory`,
+        kind: "call",
+        functionSignature: "setNukeProtectionFactoryApproval(address,bool)",
+        target,
+        args: [wrapper, true],
+        predicate: { type: "callEq", target,
+          call: { sig: "isApprovedNukeProtectionFactory(address) view returns (bool)", args: [wrapper] }, expect: true },
+      });
+    }
+  }
   if (options.deployAllRoleProviderFactories === true) {
     if (options.reuseAccessListRoleProviderFactory === true) {
       throw new Error(
@@ -785,7 +815,12 @@ function assertActivationPlan(plan, network, options = {}) {
       (expected.artifactNames &&
         !expected.artifactNames.includes(transaction.artifactName)) ||
       (expected.functionSignature &&
-        logicalCall(transaction)?.functionSignature !== expected.functionSignature)
+        logicalCall(transaction)?.functionSignature !== expected.functionSignature) ||
+      (expected.output && (transaction.output !== expected.output ||
+        JSON.stringify(transaction.constructorArgs?.decoded) !== JSON.stringify(expected.constructorArgs))) ||
+      (expected.target && (JSON.stringify(logicalCall(transaction)?.target) !== JSON.stringify(expected.target) ||
+        JSON.stringify(logicalCall(transaction)?.args) !== JSON.stringify(expected.args))) ||
+      (expected.predicate && JSON.stringify(transaction.predicate) !== JSON.stringify(expected.predicate))
     ) {
       throw new Error(
         `Activation transaction ${index + 1} must be ${expected.id}`
@@ -2024,7 +2059,14 @@ function runValidateActivationPlan(args) {
   if (!network) throw new Error("Missing --network or DEPLOYMENTS_NETWORK.");
   const planPath = requireArg(args, "plan");
   const plan = readJson(planPath);
-  assertActivationPlan(plan, network);
+  const rotation = loadReleaseConfig(network, plan.release);
+  const reusedDeployments = loadReleaseReuse(network, plan.release);
+  assertActivationPlan(plan, network, {
+    rotation, reusedDeployments,
+    reuseIdentityRegistry: Boolean(rotation?.reused?.borrowerIdentityRegistry),
+    reuseAccessListRoleProviderFactory: reusedDeployments.has("access-list-role-provider-factory") ||
+      Boolean(rotation?.reused?.accessListRoleProviderFactory),
+  });
   console.log(`Activation plan valid: ${planPath}`);
 }
 
@@ -2557,7 +2599,7 @@ async function runApplyRun(args) {
     network,
   });
   const deployments = readJson(deploymentsPath);
-  const reusedDeployments = require("./reused-deployments").loadReleaseReuse(network, plan.release);
+  const reusedDeployments = loadReleaseReuse(network, plan.release);
   for (const record of reusedDeployments.values()) {
     const key = record.provenance.deploymentKey.replace(/_v\d+\.\d+\.\d+$/, "");
     const matches = pendingRecords.filter(({ rawRecord }) => rawRecord.deploymentKey === `${key}_${plan.release}`);
@@ -2754,6 +2796,16 @@ async function runApplyRun(args) {
   deployments.Wildcat4626WrapperFactory = wrapperFactory;
   deployments.WildcatBorrowerIdentityRegistry = borrowerIdentityRegistry;
   deployments.AccessListRoleProviderFactory = accessListRoleProviderFactory;
+  const kycAddress = outputs.get(KYC_ROLE_PROVIDER.output);
+  if (kycAddress) {
+    const key = `${KYC_ROLE_PROVIDER.contract}_${plan.release}`;
+    const records = pendingRecords.filter(({ rawRecord }) => rawRecord.deploymentKey === key);
+    if (records.length !== 1 || records[0].rawRecord.role !== "kycRoleProvider" ||
+        records[0].rawRecord.address?.$ref !== KYC_ROLE_PROVIDER.output || deployments[key] !== kycAddress) {
+      throw new Error("Pending KYC record must resolve the provider deployed by this ceremony");
+    }
+    deployments.KYCRoleProvider = kycAddress;
+  }
   Object.assign(deployments, roleProviderAliases);
   writeInventory(inventoryPath, inventory);
   writeJsonAtomic(deploymentsPath, deployments);

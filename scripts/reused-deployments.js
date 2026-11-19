@@ -91,13 +91,18 @@ function loadReusedDeployments(rotation) {
   return records;
 }
 
-function loadReleaseReuse(network, release) {
-  if (!/^[a-z0-9-]+$/.test(network) || !/^v\d+\.\d+\.\d+$/.test(release)) return new Map();
+function loadReleaseConfig(network, release) {
+  if (!/^[a-z0-9-]+$/.test(network) || !/^v\d+\.\d+\.\d+$/.test(release)) return null;
   const file = path.join(ROOT, "deployments", network, `${release}.json`);
-  if (!fs.existsSync(file)) return new Map();
+  if (!fs.existsSync(file)) return null;
   const config = JSON.parse(fs.readFileSync(file, "utf8"));
   if (config.network !== network || config.release !== release) throw new Error("Reuse config identity mismatch");
-  return loadReusedDeployments(config);
+  return config;
 }
 
-module.exports = { loadReusedDeployments, loadReleaseReuse };
+function loadReleaseReuse(network, release) {
+  const config = loadReleaseConfig(network, release);
+  return config ? loadReusedDeployments(config) : new Map();
+}
+
+module.exports = { loadReusedDeployments, loadReleaseConfig, loadReleaseReuse };

@@ -2,7 +2,8 @@
 
 const fs = require("fs");
 const path = require("path");
-const { ROLE_PROVIDER_FACTORIES } = require("./role-provider-factories");
+const { ROLE_PROVIDER_FACTORIES, KYC_ROLE_PROVIDER } = require("./role-provider-factories");
+const { loadReleaseConfig, loadReleaseReuse } = require("./reused-deployments");
 
 const HANDOFF_SCHEMA_VERSION = "1.0.0";
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
@@ -507,6 +508,14 @@ function loadRunMetadata(planPath, runStatePath, network, release) {
       txHash: state.txHash || null,
       forgeArtifactName: transaction.artifactName,
     };
+    if (transaction.output === KYC_ROLE_PROVIDER.output) {
+      metadata.initialAdministrator = transaction.constructorArgs?.decoded?.[0];
+      metadata.runtimeCodeHash = transaction.predicate?.expect;
+      if (!isAddress(metadata.initialAdministrator) || !/^0x[0-9a-f]{64}$/.test(metadata.runtimeCodeHash) ||
+          transaction.predicate?.type !== "codeHash") {
+        throw new Error("KYC deployment lacks a reviewed administrator or runtime hash");
+      }
+    }
     byOutput.set(transaction.output, metadata);
     byAddress.set(addressKey(state.resolvedAddress), metadata);
   }
@@ -530,6 +539,15 @@ function releaseDefinitions(
       forgeArtifactName: artifactName,
       abiArtifactName,
     }));
+  if (deployments[`${KYC_ROLE_PROVIDER.contract}_${release}`] || runMetadata.byOutput.has(KYC_ROLE_PROVIDER.output)) {
+    providerDefinitions.push({
+      key: KYC_ROLE_PROVIDER.contract,
+      planOutput: KYC_ROLE_PROVIDER.output,
+      kind: "role-provider",
+      forgeArtifactName: KYC_ROLE_PROVIDER.artifactName,
+      abiArtifactName: KYC_ROLE_PROVIDER.artifactName,
+    });
+  }
   return [...RELEASE_CONTRACTS, ...providerDefinitions].flatMap((definition) => {
     const deploymentKey = `${definition.key}_${release}`;
     const storage = definition.key.endsWith("_initCodeStorage");
@@ -567,6 +585,9 @@ function releaseDeployment(definition, release, deployments, runMetadata) {
     throw new Error(`Reused deployment is also present in the new run: ${deploymentKey}`);
   }
   const fromRun = runMetadata.byOutput.get(definition.planOutput) || reused;
+  if (definition.planOutput === KYC_ROLE_PROVIDER.output && !fromRun?.txHash) {
+    throw new Error("KYC handoff requires the verified deployment receipt");
+  }
   const address = fromDeployments || fromRun?.address;
   if (!address) return null;
   if (!isAddress(address))
@@ -602,6 +623,9 @@ function releaseDeployment(definition, release, deployments, runMetadata) {
     deployTxHash: fromRun?.txHash ?? null,
     forgeArtifactName: fromRun?.forgeArtifactName || definition.forgeArtifactName,
     abiArtifactName: definition.abiArtifactName,
+    ...(definition.planOutput === KYC_ROLE_PROVIDER.output ? {
+      initialAdministrator: fromRun.initialAdministrator, runtimeCodeHash: fromRun.runtimeCodeHash,
+    } : {}),
     ...(reused ? { reused: true, provenance: reused.provenance,
       ...(reused.initCodeHash ? { initCodeHash: reused.initCodeHash } : {}) } : {}),
   };
@@ -646,11 +670,13 @@ function factoryGenerations(inventory, release) {
 }
 
 function roleProviderAliases(deployments) {
-  return Object.fromEntries(
+  const aliases = Object.fromEntries(
     ROLE_PROVIDER_FACTORIES.slice(1)
       .filter(({ contract }) => deployments[contract])
       .map(({ contract, alias }) => [alias, deployments[contract]])
   );
+  if (deployments.KYCRoleProvider) aliases.kycRoleProvider = deployments.KYCRoleProvider;
+  return aliases;
 }
 
 function buildHandoff({
@@ -664,7 +690,7 @@ function buildHandoff({
   const inventory = assertInventory(readJson(inventoryPath), network);
   const deployments = assertDeployments(readJson(deploymentsPath));
   const runMetadata = loadRunMetadata(planPath, runStatePath, network, release);
-  runMetadata.reusedByOutput = require("./reused-deployments").loadReleaseReuse(network, release);
+  runMetadata.reusedByOutput = loadReleaseReuse(network, release);
   const standard = canonicalRecord(
     inventory.hooksFactories.filter((record) => record.marketType === "legacy"),
     "legacy hooks factory"
@@ -893,11 +919,24 @@ function validateHandoff(
           `release contract ${contract.deploymentKey} has an invalid startBlock`
         );
       }
+      if (contract.deploymentKey === `${KYC_ROLE_PROVIDER.contract}_${expectedRelease}` &&
+          (!contract.startBlock || !/^0x[0-9a-f]{64}$/i.test(contract.deployTxHash) ||
+           !isAddress(contract.initialAdministrator) || !/^0x[0-9a-f]{64}$/.test(contract.runtimeCodeHash))) {
+        errors.push("KYC handoff requires the deployment receipt, initial administrator and runtime hash");
+      }
       if (!contract.forgeArtifactName || !contract.abiArtifactName) {
         errors.push(
           `release contract ${contract.deploymentKey} lacks an artifact name`
         );
       }
+    }
+  }
+  const kyc = loadReleaseConfig(expectedNetwork, expectedRelease)?.kycRoleProvider;
+  if (kyc) {
+    const record = releaseContractsByKey.get(`${KYC_ROLE_PROVIDER.contract}_${expectedRelease}`);
+    if (!record || record.address !== deployments.KYCRoleProvider ||
+        record.initialAdministrator !== kyc.administrator || record.runtimeCodeHash !== kyc.runtimeCodeHash) {
+      errors.push("KYC handoff differs from the release configuration or deployment alias");
     }
   }
   if (

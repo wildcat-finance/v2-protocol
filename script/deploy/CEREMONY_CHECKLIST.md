@@ -1,5 +1,7 @@
 # V2.5.6 Sepolia activation ceremony
 
+For v2.5.9, follow the [27-card activation runbook](../../docs/operations/sepolia-v2.5.9.md).
+
 Run the fixed-authority v2.5.7 activation twice:
 
 1. Through the real-wallet locked UI on a pinned Sepolia fork.

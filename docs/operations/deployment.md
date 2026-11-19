@@ -15,6 +15,7 @@ contracts, authority path, and transaction order.
 Use the [operator checklist](../../script/deploy/CEREMONY_CHECKLIST.md) with the
 runbook and frozen plan for the release being executed. Sepolia runbooks cover:
 
+- The [v2.5.9 activation](./sepolia-v2.5.9.md) deploys the shared KYC provider and the v2.5 audit remediations.
 - [v2.5.7](./sepolia-v2.5.7.md): delegated-transfer sanctions patch and
   replacement factories.
 - [v2.5.6](./sepolia-v2.5.6.md): hook-template update.

@@ -10,7 +10,7 @@ process.env.FOUNDRY_PROFILE = "deploy";
 
 const { validatePlan } = require("./plan");
 const { loadReusedDeployments } = require("./reused-deployments");
-const { ROLE_PROVIDER_FACTORIES } = require("./role-provider-factories");
+const { ROLE_PROVIDER_FACTORIES, KYC_ROLE_PROVIDER, validateKycRoleProvider } = require("./role-provider-factories");
 const ACCESS_LIST_FACTORY = ROLE_PROVIDER_FACTORIES.find(
   ({ providerKind }) => providerKind === "ACCESS_LIST"
 );
@@ -246,6 +246,17 @@ function config() {
   const value = readJson(configPath);
   const protocolVersion =
     value.protocolVersion || readJson(PACKAGE_PATH).version;
+  if (value.contractSourceCommit === null) {
+    throw new Error("Set contractSourceCommit to the reviewed contract commit before preparing the ceremony");
+  }
+  if (value.kycRoleProvider !== undefined) validateKycRoleProvider(value.kycRoleProvider);
+  if (value.approveWrapperForNukeProtection !== undefined && typeof value.approveWrapperForNukeProtection !== "boolean") {
+    throw new Error("approveWrapperForNukeProtection must be a boolean");
+  }
+  if ((value.kycRoleProvider || value.approveWrapperForNukeProtection) &&
+      (!isCurrentCeremony(value) || isTemplateUpdate(value))) {
+    throw new Error("KYC deployment and wrapper approval require a factory activation");
+  }
   if (
     !["1.0.0", "1.1.0"].includes(value.schemaVersion) ||
     value.network !== "sepolia" ||
@@ -540,6 +551,7 @@ function loadDeployArtifact(source, contract, rotation) {
 
 function loadArtifacts(rotation) {
   const definitions = { ...ARTIFACTS };
+  if (rotation.kycRoleProvider) definitions.kycRoleProvider = KYC_ROLE_PROVIDER;
   if (isCurrentCeremony(rotation)) {
     delete definitions.accessListFactory;
     definitions[ACCESS_LIST_FACTORY.contract] = ACCESS_LIST_FACTORY;
@@ -1077,6 +1089,34 @@ function currentEntries(rotation, artifacts, entries) {
       initCodeHash
     );
   }
+  if (rotation.kycRoleProvider) {
+    const { administrator, runtimeCodeHash } = rotation.kycRoleProvider;
+    assertEqual(keccak256(artifacts.kycRoleProvider.artifact.deployedBytecode.object), runtimeCodeHash,
+      "Pinned KYC runtime");
+    current.splice(current.findIndex((entry) => entry.kind === "call"), 0, deploy(rotation, {
+      id: `deploy-${KYC_ROLE_PROVIDER.output}`,
+      artifactName: KYC_ROLE_PROVIDER.artifactName,
+      args: [administrator],
+      output: KYC_ROLE_PROVIDER.output,
+      description: `Deploy the shared KYC role provider with administrator ${administrator}.`,
+      predicate: { type: "codeHash", target: ref(KYC_ROLE_PROVIDER.output), expect: runtimeCodeHash },
+    }));
+  }
+  if (rotation.approveWrapperForNukeProtection) {
+    for (const marketType of ["standard", "revolving"]) {
+      const factory = ref(`hooks-factory-${marketType}`);
+      const wrapper = ref("wildcat-4626-wrapper-factory");
+      current.push(call(rotation, {
+        id: `approve-${marketType}-wrapper-factory`,
+        to: factory,
+        signature: "setNukeProtectionFactoryApproval(address,bool)",
+        args: [wrapper, true],
+        description: `Approve the wrapper factory to protect wrappers on new ${marketType} markets.`,
+        predicate: callEq(factory, "isApprovedNukeProtectionFactory(address) view returns (bool)", [wrapper], true),
+        after: current.at(-1).id,
+      }));
+    }
+  }
   return current.map((entry, index) => ({
     ...entry,
     after: index === 0 ? [] : [current[index - 1].id],
@@ -1223,6 +1263,7 @@ function assertRotationPlan(plan, rotation, artifacts) {
         "addHooksTemplate(address,string,address,address,uint80,uint16)",
         "addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)",
         "disableHooksTemplate(address)",
+        "setNukeProtectionFactoryApproval(address,bool)",
       ].includes(expected.functionSignature);
       if (mustForward) {
         if (
@@ -1607,6 +1648,12 @@ function buildInventoryPendingRecords(rotation, artifacts) {
         primary: primary.address,
         runtimeCodeHash: entry.predicate.secondaryCodeHash,
       },
+    });
+  }
+  if (rotation.kycRoleProvider) {
+    records.push({
+      fileName: `${String(records.length + 1).padStart(2, "0")}-kyc-role-provider.json`,
+      value: deployment(KYC_ROLE_PROVIDER.contract, KYC_ROLE_PROVIDER.output, "kycRoleProvider"),
     });
   }
   return records;
@@ -2270,6 +2317,7 @@ async function verifyReplacementFactory({
       "function borrowerIdentityRegistry() view returns (address)",
       "function marketInitCodeStorage() view returns (address)",
       "function marketInitCodeHash() view returns (uint256)",
+      "function isApprovedNukeProtectionFactory(address) view returns (bool)",
       "function getHooksTemplateInitCodeHash(address) view returns (bytes32)",
       "function getHooksTemplates() view returns (address[])",
       "function getHooksTemplateDetails(address) view returns ((address,uint80,uint16,bool,bool,uint24,address,string))",
@@ -2298,6 +2346,10 @@ async function verifyReplacementFactory({
     wrapperFactory,
     `${marketType} replacement wrapper factory`
   );
+  if (rotation.approveWrapperForNukeProtection) {
+    assertEqual(await factory.isApprovedNukeProtectionFactory(wrapperFactory), true,
+      `${marketType} wrapper factory approval`);
+  }
   sameAddress(
     await factory.borrowerIdentityRegistry(),
     rotation.reused.borrowerIdentityRegistry,
@@ -2369,6 +2421,7 @@ async function verifyReplacementFactory({
     controllerFactoryRegistered: true,
     controllerRegistered: true,
     wrapperFactory,
+    ...(rotation.approveWrapperForNukeProtection ? { wrapperFactoryApproved: true } : {}),
     marketInitCodeStorage: marketStore,
     marketInitCodeHash: marketHash,
     borrowerIdentityRegistry: rotation.reused.borrowerIdentityRegistry,
@@ -2489,6 +2542,20 @@ async function verifyActivation(args) {
     }
   }
 
+  let kycRoleProvider;
+  if (rotation.kycRoleProvider) {
+    const address = outputAddress(outputs, KYC_ROLE_PROVIDER.output);
+    const kyc = new Contract(address, [
+      "function administrator() view returns (address)",
+      "function isPullProvider() view returns (bool)",
+    ], provider);
+    const administrator = await kyc.administrator();
+    const runtimeCodeHash = keccak256(await provider.getCode(address));
+    sameAddress(administrator, rotation.kycRoleProvider.administrator, "KYC administrator");
+    assertEqual(runtimeCodeHash, rotation.kycRoleProvider.runtimeCodeHash, "KYC runtime");
+    assertEqual(await kyc.isPullProvider(), true, "KYC pull provider");
+    kycRoleProvider = { address, administrator, runtimeCodeHash, isPullProvider: true };
+  }
   const currentAuthority = await authoritySnapshot(provider, rotation);
   assertEqual(
     currentAuthority,
@@ -2625,6 +2692,7 @@ async function verifyActivation(args) {
     wrapperFactory: wrapperAddress,
     factories,
     lenses,
+    ...(kycRoleProvider ? { kycRoleProvider } : {}),
     predecessorsRemainRegistered: true,
     retirementExecuted: false,
   };

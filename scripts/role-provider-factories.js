@@ -1,3 +1,5 @@
+const { getAddress, isAddress, ZeroAddress, ZeroHash } = require("ethers");
+
 const ROLE_PROVIDER_FACTORIES = [
   ["AccessList", "access-list", "ACCESS_LIST", "accessList"],
   ["Merkle", "merkle", "MERKLE", "merkle"],
@@ -19,4 +21,21 @@ const ROLE_PROVIDER_FACTORIES = [
   };
 });
 
-module.exports = { ROLE_PROVIDER_FACTORIES };
+const KYC_ROLE_PROVIDER = {
+  contract: "KYCRoleProvider",
+  source: "src/providers/KYCRoleProvider.sol",
+  artifactName: "src/providers/KYCRoleProvider.sol:KYCRoleProvider",
+  output: "kyc-role-provider",
+};
+
+function validateKycRoleProvider(settings) {
+  const administrator = settings?.administrator;
+  if (!isAddress(administrator) || administrator === ZeroAddress || getAddress(administrator) !== administrator) {
+    throw new Error("Set kycRoleProvider.administrator to a nonzero checksummed address");
+  }
+  if (!/^0x[0-9a-f]{64}$/.test(settings.runtimeCodeHash) || settings.runtimeCodeHash === ZeroHash) {
+    throw new Error("Invalid KYC runtime code hash");
+  }
+}
+
+module.exports = { ROLE_PROVIDER_FACTORIES, KYC_ROLE_PROVIDER, validateKycRoleProvider };

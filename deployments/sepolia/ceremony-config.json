@@ -15,6 +15,7 @@
     "forwardedFunctionSignatures": [
       "registerControllerFactory(address)",
       "addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)",
+      "setNukeProtectionFactoryApproval(address,bool)",
       "removeControllerFactory(address)",
       "removeController(address)",
       "disableHooksTemplate(address)"
