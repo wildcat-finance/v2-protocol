@@ -171,8 +171,8 @@ Notes:
   are enabled. Hook administrators cannot veto the canonical wrapper through a
   credential or local deposit block.
 - Noncanonical wrappers follow ordinary recipient policy. Restricted markets can
-  opt into them through their configured role providers; local deposit blocks
-  continue to reject unknown recipients.
+  authorize them through their configured role providers. A local deposit block
+  rejects an unknown wrapper only when the market calls `onTransfer`.
 - Preview methods only convert values. They ignore sanctions, capacity, and
   transfer readiness.
 - Readiness cannot predict sender balance, allowance, amount-dependent policy,
@@ -186,10 +186,11 @@ Notes:
 
 The registered-wrapper exception applies only when the wrapper is the transfer
 recipient. `withdraw` and `redeem` transfer market tokens from the wrapper to the
-requested receiver, so that receiver must pass the normal market policy. A
-known lender may still receive and exit after being blocked from new deposits;
-an unknown blocked or unauthorized receiver cannot. Transfers-disabled markets
-and sanctions checks remain hard stops.
+requested receiver. When the market calls `onTransfer`, a known lender may
+still receive after a deposit block, and an unknown blocked receiver is rejected.
+When the market skips `onTransfer`, the receiver's deposit block does not
+restrict either operation. Disabled transfers and market sanctions checks
+still apply.
 
 A custom hook's additional transfer rules still apply to the registered wrapper
 and known recipients. A recipient-only readiness query cannot promise that an

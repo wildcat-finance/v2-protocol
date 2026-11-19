@@ -20,10 +20,11 @@ pragma solidity 0.8.25;
 //  CLOSURE AND PROPOSAL DATA
 //  test_closedBatchQuote()
 //  test_closedBatchCollision()
-//  test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery()
-//  test_manualClosureBeforeDate_DoesNotReenterRepayment()
+//  test_projectedClosurePrincipal()
+//  test_closedBatchClaims()
+//  test_earlyClosureStaysClosed()
 //  test_manualClosureZerosCapacity()
-//  test_periodicProposal_ExposesRecordedWindowAndAccruedClosure()
+//  test_periodicProposalAtClosure()
 //
 //  ROUTE PARITY
 //  test_routes_FullLiveLenderAggregatedAndFacadeCarryNewData()
@@ -38,6 +39,7 @@ import { MarketDataV2_5 } from 'src/lens/MarketData.sol';
 import { MarketLiveDataV2_5 } from 'src/lens/MarketLiveData.sol';
 import { BatchStatus, WithdrawalBatchDataWithLenderStatus } from 'src/lens/WithdrawalBatchData.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
+import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 
 // ┌─ MarketLensLifecycleTest ──────────────────────────────────────────────────
@@ -288,8 +290,34 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
     }
   }
 
-  // ┌─ test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery ─────
-  function test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery() external {
+  // ┌─ test_projectedClosurePrincipal ─────
+  function test_projectedClosurePrincipal() external {
+    MatrixCell memory cell = _cell(_options(MatrixMarketKind.Revolving, MatrixHooksKind.OpenTerm, 1 days), 0);
+    IWildcatMarketRevolving revolving = IWildcatMarketRevolving(address(cell.market));
+    _fundAndBorrow(cell);
+    vm.warp(cell.options.repaymentDate);
+    MarketDataV2_5 memory data = _assertReads(cell, true);
+    assertFalse(data.market.isClosed, 'unfunded market stays open');
+    assertEq(data.drawnAmount.value, 80e18, 'open principal');
+
+    vm.prank(MatrixBorrower);
+    stack.asset.transfer(address(cell.market), 80e18);
+    data = _assertReads(cell, false);
+    assertTrue(data.market.isClosed, 'fully funded closure projected');
+    assertFalse(cell.market.previousState().isClosed, 'closure still unwritten');
+    assertEq(revolving.drawnAmount(), 80e18, 'direct funding leaves stored principal');
+    assertTrue(data.drawnAmount.isPresent, 'revolving principal still present');
+    assertEq(data.drawnAmount.value, 0, 'projected closed principal');
+
+    cell.market.updateState();
+    assertTrue(cell.market.previousState().isClosed, 'closure committed');
+    assertEq(revolving.drawnAmount(), 0, 'stored principal cleared');
+    MarketDataV2_5 memory committed = _assertReads(cell, false);
+    assertEq(abi.encode(committed.drawnAmount), abi.encode(data.drawnAmount), 'principal agrees across the write');
+  }
+
+  // ┌─ test_closedBatchClaims ─────
+  function test_closedBatchClaims() external {
     for (uint256 i; i < 2; i++) {
       MatrixOptions memory options = _options(MatrixMarketKind(i), MatrixHooksKind.OpenTerm, 1 days);
       options.withdrawalBatchDuration = 7 days;
@@ -342,13 +370,14 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
     }
   }
 
-  // ┌─ test_manualClosureBeforeDate_DoesNotReenterRepayment ─────
-  function test_manualClosureBeforeDate_DoesNotReenterRepayment() external {
+  // ┌─ test_earlyClosureStaysClosed ─────
+  function test_earlyClosureStaysClosed() external {
     MatrixCell memory cell = _cell(_options(MatrixMarketKind.Standard, MatrixHooksKind.OpenTerm, 1 days), 0);
     _close(cell);
     vm.warp(uint256(cell.options.repaymentDate) + 2 days);
     MarketDataV2_5 memory data = _assertReads(cell, false);
     assertTrue(data.market.isClosed, 'remains closed');
+    assertFalse(data.drawnAmount.isPresent, 'standard market has no drawn principal field');
     assertEq(data.lifecycle.defaultedAt, 0, 'no debt to default');
   }
 
@@ -395,8 +424,8 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
     }
   }
 
-  // ┌─ test_periodicProposal_ExposesRecordedWindowAndAccruedClosure ─────
-  function test_periodicProposal_ExposesRecordedWindowAndAccruedClosure() external {
+  // ┌─ test_periodicProposalAtClosure ─────
+  function test_periodicProposalAtClosure() external {
     MatrixOptions memory options = _options(MatrixMarketKind.Standard, MatrixHooksKind.PeriodicTerm, 1 days);
     options.annualInterestBips = 1_000;
     MatrixCell memory cell = _cell(options, 0);

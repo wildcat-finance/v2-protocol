@@ -20,7 +20,7 @@ pragma solidity 0.8.25;
 //  test_queueWithdrawalEntrypoints_DispatchExactCalldata(...)
 //
 //  NONVETOABLE COLLECTION
-//  test_marketCreationRejectsReservedExecutionHookAcrossModels()
+//  test_rejectExecuteWithdrawalHook()
 //  test_executeWithdrawal_CollectsWithoutHookVeto(...)
 //  test_executeWithdrawals_CollectsEveryEntryWithoutHookVeto(...)
 //  _blockExecutionHook(...)
@@ -47,7 +47,6 @@ import { IHooks } from 'src/access/IHooks.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { RAY } from 'src/libraries/MathUtils.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
-import { WildcatMarketBase } from 'src/market/WildcatMarketBase.sol';
 import { WildcatMarketRevolving } from 'src/market/WildcatMarketRevolving.sol';
 import { WildcatMarketConfig } from 'src/market/WildcatMarketConfig.sol';
 import { WildcatMarketToken } from 'src/market/WildcatMarketToken.sol';
@@ -334,8 +333,8 @@ contract HookDispatchTest is TestKernel {
 
   // ░░▒▒▓▓██ [ NONVETOABLE COLLECTION ] ───────────────────────────────────────
 
-  // ┌─ test_marketCreationRejectsReservedExecutionHookAcrossModels ─────
-  function test_marketCreationRejectsReservedExecutionHookAcrossModels() external {
+  // ┌─ test_rejectExecuteWithdrawalHook ─────
+  function test_rejectExecuteWithdrawalHook() external {
     for (uint256 model; model < 2; ++model) {
       Fixture memory fixture = _newFixture(EmptyHooksConfig, model != 0);
       bytes memory creationCode = vm.getCode(_marketArtifact(model != 0));
@@ -344,7 +343,7 @@ contract HookDispatchTest is TestKernel {
       for (uint256 dated; dated < 2; ++dated) {
         parameters.repaymentDate = dated == 0 ? 0 : uint32(vm.getBlockTimestamp() + 1 days);
         fixture.factory.setMarketParameters(parameters);
-        vm.expectRevert(WildcatMarketBase.UnsupportedExecuteWithdrawalHook.selector);
+        vm.expectRevert(IMarketEventsAndErrors.UnsupportedExecuteWithdrawalHook.selector);
         fixture.factory.deployMarket(creationCode);
       }
     }

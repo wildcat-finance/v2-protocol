@@ -12,7 +12,7 @@ pragma solidity 0.8.25;
 //  _createCompositionMarket(...)
 //
 //  COMPOSITION SETUP
-//  test_composition_DeclaresTransferWithoutRequiringCredentials()
+//  test_transferHookWithoutCredentials()
 //  test_composition_RejectsCreationAfterTermSetupWithoutPartialState()
 //
 //  RECIPIENT RULES
@@ -123,8 +123,8 @@ contract HookExtensionsTest is HookTemplateFixture {
 
   // ░░▒▒▓▓██ [ COMPOSITION SETUP ] ────────────────────────────────────────────
 
-  // ┌─ test_composition_DeclaresTransferWithoutRequiringCredentials ─────
-  function test_composition_DeclaresTransferWithoutRequiringCredentials() external {
+  // ┌─ test_transferHookWithoutCredentials ─────
+  function test_transferHookWithoutCredentials() external {
     for (uint256 i; i < hooks.length; i++) {
       HookKind kind = HookKind(i);
       BaseHooks target = hooks[i];
@@ -156,6 +156,11 @@ contract HookExtensionsTest is HookTemplateFixture {
       assertFalse(target.isKnownLenderOnMarket(Allowed, MarketC), 'optional entry without credentials stays unknown');
       assertTrue(target.isMarketTransferRecipientAllowed(MarketC, Allowed), 'ungated recipient view');
       assertEq(TransferFeatures(address(target)).scaledTransferVolume(MarketC), 1);
+
+      target.blockFromDeposits(Allowed);
+      assertFalse(target.isMarketTransferRecipientAllowed(MarketC, Allowed), 'required callback checks deposit block');
+      TransferFeatures(address(target)).setRestrictedRecipient(MarketC, Restricted);
+      assertFalse(target.isMarketTransferRecipientAllowed(MarketC, Restricted), 'required callback checks feature');
     }
   }
 

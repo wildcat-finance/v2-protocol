@@ -33,7 +33,7 @@ pragma solidity 0.8.25;
 //  test_onDeposit_FloorsMinimumAndChecksLocalBlockFirst()
 //  test_onDeposit_ResolvesOptionalOrRequiredCredentialsAndRecordsEntry(...)
 //  test_onTransfer_DisabledWinsOverKnownAndWrapperExemptions()
-//  test_onTransfer_ResolvesCredentialsAndPreservesKnownRecipientExemption(...)
+//  test_onTransfer_Credentials(...)
 //  test_transferRecipientView_UsesPullCredentialsWithoutCachingThem()
 //  test_onQueueWithdrawal_ValidatesCredentialsWithoutMarkingKnown()
 //  test_onQueueWithdrawal_PreservesKnownAccessAndRequestedGating(...)
@@ -561,8 +561,8 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
-  // ┌─ test_onTransfer_ResolvesCredentialsAndPreservesKnownRecipientExemption ─────
-  function test_onTransfer_ResolvesCredentialsAndPreservesKnownRecipientExemption(bool requiresAccess) external {
+  // ┌─ test_onTransfer_Credentials ─────
+  function test_onTransfer_Credentials(bool requiresAccess) external {
     MarketState memory state;
     bytes memory credential = abi.encode('transfer');
     for (uint256 i; i < hooks.length; i++) {
@@ -592,7 +592,7 @@ contract BaseHooksTest is HookTemplateFixture {
       target.revokeRole(Lender);
       target.blockFromDeposits(Lender);
       assertTrue(target.isMarketTransferRecipientAllowed(MarketA, Lender), 'known exemption');
-      assertFalse(target.isMarketTransferRecipientAllowed(MarketB, Lender), 'unknown and blocked');
+      assertEq(target.isMarketTransferRecipientAllowed(MarketB, Lender), !requiresAccess, 'block follows dispatch');
       vm.recordLogs();
       vm.prank(MarketA);
       target.onTransfer(SecondLender, SecondLender, Lender, 1, state, '');
