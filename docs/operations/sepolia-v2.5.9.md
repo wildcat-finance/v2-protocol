@@ -1,5 +1,34 @@
 # Sepolia v2.5.9 activation
 
+## Live ceremony evidence
+
+On November 19, 2026, the executor deployed 15 contracts and made 12 registration
+and approval calls on Sepolia (chain `11155111`), from block `12170117` through
+`12170162`. The shared `KYCRoleProvider` was deployed at
+`0x231ee08A700DdAe6FeD989D797BCa1e18f198aA8` in block `12170140`.
+[KYC deployment transaction](https://sepolia.etherscan.io/tx/0xfa310fb18adbe0f578c69b092a94472e0c250408b4a4114f7eb433ce6aed3e97)
+
+- The live archive contains the wallet export, locked packet, preflight and
+  post-activation reports, and the inventory and handoff as recorded at deployment.
+  [Live ceremony ZIP](../../deployments/sepolia/ceremony-evidence/wildcat-v2.5.9-sepolia-live-ceremony-evidence-2026-11-19.zip) · [SHA-256](../../deployments/sepolia/ceremony-evidence/wildcat-v2.5.9-sepolia-live-ceremony-evidence-2026-11-19.zip.sha256)
+- All 27 transactions were finalized by block `12170179`. Their receipts include
+  event logs and block hashes, in plan order.
+  [Transaction receipts](../../deployments/sepolia/receipts-v2.5.9.json)
+- The wallet rehearsal archive contains the accepted Anvil run, its fork block,
+  the rehearsal packet and the original wallet export.
+  [Wallet rehearsal ZIP](../../deployments/sepolia/ceremony-evidence/wildcat-v2.5.9-sepolia-fork-wallet-rehearsal-2026-11-19.zip) · [SHA-256](../../deployments/sepolia/ceremony-evidence/wildcat-v2.5.9-sepolia-fork-wallet-rehearsal-2026-11-19.zip.sha256)
+
+The release inventory contains 28 factory records. The v2.5.9 standard hooks,
+revolving hooks and wrapper factories are canonical. Their v2.5.7 predecessors
+remain live and marked for indexing. The handoff lists addresses and start blocks.
+[Factory inventory](../../deployments/sepolia/factory-inventory.json) · [Release handoff](../../deployments/sepolia/handoff-v2.5.9.md) · [Handoff JSON](../../deployments/sepolia/handoff-v2.5.9.json)
+
+After the archive was created, eight unversioned aliases in the current address
+map were corrected using the new factories and lens at block `12170240`. The
+two market bytecode stores, three hook templates and three lens helpers now
+match their v2.5.9 deployment records.
+[Current deployment addresses](../../deployments/sepolia/deployments.json)
+
 ## Start the rehearsal
 
 Run this from `v2-protocol` in the terminal you will use for the rehearsal.
