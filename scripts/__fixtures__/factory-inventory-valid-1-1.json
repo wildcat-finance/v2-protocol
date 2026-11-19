@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.1.0",
+  "network": "fixture",
+  "chainId": 31337,
+  "marketTypes": ["legacy", "revolving"],
+  "recordCount": 4,
+  "hooksFactories": [
+    {
+      "label": "legacy-v2",
+      "marketType": "legacy",
+      "address": "0x1111111111111111111111111111111111111111",
+      "startBlock": 100,
+      "canonical": true,
+      "lifecycle": "canonical",
+      "indexed": true,
+      "registered": true,
+      "deploymentKey": "HooksFactory"
+    },
+    {
+      "label": "legacy-v1",
+      "marketType": "legacy",
+      "address": "0x2222222222222222222222222222222222222222",
+      "startBlock": 50,
+      "canonical": false,
+      "lifecycle": "live",
+      "indexed": true,
+      "registered": true,
+      "notes": "Historical indexed factory"
+    },
+    {
+      "label": "revolving-test",
+      "marketType": "revolving",
+      "address": "0x3333333333333333333333333333333333333333",
+      "startBlock": 0,
+      "canonical": false,
+      "lifecycle": "retired",
+      "indexed": false,
+      "registered": false
+    },
+    {
+      "label": "revolving-v2",
+      "marketType": "revolving",
+      "address": "0x4444444444444444444444444444444444444444",
+      "startBlock": 200,
+      "canonical": true,
+      "lifecycle": "canonical",
+      "indexed": true,
+      "registered": true,
+      "deploymentKey": "HooksFactoryRevolving"
+    }
+  ],
+  "wrapperFactories": []
+}

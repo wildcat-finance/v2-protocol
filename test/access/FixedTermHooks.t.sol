@@ -1,648 +1,562 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
-import 'forge-std/Test.sol';
-import '../shared/mocks/MockFixedTermHooks.sol';
-import { bound, warp } from '../helpers/VmUtils.sol';
-import { VmSafe } from 'forge-std/Vm.sol';
-import './BaseAccessControls.t.sol';
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // FixedTermHooks.t
+//  \ ^ /   Fixed maturity, withdrawal access, and term-management tests.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//  _newHooks(...)
+//  _newManagementHooks()
+//  _createMarket(...)
+//  _requestedConfig(...)
+//  _term()
+//  _addPullProvider(...)
+//
+//  MARKET CREATION
+//  test_metadata_IsCanonical()
+//  test_onCreateMarket_ValidatesTermData()
+//  test_onCreateMarket_PreservesTermPermissionsAndBatchReads(...)
+//  test_onCreateMarket_PreservesTermDecodeAndMinimumFailureOrder()
+//
+//  ADMINISTRATOR HANDOFF
+//  test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority()
+//  archController()
+//  isRegisteredBorrower(...)
+//  onHooksAdministratorTransferred(...)
+//
+//  TERM MANAGEMENT
+//  test_setFixedTermEndTime_EnforcesReductionPolicyAndAuthority()
+//  test_setFixedTermEndTime_PreservesEqualAndPastTimeBehavior()
+//  test_setFixedTermEndTime_ExtensionAcceptsAndObservesUpdatedTerm(...)
+//  test_setFixedTermEndTime_ExtensionRejectsBeforeMaturityWrite()
+//  test_setFixedTermEndTime_NativeChecksPrecedeExtensionRejection()
+//  test_setFixedTermEndTime_AfterExtensionRejectionRollsBackTermAndBudget()
+//  test_termChangeExtensions_DoNotRunOnCreationOrEarlyClosure()
+//
+//  TERM OPERATIONS
+//  test_onQueueWithdrawal_ChecksMaturityBeforeKnownOrCredentialAccess()
+//  test_onSetApr_BlocksReductionDuringTermAndDelegatesAllowedChanges()
+//  test_onCloseMarket_EnforcesEarlyClosurePolicyAndUpdatesTerm()
+//  test_unhookedCloseMarket_Rejects()
+// ═════
 
-using LibString for uint256;
-using LibString for address;
-using MathUtils for uint256;
-using BoolUtils for bool;
+import { BaseHooks } from 'src/access/BaseHooks.sol';
+import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
+import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
+import { FixedTermPolicy } from 'src/access/FixedTermPolicy.sol';
+import { HookedMarket } from 'src/access/FixedTermHooks.sol';
+import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
+import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
+import { MarketState } from 'src/libraries/MarketState.sol';
+import { Bit_Enabled_Deposit } from 'src/types/HooksConfig.sol';
+import { Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
+import { Bit_Enabled_Transfer } from 'src/types/HooksConfig.sol';
+import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
+import { HooksConfig } from 'src/types/HooksConfig.sol';
+import { FixedTermManagementHooks } from '../mocks/FixedTermManagementHooks.sol';
+import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
-contract FixedTermHooksTest is BaseAccessControlsTest {
-  MockFixedTermHooks internal hooks;
+// ┌─ FixedTermHooksTest ───────────────────────────────────────────────────────
+contract FixedTermHooksTest is TestKernel {
+  address internal constant MarketA = address(0x2001);
+  address internal constant MarketB = address(0x2002);
+  address internal constant MarketC = address(0x2003);
+  address internal constant MarketD = address(0x2004);
+  address internal constant Lender = address(0xA11CE);
+  address internal constant SecondLender = address(0xB0B);
+  address internal constant ThirdLender = address(0xCA401);
+  address internal constant NewAdministrator = address(0xAD011);
 
+  bytes4 internal constant PanicSelector = 0x4e487b71;
+  uint256 internal constant PanicArithmetic = 0x11;
+
+  FixedTermHooks internal hooks;
+  MockRoleProvider internal provider1;
+  MockRoleProvider internal provider2;
+  mapping(address account => bool registered) internal registeredBorrowers;
+  address internal callbackPreviousAdministrator;
+  address internal callbackNewAdministrator;
+
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
-    hooks = new MockFixedTermHooks(address(this));
-    baseHooks = MockBaseAccessControls(address(hooks));
-    assertEq(hooks.factory(), address(this), 'factory');
-    assertEq(hooks.borrower(), address(this), 'borrower');
-    _addExpectedProvider(MockRoleProvider(address(this)), type(uint32).max, false);
-    _validateRoleProviders();
-    // Set block.timestamp to 4:50 am, May 3 2024
-    warp(1714737030);
-  }
-
-  // ========================================================================== //
-  //                                 Constructor                                //
-  // ========================================================================== //
-
-  function test_constructor_ExistingProviders(
-    bool isPullProvider1,
-    uint32 ttl1,
-    bool isPullProvider2,
-    uint32 ttl2
-  ) external {
+    registeredBorrowers[address(this)] = true;
+    provider1 = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
+    provider2 = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
     NameAndProviderInputs memory inputs;
-    inputs.name = 'FixedTermHooks Name';
-    inputs.existingProviders = new ExistingProviderInputs[](2);
-    inputs.existingProviders[0] = ExistingProviderInputs({
-      providerAddress: address(mockProvider1),
-      timeToLive: ttl1
-    });
-    inputs.existingProviders[1] = ExistingProviderInputs({
-      providerAddress: address(mockProvider2),
-      timeToLive: ttl2
-    });
-    mockProvider1.setIsPullProvider(isPullProvider1);
-    mockProvider2.setIsPullProvider(isPullProvider2);
-    _addExpectedProvider(mockProvider1, ttl1, isPullProvider1);
-    _addExpectedProvider(mockProvider2, ttl2, isPullProvider2);
-    hooks = MockFixedTermHooks(
-      address(new FixedTermHooks(address(this), abi.encode(inputs)))
-    );
-    baseHooks = MockBaseAccessControls(address(hooks));
-    _validateRoleProviders();
-    assertEq(hooks.name(), inputs.name, 'name');
+    hooks = _newHooks(address(this), inputs);
   }
 
-  function test_constructor_NewProviders(
-    bool isPullProvider1,
-    uint32 ttl1,
-    bool isPullProvider2,
-    uint32 ttl2
-  ) external {
-    bytes32 salt1 = bytes32(uint256(1));
-    bytes32 salt2 = bytes32(uint256(2));
-    NameAndProviderInputs memory inputs;
-    inputs.name = 'FixedTermHooks Name';
-    inputs.roleProviderFactory = address(providerFactory);
-    inputs.newProviderInputs = new CreateProviderInputs[](2);
-    inputs.newProviderInputs[0] = CreateProviderInputs({
-      providerFactoryCalldata: abi.encode(salt1, isPullProvider1),
-      timeToLive: ttl1
-    });
-    inputs.newProviderInputs[1] = CreateProviderInputs({
-      providerFactoryCalldata: abi.encode(salt2, isPullProvider2),
-      timeToLive: ttl2
-    });
-    _addExpectedProvider(
-      MockRoleProvider(providerFactory.computeProviderAddress(salt1)),
-      ttl1,
-      isPullProvider1
+  // ┌─ _newHooks ─────
+  function _newHooks(
+    address administrator,
+    NameAndProviderInputs memory inputs
+  )
+    internal
+    returns (FixedTermHooks deployed)
+  {
+    deployed = FixedTermHooks(
+      _deployCode('src/access/FixedTermHooks.sol:FixedTermHooks', abi.encode(administrator, abi.encode(inputs)))
     );
-    _addExpectedProvider(
-      MockRoleProvider(providerFactory.computeProviderAddress(salt2)),
-      ttl2,
-      isPullProvider2
-    );
-    hooks = MockFixedTermHooks(
-      address(new FixedTermHooks(address(this), abi.encode(inputs)))
-    );
-    baseHooks = MockBaseAccessControls(address(hooks));
-    _validateRoleProviders();
-    assertEq(hooks.name(), inputs.name, 'name');
   }
 
-  function test_constructor_NewAndExistingProviders(
-    bool isPullProvider1,
-    uint32 ttl1,
-    bool isPullProvider2,
-    uint32 ttl2
-  ) external {
-    bytes32 salt = bytes32(uint256(1));
-    NameAndProviderInputs memory inputs;
-    inputs.name = 'FixedTermHooks Name';
-    inputs.roleProviderFactory = address(providerFactory);
-    inputs.newProviderInputs = new CreateProviderInputs[](1);
-    inputs.existingProviders = new ExistingProviderInputs[](1);
-    inputs.existingProviders[0].timeToLive = ttl1;
-    inputs.existingProviders[0].providerAddress = address(mockProvider1);
-    inputs.newProviderInputs[0].providerFactoryCalldata = abi.encode(salt, isPullProvider2);
-    inputs.newProviderInputs[0].timeToLive = ttl2;
-
-    _addExpectedProvider(mockProvider1, ttl1, isPullProvider1);
-    _addExpectedProvider(
-      MockRoleProvider(providerFactory.computeProviderAddress(salt)),
-      ttl2,
-      isPullProvider2
+  // ┌─ _newManagementHooks ─────
+  function _newManagementHooks() internal returns (FixedTermManagementHooks target) {
+    target = FixedTermManagementHooks(
+      _deployCode('test/mocks/FixedTermManagementHooks.sol:FixedTermManagementHooks', abi.encode(address(this)))
     );
-    hooks = MockFixedTermHooks(
-      address(new FixedTermHooks(address(this), abi.encode(inputs)))
-    );
-    baseHooks = MockBaseAccessControls(address(hooks));
-    _validateRoleProviders();
-    assertEq(hooks.name(), inputs.name, 'name');
   }
 
-  function test_constructor_NewProviders_CreateRoleProviderFailed() external {
-    providerFactory.setNextProviderAddress(address(0));
-    NameAndProviderInputs memory inputs;
-    inputs.name = 'FixedTermHooks Name';
-    inputs.roleProviderFactory = address(providerFactory);
-    inputs.newProviderInputs = new CreateProviderInputs[](1);
-    inputs.newProviderInputs[0].timeToLive = 1 days;
-    inputs.newProviderInputs[0].providerFactoryCalldata = abi.encode(bytes32(0), false);
-    vm.expectRevert(BaseAccessControls.CreateRoleProviderFailed.selector);
-    new FixedTermHooks(address(this), abi.encode(inputs));
-  }
-
-  // ========================================================================== //
-  //                               onCreateMarket                               //
-  // ========================================================================== //
-
-  function test_onCreateMarket_CallerNotFactory() external asAccount(address(1)) {
-    vm.expectRevert(IHooks.CallerNotFactory.selector);
+  // ┌─ _createMarket ─────
+  function _createMarket(
+    FixedTermHooks target,
+    address market,
+    HooksConfig requestedConfig,
+    bytes memory hooksData
+  )
+    internal
+    returns (HooksConfig effectiveConfig)
+  {
     DeployMarketInputs memory inputs;
-    hooks.onCreateMarket(address(1), address(1), inputs, '');
+    inputs.hooks = requestedConfig;
+    effectiveConfig = target.onCreateMarket(address(this), market, inputs, hooksData);
   }
 
-  function test_onCreateMarket_CallerNotBorrower() external {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
-    DeployMarketInputs memory inputs;
-    hooks.onCreateMarket(address(1), address(1), inputs, '');
+  // ┌─ _requestedConfig ─────
+  function _requestedConfig(
+    FixedTermHooks target,
+    bool deposit,
+    bool queueWithdrawal,
+    bool transfer
+  )
+    internal
+    pure
+    returns (HooksConfig config)
+  {
+    config = EmptyHooksConfig.setHooksAddress(address(target));
+    if (deposit) config = config.setFlag(Bit_Enabled_Deposit);
+    if (queueWithdrawal) config = config.setFlag(Bit_Enabled_QueueWithdrawal);
+    if (transfer) config = config.setFlag(Bit_Enabled_Transfer);
   }
 
-  function test_onCreateMarket_FixedTermNotProvided() external {
-    vm.expectRevert(FixedTermHooks.FixedTermNotProvided.selector);
-    DeployMarketInputs memory inputs;
-    hooks.onCreateMarket(address(this), address(1), inputs, '');
+  // ┌─ _term ─────
+  function _term() internal view returns (uint32) {
+    return uint32(block.timestamp + 365 days);
   }
 
-  function test_onCreateMarket_ForceEnableDepositTransferHooks() external {
-    DeployMarketInputs memory inputs;
+  // ┌─ _addPullProvider ─────
+  function _addPullProvider(FixedTermHooks target) internal {
+    provider1.setIsPullProvider(true);
+    target.addRoleProvider(address(provider1), type(uint32).max);
+  }
 
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
+  // ░░▒▒▓▓██ [ MARKET CREATION ] ──────────────────────────────────────────────
+
+  // ┌─ test_metadata_IsCanonical ─────
+  function test_metadata_IsCanonical() external view {
+    assertEq(hooks.version(), 'FixedTermHooks', 'version');
+    assertEq(hooks.MaximumLoanTerm(), 365 days, 'maximum loan term');
+  }
+
+  // ┌─ test_onCreateMarket_ValidatesTermData ─────
+  function test_onCreateMarket_ValidatesTermData() external {
+    DeployMarketInputs memory inputs;
+    vm.expectRevert(FixedTermPolicy.FixedTermNotProvided.selector);
+    hooks.onCreateMarket(address(this), MarketA, inputs, '');
+
+    vm.expectRevert(FixedTermPolicy.InvalidFixedTerm.selector);
+    hooks.onCreateMarket(address(this), MarketA, inputs, abi.encode(uint32(block.timestamp - 1)));
+
+    vm.expectRevert(FixedTermPolicy.InvalidFixedTerm.selector);
+    hooks.onCreateMarket(address(this), MarketA, inputs, abi.encode(uint32(block.timestamp + 365 days + 1)));
+
+    _createMarket(hooks, MarketD, _requestedConfig(hooks, false, false, false), abi.encode(uint32(block.timestamp)));
+    assertEq(hooks.getHookedMarket(MarketD).fixedTermEndTime, block.timestamp, 'zero term');
+  }
+
+  // ┌─ test_onCreateMarket_PreservesTermPermissionsAndBatchReads ─────
+  function test_onCreateMarket_PreservesTermPermissionsAndBatchReads(
+    bool allowClosureBeforeTerm,
+    bool allowTermReduction
+  )
+    external
+  {
+    _createMarket(
+      hooks,
+      MarketA,
+      _requestedConfig(hooks, false, false, false),
+      abi.encode(_term(), uint128(0), false, allowClosureBeforeTerm, allowTermReduction)
+    );
+    HookedMarket memory config = hooks.getHookedMarket(MarketA);
+    assertEq(config.fixedTermEndTime, _term(), 'term');
+    assertEq(config.allowClosureBeforeTerm, allowClosureBeforeTerm, 'closure permission');
+    assertEq(config.allowTermReduction, allowTermReduction, 'term permission');
+    address[] memory markets = new address[](2);
+    markets[0] = MarketA;
+    markets[1] = MarketB;
+    HookedMarket[] memory configs = hooks.getHookedMarkets(markets);
+    assertEq(configs.length, 2, 'market count');
+    assertEq(abi.encode(configs[0]), abi.encode(config), 'batch configuration');
+    HookedMarket memory empty;
+    assertEq(abi.encode(configs[1]), abi.encode(empty), 'unknown batch configuration');
+    assertEq(abi.encode(hooks.getHookedMarket(MarketB)), abi.encode(empty), 'unknown single configuration');
+  }
+
+  // ┌─ test_onCreateMarket_PreservesTermDecodeAndMinimumFailureOrder ─────
+  function test_onCreateMarket_PreservesTermDecodeAndMinimumFailureOrder() external {
+    DeployMarketInputs memory inputs;
+    vm.expectRevert(FixedTermPolicy.FixedTermNotProvided.selector);
+    hooks.onCreateMarket(address(this), MarketA, inputs, new bytes(31));
+    vm.expectRevert(FixedTermPolicy.InvalidFixedTerm.selector);
+    hooks.onCreateMarket(
+      address(this), MarketA, inputs, abi.encode(uint256(vm.getBlockTimestamp()) - 1, uint256(type(uint128).max) + 1)
+    );
+    vm.expectRevert(abi.encodePacked(PanicSelector, PanicArithmetic));
+    hooks.onCreateMarket(
+      address(this), MarketA, inputs, abi.encode(uint256(type(uint32).max) + 1, uint256(type(uint128).max) + 1)
+    );
+    _createMarket(
+      hooks,
+      MarketA,
+      _requestedConfig(hooks, false, false, false),
+      abi.encode(_term(), uint128(1), uint256(2), uint256(3), uint256(2))
+    );
+    HookedMarket memory config = hooks.getHookedMarket(MarketA);
+    assertFalse(config.transfersDisabled, 'even transfer flag');
+    assertTrue(config.allowClosureBeforeTerm, 'odd closure flag');
+    assertFalse(config.allowTermReduction, 'even term flag');
+  }
+
+  // ░░▒▒▓▓██ [ ADMINISTRATOR HANDOFF ] ────────────────────────────────────────
+
+  // ┌─ test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority ─────
+  function test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority() external {
+    uint32 term = _term();
+    _createMarket(
+      hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(term, uint128(100), true, true, true)
+    );
+    bytes32 configBefore = keccak256(abi.encode(hooks.getHookedMarket(MarketA)));
+    registeredBorrowers[NewAdministrator] = true;
+    hooks.requestAdministratorTransfer(NewAdministrator);
+    vm.prank(NewAdministrator);
+    hooks.acceptAdministratorTransfer();
+
+    assertEq(hooks.administrator(), NewAdministrator, 'administrator');
+    assertEq(callbackPreviousAdministrator, address(this), 'callback previous administrator');
+    assertEq(callbackNewAdministrator, NewAdministrator, 'callback new administrator');
+    assertEq(keccak256(abi.encode(hooks.getHookedMarket(MarketA))), configBefore, 'market config');
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    hooks.setMinimumDeposit(MarketA, 200);
+    vm.prank(NewAdministrator);
+    hooks.setMinimumDeposit(MarketA, 200);
+    assertEq(hooks.getHookedMarket(MarketA).minimumDeposit, 200, 'updated minimum');
+  }
+
+  // ┌─ archController ─────
+  function archController() external view returns (address) {
+    return address(this);
+  }
+
+  // ┌─ isRegisteredBorrower ─────
+  function isRegisteredBorrower(address account) external view returns (bool) {
+    return registeredBorrowers[account];
+  }
+
+  // ┌─ onHooksAdministratorTransferred ─────
+  function onHooksAdministratorTransferred(address previousAdministrator, address newAdministrator) external {
+    assertEq(msg.sender, address(hooks), 'callback caller');
+    callbackPreviousAdministrator = previousAdministrator;
+    callbackNewAdministrator = newAdministrator;
+  }
+
+  // ░░▒▒▓▓██ [ TERM MANAGEMENT ] ──────────────────────────────────────────────
+
+  // ┌─ test_setFixedTermEndTime_EnforcesReductionPolicyAndAuthority ─────
+  function test_setFixedTermEndTime_EnforcesReductionPolicyAndAuthority() external {
+    uint32 term = _term();
+    _createMarket(
+      hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(term, uint128(0), false, false, true)
     );
     vm.expectEmit(address(hooks));
-    emit FixedTermHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 365 days));
-    HooksConfig config = hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + (365 days))
-    );
-    HooksConfig expectedConfig = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: true,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
-    });
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertEq(config, expectedConfig, 'config');
-    assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
-    assertEq(market.withdrawalRequiresAccess, true, 'withdrawalRequiresAccess');
+    emit FixedTermPolicy.FixedTermUpdated(MarketA, address(this), term, term - 1 days);
+    hooks.setFixedTermEndTime(MarketA, term - 1 days);
+    assertEq(hooks.getHookedMarket(MarketA).fixedTermEndTime, term - 1 days, 'reduced term');
+
+    vm.expectRevert(FixedTermPolicy.IncreaseFixedTerm.selector);
+    hooks.setFixedTermEndTime(MarketA, term);
+
+    _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), abi.encode(term));
+    vm.expectRevert(FixedTermPolicy.TermReductionDisabled.selector);
+    hooks.setFixedTermEndTime(MarketB, term - 1 days);
+
+    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+    hooks.setFixedTermEndTime(MarketC, 0);
+    vm.prank(address(0xBAD));
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    hooks.setFixedTermEndTime(MarketA, 0);
   }
 
-  function test_onCreateMarket_InvalidFixedTerm() external {
-    DeployMarketInputs memory inputs;
-
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
+  // ┌─ test_setFixedTermEndTime_PreservesEqualAndPastTimeBehavior ─────
+  function test_setFixedTermEndTime_PreservesEqualAndPastTimeBehavior() external {
+    uint32 term = _term();
+    _createMarket(
+      hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(term, uint128(0), false, false, true)
     );
-    vm.expectRevert(FixedTermHooks.InvalidFixedTerm.selector);
-    hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(0));
-    vm.expectRevert(FixedTermHooks.InvalidFixedTerm.selector);
-    hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + (366 days))
-    );
-  }
-
-  function test_onCreateMarket_setMinimumDeposit() external {
-    DeployMarketInputs memory inputs;
-
-    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
-    HooksConfig config = hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, 1e18)
-    );
-    HooksConfig expectedConfig = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: false,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: true,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
-    });
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertEq(config, expectedConfig, 'config');
-    assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
-    assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
-    assertEq(market.fixedTermEndTime, uint32(block.timestamp + 365 days), 'fixedTermEndTime');
-  }
-
-  function test_onCreateMarket_disableTransfers() external {
-    DeployMarketInputs memory inputs;
-
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    HooksConfig config = hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, 1e18, true)
-    );
-    HooksConfig expectedConfig = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: true,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
-    });
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertEq(config, expectedConfig, 'config');
-    assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
-    assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
-    assertEq(market.fixedTermEndTime, uint32(block.timestamp + 365 days), 'fixedTermEndTime');
-    assertEq(market.transfersDisabled, true, 'transfersDisabled');
-    assertTrue(config.useOnTransfer(), 'useOnTransfer');
-  }
-
-  function test_onTransfer_TransfersDisabled() external {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, 1e18, true)
-    );
-    vm.expectRevert(FixedTermHooks.TransfersDisabled.selector);
-    MarketState memory state;
-    vm.prank(address(1));
-    hooks.onTransfer(address(1), address(2), address(3), 100, state, '');
-  }
-
-  function test_onCreateMarket_MinimumDepositOverflow() external {
-    DeployMarketInputs memory inputs;
-
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    vm.expectRevert(abi.encodePacked(Panic_ErrorSelector, Panic_Arithmetic));
-    HooksConfig config = hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, type(uint136).max)
-    );
-  }
-
-  function test_version() external {
-    assertEq(hooks.version(), 'FixedTermHooks');
-  }
-
-  function test_config() external {
-    StandardHooksDeploymentConfig memory expectedConfig;
-    expectedConfig.optional = StandardHooksConfig({
-      hooksAddress: address(0),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: false,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: false,
-      useOnSetProtocolFeeBips: false
-    });
-    expectedConfig.required.useOnSetAnnualInterestAndReserveRatioBips = true;
-    expectedConfig.required.useOnQueueWithdrawal = true;
-    expectedConfig.required.useOnCloseMarket = true;
-    assertEq(hooks.config(), expectedConfig, 'config.');
-  }
-
-  function test_onCreateMarket_config(
-    bool useOnQueueWithdrawal,
-    bool useOnDeposit,
-    bool useOnTransfer,
-    uint128 minimumDeposit
-  ) external {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnQueueWithdrawal: useOnQueueWithdrawal,
-      useOnDeposit: useOnDeposit,
-      useOnTransfer: useOnTransfer,
-      useOnExecuteWithdrawal: false,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: true,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: false,
-      useOnSetProtocolFeeBips: false
-    });
-    StandardHooksConfig memory expectedConfig;
-    expectedConfig.hooksAddress = address(hooks);
-    expectedConfig.useOnQueueWithdrawal = true;
-    expectedConfig.useOnCloseMarket = true;
-    expectedConfig.useOnTransfer = useOnTransfer || useOnQueueWithdrawal;
-    expectedConfig.useOnDeposit = useOnDeposit || useOnQueueWithdrawal || minimumDeposit > 0;
-    expectedConfig.useOnSetAnnualInterestAndReserveRatioBips = true;
-
-    HooksConfig config = hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, minimumDeposit)
-    );
-    assertEq(config, expectedConfig, 'config');
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.transferRequiresAccess, useOnTransfer, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, useOnDeposit, 'depositRequiresAccess');
-    assertEq(market.withdrawalRequiresAccess, useOnQueueWithdrawal, 'withdrawalRequiresAccess');
-    assertEq(market.fixedTermEndTime, uint32(block.timestamp + 365 days), 'fixedTermEndTime');
-    assertEq(market.minimumDeposit, minimumDeposit, 'minimumDeposit');
-    assertEq(market.transfersDisabled, false, 'transfersDisabled');
-  }
-
-  function test_onDeposit_NotHookedMarket() external {
-    MarketState memory state;
-    vm.expectRevert(FixedTermHooks.NotHookedMarket.selector);
-    hooks.onDeposit(address(1), 0, state, '');
-  }
-
-  function test_setFixedTermEndTime_NotHookedMarket() external {
-    vm.expectRevert(FixedTermHooks.NotHookedMarket.selector);
-    hooks.setFixedTermEndTime(address(1), 0);
-  }
-
-  function test_setFixedTermEndTime_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
-    hooks.setFixedTermEndTime(address(1), 0);
-  }
-
-  function test_setFixedTermEndTime_IncreaseFixedTerm() external {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, 1e18)
-    );
-    vm.expectRevert(FixedTermHooks.IncreaseFixedTerm.selector);
-    hooks.setFixedTermEndTime(address(1), uint32(block.timestamp + 366 days));
-  }
-
-  function test_setFixedTermEndTime() external {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, 1e18, false, false, true)
-    );
-    vm.expectEmit(address(hooks));
-    emit FixedTermHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 364 days));
-    hooks.setFixedTermEndTime(address(1), uint32(block.timestamp + 364 days));
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertEq(market.fixedTermEndTime, uint32(block.timestamp + 364 days), 'fixedTermEndTime');
-  }
-
-  function test_setFixedTermEndTime_ReductionDisabled() external {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, 1e18, false, false, false, false)
-    );
-    vm.expectRevert(FixedTermHooks.TermReductionDisabled.selector);
-    hooks.setFixedTermEndTime(address(1), uint32(block.timestamp + 364 days));
-  }
-
-  function test_onQueueWithdrawal_WithdrawBeforeTermEnd() external {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
-    hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, 1e18)
-    );
-    vm.prank(address(1));
-    MarketState memory state;
-    vm.expectRevert(FixedTermHooks.WithdrawBeforeTermEnd.selector);
-    hooks.onQueueWithdrawal(address(1), 0, 1, state, '');
-  }
-
-  function test_onQueueWithdrawal() external {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
-    hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, 1e18)
-    );
-    vm.prank(address(1));
-    MarketState memory state;
-    vm.warp(block.timestamp + 366 days);
-    hooks.onQueueWithdrawal(address(1), 0, 1, state, '');
-  }
-
-  function test_onQueueWithdrawal_NotHookedMarket() external {
-    vm.expectRevert(FixedTermHooks.NotHookedMarket.selector);
-    MarketState memory state;
-    hooks.onQueueWithdrawal(address(1), 0, 1, state, '');
-  }
-
-  // ========================================================================== //
-  //                           getParameterConstraints                          //
-  // ========================================================================== //
-
-  function test_getParameterConstraints() external view {
-    MarketParameterConstraints memory constraints = hooks.getParameterConstraints();
-    assertEq(constraints.minimumDelinquencyGracePeriod, 0, 'minimumDelinquencyGracePeriod');
-    assertEq(constraints.maximumDelinquencyGracePeriod, 90 days, 'maximumDelinquencyGracePeriod');
-    assertEq(constraints.minimumReserveRatioBips, 0, 'minimumReserveRatioBips');
-    assertEq(constraints.maximumReserveRatioBips, 10_000, 'maximumReserveRatioBips');
-    assertEq(constraints.minimumDelinquencyFeeBips, 0, 'minimumDelinquencyFeeBips');
-    assertEq(constraints.maximumDelinquencyFeeBips, 10_000, 'maximumDelinquencyFeeBips');
-    assertEq(constraints.minimumWithdrawalBatchDuration, 0, 'minimumWithdrawalBatchDuration');
-    assertEq(
-      constraints.maximumWithdrawalBatchDuration,
-      365 days,
-      'maximumWithdrawalBatchDuration'
-    );
-    assertEq(constraints.minimumAnnualInterestBips, 0, 'minimumAnnualInterestBips');
-    assertEq(constraints.maximumAnnualInterestBips, 10_000, 'maximumAnnualInterestBips');
-  }
-
-  // ========================================================================== //
-  //                              setMinimumDeposit                             //
-  // ========================================================================== //
-
-  function test_setMinimumDeposit() external {
-    DeployMarketInputs memory inputs;
-
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    HooksConfig config = hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, 1e18)
-    );
-    HooksConfig expectedConfig = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: true,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
-    });
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertEq(config, expectedConfig, 'config');
-    assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
-    assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
+    _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), abi.encode(term));
 
     vm.expectEmit(address(hooks));
-    emit FixedTermHooks.MinimumDepositUpdated(address(1), 2e18);
-    hooks.setMinimumDeposit(address(1), 2e18);
-    assertEq(hooks.getHookedMarket(address(1)).minimumDeposit, 2e18, 'minimumDeposit');
-  }
+    emit FixedTermPolicy.FixedTermUpdated(MarketA, address(this), term, term);
+    hooks.setFixedTermEndTime(MarketA, term);
+    assertEq(hooks.getHookedMarket(MarketA).fixedTermEndTime, term, 'equal term');
+    vm.expectRevert(FixedTermPolicy.TermReductionDisabled.selector);
+    hooks.setFixedTermEndTime(MarketB, term);
+    vm.expectRevert(FixedTermPolicy.IncreaseFixedTerm.selector);
+    hooks.setFixedTermEndTime(MarketB, term + 1);
 
-  function test_setMinimumDeposit_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
-    hooks.setMinimumDeposit(address(1), 1);
-  }
-
-  function test_setMinimumDeposit_NotHookedMarket() external {
-    vm.expectRevert(FixedTermHooks.NotHookedMarket.selector);
-    hooks.setMinimumDeposit(address(1), 1);
-  }
-
-  // ========================================================================== //
-  //                    setAnnualInterestAndReserveRatioBips                    //
-  // ========================================================================== //
-
-  function test_setAnnualInterestAndReserveRatioBips_ReducingAprDuringFixedTerm() external {
-    DeployMarketInputs memory inputs;
-
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    HooksConfig config = hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, 1e18)
-    );
-    HooksConfig expectedConfig = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: true,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
-    });
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    MarketState memory state;
-
-    state.annualInterestBips = 101;
-    state.reserveRatioBips = 1000;
-
-    vm.prank(address(1));
-    vm.expectRevert(FixedTermHooks.NoReducingAprBeforeTermEnd.selector);
-    hooks.onSetAnnualInterestAndReserveRatioBips(100, 1000, state, '');
-  }
-
-  // ========================================================================== //
-  //                                 closeMarket                                //
-  // ========================================================================== //
-
-  function test_closeMarket() external {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, 1e18, false, true)
-    );
-    vm.prank(address(1));
+    uint32 currentTime = uint32(vm.getBlockTimestamp());
     vm.expectEmit(address(hooks));
-    emit FixedTermHooks.FixedTermUpdated(address(1), uint32(block.timestamp));
+    emit FixedTermPolicy.FixedTermUpdated(MarketA, address(this), term, currentTime);
+    hooks.setFixedTermEndTime(MarketA, currentTime);
+    assertEq(hooks.getHookedMarket(MarketA).fixedTermEndTime, currentTime, 'term ends now');
+    vm.expectEmit(address(hooks));
+    emit FixedTermPolicy.FixedTermUpdated(MarketA, address(this), currentTime, currentTime - 1);
+    hooks.setFixedTermEndTime(MarketA, currentTime - 1);
+    assertEq(hooks.getHookedMarket(MarketA).fixedTermEndTime, currentTime - 1, 'past term');
+
+    // queueing and APR read the reduced maturity, not the original creation timestamp.
     MarketState memory state;
+    state.annualInterestBips = 100;
+    state.reserveRatioBips = 1_000;
+    vm.prank(MarketA);
+    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
+    vm.prank(MarketA);
+    (uint16 apr, uint16 reserve) = hooks.onSetAnnualInterestAndReserveRatioBips(99, 0, state, '');
+    assertEq(apr, 99, 'APR reduction after shortened term');
+    assertEq(reserve, 1_000, 'current reserves');
+  }
+
+  // ┌─ test_setFixedTermEndTime_ExtensionAcceptsAndObservesUpdatedTerm ─────
+  function test_setFixedTermEndTime_ExtensionAcceptsAndObservesUpdatedTerm(uint32 reductionSeed) external {
+    FixedTermManagementHooks target = _newManagementHooks();
+    uint32 term = _term();
+    uint32 reduction = uint32(_bound(reductionSeed, 1, 30 days));
+    _createMarket(
+      target, MarketA, _requestedConfig(target, false, false, false), abi.encode(term, uint128(0), false, false, true)
+    );
+    target.setTermChangeLimits(MarketA, term - 2 * reduction, 2 * reduction);
+
+    uint32 previousTime = term;
+    for (uint32 i = 1; i <= 2; i++) {
+      uint32 newTime = term - i * reduction;
+      vm.expectEmit(address(target));
+      emit FixedTermPolicy.FixedTermUpdated(MarketA, address(this), previousTime, newTime);
+      vm.expectEmit(address(target));
+      emit FixedTermManagementHooks.TermReductionRecorded(MarketA, previousTime, newTime, i * reduction);
+      target.setFixedTermEndTime(MarketA, newTime);
+      assertEq(target.getHookedMarket(MarketA).fixedTermEndTime, newTime, 'updated maturity');
+      assertEq(target.totalTermReduction(MarketA), i * reduction, 'accumulated reduction');
+      previousTime = newTime;
+    }
+  }
+
+  // ┌─ test_setFixedTermEndTime_ExtensionRejectsBeforeMaturityWrite ─────
+  function test_setFixedTermEndTime_ExtensionRejectsBeforeMaturityWrite() external {
+    FixedTermManagementHooks target = _newManagementHooks();
+    uint32 term = _term();
+    _createMarket(
+      target, MarketA, _requestedConfig(target, false, false, false), abi.encode(term, uint128(0), false, false, true)
+    );
+    target.setTermChangeLimits(MarketA, term - 10 days, 20 days);
+    target.setFixedTermEndTime(MarketA, term - 5 days);
+    bytes memory configBefore = abi.encode(target.getHookedMarket(MarketA));
+
+    vm.expectRevert(FixedTermManagementHooks.InsufficientTermNotice.selector);
+    target.setFixedTermEndTime(MarketA, term - 10 days - 1);
+    assertEq(abi.encode(target.getHookedMarket(MarketA)), configBefore, 'configuration preserved');
+    assertEq(target.totalTermReduction(MarketA), 5 days, 'prior feature state preserved');
+
+    target.setFixedTermEndTime(MarketA, term - 10 days);
+    assertEq(target.getHookedMarket(MarketA).fixedTermEndTime, term - 10 days, 'notice boundary');
+    assertEq(target.totalTermReduction(MarketA), 10 days, 'accepted retry');
+  }
+
+  // ┌─ test_setFixedTermEndTime_NativeChecksPrecedeExtensionRejection ─────
+  function test_setFixedTermEndTime_NativeChecksPrecedeExtensionRejection() external {
+    FixedTermManagementHooks target = _newManagementHooks();
+    uint32 term = _term();
+    _createMarket(
+      target, MarketA, _requestedConfig(target, false, false, false), abi.encode(term, uint128(0), false, false, true)
+    );
+    _createMarket(target, MarketB, _requestedConfig(target, false, false, false), abi.encode(term));
+    // every attempted update also fails the feature rule if it gets that far.
+    target.setTermChangeLimits(MarketA, term + 2, 0);
+    target.setTermChangeLimits(MarketB, term + 2, 0);
+    target.setTermChangeLimits(MarketC, term + 2, 0);
+
+    vm.prank(address(0xBAD));
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    target.setFixedTermEndTime(MarketC, 0);
+    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+    target.setFixedTermEndTime(MarketC, 0);
+    vm.expectRevert(FixedTermPolicy.TermReductionDisabled.selector);
+    target.setFixedTermEndTime(MarketB, term - 1);
+    vm.expectRevert(FixedTermPolicy.TermReductionDisabled.selector);
+    target.setFixedTermEndTime(MarketB, term);
+    vm.expectRevert(FixedTermPolicy.IncreaseFixedTerm.selector);
+    target.setFixedTermEndTime(MarketB, term + 1);
+    vm.expectRevert(FixedTermPolicy.IncreaseFixedTerm.selector);
+    target.setFixedTermEndTime(MarketA, term + 1);
+    vm.expectRevert(FixedTermManagementHooks.InsufficientTermNotice.selector);
+    target.setFixedTermEndTime(MarketA, term);
+
+    assertEq(target.getHookedMarket(MarketA).fixedTermEndTime, term, 'enabled market unchanged');
+    assertEq(target.getHookedMarket(MarketB).fixedTermEndTime, term, 'disabled market unchanged');
+    assertFalse(target.getHookedMarket(MarketC).isHooked, 'unknown market stays unknown');
+    assertEq(target.totalTermReduction(MarketA), 0, 'no enabled-market feature effects');
+    assertEq(target.totalTermReduction(MarketB), 0, 'no disabled-market feature effects');
+    assertEq(target.totalTermReduction(MarketC), 0, 'no unknown-market feature effects');
+  }
+
+  // ┌─ test_setFixedTermEndTime_AfterExtensionRejectionRollsBackTermAndBudget ─────
+  function test_setFixedTermEndTime_AfterExtensionRejectionRollsBackTermAndBudget() external {
+    FixedTermManagementHooks target = _newManagementHooks();
+    uint32 term = _term();
+    _createMarket(
+      target, MarketA, _requestedConfig(target, false, false, false), abi.encode(term, uint128(0), false, false, true)
+    );
+    target.setTermChangeLimits(MarketA, 0, 10 days);
+    target.setFixedTermEndTime(MarketA, term - 5 days);
+    bytes memory configBefore = abi.encode(target.getHookedMarket(MarketA));
+
+    vm.expectRevert(FixedTermManagementHooks.TermReductionBudgetExceeded.selector);
+    target.setFixedTermEndTime(MarketA, term - 10 days - 1);
+    assertEq(abi.encode(target.getHookedMarket(MarketA)), configBefore, 'maturity rolled back');
+    assertEq(target.totalTermReduction(MarketA), 5 days, 'feature write rolled back');
+
+    target.setFixedTermEndTime(MarketA, term - 10 days);
+    assertEq(target.getHookedMarket(MarketA).fixedTermEndTime, term - 10 days, 'accepted retry');
+    assertEq(target.totalTermReduction(MarketA), 10 days, 'budget charged only once');
+  }
+
+  // ┌─ test_termChangeExtensions_DoNotRunOnCreationOrEarlyClosure ─────
+  function test_termChangeExtensions_DoNotRunOnCreationOrEarlyClosure() external {
+    FixedTermManagementHooks target = _newManagementHooks();
+    uint32 term = _term();
+    target.setTermChangeLimits(MarketA, term + 1, 0);
+    _createMarket(
+      target, MarketA, _requestedConfig(target, false, false, false), abi.encode(term, uint128(0), false, true, false)
+    );
+    assertEq(target.getHookedMarket(MarketA).fixedTermEndTime, term, 'creation keeps its rules');
+
+    MarketState memory state;
+    vm.expectEmit(address(target));
+    emit FixedTermPolicy.FixedTermUpdated(MarketA, MarketA, term, uint32(block.timestamp));
+    vm.prank(MarketA);
+    target.onCloseMarket(state, '');
+    assertEq(target.getHookedMarket(MarketA).fixedTermEndTime, block.timestamp, 'closure maturity');
+    assertEq(target.totalTermReduction(MarketA), 0, 'closure does not consume setter budget');
+  }
+
+  // ░░▒▒▓▓██ [ TERM OPERATIONS ] ──────────────────────────────────────────────
+
+  // ┌─ test_onQueueWithdrawal_ChecksMaturityBeforeKnownOrCredentialAccess ─────
+  function test_onQueueWithdrawal_ChecksMaturityBeforeKnownOrCredentialAccess() external {
+    uint32 term = _term();
+    _createMarket(hooks, MarketA, _requestedConfig(hooks, true, true, true), abi.encode(term));
+    _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), abi.encode(term));
+    _addPullProvider(hooks);
+    vm.prank(address(provider1));
+    hooks.grantRole(Lender, uint32(vm.getBlockTimestamp()));
+    MarketState memory state;
+    vm.prank(MarketA);
+    hooks.onDeposit(Lender, 1, state, '');
+    hooks.blockFromDeposits(Lender);
+
+    vm.warp(term - 1);
+    state.isClosed = true;
+    vm.prank(MarketA);
+    vm.expectRevert(FixedTermPolicy.WithdrawBeforeTermEnd.selector);
+    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
+    vm.prank(MarketA);
+    vm.expectRevert(FixedTermPolicy.WithdrawBeforeTermEnd.selector);
+    hooks.onQueueWithdrawal(SecondLender, 0, 1, state, '');
+
+    vm.warp(term);
+    state.isClosed = false;
+    vm.prank(MarketA);
+    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
+    vm.prank(MarketA);
+    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+    hooks.onQueueWithdrawal(SecondLender, 0, 1, state, '');
+    vm.prank(MarketB);
+    hooks.onQueueWithdrawal(ThirdLender, 0, 1, state, '');
+  }
+
+  // ┌─ test_onSetApr_BlocksReductionDuringTermAndDelegatesAllowedChanges ─────
+  function test_onSetApr_BlocksReductionDuringTermAndDelegatesAllowedChanges() external {
+    uint32 term = _term();
+    _createMarket(hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(term));
+    MarketState memory state;
+    state.annualInterestBips = 100;
+    state.reserveRatioBips = 1_000;
+
+    vm.prank(MarketA);
+    vm.expectRevert(FixedTermPolicy.NoReducingAprBeforeTermEnd.selector);
+    hooks.onSetAnnualInterestAndReserveRatioBips(99, 500, state, '');
+
+    vm.prank(MarketA);
+    (uint16 annualInterestBips, uint16 reserveRatioBips) =
+      hooks.onSetAnnualInterestAndReserveRatioBips(101, 500, state, '');
+    assertEq(annualInterestBips, 101, 'increased APR');
+    assertEq(reserveRatioBips, 1_000, 'increased reserve ratio');
+
+    vm.warp(term);
+    vm.prank(MarketA);
+    (annualInterestBips, reserveRatioBips) = hooks.onSetAnnualInterestAndReserveRatioBips(99, 500, state, '');
+    assertEq(annualInterestBips, 99, 'post-term APR');
+    assertEq(reserveRatioBips, 1_000, 'post-term reserve ratio');
+  }
+
+  // ┌─ test_onCloseMarket_EnforcesEarlyClosurePolicyAndUpdatesTerm ─────
+  function test_onCloseMarket_EnforcesEarlyClosurePolicyAndUpdatesTerm() external {
+    uint32 term = _term();
+    MarketState memory state;
+    _createMarket(
+      hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(term, uint128(0), false, true, false)
+    );
+    vm.expectEmit(address(hooks));
+    emit FixedTermPolicy.FixedTermUpdated(MarketA, MarketA, term, uint32(vm.getBlockTimestamp()));
+    vm.prank(MarketA);
     hooks.onCloseMarket(state, '');
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertEq(market.fixedTermEndTime, uint32(block.timestamp), 'fixedTermEndTime');
+    assertEq(hooks.getHookedMarket(MarketA).fixedTermEndTime, vm.getBlockTimestamp(), 'closure term');
+
+    _createMarket(
+      hooks, MarketB, _requestedConfig(hooks, false, false, false), abi.encode(term, uint128(0), false, false, true)
+    );
+    vm.prank(MarketB);
+    hooks.onCloseMarket(state, '');
+    assertEq(hooks.getHookedMarket(MarketB).fixedTermEndTime, vm.getBlockTimestamp(), 'reduction closure');
+
+    _createMarket(hooks, MarketC, _requestedConfig(hooks, false, false, false), abi.encode(term));
+    vm.prank(MarketC);
+    vm.expectRevert(FixedTermPolicy.ClosureDisabledBeforeTerm.selector);
+    hooks.onCloseMarket(state, '');
+
+    vm.warp(term);
+    vm.prank(MarketC);
+    hooks.onCloseMarket(state, '');
+    assertEq(hooks.getHookedMarket(MarketC).fixedTermEndTime, term, 'elapsed term');
   }
 
-  function test_closeMarket_ClosureDisabledBeforeTerm() external {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, 1e18, false, false)
-    );
-    vm.prank(address(1));
-    vm.expectRevert(FixedTermHooks.ClosureDisabledBeforeTerm.selector);
+  // ┌─ test_unhookedCloseMarket_Rejects ─────
+  function test_unhookedCloseMarket_Rejects() external {
     MarketState memory state;
+    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
     hooks.onCloseMarket(state, '');
   }
 }

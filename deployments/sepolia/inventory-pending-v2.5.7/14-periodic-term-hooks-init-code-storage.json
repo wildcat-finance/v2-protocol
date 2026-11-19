@@ -1,0 +1,18 @@
+{
+  "recordType": "initCodeStorage",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentKey": "PeriodicTermHooks_initCodeStorage_v2.5.7",
+  "address": "0x79DA352868305d37D0179f460Ded88886D4eE524",
+  "initCodeHash": "0x6a32d584a2424d69b1a9640922947f8c8a5eac1ca29c1a6c0ef0d34f54a55b65",
+  "reused": true,
+  "provenance": {
+    "output": "periodic-term-hooks-init-code-storage",
+    "deploymentKey": "PeriodicTermHooks_initCodeStorage_v2.5.6",
+    "handoff": "deployments/sepolia/template-update-v2.5.6.json",
+    "handoffSha256": "e102f1ccc2a620d4881991fbc4ca886bc844d482a197c6db10028c5dc4bb3b24",
+    "plan": "deployments/sepolia/plan-v2.5.6.json",
+    "planSha256": "591b777081b5b6e1d8a3e93ae9733f6089b9ff7f3fef0e2cba5b77c88c7e307d",
+    "inventoryBaselineCommit": "1fbbacb318046c53822a70c2808fbc55372d5a3a"
+  }
+}

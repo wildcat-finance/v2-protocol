@@ -1,0 +1,96 @@
+{
+  "schemaVersion": "1.0.0",
+  "release": "v2.5.7",
+  "status": "prepared-not-deployed",
+  "observedAt": "2026-10-05T01:02:30.865206+00:00",
+  "contractSourceCommit": "85b963d767ac295bfff32f6e69d734dd616da248",
+  "inventoryBaselineCommit": "1fbbacb318046c53822a70c2808fbc55372d5a3a",
+  "livePackageDigest": "0x9197e13ccc79e2d8d95ccd6252acf877f44cf9b1e6d042f3a9291152d8423518",
+  "planSha256": "592ff3a034073d6368f656c77cbdf1d871c2b020652303cad4b391700d7fa568",
+  "scope": {
+    "deployments": 11,
+    "activationCalls": 10,
+    "reusedHookStores": 3,
+    "reusedAccessListFactory": true,
+    "factoryRetirements": 0,
+    "authorityChanges": 0
+  },
+  "runtimeBytes": {
+    "WildcatMarket": 23985,
+    "WildcatMarketRevolving": 24541,
+    "revolvingEip170Headroom": 35
+  },
+  "livePreflight": {
+    "status": "green",
+    "blockNumber": 11845634,
+    "blockHash": "0x906c7149954c045ca1be1d6ecb06a45f2c8fa0a367769fcc274d98a91dc17b6d"
+  },
+  "headlessRehearsal": {
+    "executionEnvironment": "Local Anvil fork only; no live Sepolia writes",
+    "chainId": 11155111,
+    "forkBlock": 11845602,
+    "verifiedTransactions": 21,
+    "postconditions": "green",
+    "finalization": "Isolated inventory and handoff generation plus reconciliation passed; original receipts retained for all four reused deployments",
+    "originalInventoryRecords": 22,
+    "rehearsedInventoryRecords": 25
+  },
+  "checks": {
+    "protocol": {
+      "profile": "default",
+      "timestamp": 1724284800,
+      "fuzzSeed": "0x5eed",
+      "suites": 87,
+      "passed": 958,
+      "failed": 0
+    },
+    "deployProfileRegressions": {
+      "suites": 5,
+      "passed": 63,
+      "failed": 0,
+      "contracts": [
+        "DelegateSanctionsTest",
+        "Wildcat4626WrapperTest",
+        "Wildcat4626WrapperFactoryTest",
+        "HooksFactoriesTest",
+        "SplitStorageDeploymentTest"
+      ]
+    },
+    "deploymentTooling": {
+      "passed": 102,
+      "failed": 0
+    },
+    "deploymentUi": {
+      "passed": 45,
+      "failed": 0
+    },
+    "deploymentUiFork": {
+      "passed": 2,
+      "failed": 0
+    },
+    "productionSizes": "green",
+    "lockedLiveUiBuild": "green",
+    "handoffValidation": "green",
+    "shellSyntax": "green",
+    "diffWhitespace": "green"
+  },
+  "downstream": {
+    "subgraphSource": "6f4539af0c2b9526278a68bd93e28f5ae55d36ab",
+    "sdkSource": "8efc853df6d1aeb6ff0d21251920b930e81eec6e",
+    "scope": "Local source inspection; no downstream deployment or package release performed",
+    "required": "Adopt receipt-backed new factories, wrapper and lens; retain v2.5.6 templates and AccessList factory. Update subgraph inventory, SDK configuration and app dependency after live finalization. No event or external function signature change in this patch."
+  },
+  "pendingOperatorWork": [
+    "Commit and push the reviewed preparation packet",
+    "Run cold gates against pushed source",
+    "Complete and accept the real-wallet locked-UI Anvil rehearsal",
+    "Execute live Sepolia activation and finalize inventory, handoff and evidence ZIP",
+    "Publish downstream configuration/package updates and verify scheduled market and wrapper behavior"
+  ],
+  "evidenceArchive": {
+    "path": "deployments/sepolia/ceremony-evidence/v2.5.7-preparation-evidence-20261005.zip",
+    "sha256": "9a22c6770c05ac90ca8665f69fffd2231f7653091c7cb75f9078316e18f0a726",
+    "files": 38,
+    "contains": "Original portable logs, fork receipts and finalized fork records, packet, prepared ceremony tooling and verification manifest; not live acceptance"
+  }
+}

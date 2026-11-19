@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "1.1.0",
+  "release": "v2.5.6",
+  "protocolVersion": "2.5.6",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "contractSourceCommit": "fe431bbdfc157b8778ac3690772c6556c74a0a9d",
+  "inventoryBaselineCommit": "01144a3ec7cff853aca0721212a0d105ff6de624",
+  "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+  "authorityPolicy": "fixed",
+  "authority": {
+    "helper": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "archController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+    "sanctionsSentinel": "0xFBCE262eC835be5e6A458cE1722EeCe0E453316B"
+  },
+  "reused": {
+    "v1WrapperFactory": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843",
+    "borrowerIdentityRegistry": "0xc2cF90781595203D1e75c28246b306C95d4b8b21",
+    "standardMarketInitCodeStorage": "0x97796049371ab5c87945B865820Dc5A810f380FD",
+    "revolvingMarketInitCodeStorage": "0xe3940d96Faac0D89766B003Dd0fEBF6c7D7a8D5D",
+    "marketLens": "0xB77e7895A76283472209239f5161591D3bc1Eccb",
+    "marketLensCore": "0x97318dfB5e003F486d17fd47Cf64F85dfD37c80d",
+    "marketLensAggregator": "0x0ddd63c8169E27e05b690de2B901B0a99b9F9256",
+    "marketLensLive": "0x59e34CEd7437857D904023Abd6aE862a5326Dc3f",
+    "accessListRoleProviderFactory": "0xE6D5bDd5011568C46fAf257cf426Ea822bC4255F"
+  },
+  "templateFees": {
+    "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "originationFeeAsset": "0x0000000000000000000000000000000000000000",
+    "originationFeeAmount": 0,
+    "protocolFeeBips": 500
+  },
+  "retirementTargets": [],
+  "activationScope": "templates",
+  "baseRelease": "v2.5.5",
+  "existing": {
+    "wrapperFactory": "0x1986DF1c77d25670e8D55865B83C5fFeD00e0134",
+    "standardHooksFactory": "0x0E12301A4F4b81A2B9965E4959e21faDf1754Ead",
+    "revolvingHooksFactory": "0x130E07D24e2aF6ea4554032d4F53fcBAe000d1b1"
+  },
+  "previousTemplates": {
+    "OpenTermHooks": "0x4aC04D306F3D2352998Ce48E2e8D357213683415",
+    "FixedTermHooks": "0x510d7aBf9534CFf6D2f760f005c703bD6f0CB14a",
+    "PeriodicTermHooks": "0x9C83C59fB30816EFafDec25147f9C214Bf80688b"
+  }
+}

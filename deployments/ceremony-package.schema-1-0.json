@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wildcat.finance/schemas/ceremony-package-1.0.json",
+  "title": "Wildcat Release Ceremony Package",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "digest", "payload"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "digest": { "$ref": "#/$defs/hash" },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "release", "network", "chainId", "artifacts"],
+      "properties": {
+        "mode": { "enum": ["eoa", "safe"] },
+        "release": { "type": "string", "minLength": 1 },
+        "network": { "type": "string", "minLength": 1 },
+        "chainId": { "type": "integer", "minimum": 1 },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["plan", "manifests", "expectedAddresses"],
+          "properties": {
+            "plan": { "$ref": "#/$defs/artifact" },
+            "manifests": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/artifact" }
+            },
+            "expectedAddresses": {
+              "anyOf": [
+                { "type": "null" },
+                { "$ref": "#/$defs/artifact" }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{64}$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "hash", "json"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "hash": { "$ref": "#/$defs/hash" },
+        "json": { "type": "string", "minLength": 2 }
+      }
+    }
+  }
+}

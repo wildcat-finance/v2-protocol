@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "1.0.0",
+  "kind": "hook-template-update",
+  "release": "v2.5.6",
+  "chain": {
+    "network": "sepolia",
+    "chainId": 11155111
+  },
+  "contractSourceCommit": "fe431bbdfc157b8778ac3690772c6556c74a0a9d",
+  "baseHandoff": {
+    "path": "deployments/sepolia/handoff-v2.5.5.json",
+    "sha256": "393e02e2cdf2711163e8e731ad2e161935e06028243a1d6cd633688dcbd8a0b2",
+    "inventoryBaselineCommit": "01144a3ec7cff853aca0721212a0d105ff6de624"
+  },
+  "sources": {
+    "plan": "deployments/sepolia/plan-v2.5.6.json",
+    "runState": "deployments/sepolia/run-state-v2.5.6.json"
+  },
+  "factoryInventoryChanged": false,
+  "factories": {
+    "wrapperFactory": "0x1986DF1c77d25670e8D55865B83C5fFeD00e0134",
+    "standardHooksFactory": "0x0E12301A4F4b81A2B9965E4959e21faDf1754Ead",
+    "revolvingHooksFactory": "0x130E07D24e2aF6ea4554032d4F53fcBAe000d1b1"
+  },
+  "templates": [
+    {
+      "name": "OpenTermHooks",
+      "deploymentKey": "OpenTermHooks_initCodeStorage_v2.5.6",
+      "address": "0xBcA425d384Da256040779DF532B6D2E8d3B3f1aD",
+      "previousAddress": "0x4aC04D306F3D2352998Ce48E2e8D357213683415",
+      "startBlock": 11840977,
+      "deployTxHash": "0x065fd0f731d4d320f84375747b98b428cfee20d4e53fdb18840c77e160aa456c",
+      "initCodeHash": "0x7aa5821f066c7b214a897bf924f075bcdf2cf1c8f448738693fa6eb7196d47e7",
+      "forgeArtifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "abiArtifactName": "src/access/OpenTermHooks.sol:OpenTermHooks",
+      "registrations": [
+        {
+          "marketType": "standard",
+          "factory": "0x0E12301A4F4b81A2B9965E4959e21faDf1754Ead",
+          "transactionId": "add-standard-open-term-template",
+          "txHash": "0x48b6f5f6daab241a17b8ff6c95d18993fbe72683a720b2551c54e4927d73c08e",
+          "blockNumber": 11840985,
+          "previousTemplateDisabled": {
+            "factory": "0x0E12301A4F4b81A2B9965E4959e21faDf1754Ead",
+            "transactionId": "disable-standard-open-term-template",
+            "txHash": "0xb9f68b404b869bbe96d555d88249430dfd324490f9e301ee806f0c8178902ead",
+            "blockNumber": 11840996
+          }
+        },
+        {
+          "marketType": "revolving",
+          "factory": "0x130E07D24e2aF6ea4554032d4F53fcBAe000d1b1",
+          "transactionId": "add-revolving-open-term-template",
+          "txHash": "0x3fd133eee00e216f42225fe507e34d074e1e80ecc04c5cb7e60da21bc5e24a11",
+          "blockNumber": 11840990,
+          "previousTemplateDisabled": {
+            "factory": "0x130E07D24e2aF6ea4554032d4F53fcBAe000d1b1",
+            "transactionId": "disable-revolving-open-term-template",
+            "txHash": "0x179ec0350294a0137d10c8ae06d93d09f66d0569d47793c1298174c1d0dae69c",
+            "blockNumber": 11841000
+          }
+        }
+      ]
+    },
+    {
+      "name": "FixedTermHooks",
+      "deploymentKey": "FixedTermHooks_initCodeStorage_v2.5.6",
+      "address": "0xa3FE06137cc893E19C2E4764a4A7b001E988ba2B",
+      "previousAddress": "0x510d7aBf9534CFf6D2f760f005c703bD6f0CB14a",
+      "startBlock": 11840980,
+      "deployTxHash": "0x1ff3b339c77ca2c54fc65513e984faff1b65c6b56822d1da5a42e179a740e4d0",
+      "initCodeHash": "0xc84345608dc62e011e09889635a2d216df92a6d3eec3af80228f6cf7325ad2cf",
+      "forgeArtifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "abiArtifactName": "src/access/FixedTermHooks.sol:FixedTermHooks",
+      "registrations": [
+        {
+          "marketType": "standard",
+          "factory": "0x0E12301A4F4b81A2B9965E4959e21faDf1754Ead",
+          "transactionId": "add-standard-fixed-term-template",
+          "txHash": "0x451ff28184d6df329435e32195d5fc48e6b981cb8a9497cc18f35ea7f80ad9a8",
+          "blockNumber": 11840988,
+          "previousTemplateDisabled": {
+            "factory": "0x0E12301A4F4b81A2B9965E4959e21faDf1754Ead",
+            "transactionId": "disable-standard-fixed-term-template",
+            "txHash": "0x7240ed9a3d8c1cc55ea20ce6a50ff32b10e7bad2fd0e2179f3a35089d315f81c",
+            "blockNumber": 11840997
+          }
+        },
+        {
+          "marketType": "revolving",
+          "factory": "0x130E07D24e2aF6ea4554032d4F53fcBAe000d1b1",
+          "transactionId": "add-revolving-fixed-term-template",
+          "txHash": "0xbf31ed6b1d8190c064d88ee69f930f2afaab3c5f6ef25dc32f3c1b5e496c95a2",
+          "blockNumber": 11840992,
+          "previousTemplateDisabled": {
+            "factory": "0x130E07D24e2aF6ea4554032d4F53fcBAe000d1b1",
+            "transactionId": "disable-revolving-fixed-term-template",
+            "txHash": "0x3f19fef7cd47ee3410a3a04a27425e54a839306de1fc87a398673b142bb939a6",
+            "blockNumber": 11841002
+          }
+        }
+      ]
+    },
+    {
+      "name": "PeriodicTermHooks",
+      "deploymentKey": "PeriodicTermHooks_initCodeStorage_v2.5.6",
+      "address": "0x79DA352868305d37D0179f460Ded88886D4eE524",
+      "previousAddress": "0x9C83C59fB30816EFafDec25147f9C214Bf80688b",
+      "startBlock": 11840983,
+      "deployTxHash": "0x782b955cd76d9e4b1031c9ce000f3b0390e7e13632b1ed928873509587223335",
+      "initCodeHash": "0x6a32d584a2424d69b1a9640922947f8c8a5eac1ca29c1a6c0ef0d34f54a55b65",
+      "forgeArtifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "abiArtifactName": "src/access/PeriodicTermHooks.sol:PeriodicTermHooks",
+      "registrations": [
+        {
+          "marketType": "standard",
+          "factory": "0x0E12301A4F4b81A2B9965E4959e21faDf1754Ead",
+          "transactionId": "add-standard-periodic-term-template",
+          "txHash": "0xab8f582d6dee311d9f195c7bd0586e27390d5cd7e79cfcf386e4ce4465a8ee9f",
+          "blockNumber": 11840989,
+          "previousTemplateDisabled": {
+            "factory": "0x0E12301A4F4b81A2B9965E4959e21faDf1754Ead",
+            "transactionId": "disable-standard-periodic-term-template",
+            "txHash": "0x087cd8c8eada29f7bc935e8760cdaf1b03cd2f0eca4e1352d57c52449dbb2279",
+            "blockNumber": 11840998
+          }
+        },
+        {
+          "marketType": "revolving",
+          "factory": "0x130E07D24e2aF6ea4554032d4F53fcBAe000d1b1",
+          "transactionId": "add-revolving-periodic-term-template",
+          "txHash": "0xecd03e23faf9cb5f9ecf7258c359795b6020028ed653f9b00ae20c8af229bd6d",
+          "blockNumber": 11840995,
+          "previousTemplateDisabled": {
+            "factory": "0x130E07D24e2aF6ea4554032d4F53fcBAe000d1b1",
+            "transactionId": "disable-revolving-periodic-term-template",
+            "txHash": "0x64ccf24f1d47d744647d89c49d3d257d8c5cd7ffb37a6c68ec1eb76c0db72c95",
+            "blockNumber": 11841003
+          }
+        }
+      ]
+    }
+  ],
+  "routing": "Use these three enabled templates on the existing factories. The base handoff retains authority for all other deployments and indexing policy. Disabled templates cannot create new hook instances; existing instances remain usable on-chain.",
+  "verifiedAt": "2026-10-04T08:10:36.000Z",
+  "verifiedBlockNumber": 11841012,
+  "verifiedBlockHash": "0x78575346636cf00a9a984687e8030574b2870611ec04a3a7b8753943ff79ebbd"
+}

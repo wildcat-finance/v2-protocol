@@ -1,12 +1,25 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HooksDataForBorrower
+//  \ ^ /   One-factory template and hooks-instance views for borrowers.
+//    V
+//
+//  BORROWER HOOKS DATA
+//  fill(...)
+// ═════
 
 import './HooksTemplateData.sol';
 import './HooksInstanceData.sol';
+import '../IHooksFactory.sol';
 import '../WildcatArchController.sol';
 
 using HooksDataForBorrowerLib for HooksDataForBorrower global;
 
+/// @notice borrower-facing hooks templates and instances from one factory.
+///
+/// @dev `isRegisteredBorrower` checks the address directly. it does not resolve borrower accounts.
 struct HooksDataForBorrower {
   address borrower;
   bool isRegisteredBorrower;
@@ -14,23 +27,34 @@ struct HooksDataForBorrower {
   HooksInstanceData[] hooksInstances;
 }
 
+// ┌─ HooksDataForBorrowerLib ──────────────────────────────────────────────────
+/// @notice build one-factory hooks views for a borrower address.
 library HooksDataForBorrowerLib {
+  // ░░▒▒▓▓██ [ BORROWER HOOKS DATA ] ──────────────────────────────────────────
+
+  // ┌─ fill ─────
+  /// @notice fill borrower status plus every template and borrower-indexed instance in `factory`.
   function fill(
     HooksDataForBorrower memory data,
     WildcatArchController archController,
-    HooksFactory factory,
+    IHooksFactory factory,
     address borrower
-  ) internal view {
+  )
+    internal
+    view
+  {
     data.borrower = borrower;
     data.isRegisteredBorrower = archController.isRegisteredBorrower(borrower);
     address[] memory hooksInstances = factory.getHooksInstancesForBorrower(borrower);
     data.hooksInstances = new HooksInstanceData[](hooksInstances.length);
-    for (uint i; i < hooksInstances.length; i++) {
-      data.hooksInstances[i].fill(hooksInstances[i], factory);
+    for (uint256 i; i < hooksInstances.length; i++) {
+      address hooksInstance = hooksInstances[i];
+      HooksInstanceKind kind = HooksConfigDataLib.kindForHooks(hooksInstance);
+      data.hooksInstances[i].fill(hooksInstance, factory, borrower, kind);
     }
     address[] memory hooksTemplates = factory.getHooksTemplates();
     data.hooksTemplates = new HooksTemplateData[](hooksTemplates.length);
-    for (uint i; i < hooksTemplates.length; i++) {
+    for (uint256 i; i < hooksTemplates.length; i++) {
       data.hooksTemplates[i].fill(factory, hooksTemplates[i], borrower);
     }
   }

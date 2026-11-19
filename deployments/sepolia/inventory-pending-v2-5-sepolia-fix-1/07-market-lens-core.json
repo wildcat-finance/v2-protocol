@@ -1,0 +1,10 @@
+{
+  "recordType": "deployment",
+  "role": "core",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentKey": "MarketLensCore_v2-5-sepolia-fix-1",
+  "address": {
+    "$ref": "market-lens-core"
+  }
+}

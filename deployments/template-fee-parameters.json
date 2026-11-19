@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.0.0",
+  "comment": "One fee structure across networks. Mainnet values take precedence where live canonical factories disagree: Sepolia FixedTermHooks is 1000 protocol fee bips while mainnet is 500. PeriodicTermHooks is not registered on the mainnet canonical factory, so its 500 bips comes from the enabled Sepolia template.",
+  "sources": {
+    "mainnetFactory": "0xdd7dd3b5076Cf89440d05585FF56d246386207BE",
+    "sepoliaFactory": "0x10A64ABa0159720F8a23E1A552800CA4eb21576C",
+    "readMethod": "getHooksTemplateDetails(address)"
+  },
+  "templates": {
+    "OpenTermHooks": {
+      "originationFeeAsset": "0x0000000000000000000000000000000000000000",
+      "originationFeeAmount": 0,
+      "protocolFeeBips": 500
+    },
+    "FixedTermHooks": {
+      "originationFeeAsset": "0x0000000000000000000000000000000000000000",
+      "originationFeeAmount": 0,
+      "protocolFeeBips": 500,
+      "comment": "Sepolia currently uses 1000 bips; mainnet's 500 bips is authoritative."
+    },
+    "PeriodicTermHooks": {
+      "originationFeeAsset": "0x0000000000000000000000000000000000000000",
+      "originationFeeAmount": 0,
+      "protocolFeeBips": 500,
+      "comment": "No mainnet template exists; copied from the enabled Sepolia PeriodicTermHooks template."
+    }
+  }
+}

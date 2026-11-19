@@ -1,95 +1,90 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
-/// @dev Selector for `error NoReentrantCalls()`
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ReentrancyGuard
+//  \ ^ /   Transaction-scoped guards for state-changing and view calls.
+//    V
+//
+//  STATE-CHANGING GUARD
+//  nonReentrant()
+//  _setReentrancyGuard()
+//  _clearReentrancyGuard()
+//
+//  VIEW GUARD
+//  nonReentrantView()
+//  _assertNonReentrant()
+// ═════
+
+/// @dev selector for `error NoReentrantCalls()`.
 uint256 constant NoReentrantCalls_ErrorSelector = 0x7fa8a987;
 
 uint256 constant _REENTRANCY_GUARD_SLOT = 0x929eee14;
 
-/**
- * @title ReentrancyGuard
- * @author d1ll0n
- * @notice Changes from original:
- *   - Removed the checks for whether tstore is supported.
- * @author Modified from Seaport contract by 0age (https://github.com/ProjectOpenSea/seaport-1.6)
- *
- * @notice ReentrancyGuard contains a transient storage variable and related
- *         functionality for protecting against reentrancy.
- */
+// ┌─ ReentrancyGuard ──────────────────────────────────────────────────────────
+/// @title transient reentrancy guard
+///
+/// @author d1ll0n
+/// @author modified from Seaport by 0age
+///
+/// @custom:source https://github.com/ProjectOpenSea/seaport-1.6
+///
+/// @notice block nested calls with one transaction-scoped storage slot.
+///
+/// @dev assumes EIP-1153 support. the original runtime support probe was removed.
 contract ReentrancyGuard {
-  /**
-   * @dev Revert with an error when a caller attempts to reenter a protected function.
-   *
-   *      Note: Only defined for the sake of the interface and readability - the
-   *      definition is not directly referenced in the contract code.
-   */
+  /// @dev declared for the ABI; the assembly paths use its selector directly.
   error NoReentrantCalls();
 
   uint256 private constant _NOT_ENTERED = 0;
   uint256 private constant _ENTERED = 1;
 
-  /**
-   * @dev Reentrancy guard for state-changing functions.
-   *      Reverts if the reentrancy guard is currently set; otherwise, sets
-   *      the reentrancy guard, executes the function body, then clears the
-   *      reentrancy guard.
-   */
+  // ░░▒▒▓▓██ [ STATE-CHANGING GUARD ] ─────────────────────────────────────────
+
+  // ┌─ nonReentrant ─────
+  /// @dev guard a state-changing call, then clear the slot so later calls can proceed.
   modifier nonReentrant() {
     _setReentrancyGuard();
     _;
     _clearReentrancyGuard();
   }
 
-  /**
-   * @dev Reentrancy guard for view functions.
-   *      Reverts if the reentrancy guard is currently set.
-   */
-  modifier nonReentrantView() {
-    _assertNonReentrant();
-    _;
-  }
-
-  /**
-   * @dev Internal function to ensure that a sentinel value for the reentrancy
-   *      guard is not currently set and, if not, to set a sentinel value for
-   *      the reentrancy guard.
-   */
+  // ┌─ _setReentrancyGuard ─────
+  /// @dev reject nested entry, then mark this transaction's guard active.
   function _setReentrancyGuard() internal {
     assembly {
-      // Retrieve the current value of the reentrancy guard slot.
       let _reentrancyGuard := tload(_REENTRANCY_GUARD_SLOT)
 
-      // Ensure that the reentrancy guard is not already set.
-      // Equivalent to `if (_reentrancyGuard != _NOT_ENTERED) revert NoReentrantCalls();`
       if _reentrancyGuard {
         mstore(0, NoReentrantCalls_ErrorSelector)
         revert(0x1c, 0x04)
       }
 
-      // Set the reentrancy guard.
-      // Equivalent to `_reentrancyGuard = _ENTERED;`
       tstore(_REENTRANCY_GUARD_SLOT, _ENTERED)
     }
   }
 
-  /**
-   * @dev Internal function to unset the reentrancy guard sentinel value.
-   */
+  // ┌─ _clearReentrancyGuard ─────
+  /// @dev clear the transaction-scoped guard.
   function _clearReentrancyGuard() internal {
     assembly {
-      // Equivalent to `_reentrancyGuard = _NOT_ENTERED;`
       tstore(_REENTRANCY_GUARD_SLOT, _NOT_ENTERED)
     }
   }
 
-  /**
-   * @dev Internal view function to ensure that a sentinel value for the
-   *         reentrancy guard is not currently set.
-   */
+  // ░░▒▒▓▓██ [ VIEW GUARD ] ───────────────────────────────────────────────────
+
+  // ┌─ nonReentrantView ─────
+  /// @dev reject a view call made while a guarded state-changing call is active.
+  modifier nonReentrantView() {
+    _assertNonReentrant();
+    _;
+  }
+
+  // ┌─ _assertNonReentrant ─────
+  /// @dev revert if a guarded call is active in this transaction.
   function _assertNonReentrant() internal view {
     assembly {
-      // Ensure that the reentrancy guard is not currently set.
-      // Equivalent to `if (_reentrancyGuard != _NOT_ENTERED) revert NoReentrantCalls();`
       if tload(_REENTRANCY_GUARD_SLOT) {
         mstore(0, NoReentrantCalls_ErrorSelector)
         revert(0x1c, 0x04)

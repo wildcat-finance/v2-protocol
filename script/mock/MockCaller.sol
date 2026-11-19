@@ -1,5 +1,12 @@
 // // SPDX-License-Identifier: MIT
-// pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MockCaller
+//  \ ^ /   Inactive caller prototype retained as commented reference.
+//    V
+//
+// ═════
 
 // import { WildcatMarket } from '../../src/market/WildcatMarket.sol';
 
@@ -26,14 +33,6 @@
 //     WildcatMarket(market).borrow(amount);
 //   }
 
-//   function forceBuyBack(
-//     address market,
-//     address lender,
-//     uint256 normalizedAmount
-//   ) external onlyCaller {
-//     WildcatMarket(market).forceBuyBack(lender, normalizedAmount);
-//   }
-
 //   function _exec(bytes calldata callInfo) internal {
 //     assembly {
 //       let size := callInfo.length
@@ -53,7 +52,6 @@
 //   }
 // }
 
-// forceBuyBack
 // closeMarket
 // borrow
 // rescueTokens

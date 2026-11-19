@@ -1,7 +1,4 @@
 {
-  "plugins": [
-    "prettier"
-  ],
   "rules": {
     "compiler-version": [
       "error",
@@ -21,7 +18,7 @@
     "func-name-mixedcase": "off",
     "max-line-length": [
       "warn",
-      100
+      120
     ],
     "function-max-lines": "off",
     "code-complexity": [

@@ -1,0 +1,18 @@
+protocol_version=2.5.3
+contract_source_commit=6dd6d697b2e381a94a33bfae29dc7945e12b14b8
+generated_from_head=6dd6d697b2e381a94a33bfae29dc7945e12b14b8
+deployment_profile=deploy
+solc=0.8.25
+evm_version=cancun
+optimizer_runs=44
+via_ir=true
+submodules:
+b6a506db2262cad5ff982a87789ee6d1558ec861 lib/forge-std (v1.8.0)
+ fd81a96f01cc42ef1c9a5399364968d0e07e9e90 lib/openzeppelin-contracts (v4.9.3)
+ 8b1d7c2ac248c33c3506b1bff8321758943c5e11 lib/openzeppelin-contracts/lib/erc4626-tests (v0.1.0)
+ c2236853aadb8e2d9909bbecdc490099519b70a4 lib/openzeppelin-contracts/lib/forge-std (v1.5.0)
+ 6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f lib/openzeppelin-contracts/lib/forge-std/lib/ds-test (remotes/origin/windows-compat-26-g6da7dd8)
+ 2ba1cc1eaa3bffd5c093d94f76ef1b87b167ff3c lib/solady (v0.0.124)
+ 9310e879db8ba3ea6d5c6489a579118fd264a3f5 lib/solady/lib/ds-test (remotes/origin/windows-compat-15-g9310e87)
+ 1b3adf677e7e383cc684b5d5bd441da86bf4bf1c lib/solmate (v6-186-g1b3adf6)
+ cd98eff28324bfac652e63a239a60632a761790b lib/solmate/lib/ds-test (remotes/origin/windows-compat-17-gcd98eff)

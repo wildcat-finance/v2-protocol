@@ -1,5 +1,12 @@
 // // SPDX-License-Identifier: MIT
-// pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MockBorrower
+//  \ ^ /   Inactive borrower prototype retained as commented reference.
+//    V
+//
+// ═════
 
 // import 'src/WildcatArchController.sol';
 // import 'solady/utils/LibString.sol';
@@ -70,14 +77,6 @@
 //     archController = archController_;
 //     hooksFactory = hooksFactory_;
 //     erc20Factory = erc20Factory_;
-//   }
-
-//   function forceBuyBack(
-//     WildcatMarket market,
-//     address lender,
-//     uint256 normalizedAmount
-//   ) external onlyDeployer {
-//     market.forceBuyBack(lender, normalizedAmount);
 //   }
 
 //   // Requires existing hooks factory, hooks template, and mock token factory

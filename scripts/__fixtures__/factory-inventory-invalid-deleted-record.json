@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.1.0",
+  "network": "fixture",
+  "chainId": 31337,
+  "marketTypes": ["legacy", "revolving"],
+  "recordCount": 3,
+  "hooksFactories": [
+    {
+      "label": "legacy-v2",
+      "marketType": "legacy",
+      "address": "0x1111111111111111111111111111111111111111",
+      "startBlock": 100,
+      "canonical": true,
+      "lifecycle": "canonical",
+      "indexed": true,
+      "registered": true
+    },
+    {
+      "label": "legacy-v1",
+      "marketType": "legacy",
+      "address": "0x2222222222222222222222222222222222222222",
+      "startBlock": 50,
+      "canonical": false,
+      "lifecycle": "live",
+      "indexed": true,
+      "registered": true
+    }
+  ],
+  "wrapperFactories": []
+}

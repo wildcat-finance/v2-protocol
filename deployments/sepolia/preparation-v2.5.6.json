@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "1.0.0",
+  "release": "v2.5.6",
+  "status": "prepared-not-deployed",
+  "observedAt": "2026-10-04T05:42:30.407893+00:00",
+  "contractSourceCommit": "fe431bbdfc157b8778ac3690772c6556c74a0a9d",
+  "inventoryBaselineCommit": "01144a3ec7cff853aca0721212a0d105ff6de624",
+  "livePackageDigest": "0x098fa1f4fc6e9f9cc55c447ea890eb1a9921da63a2acb403ffc199a2cbfbc702",
+  "scope": {
+    "deployments": 3,
+    "registrations": 6,
+    "templateDisables": 6,
+    "factoryRetirements": 0,
+    "authorityChanges": 0
+  },
+  "livePreflight": {
+    "status": "green",
+    "blockNumber": 11840339,
+    "blockHash": "0xe248e3100f048f3c8f9ceb0c116a66a6b7e14f1857912f604cb1da4aeb685c07"
+  },
+  "headlessRehearsal": {
+    "executionEnvironment": "local Anvil, not live Sepolia",
+    "chainId": 11155111,
+    "forkBlock": 11840328,
+    "verifiedTransactions": 15,
+    "postconditions": "green",
+    "finalization": "only three versioned template keys and three template aliases changed in an isolated output directory"
+  },
+  "protocolTests": {
+    "testedCommit": "05dc81bb01ff87573736cc6a74d93d795d623dcb",
+    "carriedSourceAndTestsIdentical": true,
+    "default": 955,
+    "fixedSeed": 955,
+    "deployProfile": 955,
+    "focused": 113
+  },
+  "toolingTests": 82,
+  "pendingOperatorWork": [
+    "Cold gate against the final pushed preparation commit",
+    "Real-wallet locked-UI rehearsal on chain 31337",
+    "Live execution, receipt verification, and template handoff finalization",
+    "Confirm indexed enabled-template selection before opening market creation"
+  ],
+  "evidenceArchive": {
+    "path": "deployments/sepolia/ceremony-evidence/v2.5.6-preparation-evidence-20261004.zip",
+    "sha256": "b5e778ccfd7cabc26640f63009df1ed338b66120ffbdb612bf1b44549a3ba7e1",
+    "files": 20
+  },
+  "downstreamObservation": {
+    "observedAt": "2026-10-04",
+    "sdkRevision": "e64e766",
+    "applicationRevision": "bde1e83b",
+    "scope": "local source; deployed application configuration not established",
+    "finding": "SDK Sepolia deployment addresses still select v2.5.4. Adopt the retained v2.5.5 handoff in SDK/subgraph/app configuration and confirm indexed selection of the new enabled templates before opening market creation."
+  }
+}

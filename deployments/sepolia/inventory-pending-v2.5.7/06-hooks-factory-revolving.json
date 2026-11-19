@@ -1,0 +1,20 @@
+{
+  "recordType": "hooksFactory",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "marketType": "revolving",
+  "deploymentKey": "HooksFactoryRevolving_v2.5.7",
+  "address": {
+    "$ref": "hooks-factory-revolving"
+  },
+  "wrapperFactory": {
+    "$ref": "wildcat-4626-wrapper-factory"
+  },
+  "borrowerIdentityRegistry": "0xc2cF90781595203D1e75c28246b306C95d4b8b21",
+  "initCodeStorage": {
+    "$ref": "wildcat-market-revolving-init-code-storage"
+  },
+  "initCodeHash": "0xa36b90ff2e454d04c13a4c4aed577a7218f9500613b1b51533847df84f7b74de",
+  "registerEntryId": "register-hooks-factory-revolving",
+  "canonicalIntent": true
+}

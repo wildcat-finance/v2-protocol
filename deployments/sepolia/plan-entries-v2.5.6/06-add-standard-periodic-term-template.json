@@ -1,0 +1,43 @@
+{
+  "id": "add-standard-periodic-term-template",
+  "kind": "call",
+  "to": "0x0E12301A4F4b81A2B9965E4959e21faDf1754Ead",
+  "functionSignature": "addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)",
+  "args": [
+    {
+      "$ref": "periodic-term-hooks-init-code-storage"
+    },
+    "PeriodicTermHooks",
+    "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "0x0000000000000000000000000000000000000000",
+    0,
+    500,
+    "0x6a32d584a2424d69b1a9640922947f8c8a5eac1ca29c1a6c0ef0d34f54a55b65"
+  ],
+  "description": "Add v2.5.6 PeriodicTermHooks to the existing standard factory.",
+  "envelope": {
+    "chainId": 11155111,
+    "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "to": "0x0E12301A4F4b81A2B9965E4959e21faDf1754Ead",
+    "value": "0",
+    "data": "functionSignature+args",
+    "gasLimitPolicy": "estimate*1.3",
+    "nonceCheck": "display-and-confirm"
+  },
+  "predicate": {
+    "type": "callEq",
+    "target": "0x0E12301A4F4b81A2B9965E4959e21faDf1754Ead",
+    "call": {
+      "sig": "getHooksTemplateInitCodeHash(address) view returns (bytes32)",
+      "args": [
+        {
+          "$ref": "periodic-term-hooks-init-code-storage"
+        }
+      ]
+    },
+    "expect": "0x6a32d584a2424d69b1a9640922947f8c8a5eac1ca29c1a6c0ef0d34f54a55b65"
+  },
+  "after": [
+    "add-standard-fixed-term-template"
+  ]
+}

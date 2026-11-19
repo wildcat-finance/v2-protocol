@@ -1,0 +1,679 @@
+{
+  "observedOn": "2026-10-05",
+  "scope": "Local canonical Solidity suite, fixture architecture, focused coverage and patched Slither compatibility. No deployment tooling tests, chain verification or security-detector triage in this review.",
+  "source": {
+    "repository": "wildcat-finance/v2-protocol",
+    "branch": "feat/sepolia-v2.5.6",
+    "commit": "8ae329c5519aede7aeabd7a51082e79cb227396e",
+    "srcTree": "9bff1ff9d73c1542a1df2b110f6e5dcd6f6df17a",
+    "testTree": "812a6c3a39ad9cdec70fe021c6afa7f0961ac98f",
+    "productionAndSolidityTestEdits": false,
+    "foundryConfigSha256": "075d71aa8cb805cf47f2bdb5bc8a3c543c365ac1f99589e04ffb2482b9f361c3",
+    "coveragePatchSha256": "4f66323793d54f88136317d4cf83f2ca4e299f5a32d0934e8afc643905957286",
+    "coveragePatchRefreshedAfterSourceCommit": true,
+    "libraries": {
+      "lib/forge-std": "b6a506db2262cad5ff982a87789ee6d1558ec861",
+      "lib/openzeppelin-contracts": "fd81a96f01cc42ef1c9a5399364968d0e07e9e90",
+      "lib/solady": "2ba1cc1eaa3bffd5c093d94f76ef1b87b167ff3c",
+      "lib/solmate": "1b3adf677e7e383cc684b5d5bd441da86bf4bf1c"
+    }
+  },
+  "toolchain": {
+    "forgeVersion": "1.8.3",
+    "forgeCommit": "cae51ad458f6abb64852b7709eb784352429825d",
+    "solcVersion": "0.8.25",
+    "evmVersion": "cancun",
+    "viaIR": true,
+    "optimizerRuns": 1,
+    "optimizerSteps": "Pinned in foundry.toml at the recorded source commit.",
+    "bytecodeHash": "none",
+    "cborMetadata": false,
+    "isolate": true,
+    "dynamicTestLinking": true,
+    "cpu": "AMD Ryzen Threadripper PRO 9955WX, 16 cores / 32 threads",
+    "ramGiB": 246
+  },
+  "canonical": {
+    "command": "forge test --force --block-timestamp 1724284800 --fuzz-seed 0x5eed",
+    "status": "passed",
+    "compilerSourceUnits": 308,
+    "compilerSeconds": 288.33,
+    "testExecutionSeconds": 154.33,
+    "wallSeconds": 442.89,
+    "maximumResidentKiB": 8721564,
+    "reportedTestsPassed": 958,
+    "reportedTestsFailed": 0,
+    "reportedTestsSkipped": 0,
+    "suites": 87,
+    "fuzzRuns": 1000,
+    "invariantRuns": 2000,
+    "invariantDepth": 30,
+    "invariantCampaigns": [
+      {
+        "suite": "MarketMatrixInvariantTest",
+        "properties": 9,
+        "calls": 60000,
+        "handlerReverts": 0
+      },
+      {
+        "suite": "PenaltyLifecycleInvariantTest",
+        "properties": 1,
+        "calls": 60000,
+        "handlerReverts": 0
+      },
+      {
+        "suite": "RepaymentLifecycleInvariantTest",
+        "properties": 1,
+        "calls": 60000,
+        "handlerReverts": 0
+      }
+    ],
+    "countInterpretation": "955 test functions plus three campaigns are reported as 958 tests. The market matrix groups nine invariant properties in one campaign; all 11 invariant properties passed.",
+    "logSha256": "8b06ee44ce7d2c25b6663ae13e02f4926456801358dbb30257194764bd095d12",
+    "timingLogSha256": "f3696889da4de1c5b315b967a1c89e482cfdac3422f438386ddf19e24f6fde7c"
+  },
+  "architecture": {
+    "trackedSolidityTestFiles": 136,
+    "solidityTestLines": 44156,
+    "testFunctions": 955,
+    "parameterizedFuzzTests": 239,
+    "invariantProperties": 11,
+    "inheritedTestEntryPoints": [],
+    "fixtureTestEntryPoints": [],
+    "allSuiteAncestriesUseTestKernel": true,
+    "deepestFixtureAncestorCount": 5,
+    "deepestFixtureChain": [
+      "PenaltyLifecycleFixture",
+      "LifecycleFixture",
+      "MarketMatrixFixture",
+      "MarketFixture",
+      "TestKernel"
+    ],
+    "creationBytecodeBytesUnderTest": 2539755,
+    "largestTestArtifacts": [
+      {
+        "source": "test/market/WildcatMarket.t.sol",
+        "contract": "WildcatMarketTest",
+        "creationBytes": 184079,
+        "runtimeBytes": 184051
+      },
+      {
+        "source": "test/integration/ProductionMatrixScenarios.t.sol",
+        "contract": "ProductionMatrixScenariosTest",
+        "creationBytes": 119254,
+        "runtimeBytes": 119226
+      },
+      {
+        "source": "test/vault/Wildcat4626Wrapper.t.sol",
+        "contract": "Wildcat4626WrapperTest",
+        "creationBytes": 85248,
+        "runtimeBytes": 85220
+      },
+      {
+        "source": "test/invariants/LifecycleScenarios.t.sol",
+        "contract": "LifecycleScenariosTest",
+        "creationBytes": 83797,
+        "runtimeBytes": 83769
+      },
+      {
+        "source": "test/invariants/PenaltyLifecycleScenarios.t.sol",
+        "contract": "PenaltyLifecycleScenariosTest",
+        "creationBytes": 77090,
+        "runtimeBytes": 77062
+      },
+      {
+        "source": "test/invariants/PenaltyLifecycleInvariant.t.sol",
+        "contract": "PenaltyLifecycleInvariantTest",
+        "creationBytes": 73530,
+        "runtimeBytes": 73502
+      },
+      {
+        "source": "test/invariants/RepaymentLifecycleInvariant.t.sol",
+        "contract": "RepaymentLifecycleInvariantTest",
+        "creationBytes": 73016,
+        "runtimeBytes": 72988
+      },
+      {
+        "source": "test/invariants/LifecycleHandler.sol",
+        "contract": "LifecycleHandler",
+        "creationBytes": 57065,
+        "runtimeBytes": 47918
+      },
+      {
+        "source": "test/access/BaseAccessControls.t.sol",
+        "contract": "BaseAccessControlsTest",
+        "creationBytes": 52550,
+        "runtimeBytes": 52524
+      },
+      {
+        "source": "test/factories/HooksFactories.t.sol",
+        "contract": "HooksFactoriesTest",
+        "creationBytes": 52412,
+        "runtimeBytes": 52386
+      }
+    ],
+    "byFamily": {
+      "access": {
+        "suites": 8,
+        "tests": 171,
+        "invariants": 0,
+        "fuzzTests": 45
+      },
+      "factories": {
+        "suites": 2,
+        "tests": 37,
+        "invariants": 0,
+        "fuzzTests": 0
+      },
+      "integration": {
+        "suites": 8,
+        "tests": 89,
+        "invariants": 0,
+        "fuzzTests": 14
+      },
+      "invariants": {
+        "suites": 7,
+        "tests": 19,
+        "invariants": 11,
+        "fuzzTests": 5
+      },
+      "lens": {
+        "suites": 8,
+        "tests": 55,
+        "invariants": 0,
+        "fuzzTests": 1
+      },
+      "libraries": {
+        "suites": 20,
+        "tests": 195,
+        "invariants": 0,
+        "fuzzTests": 93
+      },
+      "market": {
+        "suites": 10,
+        "tests": 135,
+        "invariants": 0,
+        "fuzzTests": 12
+      },
+      "providers": {
+        "suites": 4,
+        "tests": 72,
+        "invariants": 0,
+        "fuzzTests": 17
+      },
+      "research": {
+        "suites": 8,
+        "tests": 27,
+        "invariants": 0,
+        "fuzzTests": 4
+      },
+      "root": {
+        "suites": 4,
+        "tests": 63,
+        "invariants": 0,
+        "fuzzTests": 2
+      },
+      "sanctions": {
+        "suites": 1,
+        "tests": 11,
+        "invariants": 0,
+        "fuzzTests": 4
+      },
+      "spherex": {
+        "suites": 1,
+        "tests": 13,
+        "invariants": 0,
+        "fuzzTests": 0
+      },
+      "types": {
+        "suites": 4,
+        "tests": 38,
+        "invariants": 0,
+        "fuzzTests": 36
+      },
+      "vault": {
+        "suites": 2,
+        "tests": 30,
+        "invariants": 0,
+        "fuzzTests": 6
+      }
+    },
+    "compileCostCandidate": {
+      "location": "test/invariants/LifecycleFixture.sol:42",
+      "observation": "Direct new LifecycleHandler embeds handler creation code in four concrete suites; the handler also creates LifecycleReference directly.",
+      "candidate": "Evaluate artifact deployment for these helpers in a separate measured change.",
+      "measuredSavings": null
+    },
+    "timestampRule": {
+      "status": "follow-up",
+      "interpretation": "These tests contain both a warp and a direct block.timestamp read. All passed; this is maintenance-rule drift, not a demonstrated runtime failure.",
+      "tests": [
+        {"file": "test/access/BaseAccessControls.t.sol", "name": "test_getLenderStatus_refresh", "reads": [1125], "warps": [1128]},
+        {"file": "test/access/BaseAccessControls.t.sol", "name": "test_getLenderStatus_RefreshesExpiredPullProviderCredential", "reads": [1144], "warps": [1146]},
+        {"file": "test/access/BaseAccessControls.t.sol", "name": "test_tryValidateAccess_RefreshesExpiredCredentialFromLastProvider", "reads": [1392], "warps": [1394]},
+        {"file": "test/access/FixedTermHooks.t.sol", "name": "test_onQueueWithdrawal_ChecksMaturityBeforeKnownOrCredentialAccess", "reads": [474], "warps": [480, 489]},
+        {"file": "test/access/FixedTermHooks.t.sol", "name": "test_onCloseMarket_EnforcesEarlyClosurePolicyAndUpdatesTerm", "reads": [533, 536, 543], "warps": [550]},
+        {"file": "test/access/PeriodicTermHooks.t.sol", "name": "test_onQueueWithdrawal_ChecksWindowBeforeAccessAndRetainsAccessAfterClosure", "reads": [457], "warps": [477, 480]},
+        {"file": "test/libraries/FeeMath.t.sol", "name": "test_updateScaleFactorAndFees_WithFees", "reads": [54, 56], "warps": [48]},
+        {"file": "test/libraries/FeeMath.t.sol", "name": "test_updateScaleFactorAndFees_WithoutFeesWithPenalties", "reads": [77, 79], "warps": [71]},
+        {"file": "test/libraries/FeeMath.t.sol", "name": "test_updateScaleFactorAndFees_WithFeesAndPenalties", "reads": [101, 102], "warps": [95]},
+        {"file": "test/libraries/FeeMath.t.sol", "name": "test_updateScaleFactorAndFees_WithoutFeesOrPenalties", "reads": [124, 126], "warps": [118]},
+        {"file": "test/providers/ManagedRoleProviders.t.sol", "name": "test_accessList_ConstructorAndCredentialsTrackMembership", "reads": [275], "warps": [275]},
+        {"file": "test/providers/ManagedRoleProviders.t.sol", "name": "test_accessListHook_MembershipRemovalRespectsConfiguredTtl", "reads": [574], "warps": [574]},
+        {"file": "test/providers/ManagedRoleProviders.t.sol", "name": "test_merkleHook_RootUpdateRespectsPositiveTtl", "reads": [634], "warps": [634]},
+        {"file": "test/providers/ManagedRoleProviders.t.sol", "name": "test_merkleHook_ZeroTtlUsesSameBlockCredentialThenRequiresFreshProof", "reads": [650], "warps": [650]}
+      ]
+    },
+    "revertExpectations": {
+      "testFailEntryPoints": 0,
+      "wildcardExpectRevertCalls": 35,
+      "observation": "Wildcard expectations are concentrated in malformed ABI/data and empty-return rejection tests. They were not blanket-classified as defects; exact revert data remains preferable where the behavior specifies it."
+    },
+    "historicalComparison": "The 2026-08 refactor removed 455 inherited entry-point copies and reduced the approximately 12.5 MB legacy test bytecode. Its final 674-entry run took about 3m50s on a different CPU and compiler configuration. The present timing is not a controlled regression comparison."
+  },
+  "coverage": {
+    "status": "partial",
+    "commandTemplate": "FOUNDRY_TEST=<input> bash scripts/coverage.sh --report lcov --report-file <output.lcov>",
+    "profile": "coverage",
+    "cachePolicy": "Focused attempts shared the coverage profile output/cache. Only the canonical compilation timing used a forced rebuild.",
+    "viaIR": false,
+    "optimizer": false,
+    "blockTimestamp": 1724284800,
+    "fuzzSeed": "0x5eed",
+    "fuzzRuns": 32,
+    "invariantRuns": 8,
+    "invariantDepth": 15,
+    "successfulFamilyRuns": 6,
+    "successfulFileRuns": 31,
+    "sourceFilesWithRecords": 83,
+    "unionMethod": "Include only passing runs; OR hits for the same file and line, function name, or branch line/block/id. All repeated records had identical instrumented identity sets. Counts below are covered/total.",
+    "instrumentationIdentityMismatches": 0,
+    "wholeProtocolCoveragePercentage": null,
+    "sourceRestoredAfterEveryAttempt": true,
+    "sphereXBoundary": "SphereXProtectedRegisteredBase metrics refer to the temporarily patched source and bytecode. Original production source was restored byte-for-byte after successful and failed runs.",
+    "limits": [
+      "Non-IR compilation fails in HooksFactoryRevolving.sol:691, BaseHooks.t.sol:197 or LifecycleOracle.sol:106 for their respective graphs.",
+      "Some fixtures deploy artifacts named only in strings. Narrowed discovery can omit those artifacts; a trace confirmed OpenTermHooks was absent in the MarketTransitionLayout graph.",
+      "AprValidationTest has a stored-initcode size assertion that fails under coverage compiler settings and passes canonically. No size assertion was waived.",
+      "Missing factory and lifecycle instrumentation is a reporting gap, not proof of missing canonical tests. Automatic closure and related lifecycle tests passed in the canonical run.",
+      "Aggregate reports from failed runs are excluded. Per-file counts are only the union of the listed passing inputs, not full-suite coverage."
+    ],
+    "attempts": [
+      {"input": "test/sanctions", "outcome": "passed", "sourceRestored": true, "logSha256": "1ffb476e64b090f7860fbc5bf2f1a639174499dcd7b60dce4a2e44cff4bbeb07", "lcovSha256": "12dc7fb1e369cc967a07f328b0f6d1407027c348480c6beec899d74d4033530c"},
+      {"input": "test/spherex", "outcome": "passed", "sourceRestored": true, "logSha256": "00def1e3ccbea6bbfe6a56e9921c6c821f30d146a7c41088d5515b129c771f3c", "lcovSha256": "5eb9c5930a58e68a3d3c88520a5567f17a61718501ce830b47e237b8e03f7361"},
+      {"input": "test/types", "outcome": "passed", "sourceRestored": true, "logSha256": "59517ab3db059c684717d921021f3b2ff359c422b989d8e3efcecdb334058296", "lcovSha256": "f0e4b1109b4ffbcaf3f30811f11d340ffbab0986c7f0c83a21a403dd644cad63"},
+      {"input": "test/libraries", "outcome": "missing-artifact-in-focused-graph", "sourceRestored": true, "logSha256": "394b0cee63ddd0f664df294f3cc76f125dd7cd86f754205dc19fc56efd1cb5fe"},
+      {"input": "test/providers", "outcome": "passed", "sourceRestored": true, "logSha256": "5a4ce4c7fbc03944a9bf7d499b9f10a3b8b2ffdcf61e32e0c1ebfd686846624b", "lcovSha256": "a4836062d2f661a0dd15ddd36068c1699c78cc509729b947783422694af2512f"},
+      {"input": "test/root", "outcome": "passed", "sourceRestored": true, "logSha256": "bfdeca76cb220bc278d1548e060467d39899fd2bf48cbe990de8a17935835588", "lcovSha256": "2235c473fefe72f496065d6c970b405d6122cf1db44e153ae38dd4cd84b6d864"},
+      {"input": "test/access", "outcome": "compiler-stack-limit", "sourceRestored": true, "logSha256": "49880769be330c9b4a3487e7fc29473ac31d33eae0bd3f470fc425192685e444", "compilerLocation": "test/access/BaseHooks.t.sol:197:62:"},
+      {"input": "test/vault", "outcome": "passed", "sourceRestored": true, "logSha256": "edbc913cdcbd96ec5d43f43b7978073d5a66e66360fa79a546ecde7c8ae02f69", "lcovSha256": "9dc56665ff1427b5223b657613a4ceade16ede6ab3cbde343bac04051db7911b"},
+      {"input": "test/lens", "outcome": "compiler-stack-limit", "sourceRestored": true, "logSha256": "62be7fc89354a1af72747a1b1d9c0981c1ae25451650aa922aaa2a54693613c8", "compilerLocation": "src/HooksFactoryRevolving.sol:691:22:"},
+      {"input": "test/market", "outcome": "compiler-stack-limit", "sourceRestored": true, "logSha256": "a75cf901d545d5838a250f6cdc96c25720ed3b5aa2ab6625d9b9395e6e66ca16", "compilerLocation": "src/HooksFactoryRevolving.sol:691:22:"},
+      {"input": "test/factories", "outcome": "compiler-stack-limit", "sourceRestored": true, "logSha256": "f6367cac0f5a20fea61739e03bb944de2afc5652ee619238bce0c4fe5add4e58", "compilerLocation": "src/HooksFactoryRevolving.sol:691:22:"},
+      {"input": "test/integration", "outcome": "compiler-stack-limit", "sourceRestored": true, "logSha256": "d71d702150dc886598e7022c313c844993b02f664bb9c51d1fd48ee9eef6edec", "compilerLocation": "src/HooksFactoryRevolving.sol:691:22:"},
+      {"input": "test/invariants", "outcome": "compiler-stack-limit", "sourceRestored": true, "logSha256": "07ca97c57b861e5f1661896ba9fe44dabde4259efd0832964d900a3d78f1d41a", "compilerLocation": "src/HooksFactoryRevolving.sol:691:22:"},
+      {"input": "test/research", "outcome": "compiler-stack-limit", "sourceRestored": true, "logSha256": "38bd6fc3ed4b91245bb4fd6ce2a2becda6101cbca7815e9ea3665473103de27b", "compilerLocation": "src/HooksFactoryRevolving.sol:691:22:"},
+      {"input": "test/access/AprValidation.t.sol", "outcome": "artifact-size-assertion-under-coverage-settings", "sourceRestored": true, "logSha256": "d5cf91861fc70eccd9ba76ec56db092e9b4ddac69ab35ef72e559f6585a353f9"},
+      {"input": "test/access/BaseAccessControls.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "0b5dd489f601b3f9ad92c034894a0b3d3f3b246ce00810eb45b1a8482ca4d965", "lcovSha256": "f0b498ed0423c177d37b7f001bf5cd9123c023103b86084689f880e74425748c"},
+      {"input": "test/access/FixedTermHooks.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "32f4cfd489f4718384f6527fd80495e2665631f32df93007e4d719cf1313f33f", "lcovSha256": "63d7266ef042012756ab8d95d87e11dd40c6687a04dd18bbcb41daa9c22a3d8a"},
+      {"input": "test/access/HookExtensions.t.sol", "outcome": "missing-artifact-in-focused-graph", "sourceRestored": true, "logSha256": "305e657db7a50f2fd44cdfcfe9f0dffeacad2a3d876c2d71cdd6635d171a2ecd"},
+      {"input": "test/access/MarketConstraintHooks.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "44605678d00dc3d78af55e355b37e6a52d5da56a3b6e289665b2117f1d872457", "lcovSha256": "19d2e01552cad3e9774d3a28e38a71995951943628b9c68146f853963d38e5f4"},
+      {"input": "test/access/OpenTermHooks.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "f3ec86bfdf9d30d1a293c68430a0e99b2d2d84f431b3a713522505f6d413cc2b", "lcovSha256": "347642792c7b340c0f5850ddfdb0aa35d07347a4ae2a0609a7f4983521137290"},
+      {"input": "test/access/PeriodicTermHooks.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "b387624f85b0c3a8ab3c743fee613d4460d6d052e6c4e39083cce23d75dc2da8", "lcovSha256": "448ecfc431d894145e235d75890ade80f131e574c66db2832e6a3f65ce67ddf1"},
+      {"input": "test/integration/HookDispatch.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "700d527e28fb7ddbb4a90d0ea6fe2717652dbe1df6117b207988bb58505ecc05", "lcovSha256": "ee30fb9c706c4ac24ad9510dc301dc3e0236ce1ff14472bb3a7ac11bbb6dbf2a"},
+      {"input": "test/integration/Wildcat4626WrapperIntegration.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "ba8b50b2cef787608adf21fd6ab00d31c7ab8d2b5950ab17e770d584c9021b2f", "lcovSha256": "b58af87751ed27e12d91be904bf6cfd19ea6f5d98b5fd38a2d31d5cf56fbbd0d"},
+      {"input": "test/invariants/LifecycleScenarios.t.sol", "outcome": "compiler-stack-limit", "sourceRestored": true, "logSha256": "f8980b338e8ff546e80208d6d4d196512fdea734d079c291dc79ec6a2d70b58c", "compilerLocation": "test/invariants/LifecycleOracle.sol:106:25:"},
+      {"input": "test/invariants/MarketMatrixInvariant.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "3180b43655b75c7773e1f0488ec584e4133a5e74522cdd813d3e3a13e86f22d3", "lcovSha256": "ead8b4743f65b0de313fc95c1a35f98dcca2433e75efd5e86ead2ea116d22283"},
+      {"input": "test/invariants/PenaltyLifecycleInvariant.t.sol", "outcome": "compiler-stack-limit", "sourceRestored": true, "logSha256": "dd176cc76a96e3a7e5d3aa138f642866e875b5b2088c530ab2bb9721551cde05", "compilerLocation": "test/invariants/LifecycleOracle.sol:106:25:"},
+      {"input": "test/invariants/PenaltyLifecycleScenarios.t.sol", "outcome": "compiler-stack-limit", "sourceRestored": true, "logSha256": "6991f749e565370a9868e1a69be782b310ae6c31d43ee79f155c2f270c3ca53e", "compilerLocation": "test/invariants/LifecycleOracle.sol:106:25:"},
+      {"input": "test/invariants/RepaymentLifecycleInvariant.t.sol", "outcome": "compiler-stack-limit", "sourceRestored": true, "logSha256": "37433c4375bdaf391607bbb4fdc866eb6dc79557626717bd284a3e001befc7cb", "compilerLocation": "test/invariants/LifecycleOracle.sol:106:25:"},
+      {"input": "test/lens/MarketAccountingReader.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "0e83e1b78c83a0a11f9dd8b083794c6ee6a27bedcf4a508d5a647c41fd40f88b", "lcovSha256": "661d2e0df422ba0d013d6905b1c4c1c5fad58de576bcefe0be489a7d0c63844a"},
+      {"input": "test/lens/MarketLensAggregator.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "d36b66c8aa1a3ad689cfee996b0026d40ebbf49946bbbf27dc6c5ba119d66745", "lcovSha256": "de9f97e22b63816943f6f9827340f3c15d76e60d8f702d1816d54d6f37d63f25"},
+      {"input": "test/lens/MarketLensCore.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "23609c327ae9555c1611af666e5b9b6a02f717220347c58be5e2475397fcd469", "lcovSha256": "180c35238c4214cd1e3e48dd7062e82accb1a4c5c3fb8a96d48e725368a2303b"},
+      {"input": "test/lens/MarketLensFacade.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "21e3d8602d494f2e642b0a1afb964d84851bf60e200d137c12d33620df23e670", "lcovSha256": "428e2309aa55306e472e38cd75bed3c99bdb981a46bb38f0aa533bd21560ee36"},
+      {"input": "test/lens/MarketLensOptionalData.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "c8ac69ca3aeacf0545ced6fa6dc60230ea6c53a95cf82baa23b62e9faad1b504", "lcovSha256": "30a484194a3ca15ec3bf8f49694d23f390a52f3cfc6f831f74418fb071cb97c6"},
+      {"input": "test/libraries/BoolUtils.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "aadd4653438079ec43a0113a8b273870d160b4567227d7bdbf3074d47837e5b4", "lcovSha256": "9b3c957e53e35c9a33663e4b93c462f8f0100009f4491476aa9f8a33b8ed62a0"},
+      {"input": "test/libraries/BoundedMarketState.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "12e3791124b7119854a8bb4cbd328a162c117dec317ac46074588e99d8477f6a", "lcovSha256": "7311226aa2bec1442f590f487879f6c92563deaa7211eacb45953576739ae051"},
+      {"input": "test/libraries/CompressedInitCode.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "6c212f166cb58ef5463ffe370ca601cedbd84b54c0bf1efac0004f8253f426c0", "lcovSha256": "3cee8514ae38f9b846050c82214b043f09c687da037bca3e0b8719a0eb61cbed"},
+      {"input": "test/libraries/CompressionIntegrity.t.sol", "outcome": "missing-artifact-in-focused-graph", "sourceRestored": true, "logSha256": "fe748ee5baef6f8d74efb5ac54ee683d14fa444ab39b240998562780bac68a44"},
+      {"input": "test/libraries/FIFOQueue.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "567762acb29a12c2e610916fb95e707a683925e78769cfbfb0177d3ab8270a2a", "lcovSha256": "ec2362810c7953a0b142e65b86c7b0304cf375107e6f382d3b910db413e441ac"},
+      {"input": "test/libraries/FeeMath.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "71952ff425b57f749b2969727124101634e9b34f997609b9aa4fe50ec2bfdb53", "lcovSha256": "3426d3cb8086b76f4735b09ab0e2c2170ec1ea29630944993d1967c9f36b4c82"},
+      {"input": "test/libraries/LibERC20.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "8ce9b1d719a78e6682380c1285cb805ed148cbaffc4d50c7a69d7815c70b3c0b", "lcovSha256": "9c62d7257dc937cf4bd4da3413dbe0fe987151b228243e13fc579137402e4420"},
+      {"input": "test/libraries/LibFixedCall.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "069ea64ada2c0098cb45d0fb3ab4c3599690a65b4f0f29062fdd1d6d238a90ad", "lcovSha256": "1f098310455bc9b907f24f4ed92fc767bbf984eebd3bda3e7fa5f744cadba886"},
+      {"input": "test/libraries/LibStoredInitCode.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "1e3f89e649d6cb9771ff529f069116591b18fd8892b41586efaf4253339d1eda", "lcovSha256": "9a64431f924ced8e916ce042aed8fd5b8e13c6359d7d0da20e7116c2d39c3b3d"},
+      {"input": "test/libraries/MarketEvents.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "c889bd6b4b5f2dc176ce7c088629d89c07944cf1f42d61d03c959971961aed38", "lcovSha256": "5a8738b2c7e2ff14a3e3f8cee330b5ceb31b43e2295c868a64a5fcf49d515e7b"},
+      {"input": "test/libraries/MarketState.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "293674bc996e65163529bb418bb4438f3e6d33fd56d6f61838c1ea4222cecaa9", "lcovSha256": "893c82f853df39f87b22d8e5e5afc0ef7377834eafe14a56bf6ca8b6f7508802"},
+      {"input": "test/libraries/MarketTransitionLayout.t.sol", "outcome": "missing-artifact-in-focused-graph", "sourceRestored": true, "logSha256": "c39fe7b7ba9df71dd4b4ecb094932c1099b20b85af4c5d00f0e7441ae3b8c555"},
+      {"input": "test/libraries/MathUtils.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "ab12a6f15eb2b6cff8e1b706ba30e0f2db7e8ece66f77b94a2a3bbd450a82991", "lcovSha256": "5905caafe7e44c33638e808f82821f0769079a0f3135eccdcfe822bbb95da8c1"},
+      {"input": "test/libraries/SafeCastLib.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "572c7e3c652bc8df5b19500e49991f268ea71074a677af46c9ce15332996018e", "lcovSha256": "539389204ae907a985ced20eb83bf632a52edf31eae22be6fad8f915c8c16eb8"},
+      {"input": "test/libraries/SplitInitCode.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "ef5036b188b34814dc4763a8a5b8e3d153615094a731ab0fac18a7fd4a2750b0", "lcovSha256": "3b5b91aed34dbfb4c322d5828ad2a2c5cdcdcd999f3ad2e51a23ddae789faf42"},
+      {"input": "test/libraries/StringQuery.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "8569ac2272715a0180055b85f209aca7f1abd689f79fdcb93e2270eb71912c9c", "lcovSha256": "ea9dcd9d255a46da44d3b91ab9b7cd75a39a925ddfff6701255c92083a524861"},
+      {"input": "test/libraries/Withdrawal.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "3ad2291c7290d543d12c219ca665d09db236dc37532920698d5c35c6fb977d13", "lcovSha256": "8c320471894df9a343dcf9cd22f6384ee2507dc00d171b501c24ce676064fc61"},
+      {"input": "test/libraries/WithdrawalCarrySequence.t.sol", "outcome": "missing-artifact-in-focused-graph", "sourceRestored": true, "logSha256": "4aced49183ebfaec0747b198bf38087c834e6f447dc774a326aca602b25c6284"},
+      {"input": "test/libraries/WithdrawalPaymentCapacity.t.sol", "outcome": "missing-artifact-in-focused-graph", "sourceRestored": true, "logSha256": "104ab5ed3c1518543158896fd55f1ec70f8eec5721702c83ba26346101537398"},
+      {"input": "test/libraries/WithdrawalRemainderState.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "1187acd0856b82d0c1d2395af921783398d0b845cdcf77d00aa85e332fd8a4df", "lcovSha256": "842f5de200b1209af6d597f0e2c252c8620163debc9f882fa895db1ad90f03e5"},
+      {"input": "test/market/DelegateSanctions.t.sol", "outcome": "missing-artifact-in-focused-graph", "sourceRestored": true, "logSha256": "4c6c34dbf92b485376cdd80a17ab9257e9a15b87f934d1db3066519ed59d70aa"},
+      {"input": "test/market/MarketSurplus.t.sol", "outcome": "missing-artifact-in-focused-graph", "sourceRestored": true, "logSha256": "38c1c4563fc45bde4735908a9042f71dccff2cbda73cc2e437c143aff940b109"},
+      {"input": "test/market/NukeBatchAveraging.t.sol", "outcome": "missing-artifact-in-focused-graph", "sourceRestored": true, "logSha256": "adeedb07a18fe4c69f6a3f92fc405db34fb64492a39efa54cfb69e1e53ba7a0e"},
+      {"input": "test/market/ProtocolFeeRoundingReview.t.sol", "outcome": "missing-artifact-in-focused-graph", "sourceRestored": true, "logSha256": "9005de00c307c4585f7792a3d76494fac0a0fc12c97a304eab44325357e0ede9"},
+      {"input": "test/market/RepayExpiryDelinquency.t.sol", "outcome": "missing-artifact-in-focused-graph", "sourceRestored": true, "logSha256": "df1bb66957ffeeef4f0176a4a1bc835b0db016305badaa6e440892b7548d213c"},
+      {"input": "test/market/WildcatMarket.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "6068cdf1a7da5ac3fa6307761d7ddf01b57707371a60e728c859464a137e44c2", "lcovSha256": "972bfcc07afe8e27f7df70c1c4bf35f005454a9a4203e083f111b6027e2e7132"},
+      {"input": "test/market/WildcatMarketBorrowerTransfer.t.sol", "outcome": "passed", "sourceRestored": true, "logSha256": "b455070da5b43300b0331f93dfb1d803282d31949a5b905a82dc3f4b17781c5d", "lcovSha256": "b396839170b65394bd11d36a30f0ac904b37b1ee4292c238cd78898d42ef6b15"},
+      {"input": "test/market/WithdrawalCounters.t.sol", "outcome": "missing-artifact-in-focused-graph", "sourceRestored": true, "logSha256": "e3e79a7476d0f308118c6401381789436240ba3d4da1ec7c94163e28de646dd4"},
+      {"input": "test/market/WithdrawalRoundingCarry.t.sol", "outcome": "missing-artifact-in-focused-graph", "sourceRestored": true, "logSha256": "e70628ae1735c65ad972942893daee2a0acdb9952ab0c5eb66dd92450c275d42"},
+      {"input": "test/research/InitCodeStorageTools.t.sol", "outcome": "missing-artifact-in-focused-graph", "sourceRestored": true, "logSha256": "051cf50368289ad91233f9362c2488dba78a241e142713b5416a06875ff5b0e7"}
+    ],
+    "notAttemptedIndividually": {
+      "reason": "Import graph includes a factory already blocked by non-IR compilation in family runs.",
+      "files": [
+        {
+          "file": "test/access/BaseHooks.t.sol",
+          "reason": "confirmed test-local non-IR stack limit"
+        },
+        {
+          "file": "test/factories/HooksFactories.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/factories/ZeroValueTransferReview.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/integration/BorrowerAccountCompatibility.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/integration/BorrowerAccountOrigination.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/integration/HooksAdministratorTransfer.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/integration/ProductionEconomics.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/integration/ProductionMatrixScenarios.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/integration/RepaymentPrototype.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/invariants/LifecycleAuthority.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/lens/MarketLensDeployment.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/lens/MarketLensLifecycle.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/lens/TokenMetadataReview.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/market/RevolvingInterestDustReview.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/research/CompressionFactoryIntegrity.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/research/HookArtifactCommitment.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/research/SingleStorageDeployment.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        },
+        {
+          "file": "test/research/SplitStorageDeployment.t.sol",
+          "reason": "confirmed non-IR factory stack limit"
+        }
+      ]
+    },
+    "fullMinimumIRAttempt": {
+      "command": "FOUNDRY_TEST=test bash scripts/coverage.sh --ir-minimum --report lcov --report-file <output.lcov>",
+      "status": "compiler-failed",
+      "compilerSeconds": 24.62,
+      "error": "Yul exception: Variable expr is 1 too deep in the stack; memoryguard was present.",
+      "sourceMapsWarning": "Foundry warns minimum-IR coverage can produce inaccurate source mappings.",
+      "usableReport": false,
+      "logSha256": "d86151c8eeb8b96278489f9115a6f77c48e5f4b472ea872d359af4a46a9568df"
+    },
+    "files": {
+      "src/HooksFactory.sol": {"lines": "0/332", "branches": "0/42", "functions": "0/43"},
+      "src/IHooksFactory.sol": {"lines": "0/38", "branches": "0/13", "functions": "0/3"},
+      "src/ReentrancyGuard.sol": {"lines": "17/17", "branches": "4/4", "functions": "5/5"},
+      "src/WildcatArchController.sol": {"lines": "142/142", "branches": "17/17", "functions": "36/36"},
+      "src/WildcatBorrowerIdentityRegistry.sol": {"lines": "148/148", "branches": "46/46", "functions": "27/27"},
+      "src/WildcatSanctionsEscrow.sol": {"lines": "16/16", "branches": "1/1", "functions": "5/5"},
+      "src/WildcatSanctionsSentinel.sol": {"lines": "53/53", "branches": "7/7", "functions": "9/9"},
+      "src/access/BaseAccessControls.sol": {"lines": "297/300", "branches": "65/68", "functions": "44/44"},
+      "src/access/BaseHooks.sol": {"lines": "96/116", "branches": "14/23", "functions": "26/38"},
+      "src/access/FixedTermHooks.sol": {"lines": "10/10", "branches": "0/0", "functions": "4/4"},
+      "src/access/FixedTermPolicy.sol": {"lines": "72/73", "branches": "11/13", "functions": "18/18"},
+      "src/access/IHooks.sol": {"lines": "5/5", "branches": "0/1", "functions": "2/2"},
+      "src/access/MarketConstraintHooks.sol": {"lines": "69/76", "branches": "11/16", "functions": "8/8"},
+      "src/access/OpenTermHooks.sol": {"lines": "10/10", "branches": "0/0", "functions": "4/4"},
+      "src/access/OpenTermPolicy.sol": {"lines": "18/18", "branches": "0/0", "functions": "6/6"},
+      "src/access/PeriodicTermHooks.sol": {"lines": "12/12", "branches": "0/0", "functions": "5/5"},
+      "src/access/PeriodicTermPolicy.sol": {"lines": "134/134", "branches": "32/34", "functions": "25/25"},
+      "src/lens/HooksConfigData.sol": {"lines": "84/97", "branches": "21/23", "functions": "6/7"},
+      "src/lens/HooksDataForBorrower.sol": {"lines": "13/13", "branches": "0/0", "functions": "1/1"},
+      "src/lens/HooksInstanceData.sol": {"lines": "49/52", "branches": "9/12", "functions": "3/3"},
+      "src/lens/HooksTemplateData.sol": {"lines": "22/22", "branches": "2/2", "functions": "2/2"},
+      "src/lens/LenderAccountData.sol": {"lines": "17/20", "branches": "1/2", "functions": "3/3"},
+      "src/lens/MarketAccountingReader.sol": {"lines": "14/14", "branches": "2/2", "functions": "4/4"},
+      "src/lens/MarketData.sol": {"lines": "121/133", "branches": "13/19", "functions": "12/12"},
+      "src/lens/MarketLens.sol": {"lines": "115/115", "branches": "2/2", "functions": "52/52"},
+      "src/lens/MarketLensAggregator.sol": {"lines": "223/223", "branches": "26/26", "functions": "42/42"},
+      "src/lens/MarketLensCore.sol": {"lines": "61/61", "branches": "0/0", "functions": "19/19"},
+      "src/lens/MarketLensLive.sol": {"lines": "11/11", "branches": "0/0", "functions": "3/3"},
+      "src/lens/MarketLifecycleData.sol": {"lines": "18/19", "branches": "1/2", "functions": "2/2"},
+      "src/lens/MarketLiveData.sol": {"lines": "30/33", "branches": "1/3", "functions": "2/2"},
+      "src/lens/OptionalData.sol": {"lines": "6/6", "branches": "2/2", "functions": "1/1"},
+      "src/lens/RoleProviderData.sol": {"lines": "3/26", "branches": "0/5", "functions": "1/3"},
+      "src/lens/TokenData.sol": {"lines": "12/12", "branches": "1/1", "functions": "2/2"},
+      "src/lens/WithdrawalBatchData.sol": {"lines": "28/28", "branches": "6/6", "functions": "3/3"},
+      "src/libraries/BoolUtils.sol": {"lines": "6/6", "branches": "0/0", "functions": "3/3"},
+      "src/libraries/Errors.sol": {"lines": "0/14", "branches": "0/0", "functions": "0/4"},
+      "src/libraries/FIFOQueue.sol": {"lines": "50/50", "branches": "6/6", "functions": "9/9"},
+      "src/libraries/FeeMath.sol": {"lines": "32/32", "branches": "3/3", "functions": "6/6"},
+      "src/libraries/FunctionTypeCasts.sol": {"lines": "6/8", "branches": "0/0", "functions": "3/4"},
+      "src/libraries/LibCompressedInitCode.sol": {"lines": "26/29", "branches": "4/6", "functions": "3/3"},
+      "src/libraries/LibERC20.sol": {"lines": "49/49", "branches": "12/12", "functions": "7/7"},
+      "src/libraries/LibFixedCall.sol": {"lines": "23/23", "branches": "10/10", "functions": "2/2"},
+      "src/libraries/LibSplitInitCode.sol": {"lines": "42/53", "branches": "6/12", "functions": "9/10"},
+      "src/libraries/LibStoredInitCode.sol": {"lines": "87/89", "branches": "15/16", "functions": "13/13"},
+      "src/libraries/MarketErrors.sol": {"lines": "124/136", "branches": "0/0", "functions": "41/45"},
+      "src/libraries/MarketEvents.sol": {"lines": "106/106", "branches": "0/0", "functions": "26/26"},
+      "src/libraries/MarketLifecycle.sol": {"lines": "10/24", "branches": "4/7", "functions": "1/3"},
+      "src/libraries/MarketState.sol": {"lines": "31/31", "branches": "1/1", "functions": "11/11"},
+      "src/libraries/MathUtils.sol": {"lines": "55/55", "branches": "14/14", "functions": "13/13"},
+      "src/libraries/SafeCastLib.sol": {"lines": "67/67", "branches": "2/2", "functions": "32/32"},
+      "src/libraries/StringQuery.sol": {"lines": "62/64", "branches": "18/18", "functions": "3/3"},
+      "src/libraries/Withdrawal.sol": {"lines": "11/11", "branches": "1/1", "functions": "3/3"},
+      "src/market/WildcatMarket.sol": {"lines": "123/127", "branches": "22/27", "functions": "11/11"},
+      "src/market/WildcatMarketBase.sol": {"lines": "422/484", "branches": "58/84", "functions": "63/67"},
+      "src/market/WildcatMarketConfig.sol": {"lines": "82/83", "branches": "19/22", "functions": "12/12"},
+      "src/market/WildcatMarketRevolving.sol": {"lines": "54/54", "branches": "8/8", "functions": "9/9"},
+      "src/market/WildcatMarketToken.sol": {"lines": "34/34", "branches": "2/3", "functions": "7/7"},
+      "src/market/WildcatMarketWithdrawals.sol": {"lines": "131/134", "branches": "23/24", "functions": "13/13"},
+      "src/providers/AccessListRoleProvider.sol": {"lines": "40/40", "branches": "8/8", "functions": "14/14"},
+      "src/providers/AccessListRoleProviderFactory.sol": {"lines": "18/18", "branches": "1/1", "functions": "6/6"},
+      "src/providers/ERC1155RoleProvider.sol": {"lines": "21/21", "branches": "5/5", "functions": "6/6"},
+      "src/providers/ERC1155RoleProviderFactory.sol": {"lines": "18/18", "branches": "1/1", "functions": "6/6"},
+      "src/providers/ERC20RoleProvider.sol": {"lines": "13/13", "branches": "3/3", "functions": "4/4"},
+      "src/providers/ERC20RoleProviderFactory.sol": {"lines": "19/19", "branches": "1/1", "functions": "6/6"},
+      "src/providers/ERC4626AssetsRoleProvider.sol": {"lines": "16/16", "branches": "4/4", "functions": "4/4"},
+      "src/providers/ERC4626AssetsRoleProviderFactory.sol": {"lines": "18/18", "branches": "1/1", "functions": "6/6"},
+      "src/providers/ERC5192RoleProvider.sol": {"lines": "34/36", "branches": "12/12", "functions": "7/7"},
+      "src/providers/ERC5484RoleProvider.sol": {"lines": "39/41", "branches": "13/13", "functions": "7/7"},
+      "src/providers/ERC721RoleProvider.sol": {"lines": "20/20", "branches": "5/5", "functions": "6/6"},
+      "src/providers/ERC721RoleProviderFactory.sol": {"lines": "18/18", "branches": "1/1", "functions": "6/6"},
+      "src/providers/ManagedRoleProvider.sol": {"lines": "24/24", "branches": "5/5", "functions": "5/5"},
+      "src/providers/MerkleRoleProvider.sol": {"lines": "24/25", "branches": "4/4", "functions": "5/5"},
+      "src/providers/MerkleRoleProviderFactory.sol": {"lines": "18/18", "branches": "1/1", "functions": "6/6"},
+      "src/spherex/SphereXConfig.sol": {"lines": "57/57", "branches": "6/6", "functions": "16/16"},
+      "src/spherex/SphereXProtectedErrors.sol": {"lines": "15/15", "branches": "0/0", "functions": "5/5"},
+      "src/spherex/SphereXProtectedEvents.sol": {"lines": "19/19", "branches": "0/0", "functions": "5/5"},
+      "src/spherex/SphereXProtectedRegisteredBase.sol": {"lines": "40/95", "branches": "3/7", "functions": "16/17", "workaroundApplied": true},
+      "src/types/HooksConfig.sol": {"lines": "287/287", "branches": "16/16", "functions": "36/36"},
+      "src/types/LenderStatus.sol": {"lines": "14/14", "branches": "0/0", "functions": "5/5"},
+      "src/types/RoleProvider.sol": {"lines": "33/33", "branches": "0/0", "functions": "15/15"},
+      "src/types/TransientBytesArray.sol": {"lines": "56/56", "branches": "4/4", "functions": "5/5"},
+      "src/vault/Wildcat4626Wrapper.sol": {"lines": "380/386", "branches": "97/105", "functions": "54/56"},
+      "src/vault/Wildcat4626WrapperFactory.sol": {"lines": "47/47", "branches": "16/16", "functions": "6/6"}
+    }
+  },
+  "slither": {
+    "sourceCommit": "8ae329c5519aede7aeabd7a51082e79cb227396e",
+    "slitherRuntimeCommit": "c4e529659c5cc12d8ec7117a7393d13d4533c56e",
+    "seconds": 30.99,
+    "compilationUnits": 1,
+    "contracts": 324,
+    "functionAndModifierObjects": 11383,
+    "incorrectlyConstructedContracts": [],
+    "errors": [],
+    "partialAnalysisAllowed": false,
+    "assemblySkipped": false,
+    "scope": "deploy-profile compilation including production source, imported dependencies, test helpers and script helpers; parser, SlithIR and SSA compatibility only, not detector triage",
+    "compiledSources": 241,
+    "status": "passed",
+    "version": "0.11.6",
+    "fork": "https://github.com/wildcat-finance/slither/tree/fix/function-library-resolution",
+    "forkHead": "dc1f0b371319d6736e925186135f6ad57b6cf7aa",
+    "installedPythonSourceFilesMatchedToFork": 538,
+    "globalInstallationIsQualified": false,
+    "compiledSourceCounts": {
+      "src": 122,
+      "lib": 45,
+      "test": 53,
+      "script": 21
+    },
+    "allProductionInputsMatchedCurrentSource": true,
+    "buildCommand": "FOUNDRY_PROFILE=deploy forge build --ast --build-info --build-info-path \"$EVIDENCE/slither-build-info\" --skip test --skip script",
+    "buildCompilerSeconds": 92.85,
+    "analysisApi": "Slither(repo, ignore_compile=True, foundry_out_directory=\"deploy-out\", foundry_build_info_directory=build_info, disallow_partial=True, skip_assembly=False)",
+    "acceptance": "No logged ERROR messages and no incorrectly constructed contracts; parser, SlithIR and SSA construction only.",
+    "detectorsRun": false,
+    "buildLogSha256": "f70e27c98ab1ab9f52e5c5943dcb3cc30a686eeb14305b996252c25cc3f6a33d",
+    "analysisLogSha256": "3c2398307c52c1b03e56bdaebb914e55bc369b49b3d30a3609d85a0be3aa1717"
+  },
+  "retention": "This receipt retains extracted results and SHA-256 identities. Raw local logs and LCOV files are not included in Git; their presence on another machine is not established.",
+  "maintenanceFollowUp": {
+    "observedOn": "2026-10-05",
+    "baseCommit": "8ae329c5519aede7aeabd7a51082e79cb227396e",
+    "scope": "Test-only maintenance following the baseline above. Working-tree source identity is pinned by file hashes until the user commits the change.",
+    "changedSolidityFilesSha256": {
+      "test/access/BaseAccessControls.t.sol": "777d0f9767e710a0575672152f9b230d96837a2934ff3f57703cad5fc2b6fc7c",
+      "test/access/FixedTermHooks.t.sol": "dadb2f4be3054ecfafeb8f2aa5ebb6c2d514b33b705bee352b5a0264ffa7afea",
+      "test/access/PeriodicTermHooks.t.sol": "e58a74688209f83f665e20aad703e670441cf2700374aac85f08100f705da09f",
+      "test/invariants/LifecycleFixture.sol": "fbe4d278c02e1f648feeaf83b921223ce4fa86d60fc7c181616b203d17be7b7a",
+      "test/libraries/FeeMath.t.sol": "02f7cb25190acada5c4d76cae7b006bf6fedb4a346795e98d8f1f0f0a63e23d8",
+      "test/market/WithdrawalCounters.t.sol": "01f72b8d3cee8f1a1aa21297c484c09904916667ff8dd71ad8e01975b7990f45",
+      "test/providers/ManagedRoleProviders.t.sol": "df41333b987dee84bb48e53cc96644ce6ac9d6a261cdcf7e8b10ebe601b1f4be"
+    },
+    "timestampCleanup": {
+      "flaggedTestsUpdated": 14,
+      "additionalFunctionsUpdated": [
+        "test/access/BaseAccessControls.t.sol:BaseAccessControlsTest.setUp",
+        "test/market/WithdrawalCounters.t.sol:WithdrawalCountersTest._checkDirectDonationDoesNotBlockPriorClaim"
+      ],
+      "directReadsReplaced": 22,
+      "replacement": "vm.getBlockTimestamp()",
+      "scan": "All tracked test Solidity function bodies checked for direct block.timestamp reads alongside warp, _warp, fastForward or _fastForward calls.",
+      "remainingDirectMixedFunctions": 0,
+      "assertionsRemoved": 0
+    },
+    "lifecycleSetup": {
+      "change": "LifecycleFixture loads the complete LifecycleHandler artifact through the existing _deployCode helper instead of embedding its creation code in four suites.",
+      "constructorPreserved": "The helper uses CREATE from the calling suite with the same nine ABI-encoded arguments. The concrete handler import remains so compilation discovers its artifact.",
+      "retained": "LifecycleHandler still inherits MarketMatrixHandler and constructs its immutable LifecycleReference. Shared actions, reference logic, target selectors and invariant budgets are unchanged."
+    },
+    "canonical": {
+      "command": "forge test --force --block-timestamp 1724284800 --fuzz-seed 0x5eed",
+      "status": "passed",
+      "compilerSeconds": 261.27,
+      "executionSeconds": 152.53,
+      "wallSeconds": 414.02,
+      "testsPassed": 958,
+      "testsFailed": 0,
+      "testsSkipped": 0,
+      "suites": 87,
+      "fuzzRuns": 1000,
+      "invariantRuns": 2000,
+      "invariantDepth": 30,
+      "allThreeCampaignsPassed": true,
+      "handlerActionCountRowsMatchBaseline": true,
+      "logSha256": "82ea632353ef8fb6e483de5413d7525dc5ea044555b0aef93c9574792d264c41",
+      "timingLogSha256": "a27fe13ec1bc41acf6442a79675eea22ab3769ed6d5b68a1f1626dd3a4a48c88"
+    },
+    "defaultClockCheck": {
+      "status": "passed",
+      "initialBlockTimestamp": 1,
+      "testsPassed": 15,
+      "seconds": 0.18,
+      "command": [
+        "forge",
+        "test",
+        "--match-test",
+        "^(test_getLenderStatus_refresh|test_getLenderStatus_RefreshesExpiredPullProviderCredential|test_tryValidateAccess_RefreshesExpiredCredentialFromLastProvider|test_onQueueWithdrawal_ChecksMaturityBeforeKnownOrCredentialAccess|test_onCloseMarket_EnforcesEarlyClosurePolicyAndUpdatesTerm|test_onQueueWithdrawal_ChecksWindowBeforeAccessAndRetainsAccessAfterClosure|test_updateScaleFactorAndFees_WithFees|test_updateScaleFactorAndFees_WithoutFeesWithPenalties|test_updateScaleFactorAndFees_WithFeesAndPenalties|test_updateScaleFactorAndFees_WithoutFeesOrPenalties|test_accessList_ConstructorAndCredentialsTrackMembership|test_accessListHook_MembershipRemovalRespectsConfiguredTtl|test_merkleHook_RootUpdateRespectsPositiveTtl|test_merkleHook_ZeroTtlUsesSameBlockCredentialThenRequiresFreshProof|test_directDonationCannotBlockPriorClaim_AcrossMarketKinds)\\(\\)$",
+        "--fuzz-seed",
+        "0x5eed"
+      ],
+      "logSha256": "0c9e154e03edf9ca48be4e7b402fd6f77c89e1ebb416b5cd395787c107a6ae72"
+    },
+    "artifactComparison": {
+      "productionArtifactsIdentical": 129,
+      "allSourceAndTestAbisIdentical": 361,
+      "handlerAndReferenceBytecodeIdentical": [
+        "test/invariants/LifecycleHandler.sol:LifecycleHandler",
+        "test/invariants/LifecycleOracle.sol:LifecycleReference",
+        "test/invariants/MarketMatrixHandler.sol:MarketMatrixHandler"
+      ],
+      "lifecycleSuiteCreationBytes": [
+        {
+          "contract": "LifecycleScenariosTest",
+          "before": 83797,
+          "after": 26686
+        },
+        {
+          "contract": "PenaltyLifecycleScenariosTest",
+          "before": 77090,
+          "after": 19985
+        },
+        {
+          "contract": "RepaymentLifecycleInvariantTest",
+          "before": 73016,
+          "after": 15893
+        },
+        {
+          "contract": "PenaltyLifecycleInvariantTest",
+          "before": 73530,
+          "after": 16418
+        }
+      ],
+      "testCreationBytesBefore": 2539755,
+      "testCreationBytesAfter": 2313391
+    },
+    "formatAndLint": {
+      "forgeFmtCheck": "passed",
+      "gitDiffCheck": "passed",
+      "scopedSolhintErrors": 0,
+      "existingSolhintWarnings": [
+        "test/access/BaseAccessControls.t.sol:1506: line length 121 exceeds 120; unchanged from base commit."
+      ]
+    },
+    "coverage": "Baseline coverage above has not been refreshed by this maintenance run; production source is unchanged."
+  }
+}
