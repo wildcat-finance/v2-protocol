@@ -10,7 +10,7 @@ pragma solidity 0.8.25;
 import './Errors.sol';
 
 // selectors are the first four bytes of keccak256 over the full error signature declared in
-// IMarketEventsAndErrors or WildcatMarketBase.
+// IMarketEventsAndErrors.
 // use `revertWithSelector` for no-argument errors. `BorrowerTransferWhileSanctioned(address)`
 // uses `revertWithSelectorAndArgument` with the flagged address encoded as a uint256.
 

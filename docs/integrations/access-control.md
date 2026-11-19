@@ -198,6 +198,10 @@ It then tries to validate a credential.
 
 ### Transfers
 
+Markets with transfers enabled and no `onTransfer` callback skip hook recipient
+checks. An account blocked by `blockFromDeposits` can receive market tokens
+there, and the transfer does not mark the recipient as known.
+
 `onTransfer`:
 
 1. rejects every transfer if transfers are disabled;
@@ -208,14 +212,14 @@ It then tries to validate a credential.
 5. otherwise tries validation, requiring a credential only when transfer policy
    says so.
 
-A valid recipient becomes known for that market.
+A recipient whose credential the callback validates becomes known for that market.
 
 The registered-wrapper exception is recipient-only. It permits market-token
 transfers into the canonical wrapper but does not exempt transfers out of it.
-On `withdraw` or `redeem`, the receiver follows ordinary recipient policy: a
-known lender remains eligible after a deposit block, while an unknown blocked
-or otherwise unauthorized receiver is rejected. Sanctions checks remain
-independent and apply to both the wrapper and receiver.
+On wrapper `withdraw` or `redeem`, the same callback setting applies to the
+receiver. When the callback runs, a known lender remains eligible after a
+deposit block and an unknown blocked receiver is rejected. Market sanctions
+checks apply independently to both the wrapper and receiver.
 
 These are the original templates' credential exemptions. A custom composition
 still runs additional `_checkTransfer` rules for known recipients and the
@@ -245,13 +249,13 @@ stop execution of an already queued withdrawal.
 ## Known lenders
 
 Known-lender status is permanent and scoped to one market. An account becomes
-known after depositing or receiving market tokens with a valid credential.
+known when a deposit or transfer callback validates its credential.
 There is no method to clear it.
 
 Expiry, revocation, provider removal, and deposit blocks do not remove known
 status. A known account can still receive transfers and queue withdrawals
 without revalidation, subject to the market's other rules. A deposit block still
-stops new deposits.
+stops new deposits when the market calls `onDeposit`.
 
 ## Read-only interface
 
@@ -260,11 +264,12 @@ stops new deposits.
   cannot consume validation data or persist a refresh.
 - `getRoleProvider`, `getPullProviders`, and `getPushProviders` return current
   provider configuration. Array order is unstable.
-- `isMarketTransferRecipientAllowed(market, recipient)` rejects disabled
-  transfers. When transfers are enabled, it accepts the market's nonzero
-  `registeredWrapper()`. Other recipients follow the ordinary policy: unknown
-  blocked recipients are rejected, while unrestricted transfers, known lenders,
-  or recipients with a current credential are accepted.
+- `isMarketTransferRecipientAllowed(market, recipient)` returns `false` if
+  transfers are disabled and `true` if transfers are enabled without `onTransfer`.
+  When the callback runs, the built-in hooks accept known lenders and the
+  market's nonzero `registeredWrapper()`, reject other locally blocked recipients,
+  and check credentials when required. Custom recipient rules also apply when
+  the callback runs. The market checks sanctions separately from this view.
 
 ## Tests
 

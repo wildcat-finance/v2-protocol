@@ -192,6 +192,8 @@ library MarketDataLib {
     data.borrowerIdentityRegistry = market.borrowerIdentityRegistry();
     _tryFillOptionalUint(data.commitmentFeeBips, address(market), _COMMITMENT_FEE_BIPS_SELECTOR);
     _tryFillOptionalUint(data.drawnAmount, address(market), _DRAWN_AMOUNT_SELECTOR);
+    // stored principal is cleared when a market write commits the projected closure.
+    if (data.market.isClosed) data.drawnAmount.value = 0;
     data.registeredWrapper = market.registeredWrapper();
     data.lifecycle.fill(market, data.market.isClosed);
     data.liquidity.fill(market, data.market.isClosed, data.market.totalAssets);
