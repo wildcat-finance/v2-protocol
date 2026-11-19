@@ -1,8 +1,25 @@
 # Sepolia v2.5.9 activation
 
-Start in the `v2-protocol` checkout on `release/v2.5.9`. Use the v2.5.7
-Sepolia handoff as the live baseline. The 27 cards deploy 15 contracts and
-make 12 registration and approval calls. [v2.5.7 handoff](../../deployments/sepolia/handoff-v2.5.7.md)
+## Start the rehearsal
+
+Run this from `v2-protocol` in the terminal you will use for the rehearsal.
+
+```sh
+export SEPOLIA_REPLACEMENT_CONFIG=deployments/sepolia/v2.5.9.json
+jq -er '.release' "$SEPOLIA_REPLACEMENT_CONFIG"
+```
+
+The second line should print `v2.5.9`. Continue at **Run the checks** in
+the [ceremony checklist](../../script/deploy/CEREMONY_CHECKLIST.md#2-run-the-checks).
+
+Both packages have 27 cards. The rehearsal fingerprint is `BA82-311D-9C8D`
+on Anvil. The live fingerprint is `5506-2E28-5155` on Sepolia.
+[Live package digest](../../deployments/sepolia/ceremony-v2.5.9-eoa.digest.txt)
+
+## Deployment scope
+
+The 27 cards deploy 15 contracts and make 12 registration and approval calls.
+The live baseline is the [v2.5.7 handoff](../../deployments/sepolia/handoff-v2.5.7.md).
 
 - Deploy four market bytecode stores, the standard and revolving hooks factories,
   three hook template stores, the wrapper factory, the lens and its three helpers,
@@ -14,14 +31,18 @@ make 12 registration and approval calls. [v2.5.7 handoff](../../deployments/sepo
 
 The ceremony reuses the sanctions sentinel, borrower identity registry, access-list
 provider factory and legacy wrapper fallback. Existing factory registrations and
-indexing continue through evaluation.
+indexing continue through evaluation. The Sepolia executor,
+`0xCa7007a75296b532Ce1606d9e130eAa849800Ca7`, is the initial KYC administrator.
 
-## Freeze the packet
+The finalized handoff records the KYC address, deployment transaction, start
+block, initial administrator and runtime hash. Use those receipts for the
+subgraph, SDK and app evaluation. Retirement is a later operator decision.
 
-Commit the reviewed KYC source. Set `contractSourceCommit` in the release config
-to the full commit hash containing that source and set `kycRoleProvider.administrator`
-to the chosen Sepolia wallet. The generator checks the compiled KYC runtime against
-the hash pinned in the config. [release config](../../deployments/sepolia/v2.5.9.json)
+## Rebuild the packet
+
+Use these commands when preparing a new packet. The generator checks the
+compiled KYC runtime against the configured hash.
+[Release config](../../deployments/sepolia/v2.5.9.json)
 
 ```sh
 export SEPOLIA_REPLACEMENT_CONFIG=deployments/sepolia/v2.5.9.json
@@ -30,31 +51,8 @@ node scripts/sepolia-v2-5-fix-rotation.js validate
 node scripts/sepolia-v2-5-fix-rotation.js generate-rehearsal
 ```
 
-Review and commit the generated plan, pending inventory, impact report, source
-pin and packages. Push the reviewed branch and use a clean checkout for the
-operator gates.
-
-## Rehearse and execute
-
-```sh
-stage() { bash script/deploy/v2-5/sepolia-v2.5.9-stage.sh "$@"; }
-rehearse() { bash script/deploy/v2-5/rehearse-sepolia-v2.5.9.sh "$@"; }
-export FORK_RPC_URL=https://rpc.hinterlight.net/11155111
-stage check
-rehearse --ui
-DEPLOYMENTS_NETWORK=anvil stage activation
-```
-
-Connect the reviewed executor in the locked UI. Verify the network, package
-digest and 27-card count. Sign in order and export the verified run state.
-Set `RUN_STATE` to the export from that session and accept the rehearsal with
-`DEPLOYMENTS_NETWORK=anvil stage finalize-activation`. Stop the fork with
-`rehearse --stop`.
-
-For live execution, use the same stages with `DEPLOYMENTS_NETWORK=sepolia`
-and `RPC_URL=https://rpc.hinterlight.net/11155111`. Run `stage activation`,
-sign the Sepolia package, export its run state and set `RUN_STATE` to that
-file. Run `stage finalize-activation` and then `stage finalize-inventory`.
-The finalized handoff records the KYC address, deployment transaction, start
-block, initial administrator and runtime hash. Use those receipts for the
-subgraph, SDK and app evaluation. Retirement is a later operator decision.
+Review and commit the live plan, plan entries, pending inventory, impact report,
+source pin, EOA package and digest. For a newly generated live package, use
+`git add -f -- deployments/sepolia/ceremony-v2.5.9-eoa.json` to stage the
+ignored file. Push the reviewed branch and use a clean checkout for the
+operator gates. The Anvil package is generated locally.

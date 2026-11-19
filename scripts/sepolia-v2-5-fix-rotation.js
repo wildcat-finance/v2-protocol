@@ -22,7 +22,7 @@ const PREVIOUS_PLAN_PATH = path.join(
   REPO_ROOT,
   "deployments/sepolia/plan-v2-5.json"
 );
-const DEFAULT_RPC_URL = "https://eth-sep.hinterlight.net";
+const DEFAULT_RPC_URL = "https://rpc.hinterlight.net/11155111";
 const ANVIL_CHAIN_ID = 31337;
 const REHEARSAL_SUFFIX = "-rehearsal";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";

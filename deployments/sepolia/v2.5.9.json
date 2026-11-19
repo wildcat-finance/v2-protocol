@@ -4,7 +4,7 @@
   "protocolVersion": "2.5.9",
   "network": "sepolia",
   "chainId": 11155111,
-  "contractSourceCommit": null,
+  "contractSourceCommit": "8dbee41179f2a159e6869b742baae78e531b040b",
   "inventoryBaselineCommit": "bfe1412141f263ba6b056c60c3f4654a461598dd",
   "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
   "authorityPolicy": "fixed",
@@ -29,7 +29,7 @@
     "protocolFeeBips": 500
   },
   "kycRoleProvider": {
-    "administrator": null,
+    "administrator": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
     "runtimeCodeHash": "0x0d8860d45b81c8f91386ec864bf11909c1f8db765e1c0c0c31ec0b6c8d27141c"
   },
   "approveWrapperForNukeProtection": true,

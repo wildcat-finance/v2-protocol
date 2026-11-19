@@ -73,7 +73,7 @@ The wrappers select this release despite the branch's historical name:
 
 ```sh
 bash script/deploy/v2-5/sepolia-v2.5.7-stage.sh check
-FORK_RPC_URL=https://eth-sep.hinterlight.net \
+FORK_RPC_URL=https://rpc.hinterlight.net/11155111 \
   bash script/deploy/v2-5/rehearse-sepolia-v2.5.7.sh --ui
 DEPLOYMENTS_NETWORK=anvil bash script/deploy/v2-5/sepolia-v2.5.7-stage.sh activation
 ```

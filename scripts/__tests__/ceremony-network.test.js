@@ -92,7 +92,7 @@ test("LAN UI hosting does not replace the live Sepolia RPC", () => {
       CEREMONY_HOST: "192.0.2.10",
       DEPLOYMENTS_NETWORK: "sepolia",
     }),
-    "https://eth-sep.hinterlight.net"
+    "https://rpc.hinterlight.net/11155111"
   );
 });
 

@@ -66,7 +66,7 @@ not edit evidence, skip a card, or repair a live package in place.
 ```sh
 cd "$(git rev-parse --show-toplevel)"
 
-export FORK_RPC_URL='https://eth-sep.hinterlight.net'
+export FORK_RPC_URL='https://rpc.hinterlight.net/11155111'
 export DEPLOYMENTS_NETWORK=anvil
 unset RPC_URL
 

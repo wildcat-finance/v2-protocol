@@ -1,0 +1,44 @@
+{
+  "id": "approve-standard-wrapper-factory",
+  "kind": "call",
+  "to": {
+    "$ref": "hooks-factory-standard"
+  },
+  "functionSignature": "setNukeProtectionFactoryApproval(address,bool)",
+  "args": [
+    {
+      "$ref": "wildcat-4626-wrapper-factory"
+    },
+    true
+  ],
+  "description": "Approve the wrapper factory to protect wrappers on new standard markets.",
+  "envelope": {
+    "chainId": 11155111,
+    "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "to": {
+      "$ref": "hooks-factory-standard"
+    },
+    "value": "0",
+    "data": "functionSignature+args",
+    "gasLimitPolicy": "estimate*1.3",
+    "nonceCheck": "display-and-confirm"
+  },
+  "predicate": {
+    "type": "callEq",
+    "target": {
+      "$ref": "hooks-factory-standard"
+    },
+    "call": {
+      "sig": "isApprovedNukeProtectionFactory(address) view returns (bool)",
+      "args": [
+        {
+          "$ref": "wildcat-4626-wrapper-factory"
+        }
+      ]
+    },
+    "expect": true
+  },
+  "after": [
+    "register-hooks-factory-revolving"
+  ]
+}

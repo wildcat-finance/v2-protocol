@@ -1,0 +1,49 @@
+{
+  "id": "add-revolving-open-term-template",
+  "kind": "call",
+  "to": {
+    "$ref": "hooks-factory-revolving"
+  },
+  "functionSignature": "addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)",
+  "args": [
+    {
+      "$ref": "open-term-hooks-init-code-storage"
+    },
+    "OpenTermHooks",
+    "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "0x0000000000000000000000000000000000000000",
+    0,
+    500,
+    "0x45b295121cb7e1399276811f814a5f52fdfe5ca18aecd3dba0a9e4ac95b90835"
+  ],
+  "description": "Add OpenTermHooks to the v2.5.9 revolving factory.",
+  "envelope": {
+    "chainId": 11155111,
+    "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "to": {
+      "$ref": "hooks-factory-revolving"
+    },
+    "value": "0",
+    "data": "functionSignature+args",
+    "gasLimitPolicy": "estimate*1.3",
+    "nonceCheck": "display-and-confirm"
+  },
+  "predicate": {
+    "type": "callEq",
+    "target": {
+      "$ref": "hooks-factory-revolving"
+    },
+    "call": {
+      "sig": "getHooksTemplateInitCodeHash(address) view returns (bytes32)",
+      "args": [
+        {
+          "$ref": "open-term-hooks-init-code-storage"
+        }
+      ]
+    },
+    "expect": "0x45b295121cb7e1399276811f814a5f52fdfe5ca18aecd3dba0a9e4ac95b90835"
+  },
+  "after": [
+    "add-standard-periodic-term-template"
+  ]
+}

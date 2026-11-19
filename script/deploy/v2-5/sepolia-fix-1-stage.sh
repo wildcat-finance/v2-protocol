@@ -23,7 +23,7 @@ readonly REHEARSAL_ACCEPTANCE="deployments/anvil/${RELEASE}-accepted-rehearsal.j
 readonly ANVIL_SESSION_FILE="deployments/anvil/${RELEASE}-active-session"
 readonly LIVE_SESSION_FILE="deployments/sepolia/ceremony-evidence/${RELEASE}-active-session"
 readonly PENDING_INVENTORY="deployments/sepolia/inventory-pending-${RELEASE}"
-readonly DEFAULT_SEPOLIA_RPC='https://eth-sep.hinterlight.net'
+readonly DEFAULT_SEPOLIA_RPC='https://rpc.hinterlight.net/11155111'
 readonly CEREMONY_HOST="${CEREMONY_HOST:-127.0.0.1}"
 
 stage="${1:-}"

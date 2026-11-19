@@ -1,0 +1,287 @@
+{
+  "schemaVersion": "1.1.0",
+  "release": "v2.5.9",
+  "protocolVersion": "2.5.9",
+  "contractSourceCommit": "8dbee41179f2a159e6869b742baae78e531b040b",
+  "status": "prepared-not-deployed",
+  "reused": {
+    "v1WrapperFactory": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843",
+    "borrowerIdentityRegistry": "0xc2cF90781595203D1e75c28246b306C95d4b8b21"
+  },
+  "reusedDeployments": [
+    {
+      "output": "access-list-role-provider-factory",
+      "address": "0xE6D5bDd5011568C46fAf257cf426Ea822bC4255F",
+      "startBlock": 11831240,
+      "txHash": "0x53f762a2b8823332ab7d2bd97b26087e0eb29502d398c137b84e037911842f01",
+      "forgeArtifactName": "src/providers/AccessListRoleProviderFactory.sol:AccessListRoleProviderFactory",
+      "abiArtifactName": "src/providers/IAccessListRoleProviderFactory.sol:IAccessListRoleProviderFactory",
+      "runtimeCodeHash": "0xe8d1bb37b7664a52343d2b39e42193e77134bdcfdf301fc801d8b0508239539f",
+      "provenance": {
+        "output": "access-list-role-provider-factory",
+        "deploymentKey": "AccessListRoleProviderFactory_v2.5.5",
+        "handoff": "deployments/sepolia/handoff-v2.5.5.json",
+        "handoffSha256": "393e02e2cdf2711163e8e731ad2e161935e06028243a1d6cd633688dcbd8a0b2",
+        "plan": "deployments/sepolia/plan-v2.5.5.json",
+        "planSha256": "16665ab5c521064c7b50e3111a075dc95d5b966e0c5f75f5b523f4d337b3dec4",
+        "inventoryBaselineCommit": "bfe1412141f263ba6b056c60c3f4654a461598dd"
+      }
+    }
+  ],
+  "authority": {
+    "helper": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "archController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+    "sanctionsSentinel": "0xFBCE262eC835be5e6A458cE1722EeCe0E453316B"
+  },
+  "authorityChanges": [],
+  "retirementTargets": [],
+  "deployments": [
+    {
+      "id": "deploy-wildcat-4626-wrapper-factory",
+      "artifactName": "src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory",
+      "output": "wildcat-4626-wrapper-factory",
+      "predicate": {
+        "type": "callEq",
+        "target": {
+          "$ref": "wildcat-4626-wrapper-factory"
+        },
+        "call": {
+          "sig": "v1Factory() view returns (address)",
+          "args": []
+        },
+        "expect": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843"
+      }
+    },
+    {
+      "id": "deploy-wildcat-market-init-code-storage-secondary",
+      "artifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "output": "wildcat-market-init-code-storage-secondary",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "wildcat-market-init-code-storage-secondary"
+        },
+        "expect": "0x1f82182ff5f6cf217569b4f2729d91750a8993d6d70f95ddb88862fe6f25f5f3"
+      }
+    },
+    {
+      "id": "deploy-wildcat-market-init-code-storage",
+      "artifactName": "script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage",
+      "output": "wildcat-market-init-code-storage",
+      "predicate": {
+        "type": "splitCodeHash",
+        "target": {
+          "$ref": "wildcat-market-init-code-storage"
+        },
+        "expect": "0x97d2e2ffcd1f2fb1730abf6a498ccc7d9fd9990daf7fd2f8d3b6549fe575eff8",
+        "initCodeHash": "0xff1dc6aad6fbffe5d9562585c702ae07cb943f403453e63acaea8570839be7dd",
+        "secondary": {
+          "$ref": "wildcat-market-init-code-storage-secondary"
+        },
+        "secondaryCodeHash": "0x1f82182ff5f6cf217569b4f2729d91750a8993d6d70f95ddb88862fe6f25f5f3"
+      }
+    },
+    {
+      "id": "deploy-hooks-factory-standard",
+      "artifactName": "src/HooksFactory.sol:HooksFactory",
+      "output": "hooks-factory-standard",
+      "predicate": {
+        "type": "callEq",
+        "target": {
+          "$ref": "hooks-factory-standard"
+        },
+        "call": {
+          "sig": "marketInitCodeStorage() view returns (address)",
+          "args": []
+        },
+        "expect": {
+          "$ref": "wildcat-market-init-code-storage"
+        }
+      }
+    },
+    {
+      "id": "deploy-wildcat-market-revolving-init-code-storage-secondary",
+      "artifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "output": "wildcat-market-revolving-init-code-storage-secondary",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "wildcat-market-revolving-init-code-storage-secondary"
+        },
+        "expect": "0x1a763b0ee87fc316c1705f6695a32672c5a6dca2da5b19cd7d630e4274365928"
+      }
+    },
+    {
+      "id": "deploy-wildcat-market-revolving-init-code-storage",
+      "artifactName": "script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage",
+      "output": "wildcat-market-revolving-init-code-storage",
+      "predicate": {
+        "type": "splitCodeHash",
+        "target": {
+          "$ref": "wildcat-market-revolving-init-code-storage"
+        },
+        "expect": "0x7eaa106935804e45be2bc10e6e01d9baba76c59d627d45bb78751b24ff9d4c29",
+        "initCodeHash": "0xe735ad9c0eb650bbdd8584e545e9c98481bf6679b8a4eea0d9fc2d2ff4ff1fc3",
+        "secondary": {
+          "$ref": "wildcat-market-revolving-init-code-storage-secondary"
+        },
+        "secondaryCodeHash": "0x1a763b0ee87fc316c1705f6695a32672c5a6dca2da5b19cd7d630e4274365928"
+      }
+    },
+    {
+      "id": "deploy-hooks-factory-revolving",
+      "artifactName": "src/HooksFactoryRevolving.sol:HooksFactoryRevolving",
+      "output": "hooks-factory-revolving",
+      "predicate": {
+        "type": "callEq",
+        "target": {
+          "$ref": "hooks-factory-revolving"
+        },
+        "call": {
+          "sig": "marketInitCodeStorage() view returns (address)",
+          "args": []
+        },
+        "expect": {
+          "$ref": "wildcat-market-revolving-init-code-storage"
+        }
+      }
+    },
+    {
+      "id": "deploy-market-lens-core",
+      "artifactName": "src/lens/MarketLensCore.sol:MarketLensCore",
+      "output": "market-lens-core",
+      "predicate": {
+        "type": "callEq",
+        "target": {
+          "$ref": "market-lens-core"
+        },
+        "call": {
+          "sig": "hooksFactory() view returns (address)",
+          "args": []
+        },
+        "expect": {
+          "$ref": "hooks-factory-standard"
+        }
+      }
+    },
+    {
+      "id": "deploy-market-lens-aggregator",
+      "artifactName": "src/lens/MarketLensAggregator.sol:MarketLensAggregator",
+      "output": "market-lens-aggregator",
+      "predicate": {
+        "type": "callEq",
+        "target": {
+          "$ref": "market-lens-aggregator"
+        },
+        "call": {
+          "sig": "hooksFactory() view returns (address)",
+          "args": []
+        },
+        "expect": {
+          "$ref": "hooks-factory-standard"
+        }
+      }
+    },
+    {
+      "id": "deploy-market-lens-live",
+      "artifactName": "src/lens/MarketLensLive.sol:MarketLensLive",
+      "output": "market-lens-live",
+      "predicate": {
+        "type": "callEq",
+        "target": {
+          "$ref": "market-lens-live"
+        },
+        "call": {
+          "sig": "hooksFactory() view returns (address)",
+          "args": []
+        },
+        "expect": {
+          "$ref": "hooks-factory-standard"
+        }
+      }
+    },
+    {
+      "id": "deploy-market-lens",
+      "artifactName": "src/lens/MarketLens.sol:MarketLens",
+      "output": "market-lens",
+      "predicate": {
+        "type": "callEq",
+        "target": {
+          "$ref": "market-lens"
+        },
+        "call": {
+          "sig": "aggregationHelper() view returns (address)",
+          "args": []
+        },
+        "expect": {
+          "$ref": "market-lens-aggregator"
+        }
+      }
+    },
+    {
+      "id": "deploy-open-term-hooks-init-code-storage",
+      "artifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "output": "open-term-hooks-init-code-storage",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "open-term-hooks-init-code-storage"
+        },
+        "expect": "0x9abf712758833ca5e3bdeda1ed7731c3b737834e74ba2506f985dfd08e836c17",
+        "initCodeHash": "0x45b295121cb7e1399276811f814a5f52fdfe5ca18aecd3dba0a9e4ac95b90835"
+      }
+    },
+    {
+      "id": "deploy-fixed-term-hooks-init-code-storage",
+      "artifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "output": "fixed-term-hooks-init-code-storage",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "fixed-term-hooks-init-code-storage"
+        },
+        "expect": "0x735f14edf47b5f770ba8e8de8c94a264e0366a2d90fe807e2eb335767be67e61",
+        "initCodeHash": "0x6f2e09aa16d50000e1176ed00b0b45d0431323e6d4eb1b35da0596a6dbe582df"
+      }
+    },
+    {
+      "id": "deploy-periodic-term-hooks-init-code-storage",
+      "artifactName": "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      "output": "periodic-term-hooks-init-code-storage",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "periodic-term-hooks-init-code-storage"
+        },
+        "expect": "0xec5cb300db1055da95c6ddace7603f7937690fa1172bfb5687cad58881fc4cf4",
+        "initCodeHash": "0xbefe6cfe9f06690a9fa1207ee1c4dd7db4c59136e176140c2263a0a8d048e739"
+      }
+    },
+    {
+      "id": "deploy-kyc-role-provider",
+      "artifactName": "src/providers/KYCRoleProvider.sol:KYCRoleProvider",
+      "output": "kyc-role-provider",
+      "predicate": {
+        "type": "codeHash",
+        "target": {
+          "$ref": "kyc-role-provider"
+        },
+        "expect": "0x0d8860d45b81c8f91386ec864bf11909c1f8db765e1c0c0c31ec0b6c8d27141c"
+      }
+    }
+  ],
+  "activationCalls": [
+    "register-controller-factory-standard",
+    "register-controller-factory-revolving",
+    "add-standard-open-term-template",
+    "add-standard-fixed-term-template",
+    "add-standard-periodic-term-template",
+    "add-revolving-open-term-template",
+    "add-revolving-fixed-term-template",
+    "add-revolving-periodic-term-template",
+    "register-hooks-factory-standard",
+    "register-hooks-factory-revolving",
+    "approve-standard-wrapper-factory",
+    "approve-revolving-wrapper-factory"
+  ]
+}

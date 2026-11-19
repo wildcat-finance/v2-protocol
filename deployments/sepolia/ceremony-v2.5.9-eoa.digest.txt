@@ -1,0 +1,2 @@
+Ceremony digest: 0x55062e2851555fb8f97b45ca11f00136f59e3c2997b3413dfe876ad205e28bb7
+Call-time fingerprint: 5506-2E28-5155

@@ -1,0 +1,31 @@
+{
+  "id": "deploy-kyc-role-provider",
+  "kind": "deploy",
+  "artifactName": "src/providers/KYCRoleProvider.sol:KYCRoleProvider",
+  "constructorArgs": {
+    "decoded": [
+      "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7"
+    ]
+  },
+  "output": "kyc-role-provider",
+  "description": "Deploy the shared KYC role provider with administrator 0xCa7007a75296b532Ce1606d9e130eAa849800Ca7.",
+  "envelope": {
+    "chainId": 11155111,
+    "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "to": null,
+    "value": "0",
+    "data": "initCode+constructorArgs",
+    "gasLimitPolicy": "estimate*1.3",
+    "nonceCheck": "display-and-confirm"
+  },
+  "predicate": {
+    "type": "codeHash",
+    "target": {
+      "$ref": "kyc-role-provider"
+    },
+    "expect": "0x0d8860d45b81c8f91386ec864bf11909c1f8db765e1c0c0c31ec0b6c8d27141c"
+  },
+  "after": [
+    "deploy-periodic-term-hooks-init-code-storage"
+  ]
+}

@@ -1,153 +1,67 @@
-# V2.5.6 Sepolia activation ceremony
+# Sepolia activation ceremony checklist
 
-For v2.5.9, follow the [27-card activation runbook](../../docs/operations/sepolia-v2.5.9.md).
+Use this checklist for fixed-authority Sepolia activations. The release runbook
+supplies the deployment scope, config file and expected changes.
+[Release runbooks](../../docs/operations/deployment.md)
 
-Run the fixed-authority v2.5.7 activation twice:
+## 1. Set the release
 
-1. Through the real-wallet locked UI on a pinned Sepolia fork.
-2. Through the same stage interface on live Sepolia.
-
-The stage script derives, validates, prints, and retains the run identity. Do
-not create a manual run sheet.
-
-Scope and preparation status live in the
-[v2.5.7 runbook](../../docs/operations/sepolia-v2.5.7.md). This ceremony has 21 cards:
-
-- 11 deployments: wrapper factory, four market-storage chunks, two hooks
-  factories, and the lens facade with its three helpers.
-- 10 activation calls: two controller-factory registrations, six template
-  registrations, and two controller registrations.
-
-The three v2.5.6 hook-template stores, v2.5.5 AccessList factory, borrower
-identity registry and V1 wrapper fallback are reused. The package validates
-reused code against pinned receipt-backed records and live bytecode.
-Authority rotation and factory deregistration remain separate ceremonies.
-
-## Fixed inputs
-
-- Live network: Sepolia `11155111`.
-- Rehearsal network: Anvil `31337`, pinned from Sepolia.
-- Executor: `0xCa7007a75296b532Ce1606d9e130eAa849800Ca7`.
-- Activation: 21 cards, consisting of 11 deployments and 10 calls.
-- Authority: Existing helper and SphereX roles remain fixed.
-
-Before connecting the wallet, match the locked UI against the stage output:
-
-- Source commit and protocol version.
-- Executor and card count.
-- Full package digest and short fingerprint.
-
-## Stop conditions
-
-Stop if any of these occur:
-
-- Tracked files or submodules are dirty, build/ceremony inputs are untracked,
-  or the source commit is unpushed.
-- A cold gate or verification fails.
-- The chain, wallet, digest, or card count is wrong.
-- A transaction fails or a predicate turns red.
-
-Untracked notes and machine-local files outside build/ceremony input paths do
-not block the source gate. The [runbook](../../docs/operations/sepolia-v2.5.7.md#prepare-and-review)
-lists the protected paths.
-
-Export the run-state and preserve the session directory before diagnosing. Do
-not edit evidence, skip a card, or repair a live package in place.
-
-## 1. Prepare
-
-- [ ] Use the pinned [JavaScript toolchain](../../CONTRIBUTING.md#javascript-toolchain).
-      The cold gate installs both dependency trees from their lockfiles with
-      lifecycle scripts disabled.
-- [ ] Have Python 3.9 or newer available as `python3` for the final evidence ZIP.
-      No Python packages need to be installed.
-
-- [ ] From the `v2-protocol` root, define the helpers used below:
+Run this in `v2-protocol`. It sets the config file for this terminal and prints
+the release name.
 
 ```sh
-cd "$(git rev-parse --show-toplevel)"
+export SEPOLIA_REPLACEMENT_CONFIG="deployments/sepolia/v$(jq -er '.version' package.json).json"
+jq -er '.release' "$SEPOLIA_REPLACEMENT_CONFIG"
+```
 
-export FORK_RPC_URL='https://eth-sep.hinterlight.net'
+If you already ran the `export` command in the release runbook, start at step 2.
+
+## 2. Run the checks
+
+Use the same terminal for the rest of the ceremony. If the signing wallet is
+on another machine, set `CEREMONY_HOST` to the build machine's trusted LAN
+address before starting the fork.
+
+```sh
+export FORK_RPC_URL=https://rpc.hinterlight.net/11155111
 export DEPLOYMENTS_NETWORK=anvil
-unset RPC_URL
+unset RPC_URL RUN_STATE
 
 stage() {
-  bash script/deploy/v2-5/sepolia-v2.5.7-stage.sh "$@"
+  SEPOLIA_REPLACEMENT_CONFIG="${SEPOLIA_REPLACEMENT_CONFIG:?run step 1 in this terminal}" \
+    bash script/deploy/v2-5/sepolia-fix-1-stage.sh "$@"
 }
 
 rehearse() {
-  FORK_RPC_URL="$FORK_RPC_URL" \
-    bash script/deploy/v2-5/rehearse-sepolia-v2.5.7.sh "$@"
+  SEPOLIA_REPLACEMENT_CONFIG="${SEPOLIA_REPLACEMENT_CONFIG:?run step 1 in this terminal}" \
+    bash script/deploy/v2-5/rehearse-sepolia-fix-1.sh "$@"
 }
-```
 
-- [ ] If the browser and wallet are on another machine on your trusted LAN,
-      set `CEREMONY_HOST` to the build machine's LAN IPv4 address before starting
-      the rehearsal. For example, replace this address with your rig's address:
-
-```sh
-export CEREMONY_HOST='192.168.1.20'
-```
-
-This selects the Anvil bind address, browser RPC URL, and printed UI preview
-command. Leave it unset when the browser runs on the build machine. Use the
-machine's actual address, not `0.0.0.0`. Keep the setting for the live stage.
-Anvil exposes development RPC methods, so use this only on a trusted network.
-Choose the address before starting the fork; do not restart an in-progress
-rehearsal just to change it.
-
-- [ ] Run the source, deploy-profile, deployment-tooling, dependency, UI, and fork gates:
-
-```sh
 stage check
 ```
 
-Continue only after it prints `Cold gates GREEN` for the pushed `HEAD`.
-This checks the deployment tooling and transaction executor, not market behavior.
+Wait for `Cold gates GREEN` before starting the fork.
 
-## 2. Real-wallet Anvil rehearsal
-
-- [ ] Start a fresh pinned fork, then prepare the locked rehearsal UI:
+## 3. Rehearse with the signing wallet
 
 ```sh
 rehearse --ui
 stage activation
 ```
 
-These commands:
-
-- Select the fork block.
-- Validate the target state.
-- Derive the chain-31337 plan from the reviewed Sepolia plan.
-- Build the locked UI.
-- Print the complete run identity.
-
-The rehearsal transform is mechanical. Only the network, chain ID, release
-label, and transaction-envelope chain IDs differ from the live plan.
-
-- [ ] In a second terminal on the build machine, run the exact preview command
-      printed by `stage activation`. It includes the selected listening address.
-- [ ] Open the printed UI URL on the machine holding your wallet.
-- [ ] Connect the expected executor to the printed Anvil RPC URL, chain `31337`.
-      The defaults are UI `http://127.0.0.1:4173` and RPC `http://127.0.0.1:8548`;
-      LAN mode uses `CEREMONY_HOST` in both URLs.
-- [ ] Confirm the digest, fingerprint, executor, and 21-card count.
-- [ ] Execute all 21 cards in order. Wait for every receipt and green predicate,
-      then click **Export run state**.
-- [ ] If the browser is on another machine, copy the exported JSON unchanged
-      from its Downloads folder to the build machine, outside tracked source
-      paths (for example, that machine's Downloads folder). Use the command
-      below in place of bare `stage finalize-activation`:
-
-```sh
-RUN_STATE='/path/to/copied/run-state.json' stage finalize-activation
-```
-
-Use the same transfer step for the live export. Automatic Downloads discovery
-only searches the machine running the stage script.
-
-- [ ] Verify and accept the browser export, print status, then stop only the
-      recorded Anvil process:
+- [ ] In a second terminal, run the preview command printed by `stage activation`.
+  Open the printed UI URL and connect the expected executor to the printed Anvil
+  RPC on chain `31337`. The fork source URL above is for the build machine.
+- [ ] Match the UI to the stage's `READY` output for this rehearsal. Check the
+  release label, chain, executor, card count, digest and fingerprint. The fork
+  and live packages each have their own digest.
+- [ ] Sign the cards in order and wait for each receipt and predicate to turn
+  green. Click **Export run state** after the last card. If the browser is on
+  another machine, copy its export unchanged to the build machine.
+- [ ] Run the following commands after the export. If the build machine's
+  Downloads folder has no unique new export, pass the export's path in
+  `RUN_STATE` for `stage finalize-activation`. Wait for
+  `Real-wallet Anvil rehearsal ACCEPTED` before stopping the fork.
 
 ```sh
 stage finalize-activation
@@ -155,116 +69,53 @@ stage status
 rehearse --stop
 ```
 
-`finalize-activation`:
+The automated `rehearse --full` exercises the transactions on a disposable fork.
+The real-wallet export supplies the acceptance record for live signing.
 
-1. Finds the new browser export in `~/Downloads`.
-2. Copies it unchanged into the rehearsal evidence directory.
-3. Verifies every receipt and postcondition.
-4. Writes the acceptance record required by the live stage.
+## 4. Execute on Sepolia
 
-If the browser saved more than one candidate, set `RUN_STATE` to the correct
-file and rerun the command.
+Use the packet you just rehearsed. If the packet or signing UI changes, repeat
+the rehearsal before signing on Sepolia.
 
-## 3. Live Sepolia activation
-
-- [ ] Stop the rehearsal preview. Select live Sepolia and prepare the locked UI:
+- [ ] Stop the rehearsal preview. In the setup shell, select the live network
+  and clear any saved rehearsal export path.
 
 ```sh
 export DEPLOYMENTS_NETWORK=sepolia
-unset RPC_URL
+export RPC_URL="$FORK_RPC_URL"
+unset RUN_STATE
 stage activation
 ```
 
-The stage refuses to proceed unless the cold gates match the current pushed
-source.
-
-An accepted real-wallet rehearsal may come from an earlier commit only when all
-of these remain unchanged:
-
-- Tracked configuration and plan.
-- Protocol version.
-- The complete `deploy-ui` tree.
-- Live package digest.
-
-The stage reruns live preflight immediately before building the UI.
-
-- [ ] Start the preview command printed by the live `stage activation`.
-- [ ] Open its UI URL and connect the expected executor to Sepolia.
-- [ ] Confirm chain `11155111`, digest, fingerprint, executor, and 21-card
-      count.
-- [ ] Execute all 21 cards in order. Wait for every receipt and green predicate,
-      then click **Export run state**.
-- [ ] Verify the export and print final status:
+- [ ] Start the newly printed preview command. Connect the expected executor
+  to Sepolia `11155111`. Match the live release, card count, digest and
+  fingerprint to the live `READY` output and the reviewed packet.
+- [ ] Sign the live cards in order. Verify each receipt and predicate, then
+  export the live run state. Use this export for finalization.
 
 ```sh
 stage finalize-activation
 stage status
-```
-
-- [ ] Finalize the factory inventory and generate the downstream handoff:
-
-```sh
 stage finalize-inventory
 ```
 
-The `deployments/sepolia/ceremony-evidence/` session directory retains:
+## 5. Retain evidence and hand off
 
-- Verified run-state.
-- Preflight and post-activation reports.
-- Package identity.
-- Operator evidence.
+- [ ] Find the run state and handoff for your release in `deployments/sepolia/`.
+  Factory activations write a `handoff-*.json` file and its Markdown companion.
+  Template-only activations write a `template-update-*.json` file. Use the
+  release runbook for the expected inventory and downstream checks.
+- [ ] Commit the finalized deployment records, evidence ZIP and its `.sha256`
+  file. The ZIP is under `deployments/sepolia/ceremony-evidence/`.
+  Keep the signing session and exports until the handoff is verified.
 
-The stage also copies the verified run-state to
-`deployments/sepolia/run-state-v2.5.7.json` for inventory and
-downstream handoff work.
-
-`finalize-inventory` sends no transactions. It:
-
-- Applies the verified run-state to the append-only factory inventory.
-- Updates the canonical factory, wrapper and lens aliases.
-- Writes `handoff-v2.5.7.json` and its Markdown companion, preserving the original
-  deployment receipts and source references for reused contracts.
-- Reconciles the resulting inventory and handoff against Sepolia.
-- Creates `deployments/sepolia/ceremony-evidence/wildcat-v2.5.7-evidence-<timestamp>.zip` and its
-  `.sha256` checksum. The ZIP preserves the session, reviewed plan and package,
-  gate records, finalized deployment records and handoff, with a manifest of
-  file hashes and the original ceremony source commit.
-
-- [ ] Commit the ZIP, checksum and finalized deployment records for handoff.
-      Session evidence can also be committed. The active-session pointer remains
-      ignored. New session evidence does not block the source gate; changes to
-      already tracked evidence still do.
-
-If finalization succeeded but archiving did not, create the ZIP without
-rerunning finalization or contacting an RPC:
-
-```sh
-DEPLOYMENTS_NETWORK=sepolia stage archive-evidence
-```
-
-This uses the recorded live session. Set `CEREMONY_EVIDENCE_DIR` to its
-repository-relative session directory if the pointer is unavailable. Run the
-command on the machine holding the evidence. It accepts the finalized working
-files without requiring a clean or pushed checkout. New checksum files use the
-ZIP's basename. To check one after moving it together with its checksum, run
-`shasum -a 256 -c <zip>.sha256` from their directory.
-
-The predecessor factories retain their registrations and existing indexing policy.
-
-- [ ] Before reopening market creation, verify SDK, subgraph, and app routing
-      against the v2.5.7 handoff. Wait for the new factories and their six
-      template registrations to be indexed, update the SDK addresses and app
-      dependency, then confirm creation selects the new factories. See the
-      [handoff notes](../../docs/operations/sepolia-v2.5.7.md#finalization-and-downstream-work).
-
-Stop the preview after verification. Do not retire either predecessor factory
-in this ceremony.
+If finalization succeeded and archiving failed, retry `stage archive-evidence`
+on the machine holding the session. Set `CEREMONY_EVIDENCE_DIR` to the
+repository-relative session directory if its pointer is unavailable.
 
 ## Recovery
 
-If the preview or browser closes, restart the exact preview against the same
-recorded Anvil or live session. The UI rechecks saved receipts and predicates.
-Do not rerun `stage activation` for a partially executed package.
-
-After a failure, preserve the session directory and stop. A revised package
-needs a new rehearsal and acceptance record before live execution.
+If a wallet, chain, digest or card count differs from the stage output, stop
+before signing. If a transaction or predicate fails, retain the run state and
+session directory for diagnosis. To resume after a browser or preview interruption,
+restart the printed preview command for the same session.

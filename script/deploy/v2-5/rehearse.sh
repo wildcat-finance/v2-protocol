@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # one-command fork rehearsal setup for the v2.5 release.
 #
-#   FORK_NETWORK=sepolia FORK_RPC_URL=https://eth-sep.hinterlight.net \
+#   FORK_NETWORK=sepolia FORK_RPC_URL=https://rpc.hinterlight.net/11155111 \
 #     bash script/deploy/v2-5/rehearse.sh
 #   FORK_NETWORK=mainnet FORK_RPC_URL="$MAINNET_ARCHIVE_RPC_URL" \
 #     bash script/deploy/v2-5/rehearse.sh --full
-#   FORK_NETWORK=sepolia FORK_RPC_URL=https://eth-sep.hinterlight.net \
+#   FORK_NETWORK=sepolia FORK_RPC_URL=https://rpc.hinterlight.net/11155111 \
 #     bash script/deploy/v2-5/rehearse.sh --resume
 #
 # default Sepolia mode: fork the network, seed deployments/anvil/, then leave

@@ -1,0 +1,10 @@
+{
+  "recordType": "deployment",
+  "role": "kycRoleProvider",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentKey": "KYCRoleProvider_v2.5.9",
+  "address": {
+    "$ref": "kyc-role-provider"
+  }
+}

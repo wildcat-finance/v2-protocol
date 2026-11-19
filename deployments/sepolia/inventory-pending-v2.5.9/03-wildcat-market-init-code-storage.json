@@ -1,0 +1,14 @@
+{
+  "recordType": "initCodeStorage",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentKey": "WildcatMarket_initCodeStorage_v2.5.9",
+  "address": {
+    "$ref": "wildcat-market-init-code-storage"
+  },
+  "initCodeHash": "0xff1dc6aad6fbffe5d9562585c702ae07cb943f403453e63acaea8570839be7dd",
+  "secondary": {
+    "$ref": "wildcat-market-init-code-storage-secondary"
+  },
+  "secondaryCodeHash": "0x1f82182ff5f6cf217569b4f2729d91750a8993d6d70f95ddb88862fe6f25f5f3"
+}
