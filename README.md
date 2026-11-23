@@ -2,6 +2,10 @@
 
 Here's the code. Enjoy it.
 
+### KYCRoleProvider audit scope
+
+Reviewing `KYCRoleProvider`? Start with the [audit scope](./docs/releases/kyc-role-provider-audit-scope.md), the [provider spec](./docs/hooks/kyc-role-provider.md), and [TESTS.md](./TESTS.md).
+
 For other bits and pieces:
 
 ### The Whitepaper [Out Of Date For V2]
