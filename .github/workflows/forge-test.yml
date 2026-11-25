@@ -33,3 +33,18 @@ jobs:
 
       - name: Run the full test suite
         run: forge test --summary
+
+      - name: Verify canonical IR build sizes and KYC tests
+        run: |
+          FOUNDRY_PROFILE=ir forge build --sizes \
+            src/providers/KYCRegistry.sol \
+            src/providers/KYCRoleProvider.sol \
+            src/providers/KYCRoleProviderFactory.sol
+          python3 - <<'PY'
+          import json
+          for name in ('KYCRegistry', 'KYCRoleProvider', 'KYCRoleProviderFactory'):
+            with open(f'ir-out/{name}.sol/{name}.json') as f:
+              size = (len(json.load(f)['deployedBytecode']['object']) - 2) // 2
+            assert size <= 24576, f'{name} exceeds EIP-170: {size} > 24576'
+          PY
+          FOUNDRY_PROFILE=ir forge test --match-path 'test/providers/*.t.sol' --summary

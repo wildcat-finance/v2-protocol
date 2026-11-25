@@ -37,10 +37,10 @@ import '../access/IManagedRoleProvider.sol';
 
 /// @notice cached attribute metadata for a lender, packed into 16 bytes.
 ///
-/// @param issuedAt  nonzero presence/issuance metadata; does not gate future activation on read.
-/// @param expiresAt inclusive expiry timestamp, or zero when the attribute does not expire.
-/// @param updatedAt block timestamp of the latest keeper write.
-/// @param sourceId  provenance tag identifying the attribute source (e.g. Wildcat, Soma).
+/// @param issuedAt  nonzero presence and issuance timestamp; doesn't gate future activation on read.
+/// @param expiresAt inclusive expiry timestamp, or zero if it doesn't expire.
+/// @param updatedAt block timestamp of the last keeper write.
+/// @param sourceId  provenance tag for the attribute source (e.g. Wildcat, Soma).
 struct KYCAttribute {
   uint40 issuedAt;
   uint40 expiresAt;
@@ -64,11 +64,11 @@ struct KYCAttributeRemoval {
 }
 
 // ┌─ IKYCRegistry ─────────────────────────────────────────────────────────────
-/// @notice Wildcat-owned lender registry and attribute cache decoupled from upstream KYC providers.
+/// @notice Wildcat-owned lender registry and attribute cache, decoupled from upstream KYC providers.
 ///
-/// @dev lenders can opt in permissionlessly via `register`, or keepers can auto-register them on
-///      first attribute write. positive policy checks read `hasActiveAttribute`; negative checks
-///      read `hasAttribute` so disqualifying attributes never expire into allowed.
+/// @dev lenders can opt in via `register`, or keepers auto-register them on the first write.
+///      positive checks use `hasActiveAttribute`; negative checks use `hasAttribute` so
+///      disqualifying flags don't expire into allowed.
 interface IKYCRegistry is IManagedRoleProvider {
   // ░░▒▒▓▓██ [ EVENTS ] ───────────────────────────────────────────────────────
 
@@ -96,37 +96,37 @@ interface IKYCRegistry is IManagedRoleProvider {
 
   // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
 
-  /// @dev the caller is not an authorized keeper.
+  /// @dev caller isn't an authorized keeper.
   error CallerNotKeeper();
 
-  /// @dev the caller is neither an authorized keeper nor the registry administrator.
+  /// @dev caller is neither an authorized keeper nor the registry administrator.
   error CallerNotKeeperOrAdministrator();
 
-  /// @dev lender account cannot be the zero address.
+  /// @dev lender account can't be zero.
   error InvalidAccount();
 
-  /// @dev attribute key cannot be zero.
+  /// @dev attribute key can't be zero.
   error InvalidAttributeId();
 
-  /// @dev keeper address cannot be zero.
+  /// @dev keeper address can't be zero.
   error InvalidKeeper();
 
-  /// @dev `issuedAt` must be nonzero, and any nonzero `expiresAt` must be at least `issuedAt`.
+  /// @dev `issuedAt` must be nonzero, and a nonzero `expiresAt` can't precede `issuedAt`.
   error InvalidTimestamps();
 
-  /// @dev wallet is already present in the registered lender set.
+  /// @dev wallet is already in the registered lender set.
   error AlreadyRegistered();
 
-  /// @dev wallet is not present in the registered lender set.
+  /// @dev wallet isn't in the registered lender set.
   error LenderNotRegistered();
 
-  /// @dev only wallets with zero attributes can be pruned.
+  /// @dev can't prune a wallet that still holds attributes.
   error LenderHasAttributes();
 
-  /// @dev the requested attribute is not present for the wallet.
+  /// @dev wallet doesn't hold that attribute.
   error AttributeNotFound();
 
-  /// @dev pagination start index exceeds end index.
+  /// @dev pagination `start` exceeds `end`.
   error InvalidPaginationRange();
 
   // ░░▒▒▓▓██ [ KEEPERS ] ──────────────────────────────────────────────────────
@@ -148,7 +148,7 @@ interface IKYCRegistry is IManagedRoleProvider {
   // ┌─ pruneUnverifiedLenders ─────
   /// @notice remove registered wallets that hold zero attributes.
   ///
-  /// @dev atomic batch: an unregistered wallet or one with any attribute reverts the call.
+  /// @dev atomic batch: any unregistered wallet or wallet with attributes reverts the call.
   function pruneUnverifiedLenders(address[] calldata accounts) external;
 
   // ░░▒▒▓▓██ [ ATTRIBUTES ] ───────────────────────────────────────────────────
@@ -172,23 +172,23 @@ interface IKYCRegistry is IManagedRoleProvider {
   // ┌─ updateAttributes ─────
   /// @notice apply attribute removals and writes atomically in one keeper transaction.
   ///
-  /// @dev runs `removals` before `sets` so a key replaced in one call finishes set.
+  /// @dev runs `removals` before `sets` so a replaced key ends up set.
   function updateAttributes(KYCAttributeInput[] calldata sets, KYCAttributeRemoval[] calldata removals) external;
 
   // ░░▒▒▓▓██ [ QUERIES ] ──────────────────────────────────────────────────────
 
   // ┌─ isRegistered ─────
-  /// @notice report whether `account` is currently in the registered lender set.
+  /// @notice report whether `account` is in the registered lender set.
   function isRegistered(address account) external view returns (bool);
 
   // ┌─ getRegisteredLendersCount ─────
-  /// @notice count wallets currently in the registered lender set.
+  /// @notice count wallets in the registered lender set.
   function getRegisteredLendersCount() external view returns (uint256);
 
   // ┌─ getRegisteredLenders ─────
   /// @notice return a half-open `[start, end)` page of registered lenders.
   ///
-  /// @dev clamps `end` to the current set length. ordering can shift after prunes.
+  /// @dev clamps `end` to the set length. ordering shifts when wallets are pruned.
   function getRegisteredLenders(uint256 start, uint256 end) external view returns (address[] memory lenders);
 
   // ┌─ getAttribute ─────
@@ -198,7 +198,7 @@ interface IKYCRegistry is IManagedRoleProvider {
   // ┌─ hasAttribute ─────
   /// @notice report whether `attributeId` is present on `account`, ignoring `expiresAt`.
   ///
-  /// @dev used for fail-closed negative policy checks so disqualifiers never auto-expire into allowed.
+  /// @dev used for fail-closed negative checks; disqualifiers stay blocking until removed.
   function hasAttribute(address account, bytes32 attributeId) external view returns (bool);
 
   // ┌─ hasActiveAttribute ─────
@@ -208,7 +208,7 @@ interface IKYCRegistry is IManagedRoleProvider {
   // ┌─ meetsAttributes ─────
   /// @notice report whether `account` holds every active key in `required` and none in `forbidden`.
   ///
-  /// @dev evaluates both lists in one call so providers don't make one external call per attribute.
+  /// @dev evaluates both lists in one call so providers don't loop external calls per attribute.
   function meetsAttributes(
     address account,
     bytes32[] calldata required,

@@ -26,17 +26,17 @@ import './IKYCRoleProviderFactory.sol';
 ///         `IKYCRoleProviderFactory`.
 ///
 /// @dev `getCredential` and `validateCredential` require `msg.sender` to be an authorized hooks
-///      instance on `factory`. `meetsPolicy` exposes the ungated predicate for offchain previews.
+///      instance on `factory`. `meetsPolicy` stays ungated for offchain previews.
 interface IKYCRoleProvider is IRoleProvider {
   // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
 
-  /// @dev registry address cannot be zero.
+  /// @dev registry address can't be zero.
   error InvalidRegistry();
 
-  /// @dev factory address cannot be zero.
+  /// @dev factory address can't be zero.
   error InvalidFactory();
 
-  /// @dev every policy must require at least one attribute.
+  /// @dev a policy needs at least one required attribute.
   error EmptyRequiredAttributes();
 
   // ░░▒▒▓▓██ [ CONFIGURATION ] ────────────────────────────────────────────────

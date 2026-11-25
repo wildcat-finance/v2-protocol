@@ -12,6 +12,10 @@ pragma solidity 0.8.25;
 //
 //  WITHDRAWAL
 //  claimAfterRemoval(...)
+//
+//  ARTIFACTS
+//  assertRuntimeMatchesArtifact(...)
+//  _maskImmutableRefs(...)
 // ═════
 
 import { Vm } from 'forge-std/Vm.sol';
@@ -27,6 +31,13 @@ import {
   IKYCRoleProviderFactory,
   KYCRoleProviderAttachInputs
 } from 'src/providers/IKYCRoleProviderFactory.sol';
+
+/// @notice compiler-reported immutable reference offset inside `deployedBytecode.immutableReferences`.
+/// @dev field order matches Foundry's alphabetical JSON ABI decoding (`length`, `start`).
+struct ImmutableRef {
+  uint256 length;
+  uint256 start;
+}
 
 /// @notice shared inputs for running the KYC lifecycle against a deployed market.
 struct KYCLifecycleContext {
@@ -136,5 +147,90 @@ library KYCMarketLifecycle {
     vm.warp(uint256(expiry) + 1);
     vm.assertEq(market.executeWithdrawal(Recipient, expiry), 2e18, 'withdrawal paid');
     vm.assertEq(asset.balanceOf(Recipient) - balanceBefore, 2e18, 'underlying received');
+  }
+
+  // ░░▒▒▓▓██ [ ARTIFACTS ] ────────────────────────────────────────────────────
+
+  // ┌─ assertRuntimeMatchesArtifact ─────
+  /// @dev verify `target`'s runtime code matches `artifact`'s template everywhere outside the
+  ///      compiler-reported `immutableReferences`, and that those slots match `expectedImmutables`.
+  function assertRuntimeMatchesArtifact(
+    Vm vm,
+    address target,
+    string memory artifact,
+    address[] memory expectedImmutables
+  )
+    internal
+    view
+  {
+    bytes memory template = vm.getDeployedCode(artifact);
+    bytes memory deployed = target.code;
+    vm.assertEq(deployed.length, template.length, 'runtime length');
+
+    if (expectedImmutables.length == 0) {
+      vm.assertEq(keccak256(deployed), keccak256(template), 'runtime codehash');
+      return;
+    }
+
+    string memory json = vm.readFile(artifact);
+    string[] memory keys = vm.parseJsonKeys(json, '.deployedBytecode.immutableReferences');
+    vm.assertEq(keys.length, expectedImmutables.length, 'immutable count');
+
+    bool[] memory matched = new bool[](expectedImmutables.length);
+    for (uint256 k; k < keys.length; ++k) {
+      string memory path = string.concat(".deployedBytecode.immutableReferences['", keys[k], "']");
+      ImmutableRef[] memory refs = abi.decode(vm.parseJson(json, path), (ImmutableRef[]));
+      _maskImmutableRefs(vm, template, deployed, refs, expectedImmutables, matched);
+    }
+
+    for (uint256 e; e < matched.length; ++e) {
+      vm.assertTrue(matched[e], 'missing expected immutable');
+    }
+    vm.assertEq(keccak256(deployed), keccak256(template), 'masked runtime codehash');
+  }
+
+  // ┌─ _maskImmutableRefs ─────
+  function _maskImmutableRefs(
+    Vm vm,
+    bytes memory template,
+    bytes memory deployed,
+    ImmutableRef[] memory refs,
+    address[] memory expectedImmutables,
+    bool[] memory matched
+  )
+    private
+    pure
+  {
+    vm.assertTrue(refs.length != 0, 'empty immutable refs');
+
+    bytes32 expectedWord;
+    for (uint256 r; r < refs.length; ++r) {
+      uint256 start = refs[r].start;
+      vm.assertEq(refs[r].length, 32, 'immutable length');
+
+      bytes32 templateWord;
+      bytes32 deployedWord;
+      assembly ('memory-safe') {
+        templateWord := mload(add(add(template, 32), start))
+        deployedWord := mload(add(add(deployed, 32), start))
+        mstore(add(add(deployed, 32), start), 0)
+      }
+      vm.assertEq(templateWord, bytes32(0), 'template immutable placeholder');
+
+      if (r == 0) {
+        expectedWord = deployedWord;
+        bool found;
+        for (uint256 e; e < expectedImmutables.length; ++e) {
+          if (!matched[e] && deployedWord == bytes32(uint256(uint160(expectedImmutables[e])))) {
+            matched[e] = true;
+            found = true;
+            break;
+          }
+        }
+        vm.assertTrue(found, 'unexpected immutable value');
+      } else {
+        vm.assertEq(deployedWord, expectedWord, 'inconsistent immutable occurrences');
+      }
+    }
   }
 }

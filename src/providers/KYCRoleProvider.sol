@@ -27,8 +27,8 @@ import { IKYCRoleProviderFactory } from './IKYCRoleProviderFactory.sol';
 // ┌─ KYCRoleProvider ──────────────────────────────────────────────────────────
 /// @notice immutable, ownerless KYC policy provider shared across authorized Wildcat hooks.
 ///
-/// @dev enforces `requiredAttributes` (all present and unexpired) and `forbiddenAttributes` (all
-///      absent regardless of expiry) against `registry`, and gates credential issuance on
+/// @dev checks `requiredAttributes` (present and unexpired) and `forbiddenAttributes` (absent,
+///      ignoring expiry) against `registry`, and gates credentials on
 ///      `factory.isHooksAuthorized(msg.sender)`.
 contract KYCRoleProvider is IKYCRoleProvider {
   using SafeCastLib for uint256;
@@ -92,15 +92,15 @@ contract KYCRoleProvider is IKYCRoleProvider {
   // ┌─ getCredential ─────
   /// @notice return the current block timestamp for an eligible wallet on an authorized hooks instance.
   ///
-  /// @dev unauthorized callers and hooks exceeding their approved market count get zero.
-  ///      reverts without wrapping if `block.timestamp` exceeds `type(uint32).max`.
+  /// @dev unauthorized callers and over-cap hooks get zero. reverts instead of wrapping if
+  ///      `block.timestamp` passes `type(uint32).max`.
   function getCredential(address account) public view override returns (uint32) {
     if (!factory.isHooksAuthorized(msg.sender)) return 0;
     return meetsPolicy(account) ? block.timestamp.toUint32() : 0;
   }
 
   // ┌─ validateCredential ─────
-  /// @dev matches `getCredential(account)` for any payload, including empty bytes.
+  /// @dev same result as `getCredential(account)` for any payload, empty or not.
   function validateCredential(address account, bytes calldata) external view override returns (uint32) {
     return getCredential(account);
   }

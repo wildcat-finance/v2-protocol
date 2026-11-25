@@ -48,7 +48,7 @@ import { ManagedRoleProvider } from './ManagedRoleProvider.sol';
 // ┌─ KYCRegistry ──────────────────────────────────────────────────────────────
 /// @notice Wildcat-owned registry of enrolled lenders and their cached KYC attributes.
 ///
-/// @dev makes no external calls; offchain keepers sync upstream KYC data into this cache.
+/// @dev makes no external calls; offchain keepers sync upstream KYC data here.
 ///      `hasActiveAttribute` enforces `expiresAt` (`issuedAt` is presence metadata, not an
 ///      activation gate), while `hasAttribute` ignores expiry so disqualifiers stay blocking
 ///      until a keeper removes them.
@@ -107,7 +107,7 @@ contract KYCRegistry is IKYCRegistry, ManagedRoleProvider {
   // ┌─ register ─────
   /// @notice opt `msg.sender` into Wildcat's keeper sync set with no attributes.
   ///
-  /// @dev reverts if `msg.sender` is already registered. attributes remain keeper-only.
+  /// @dev reverts if `msg.sender` is already registered. only keepers can write attributes.
   function register() external override {
     if (!_registeredLenders.add(msg.sender)) revert AlreadyRegistered();
     emit LenderRegistered(msg.sender);
@@ -116,7 +116,7 @@ contract KYCRegistry is IKYCRegistry, ManagedRoleProvider {
   // ┌─ pruneUnverifiedLenders ─────
   /// @notice remove registered wallets that still hold zero attributes.
   ///
-  /// @dev keeps the enumerable set clean against empty registrations without touching verified lenders.
+  /// @dev cleans out empty registrations without touching verified wallets.
   function pruneUnverifiedLenders(address[] calldata accounts) external override onlyKeeperOrAdministrator {
     for (uint256 i; i < accounts.length; ++i) {
       address account = accounts[i];
@@ -149,7 +149,7 @@ contract KYCRegistry is IKYCRegistry, ManagedRoleProvider {
     if (input.account == address(0)) revert InvalidAccount();
     if (input.attributeId == bytes32(0)) revert InvalidAttributeId();
 
-    // `issuedAt` is the presence sentinel for both active and fail-closed checks.
+    // `issuedAt` doubles as the presence sentinel for both active and fail-closed checks.
     if (input.issuedAt == 0 || (input.expiresAt != 0 && input.expiresAt < input.issuedAt)) {
       revert InvalidTimestamps();
     }
@@ -169,7 +169,7 @@ contract KYCRegistry is IKYCRegistry, ManagedRoleProvider {
   }
 
   // ┌─ removeAttribute ─────
-  /// @notice delete one attribute from `account`. reverts if the attribute is not set.
+  /// @notice delete one attribute from `account`. reverts if it isn't set.
   function removeAttribute(address account, bytes32 attributeId) external override onlyKeeper {
     _removeAttribute(account, attributeId);
   }
@@ -192,7 +192,7 @@ contract KYCRegistry is IKYCRegistry, ManagedRoleProvider {
   // ┌─ updateAttributes ─────
   /// @notice apply removals and writes atomically in one transaction.
   ///
-  /// @dev runs removals before sets so an attribute replaced in one call finishes set.
+  /// @dev runs removals before sets so a replaced key ends up set.
   function updateAttributes(
     KYCAttributeInput[] calldata sets,
     KYCAttributeRemoval[] calldata removals
@@ -240,13 +240,13 @@ contract KYCRegistry is IKYCRegistry, ManagedRoleProvider {
   }
 
   // ┌─ hasAttribute ─────
-  /// @dev ignores `expiresAt` so negative policy checks fail closed until the keeper removes the key.
+  /// @dev ignores `expiresAt` so negative checks fail closed until a keeper removes the key.
   function hasAttribute(address account, bytes32 attributeId) external view override returns (bool) {
     return _attributes[account][attributeId].issuedAt != 0;
   }
 
   // ┌─ hasActiveAttribute ─────
-  /// @dev `issuedAt` is presence/issuance metadata only; `expiresAt` is the sole time gate.
+  /// @dev `issuedAt` is presence metadata only; `expiresAt` is the only time gate.
   function hasActiveAttribute(address account, bytes32 attributeId) public view override returns (bool) {
     KYCAttribute memory attr = _attributes[account][attributeId];
     return attr.issuedAt != 0 && (attr.expiresAt == 0 || block.timestamp <= attr.expiresAt);

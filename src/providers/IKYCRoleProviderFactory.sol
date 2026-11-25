@@ -68,8 +68,8 @@ struct ClosedMarketClaim {
 
 /// @notice calldata payload decoded by `IRoleProviderFactory.createRoleProvider`.
 ///
-/// @dev does not deploy a new contract; authorizes `msg.sender` (the calling hooks instance) and
-///      returns an existing admin-deployed `provider` so `BaseAccessControls` attaches it in one tx.
+/// @dev deploys nothing. authorizes `msg.sender` (the calling hooks instance) and returns an
+///      existing admin-deployed `provider` so `BaseAccessControls` attaches it in one tx.
 struct KYCRoleProviderAttachInputs {
   address hooksFactory;
   address provider;
@@ -80,8 +80,8 @@ struct KYCRoleProviderAttachInputs {
 // ┌─ IKYCRoleProviderFactory ──────────────────────────────────────────────────
 /// @notice singleton factory for canonical KYC policies and onchain borrower market entitlements.
 ///
-/// @dev entitlements count markets across all deployed `KYCRoleProvider` instances. lowering a
-///      borrower's allowance only caps future allocations; live authorized hooks stay active.
+/// @dev entitlements count markets across every `KYCRoleProvider` deployed here. lowering a
+///      borrower's allowance caps new slots only; live authorized hooks keep working.
 interface IKYCRoleProviderFactory is IManagedRoleProvider, IRoleProviderFactory {
   // ░░▒▒▓▓██ [ EVENTS ] ───────────────────────────────────────────────────────
 
@@ -141,31 +141,31 @@ interface IKYCRoleProviderFactory is IManagedRoleProvider, IRoleProviderFactory 
 
   // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
 
-  /// @dev registry address cannot be zero.
+  /// @dev registry address can't be zero.
   error InvalidRegistry();
 
   /// @dev hooks factory is zero or not allowlisted.
   error InvalidHooksFactory();
 
-  /// @dev hooks instance is not registered on the supplied hooks factory.
+  /// @dev hooks instance isn't registered on the supplied hooks factory.
   error InvalidHooksInstance();
 
-  /// @dev borrower address cannot be zero.
+  /// @dev borrower address can't be zero.
   error InvalidBorrower();
 
-  /// @dev policy requires nonzero sorted unique keys with no overlap between required and forbidden.
+  /// @dev policy needs nonzero sorted unique keys with no overlap between required and forbidden.
   error InvalidPolicy();
 
   /// @dev a provider with identical required and forbidden attributes already exists.
   error PolicyAlreadyDeployed();
 
-  /// @dev provider was not deployed by this factory.
+  /// @dev provider wasn't deployed by this factory.
   error UnknownRoleProvider();
 
   /// @dev provider is disabled for new attachments via `createRoleProvider`.
   error ProviderAttachmentDisabled();
 
-  /// @dev supplied hooks factory does not match the factory recorded for this hooks instance.
+  /// @dev supplied hooks factory doesn't match the factory recorded for this hooks instance.
   error HooksFactoryMismatch();
 
   /// @dev caller is neither the hooks borrower/allowance owner nor the factory administrator.
@@ -177,25 +177,25 @@ interface IKYCRoleProviderFactory is IManagedRoleProvider, IRoleProviderFactory 
   /// @dev live `hooks.borrower()` already matches the pinned allowance owner.
   error BorrowerUnchanged();
 
-  /// @dev target approved market count cannot be zero.
+  /// @dev target approved market count can't be zero.
   error TargetCannotBeZero();
 
   /// @dev target approved market count is below the markets already deployed on the hooks instance.
   error TargetBelowCurrentMarkets();
 
-  /// @dev target approved market count cannot shrink through `authorizeHooks`; use `reduceUnusedSlots`.
+  /// @dev `authorizeHooks` doesn't shrink ceilings; use `reduceUnusedSlots`.
   error TargetBelowApprovedMarkets();
 
-  /// @dev borrower does not have enough remaining allowance for the requested market slots.
+  /// @dev borrower doesn't have enough remaining allowance for the requested slots.
   error InsufficientAllowance();
 
   /// @dev hooks instance has no active authorization record.
   error HooksNotAuthorized();
 
-  /// @dev reduced slot count must be strictly below approved count and at least current deployed count.
+  /// @dev reduced count must sit strictly below approved count and at least at deployed count.
   error InvalidSlotReduction();
 
-  /// @dev closed-market slot reclamation is currently disabled.
+  /// @dev closed-market slot reclamation is disabled.
   error SlotReclamationDisabled();
 
   /// @dev market index is outside the authorized and deployed markets on the hooks instance.
@@ -207,7 +207,7 @@ interface IKYCRoleProviderFactory is IManagedRoleProvider, IRoleProviderFactory 
   /// @dev market must be permanently closed before reclaiming its slot.
   error MarketNotClosed();
 
-  /// @dev pagination start index exceeds end index.
+  /// @dev pagination `start` exceeds `end`.
   error InvalidPaginationRange();
 
   // ░░▒▒▓▓██ [ CONFIGURATION ] ────────────────────────────────────────────────
@@ -249,8 +249,8 @@ interface IKYCRoleProviderFactory is IManagedRoleProvider, IRoleProviderFactory 
   // ┌─ setProviderAttachmentEnabled ─────
   /// @notice enable or disable an existing policy for new attachments via `createRoleProvider`.
   ///
-  /// @dev soft deprecation gate on the factory callback and UI; hooks authorization itself stays
-  ///      hook-level, so direct `hooks.addRoleProvider` on an authorized hook is unaffected.
+  /// @dev soft deprecation gate on `createRoleProvider` and UI discovery. auth stays hook-level,
+  ///      so direct `hooks.addRoleProvider` on an already-authorized hook still works.
   function setProviderAttachmentEnabled(address provider, bool enabled) external;
 
   // ┌─ policyProvider ─────
@@ -284,7 +284,11 @@ interface IKYCRoleProviderFactory is IManagedRoleProvider, IRoleProviderFactory 
   function authorizeHooks(address hooksFactory, address hooksInstance, uint32 targetApprovedMarketCount) external;
 
   // ┌─ authorizeHooks ─────
-  /// @notice reclaim optional closed markets, then authorize `hooksInstance` or raise its approved market count.
+  /// @notice reclaim optional closed markets, then authorize `hooksInstance` or raise its ceiling.
+  ///
+  /// @dev already-reclaimed inline claims are skipped so permissionless reclaims don't break
+  ///      borrower attaches. claims on `hooksInstance` in the newly covered band offset the charge;
+  ///      a zero-net expansion bypasses `borrowerAllowance`.
   function authorizeHooks(
     address hooksFactory,
     address hooksInstance,

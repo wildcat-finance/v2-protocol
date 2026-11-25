@@ -36,6 +36,7 @@ import {
 import { IKYCRoleProvider } from 'src/providers/IKYCRoleProvider.sol';
 import { EmptyHooksConfig, Bit_Enabled_Deposit } from 'src/types/HooksConfig.sol';
 import { LenderStatus } from 'src/types/LenderStatus.sol';
+import { KYCMarketLifecycle } from 'test/providers/KYCMarketLifecycle.sol';
 
 // ┌─ MockHooksFactoryForHooksTest ─────────────────────────────────────────────
 contract MockHooksFactoryForHooksTest {
@@ -123,18 +124,23 @@ contract KYCRoleProviderHooksTest is Test {
       string memory providerArtifact = vm.envString('KYC_V25_TEST_PROVIDER_ARTIFACT');
 
       registry = IKYCRegistry(deployCode(registryArtifact, abi.encode(address(this), keepers)));
-      assertEq(address(registry).codehash, keccak256(vm.getDeployedCode(registryArtifact)), 'registry runtime');
+      KYCMarketLifecycle.assertRuntimeMatchesArtifact(vm, address(registry), registryArtifact, new address[](0));
 
       factory =
         IKYCRoleProviderFactory(deployCode(factoryArtifact, abi.encode(address(this), address(registry), factories)));
-      assertEq(address(factory).codehash, keccak256(vm.getDeployedCode(factoryArtifact)), 'factory runtime');
+      address[] memory factoryImmutables = new address[](1);
+      factoryImmutables[0] = address(registry);
+      KYCMarketLifecycle.assertRuntimeMatchesArtifact(vm, address(factory), factoryArtifact, factoryImmutables);
 
       bytes32[] memory nonUSReq = new bytes32[](1);
       nonUSReq[0] = AttrVerified;
       bytes32[] memory nonUSForb = new bytes32[](1);
       nonUSForb[0] = AttrUS;
       nonUSProvider = IKYCRoleProvider(factory.deployRoleProvider('Non-US', nonUSReq, nonUSForb));
-      assertEq(address(nonUSProvider).codehash, keccak256(vm.getDeployedCode(providerArtifact)), 'provider runtime');
+      address[] memory providerImmutables = new address[](2);
+      providerImmutables[0] = address(registry);
+      providerImmutables[1] = address(factory);
+      KYCMarketLifecycle.assertRuntimeMatchesArtifact(vm, address(nonUSProvider), providerArtifact, providerImmutables);
     } else {
       registry = IKYCRegistry(
         deployCode('src/providers/KYCRegistry.sol:KYCRegistry', abi.encode(address(this), keepers))

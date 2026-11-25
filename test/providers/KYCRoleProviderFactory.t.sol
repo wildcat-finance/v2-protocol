@@ -25,6 +25,9 @@ pragma solidity 0.8.25;
 //
 //  CLOSED MARKET RECLAMATION
 //  test_firstAuthorization_ReclaimsPreClosedMarkets()
+//  test_expandAuthorization_ReclaimsOverCapClosedMarket()
+//  test_inlineReclaim_SkipsAlreadyReclaimedMarket()
+//  test_reclaimClosedMarket_BlocksReentrantMarket()
 //  test_reclaimClosedMarket_PerMarketWithoutHookRetirement()
 //  test_reclaimClosedMarket_CommitsProjectedClosureViaUpdateState()
 //  test_reclaimClosedMarket_GuardsAndToggle()
@@ -33,7 +36,8 @@ pragma solidity 0.8.25;
 //  test_slotConservation_MultiBorrowerFuzz(uint8[24],uint8[24])
 // ═════
 
-import { Test } from 'forge-std/Test.sol';
+import { Test, Vm } from 'forge-std/Test.sol';
+import { ReentrancyGuard } from 'src/ReentrancyGuard.sol';
 import { IManagedRoleProvider } from 'src/access/IManagedRoleProvider.sol';
 import {
   ClosedMarketClaim,
@@ -49,6 +53,9 @@ contract MockMarketForFactory {
   bool public isClosed;
   bool public projectedClosure;
   uint256 public updateStateCalls;
+  KYCRoleProviderFactory public reenterFactory;
+  address public reenterHooks;
+  uint256 public reenterIndex;
 
   function close() external {
     isClosed = true;
@@ -58,11 +65,22 @@ contract MockMarketForFactory {
     projectedClosure = projected;
   }
 
+  function armReentrancy(KYCRoleProviderFactory factory_, address hooks_, uint256 index_) external {
+    reenterFactory = factory_;
+    reenterHooks = hooks_;
+    reenterIndex = index_;
+  }
+
   function updateState() external {
     ++updateStateCalls;
     if (projectedClosure) {
       isClosed = true;
       projectedClosure = false;
+    }
+    if (address(reenterFactory) != address(0)) {
+      KYCRoleProviderFactory target = reenterFactory;
+      reenterFactory = KYCRoleProviderFactory(address(0));
+      target.reclaimClosedMarket(reenterHooks, reenterIndex);
     }
   }
 }
@@ -600,7 +618,7 @@ contract KYCRoleProviderFactoryTest is Test {
     vm.expectRevert(IKYCRoleProviderFactory.SlotReclamationDisabled.selector);
     hooks.callCreateRoleProvider(factory, abi.encode(attach));
 
-    // re-enable: duplicate index reverts cleanly.
+    // re-enable: duplicate index is skipped inline (nets only 1 slot, not 2, so allowance 1 still reverts).
     vm.prank(Admin);
     factory.setSlotReclamationEnabled(true);
     ClosedMarketClaim[] memory dupClaims = new ClosedMarketClaim[](2);
@@ -612,11 +630,16 @@ contract KYCRoleProviderFactoryTest is Test {
       targetApprovedMarketCount: 3,
       closedMarketsToReclaim: dupClaims
     });
-    vm.expectRevert(IKYCRoleProviderFactory.MarketAlreadyReclaimed.selector);
+    vm.expectRevert(IKYCRoleProviderFactory.InsufficientAllowance.selector);
     hooks.callCreateRoleProvider(factory, abi.encode(dupAttach));
 
     // valid pre-closed claims offset the 2 closed markets, charging net 1 slot in one tx.
+    vm.recordLogs();
     assertEq(hooks.callCreateRoleProvider(factory, abi.encode(attach)), providerA);
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    assertEq(logs[0].topics[0], IKYCRoleProviderFactory.HooksAuthorized.selector);
+    assertEq(logs[1].topics[0], IKYCRoleProviderFactory.ClosedMarketSlotReclaimed.selector);
+    assertEq(logs[2].topics[0], IKYCRoleProviderFactory.ClosedMarketSlotReclaimed.selector);
     assertEq(factory.usedSlots(BorrowerA), 1);
     assertTrue(factory.closedMarketReclaimed(address(m0)));
     assertTrue(factory.closedMarketReclaimed(address(m1)));
@@ -629,6 +652,120 @@ contract KYCRoleProviderFactoryTest is Test {
     // cannot reclaim m0 a second time.
     vm.expectRevert(IKYCRoleProviderFactory.MarketAlreadyReclaimed.selector);
     factory.reclaimClosedMarket(address(hooks), 0);
+  }
+
+  // ┌─ test_expandAuthorization_ReclaimsOverCapClosedMarket ─────
+  function test_expandAuthorization_ReclaimsOverCapClosedMarket() external {
+    MockHooksForFactory hooks = hooksFactory.createHooks(BorrowerA);
+    hooksFactory.createMarket(address(hooks)); // m0 stays open
+
+    vm.prank(Admin);
+    factory.setBorrowerAllowance(BorrowerA, 1);
+
+    vm.prank(BorrowerA);
+    factory.authorizeHooks(address(hooksFactory), address(hooks), 1);
+    assertTrue(factory.isHooksAuthorized(address(hooks)));
+    assertEq(factory.usedSlots(BorrowerA), 1);
+
+    // borrower accidentally deploys m1 over cap (freezing hooks), then closes m1.
+    MockMarketForFactory m1 = hooksFactory.createMarket(address(hooks));
+    assertFalse(factory.isHooksAuthorized(address(hooks)));
+    m1.close();
+
+    // standalone reclaim above ceiling still reverts; plain expand still lacks allowance.
+    vm.expectRevert(IKYCRoleProviderFactory.MarketIndexOutOfBounds.selector);
+    factory.reclaimClosedMarket(address(hooks), 1);
+    vm.prank(BorrowerA);
+    vm.expectRevert(IKYCRoleProviderFactory.InsufficientAllowance.selector);
+    factory.authorizeHooks(address(hooksFactory), address(hooks), 2);
+
+    // even if admin lowers allowance below live usedSlots (1 -> 0), zero-net recovery still unfreezes m0.
+    vm.prank(Admin);
+    factory.setBorrowerAllowance(BorrowerA, 0);
+
+    // expanding with inline claim on m1 nets the newly covered closure and unfreezes m0.
+    ClosedMarketClaim[] memory claims = new ClosedMarketClaim[](1);
+    claims[0] = ClosedMarketClaim({ hooksInstance: address(hooks), marketIndex: 1 });
+    vm.recordLogs();
+    vm.prank(BorrowerA);
+    factory.authorizeHooks(address(hooksFactory), address(hooks), 2, claims);
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    assertEq(logs[0].topics[0], IKYCRoleProviderFactory.HooksAuthorized.selector);
+    assertEq(logs[1].topics[0], IKYCRoleProviderFactory.ClosedMarketSlotReclaimed.selector);
+
+    assertTrue(factory.isHooksAuthorized(address(hooks)));
+    assertTrue(factory.closedMarketReclaimed(address(m1)));
+    assertEq(factory.usedSlots(BorrowerA), 1);
+    HooksAuthorization memory auth = factory.getHooksAuthorization(address(hooks));
+    assertEq(auth.approvedMarketCount, 2);
+    assertEq(auth.reclaimedMarketCount, 1);
+
+    // m1 cannot be reclaimed again standalone.
+    vm.expectRevert(IKYCRoleProviderFactory.MarketAlreadyReclaimed.selector);
+    factory.reclaimClosedMarket(address(hooks), 1);
+  }
+
+  // ┌─ test_inlineReclaim_SkipsAlreadyReclaimedMarket ─────
+  function test_inlineReclaim_SkipsAlreadyReclaimedMarket() external {
+    MockHooksForFactory hooks1 = hooksFactory.createHooks(BorrowerA);
+    MockMarketForFactory m0 = hooksFactory.createMarket(address(hooks1));
+    MockHooksForFactory hooks2 = hooksFactory.createHooks(BorrowerA);
+    hooksFactory.createMarket(address(hooks2));
+
+    vm.prank(Admin);
+    factory.setBorrowerAllowance(BorrowerA, 1);
+
+    vm.prank(BorrowerA);
+    factory.authorizeHooks(address(hooksFactory), address(hooks1), 1);
+    m0.close();
+
+    // stranger permissionlessly reclaims m0 before borrower's inline attach lands.
+    vm.prank(Stranger);
+    factory.reclaimClosedMarket(address(hooks1), 0);
+    assertEq(factory.usedSlots(BorrowerA), 0);
+
+    // standalone batch reclaim still reverts on already-reclaimed market.
+    ClosedMarketClaim[] memory claims = new ClosedMarketClaim[](1);
+    claims[0] = ClosedMarketClaim({ hooksInstance: address(hooks1), marketIndex: 0 });
+    vm.expectRevert(IKYCRoleProviderFactory.MarketAlreadyReclaimed.selector);
+    factory.reclaimClosedMarkets(claims);
+
+    // inline createRoleProvider skips the already-reclaimed claim and attaches cleanly.
+    KYCRoleProviderAttachInputs memory attach = KYCRoleProviderAttachInputs({
+      hooksFactory: address(hooksFactory),
+      provider: providerA,
+      targetApprovedMarketCount: 1,
+      closedMarketsToReclaim: claims
+    });
+    assertEq(hooks2.callCreateRoleProvider(factory, abi.encode(attach)), providerA);
+    assertEq(factory.usedSlots(BorrowerA), 1);
+    assertTrue(factory.isHooksAuthorized(address(hooks2)));
+
+    // delta == 0 expansion with a stale claim also skips cleanly.
+    assertEq(hooks2.callCreateRoleProvider(factory, abi.encode(attach)), providerA);
+    assertEq(factory.usedSlots(BorrowerA), 1);
+  }
+
+  // ┌─ test_reclaimClosedMarket_BlocksReentrantMarket ─────
+  function test_reclaimClosedMarket_BlocksReentrantMarket() external {
+    MockHooksForFactory hooks = hooksFactory.createHooks(BorrowerA);
+    MockMarketForFactory m0 = hooksFactory.createMarket(address(hooks));
+    hooksFactory.createMarket(address(hooks)); // m1 keeps usedSlots > 1 to catch double-decrement
+
+    vm.prank(Admin);
+    factory.setBorrowerAllowance(BorrowerA, 2);
+    vm.prank(BorrowerA);
+    factory.authorizeHooks(address(hooksFactory), address(hooks), 2);
+
+    m0.close();
+    m0.armReentrancy(factory, address(hooks), 0);
+
+    vm.expectRevert(ReentrancyGuard.NoReentrantCalls.selector);
+    factory.reclaimClosedMarket(address(hooks), 0);
+
+    assertEq(factory.usedSlots(BorrowerA), 2);
+    assertFalse(factory.closedMarketReclaimed(address(m0)));
+    assertEq(factory.getHooksAuthorization(address(hooks)).reclaimedMarketCount, 0);
   }
 
   // ┌─ test_reclaimClosedMarket_PerMarketWithoutHookRetirement ─────
