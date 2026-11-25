@@ -8,5 +8,6 @@
 - [EIP-4626 Wrapper](./EIP-4626.md) - ERC-4626 wrapper for Wildcat market tokens
 - [Hooks](./hooks/Hooks.md)
     - [How hooks work](./hooks/How%20Hooks%20Work.md)
+    - [KYCRoleProvider](./hooks/kyc-role-provider.md) - attribute-backed KYC registry, canonical policies, and borrower market entitlements
     - templates/
         - [Access Control Hooks](./hooks/templates/Access%20Control%20Hooks.md)

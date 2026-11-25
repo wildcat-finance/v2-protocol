@@ -3,218 +3,261 @@ pragma solidity 0.8.25;
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  |\ /|   WILDCAT v2.5 // KYCRoleProvider.t
-//  \ ^ /   Enrollment timestamps, credential lookups, and administrator transfers.
+//  \ ^ /   Policy evaluation, fail-closed forbidden keys, and hooks gating.
 //    V
 //
 //  FIXTURE
 //  setUp()
 //
-//  MEMBERSHIP
-//  test_credentials_FollowMembershipAtQueryTime(...)
-//  test_membership_InvalidChangesRevert()
-//  test_batches_AreAtomic()
+//  CONSTRUCTION AND METADATA
+//  test_constructor_InvalidInputsRevert()
+//  test_metadata_GettersMatchDeployment()
 //
-//  PROVIDER AUTHORITY
-//  test_membership_OnlyAdministratorCanWrite()
-//  test_handoff_OnlyAcceptanceMovesListAuthority()
-//  test_handoff_CancelAndInvalidTargets()
-//
-//  CREDENTIAL TIMESTAMPS
+//  POLICY AND CREDENTIALS
+//  test_credentials_RequireAuthorizedHooksAndPolicy(bytes)
+//  test_policy_ExpiredForbiddenAttributeStaysBlocked()
+//  test_policy_RequiredExpiryAndReissue()
 //  test_credentials_TimestampDoesNotWrap()
 // ═════
 
 import { Test } from 'forge-std/Test.sol';
-import { IManagedRoleProvider } from 'src/access/IManagedRoleProvider.sol';
 import { IRoleProvider } from 'src/access/IRoleProvider.sol';
+import { IKYCRegistry, KYCAttributeInput } from 'src/providers/IKYCRegistry.sol';
+import { IKYCRoleProvider } from 'src/providers/IKYCRoleProvider.sol';
+import { IKYCRoleProviderFactory } from 'src/providers/IKYCRoleProviderFactory.sol';
+import { KYCRegistry } from 'src/providers/KYCRegistry.sol';
 import { KYCRoleProvider } from 'src/providers/KYCRoleProvider.sol';
+import { KYCRoleProviderFactory } from 'src/providers/KYCRoleProviderFactory.sol';
+
+// ┌─ MockHooksFactoryForProvider ──────────────────────────────────────────────
+contract MockHooksFactoryForProvider {
+  mapping(address => bool) public isHooksInstance;
+  mapping(address => address[]) internal _markets;
+
+  function registerHooks(address hooks) external {
+    isHooksInstance[hooks] = true;
+  }
+
+  function addMarket(address hooks, address market) external {
+    _markets[hooks].push(market);
+  }
+
+  function getMarketsForHooksInstanceCount(address hooks) external view returns (uint256) {
+    return _markets[hooks].length;
+  }
+
+  function getMarketsForHooksInstance(
+    address hooks,
+    uint256 start,
+    uint256 end
+  )
+    external
+    view
+    returns (address[] memory arr)
+  {
+    address[] storage list = _markets[hooks];
+    if (end > list.length) end = list.length;
+    arr = new address[](end - start);
+    for (uint256 i; i < arr.length; ++i) {
+      arr[i] = list[start + i];
+    }
+  }
+}
+
+// ┌─ MockHooksStub ────────────────────────────────────────────────────────────
+contract MockHooksStub {
+  address public borrower;
+
+  constructor(address borrower_) {
+    borrower = borrower_;
+  }
+}
 
 // ┌─ KYCRoleProviderTest ──────────────────────────────────────────────────────
 contract KYCRoleProviderTest is Test {
-  address internal constant Operator = address(0xA11);
+  address internal constant Admin = address(0xAD1);
+  address internal constant Keeper = address(0xBEEF);
+  address internal constant Borrower = address(0xB01);
   address internal constant Alice = address(0xA11CE);
   address internal constant Bob = address(0xB0B);
-  uint32 internal constant Start = 1_760_000_000;
 
-  KYCRoleProvider internal provider;
+  bytes32 internal constant AttrVerified = bytes32(uint256(1));
+  bytes32 internal constant AttrAccredited = bytes32(uint256(2));
+  bytes32 internal constant AttrUS = bytes32(uint256(3));
+
+  uint40 internal constant Start = 1_760_000_000;
+
+  KYCRegistry internal registry;
+  KYCRoleProviderFactory internal factory;
+  MockHooksFactoryForProvider internal hooksFactory;
+  MockHooksStub internal authorizedHooks;
+  MockHooksStub internal unauthorizedHooks;
+  KYCRoleProvider internal nonUSProvider;
+  KYCRoleProvider internal usAccreditedProvider;
 
   // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
 
   // ┌─ setUp ─────
   function setUp() external {
     vm.warp(Start);
-    provider = new KYCRoleProvider(Operator);
+    address[] memory keepers = new address[](1);
+    keepers[0] = Keeper;
+    registry = new KYCRegistry(Admin, keepers);
+
+    hooksFactory = new MockHooksFactoryForProvider();
+    address[] memory factories = new address[](1);
+    factories[0] = address(hooksFactory);
+    factory = new KYCRoleProviderFactory(Admin, registry, factories);
+
+    authorizedHooks = new MockHooksStub(Borrower);
+    unauthorizedHooks = new MockHooksStub(Borrower);
+    hooksFactory.registerHooks(address(authorizedHooks));
+    hooksFactory.registerHooks(address(unauthorizedHooks));
+
+    // Soma emits positive flags only (`Institutional`, `Accredited`, `US`); Non-US requires verified + !US.
+    bytes32[] memory nonUSReq = new bytes32[](1);
+    nonUSReq[0] = AttrVerified;
+    bytes32[] memory nonUSForb = new bytes32[](1);
+    nonUSForb[0] = AttrUS;
+
+    bytes32[] memory usAccReq = new bytes32[](3);
+    usAccReq[0] = AttrVerified;
+    usAccReq[1] = AttrAccredited;
+    usAccReq[2] = AttrUS;
+    bytes32[] memory emptyForb = new bytes32[](0);
+
+    vm.startPrank(Admin);
+    nonUSProvider = KYCRoleProvider(factory.deployRoleProvider('Non-US KYC', nonUSReq, nonUSForb));
+    usAccreditedProvider = KYCRoleProvider(factory.deployRoleProvider('US Accredited', usAccReq, emptyForb));
+    factory.setBorrowerAllowance(Borrower, 2);
+    vm.stopPrank();
+
+    vm.prank(Borrower);
+    factory.authorizeHooks(address(hooksFactory), address(authorizedHooks), 1);
   }
 
-  // ░░▒▒▓▓██ [ MEMBERSHIP ] ───────────────────────────────────────────────────
+  // ░░▒▒▓▓██ [ CONSTRUCTION AND METADATA ] ────────────────────────────────────
 
-  // ┌─ test_credentials_FollowMembershipAtQueryTime ─────
-  function test_credentials_FollowMembershipAtQueryTime(address wallet, bytes calldata data) external {
-    vm.assume(wallet != address(0));
-    IRoleProvider reader = provider;
-    assertTrue(reader.isPullProvider());
-    assertFalse(provider.isMember(wallet));
-    assertEq(provider.addedAt(wallet), 0);
-    assertEq(reader.getCredential(wallet), 0);
-    assertEq(reader.validateCredential(wallet, data), 0);
+  // ┌─ test_constructor_InvalidInputsRevert ─────
+  function test_constructor_InvalidInputsRevert() external {
+    bytes32[] memory req = new bytes32[](1);
+    req[0] = AttrVerified;
+    bytes32[] memory empty = new bytes32[](0);
 
-    vm.expectEmit(true, true, false, true, address(provider));
-    emit KYCRoleProvider.MemberAdded(Operator, wallet);
-    vm.prank(Operator);
-    provider.addMember(wallet);
-    assertTrue(provider.isMember(wallet));
-    assertEq(provider.addedAt(wallet), Start);
-    assertEq(reader.getCredential(wallet), Start);
+    vm.expectRevert(IKYCRoleProvider.InvalidRegistry.selector);
+    new KYCRoleProvider(IKYCRegistry(address(0)), factory, 'x', req, empty);
+
+    vm.expectRevert(IKYCRoleProvider.InvalidFactory.selector);
+    new KYCRoleProvider(registry, IKYCRoleProviderFactory(address(0)), 'x', req, empty);
+
+    vm.expectRevert(IKYCRoleProvider.EmptyRequiredAttributes.selector);
+    new KYCRoleProvider(registry, factory, 'x', empty, empty);
+  }
+
+  // ┌─ test_metadata_GettersMatchDeployment ─────
+  function test_metadata_GettersMatchDeployment() external view {
+    assertTrue(nonUSProvider.isPullProvider());
+    assertEq(address(nonUSProvider.registry()), address(registry));
+    assertEq(address(nonUSProvider.factory()), address(factory));
+    assertEq(nonUSProvider.name(), 'Non-US KYC');
+
+    bytes32[] memory req = nonUSProvider.requiredAttributes();
+    bytes32[] memory forb = nonUSProvider.forbiddenAttributes();
+    assertEq(req.length, 1);
+    assertEq(req[0], AttrVerified);
+    assertEq(forb.length, 1);
+    assertEq(forb[0], AttrUS);
+  }
+
+  // ░░▒▒▓▓██ [ POLICY AND CREDENTIALS ] ───────────────────────────────────────
+
+  // ┌─ test_credentials_RequireAuthorizedHooksAndPolicy ─────
+  function test_credentials_RequireAuthorizedHooksAndPolicy(bytes calldata payload) external {
+    vm.prank(Keeper);
+    registry.setAttribute(KYCAttributeInput(Alice, AttrVerified, Start, 0, 1));
+
+    assertTrue(nonUSProvider.meetsPolicy(Alice));
+    assertFalse(usAccreditedProvider.meetsPolicy(Alice));
+
+    // direct EOA or unauthorized hooks instance gets zero even when the wallet meets policy.
+    assertEq(nonUSProvider.getCredential(Alice), 0);
+    vm.prank(address(unauthorizedHooks));
+    assertEq(nonUSProvider.getCredential(Alice), 0);
+    vm.prank(address(unauthorizedHooks));
+    assertEq(nonUSProvider.validateCredential(Alice, payload), 0);
+
+    // authorized hooks instance gets current block timestamp for eligible wallets.
+    vm.warp(Start + 5 days);
+    vm.startPrank(address(authorizedHooks));
+    assertEq(IRoleProvider(nonUSProvider).getCredential(Alice), Start + 5 days);
+    assertEq(IRoleProvider(nonUSProvider).validateCredential(Alice, payload), Start + 5 days);
+    assertEq(IRoleProvider(usAccreditedProvider).getCredential(Alice), 0);
+    vm.stopPrank();
+  }
+
+  // ┌─ test_policy_ExpiredForbiddenAttributeStaysBlocked ─────
+  function test_policy_ExpiredForbiddenAttributeStaysBlocked() external {
+    vm.startPrank(Keeper);
+    registry.setAttribute(KYCAttributeInput(Alice, AttrVerified, Start, Start + 365 days, 1));
+    registry.setAttribute(KYCAttributeInput(Alice, AttrUS, Start, Start + 30 days, 2));
+    vm.stopPrank();
+
+    assertFalse(nonUSProvider.meetsPolicy(Alice));
+
+    // US flag expires before base verification; Non-US policy stays blocked until keeper removes it.
+    vm.warp(Start + 31 days);
+    assertFalse(nonUSProvider.meetsPolicy(Alice));
+    vm.prank(address(authorizedHooks));
+    assertEq(nonUSProvider.getCredential(Alice), 0);
+
+    vm.prank(Keeper);
+    registry.removeAttribute(Alice, AttrUS);
+    assertTrue(nonUSProvider.meetsPolicy(Alice));
+    vm.prank(address(authorizedHooks));
+    assertEq(nonUSProvider.getCredential(Alice), Start + 31 days);
+  }
+
+  // ┌─ test_policy_RequiredExpiryAndReissue ─────
+  function test_policy_RequiredExpiryAndReissue() external {
+    vm.startPrank(Keeper);
+    registry.setAttribute(KYCAttributeInput(Alice, AttrVerified, Start, Start + 365 days, 1));
+    registry.setAttribute(KYCAttributeInput(Alice, AttrUS, Start, 0, 2));
+    registry.setAttribute(KYCAttributeInput(Alice, AttrAccredited, Start, Start + 90 days, 2));
+    vm.stopPrank();
 
     vm.warp(Start + 90 days);
-    assertEq(reader.getCredential(wallet), Start + 90 days);
-    assertEq(reader.validateCredential(wallet, data), Start + 90 days);
-    assertEq(provider.addedAt(wallet), Start);
+    vm.prank(address(authorizedHooks));
+    assertEq(usAccreditedProvider.getCredential(Alice), Start + 90 days);
 
-    vm.expectEmit(true, true, false, true, address(provider));
-    emit KYCRoleProvider.MemberRemoved(Operator, wallet);
-    vm.prank(Operator);
-    provider.removeMember(wallet);
-    assertFalse(provider.isMember(wallet));
-    assertEq(provider.addedAt(wallet), 0);
-    assertEq(reader.getCredential(wallet), 0);
-    assertEq(reader.validateCredential(wallet, data), 0);
+    vm.warp(Start + 90 days + 1);
+    vm.prank(address(authorizedHooks));
+    assertEq(usAccreditedProvider.getCredential(Alice), 0);
 
-    vm.prank(Operator);
-    provider.addMember(wallet);
-    assertEq(provider.addedAt(wallet), Start + 90 days);
-    assertEq(reader.getCredential(wallet), Start + 90 days);
+    // keeper re-issues accredited attribute -> credentials resume immediately.
+    vm.prank(Keeper);
+    registry.setAttribute(KYCAttributeInput(Alice, AttrAccredited, Start + 90 days + 1, Start + 180 days, 2));
+    vm.prank(address(authorizedHooks));
+    assertEq(usAccreditedProvider.getCredential(Alice), Start + 90 days + 1);
   }
-
-  // ┌─ test_membership_InvalidChangesRevert ─────
-  function test_membership_InvalidChangesRevert() external {
-    vm.startPrank(Operator);
-    vm.expectRevert(KYCRoleProvider.InvalidMember.selector);
-    provider.addMember(address(0));
-    vm.expectRevert(KYCRoleProvider.MemberNotFound.selector);
-    provider.removeMember(Alice);
-    provider.addMember(Alice);
-    vm.warp(Start + 1);
-    vm.expectRevert(KYCRoleProvider.MemberAlreadyExists.selector);
-    provider.addMember(Alice);
-    vm.stopPrank();
-    assertFalse(provider.isMember(address(0)));
-    assertEq(provider.addedAt(Alice), Start);
-  }
-
-  // ┌─ test_batches_AreAtomic ─────
-  function test_batches_AreAtomic() external {
-    address[] memory wallets = new address[](2);
-    wallets[0] = Alice;
-    wallets[1] = Alice;
-    vm.startPrank(Operator);
-    vm.expectRevert(KYCRoleProvider.MemberAlreadyExists.selector);
-    provider.addMembers(wallets);
-    assertEq(provider.addedAt(Alice), 0);
-
-    wallets[1] = Bob;
-    provider.addMembers(wallets);
-    assertEq(provider.addedAt(Alice), Start);
-    assertEq(provider.addedAt(Bob), Start);
-
-    vm.warp(Start + 1);
-    wallets[1] = Alice;
-    vm.expectRevert(KYCRoleProvider.MemberNotFound.selector);
-    provider.removeMembers(wallets);
-    assertEq(provider.addedAt(Alice), Start);
-    wallets[1] = Bob;
-    provider.removeMembers(wallets);
-    vm.stopPrank();
-    assertEq(provider.addedAt(Alice), 0);
-    assertEq(provider.addedAt(Bob), 0);
-  }
-
-  // ░░▒▒▓▓██ [ PROVIDER AUTHORITY ] ───────────────────────────────────────────
-
-  // ┌─ test_membership_OnlyAdministratorCanWrite ─────
-  function test_membership_OnlyAdministratorCanWrite() external {
-    address[] memory wallets = new address[](1);
-    wallets[0] = Alice;
-    vm.expectRevert(IManagedRoleProvider.CallerNotAdministrator.selector);
-    provider.addMember(Alice);
-    vm.expectRevert(IManagedRoleProvider.CallerNotAdministrator.selector);
-    provider.addMembers(wallets);
-    vm.prank(Operator);
-    provider.addMember(Alice);
-    vm.expectRevert(IManagedRoleProvider.CallerNotAdministrator.selector);
-    provider.removeMember(Alice);
-    vm.expectRevert(IManagedRoleProvider.CallerNotAdministrator.selector);
-    provider.removeMembers(wallets);
-    assertTrue(provider.isMember(Alice));
-  }
-
-  // ┌─ test_handoff_OnlyAcceptanceMovesListAuthority ─────
-  function test_handoff_OnlyAcceptanceMovesListAuthority() external {
-    vm.startPrank(Operator);
-    provider.addMember(Alice);
-    provider.requestAdministratorTransfer(Alice);
-    provider.requestAdministratorTransfer(Bob);
-    vm.stopPrank();
-    assertEq(provider.administrator(), Operator);
-    assertEq(provider.pendingAdministrator(), Bob);
-    vm.prank(Alice);
-    vm.expectRevert(IManagedRoleProvider.NotPendingAdministrator.selector);
-    provider.acceptAdministratorTransfer();
-    vm.startPrank(Bob);
-    vm.expectRevert(IManagedRoleProvider.CallerNotAdministrator.selector);
-    provider.removeMember(Alice);
-    provider.acceptAdministratorTransfer();
-    vm.stopPrank();
-    assertEq(provider.administrator(), Bob);
-    assertEq(provider.pendingAdministrator(), address(0));
-    assertTrue(provider.isMember(Alice));
-    vm.prank(Operator);
-    vm.expectRevert(IManagedRoleProvider.CallerNotAdministrator.selector);
-    provider.removeMember(Alice);
-    vm.prank(Bob);
-    provider.removeMember(Alice);
-  }
-
-  // ┌─ test_handoff_CancelAndInvalidTargets ─────
-  function test_handoff_CancelAndInvalidTargets() external {
-    vm.expectRevert(IManagedRoleProvider.InvalidAdministratorTransferTarget.selector);
-    new KYCRoleProvider(address(0));
-    vm.expectRevert(IManagedRoleProvider.CallerNotAdministrator.selector);
-    provider.requestAdministratorTransfer(Bob);
-    vm.startPrank(Operator);
-    vm.expectRevert(IManagedRoleProvider.NoPendingAdministratorTransfer.selector);
-    provider.cancelAdministratorTransfer();
-    vm.expectRevert(IManagedRoleProvider.InvalidAdministratorTransferTarget.selector);
-    provider.requestAdministratorTransfer(address(0));
-    vm.expectRevert(IManagedRoleProvider.InvalidAdministratorTransferTarget.selector);
-    provider.requestAdministratorTransfer(Operator);
-    provider.requestAdministratorTransfer(Bob);
-    vm.stopPrank();
-    vm.prank(Bob);
-    vm.expectRevert(IManagedRoleProvider.CallerNotAdministrator.selector);
-    provider.cancelAdministratorTransfer();
-    vm.prank(Operator);
-    provider.cancelAdministratorTransfer();
-    vm.prank(Bob);
-    vm.expectRevert(IManagedRoleProvider.NotPendingAdministrator.selector);
-    provider.acceptAdministratorTransfer();
-    assertEq(provider.administrator(), Operator);
-    assertEq(provider.pendingAdministrator(), address(0));
-  }
-
-  // ░░▒▒▓▓██ [ CREDENTIAL TIMESTAMPS ] ────────────────────────────────────────
 
   // ┌─ test_credentials_TimestampDoesNotWrap ─────
   function test_credentials_TimestampDoesNotWrap() external {
-    vm.prank(Operator);
-    provider.addMember(Alice);
+    vm.prank(Keeper);
+    registry.setAttribute(KYCAttributeInput(Alice, AttrVerified, Start, 0, 1));
+
     vm.warp(type(uint32).max);
-    assertEq(provider.getCredential(Alice), type(uint32).max);
+    vm.prank(address(authorizedHooks));
+    assertEq(nonUSProvider.getCredential(Alice), type(uint32).max);
+
     vm.warp(uint256(type(uint32).max) + 1);
+    vm.prank(address(authorizedHooks));
     vm.expectRevert(abi.encodeWithSignature('Panic(uint256)', 0x11));
-    provider.getCredential(Alice);
-    assertEq(provider.getCredential(Bob), 0);
-    vm.prank(Operator);
-    provider.addMember(Bob);
-    assertEq(provider.addedAt(Bob), uint256(type(uint32).max) + 1);
+    nonUSProvider.getCredential(Alice);
+
+    // ineligible wallet and unauthorized hooks still return zero cleanly past uint32 max.
+    vm.prank(address(authorizedHooks));
+    assertEq(nonUSProvider.getCredential(Bob), 0);
+    vm.prank(address(unauthorizedHooks));
+    assertEq(nonUSProvider.getCredential(Alice), 0);
   }
 }
